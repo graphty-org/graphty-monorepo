@@ -36,9 +36,10 @@ describe("Wireframe in Shape", () => {
         await waitFor(() => {
             assert.strictEqual(set()["node.wireframe"], true);
             assert.strictEqual(set()["node.meshDetail"], "low");
+            // The layer holds the write a render before the panel draws its row.
+            assert.isNotNull(section("node", "shape").querySelector('.ws-row[data-line="node.wireframe"]'));
         });
         assert.strictEqual(session.history.position, steps + 1, "one step");
-        assert.isNotNull(section("node", "shape").querySelector('.ws-row[data-line="node.wireframe"]'));
 
         await session.undo();
         await waitFor(() => {

@@ -6,7 +6,7 @@
  */
 
 import { assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import type { FindHit } from "../../index";
 import { createGraphSession } from "../../session";
@@ -62,14 +62,14 @@ describe("the finding guide's example", () => {
         });
         // --- end ---
 
-        await userEvent.fill(box, "jav");
+        await userEvent.fill(page.getByRole("textbox"), "jav");
         assert.deepEqual(
             [...list.children].map((li) => li.textContent),
             ["Javert"],
         );
         assert.lengthOf(session.selection.nodes, 0, "typing selected nothing");
 
-        await userEvent.fill(box, "purs");
+        await userEvent.fill(page.getByRole("textbox"), "purs");
         assert.deepEqual(
             [...list.children].map((li) => li.textContent),
             ["Valjean -> Javert"],
@@ -82,7 +82,7 @@ describe("the finding guide's example", () => {
 
         await session.data.addNodes([{ id: "n3", name: "Javert's brother" }]);
         assert.lengthOf(list.children, 1, "still the edge: the box reads purs");
-        await userEvent.fill(box, "jav");
+        await userEvent.fill(page.getByRole("textbox"), "jav");
         await session.data.addNodes([{ id: "n4", name: "Javotte" }]);
         assert.deepEqual(
             [...list.children].map((li) => li.textContent),
@@ -98,9 +98,9 @@ describe("the finding guide's example", () => {
         const stopListening = session.on("selection:changed", () => {
             changes.push(session.selection.nodes.length);
         });
-        await userEvent.fill(box, "Javert");
+        await userEvent.fill(page.getByRole("textbox"), "Javert");
         await userEvent.keyboard("{Enter}");
-        await userEvent.fill(box, "regex:^Jav");
+        await userEvent.fill(page.getByRole("textbox"), "regex:^Jav");
         await userEvent.keyboard("{Enter}");
         await vi.waitFor(() => {
             assert.isAbove(session.selection.nodes.length, 0, "Enter on a pattern selects what it matches");

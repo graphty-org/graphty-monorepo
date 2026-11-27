@@ -5,6 +5,7 @@
  */
 
 import {
+    type HistoryStep,
     isGraphtyError,
     type ReaderEditRow,
     type SourceCellValue,
@@ -150,6 +151,8 @@ export const WORKSPACE_WORDS = {
     perPair: "Per pair",
     untouched: "nodes with no match",
     nodesMerged: "nodes merged",
+    /** The rings the preview draws wider than the merged ring, by the kind graphty-element tells. */
+    rings: { mergedAgain: "nodes merged again", focus: "nodes every step merges" },
     nodesNew: "nodes new",
     edgesNew: "edges new",
     nodesChanged: "nodes changed",
@@ -173,6 +176,8 @@ export const WORKSPACE_WORDS = {
     drawing: "Drawing",
     committed: "Joined",
     committedAdd: "Added",
+    committedRemove: "Removed",
+    committedChange: "Changed",
     pick1: "Use existing",
     pick2: "Use incoming",
     clearPicks: "Clear",
@@ -192,6 +197,35 @@ export const WORKSPACE_WORDS = {
     minShared: "Minimum shared",
     ignore: "Every match ignores",
 } as const;
+
+/**
+ * What the join workspace's Done did, as its undo notice says it, from the commit step's fact.
+ * @param fact - the commit's `data.steps-set` fact: the joins and sources it adds and takes out.
+ * @returns such as "Joined", "Removed" or "Changed".
+ */
+export function committedWords(fact: HistoryStep["fact"]): string {
+    const count = (name: string): number => {
+        const value = fact.params[name];
+        return typeof value === "number" ? value : 0;
+    };
+    const joinsAdded = count("joinsAdded");
+    const joinsRemoved = count("joinsRemoved");
+    if (joinsAdded > 0 || joinsRemoved > 0) {
+        if (joinsAdded > 0 && joinsRemoved > 0) {
+            return WORKSPACE_WORDS.committedChange;
+        }
+        return joinsAdded > 0 ? WORKSPACE_WORDS.committed : WORKSPACE_WORDS.committedRemove;
+    }
+    const sourcesAdded = count("sourcesAdded");
+    const sourcesRemoved = count("sourcesRemoved");
+    if (sourcesAdded > 0 && sourcesRemoved === 0) {
+        return WORKSPACE_WORDS.committedAdd;
+    }
+    if (sourcesRemoved > 0 && sourcesAdded === 0) {
+        return WORKSPACE_WORDS.committedRemove;
+    }
+    return WORKSPACE_WORDS.committedChange;
+}
 
 /** A profile's kind, as the reader reads it. */
 export const KIND_WORDS: Readonly<Record<SourceProfileKind, string>> = {

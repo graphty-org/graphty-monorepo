@@ -30,6 +30,8 @@ const FILES = {
     suppliersA: csv("suppliers_a.csv", "id,duns,city", "1,x,Rome", "2,y,Oslo"),
     suppliersB: csv("suppliers_b.csv", "id,duns,city", "7,x,Bonn", "8,z,Nice"),
     contacts: csv("contacts.csv", "contact,phone,device", "C1,p1,d1", "C2,p9,d3"),
+    genes: csv("genes.csv", "symbol,tpm", "TP53,5", "TP53,6", "EGFR,7", "MYC,8"),
+    ensembl: csv("ensembl.csv", "gene,symbol", "G1,TP53", "G2,EGFR", "G3,egfr", "G4,KRAS"),
 } as const;
 
 const KEYS: Partial<Record<keyof typeof FILES, string>> = {
@@ -131,11 +133,12 @@ function make(draft: SourceDraft, acts: readonly SourceJoinAct[]): void {
  * The outcomes of some matches, in one line each.
  * @param o - The files.
  * @param texts - The matches.
+ * @param ignoreCase - Whether values compare ignoring case.
  * @returns The lines.
  */
-function listed(o: Opened, texts: readonly string[]): string[] {
+function listed(o: Opened, texts: readonly string[], ignoreCase = false): string[] {
     return o.draft
-        .joinOutcomes({ matches: texts.map((text) => match(o.key, text)) })
+        .joinOutcomes({ matches: texts.map((text) => match(o.key, text)), ignoreCase })
         .outcomes.map((each) => line(o.key, each));
 }
 
@@ -284,14 +287,14 @@ const CASES: readonly Case[] = [
         name: "two ends naming one waiting source are never offered together",
         waiting: ["transfers"],
         matches: ["transfers.from = transfers.to", "transfers.tx = transfers.to"],
-        makes: ["link transfers -> transfers (to,from)"],
+        makes: ["link transfers -> transfers (to,from)", "link transfers -> transfers (tx,to) #1"],
     },
     {
-        name: "nothing matched makes nothing",
+        name: "a match no row meets still lists every way it can be read",
         loaded: ["people"],
         waiting: ["buildings"],
         matches: ["people.person_id = buildings.city"],
-        makes: [],
+        makes: ["fields buildings -> people", "link buildings -> people"],
     },
 ];
 
@@ -300,7 +303,11 @@ describe("source-steps drafts: what matches can make", () => {
         const o = await opened(loaded, waiting);
         assert.deepStrictEqual(listed(o, matches), makes);
         const asked = matches.map((text) => match(o.key, text));
-        for (const { acts, code, uses } of o.draft.joinOutcomes({ matches: asked }).outcomes) {
+        for (const { acts, code, uses, matched } of o.draft.joinOutcomes({ matches: asked }).outcomes) {
+            if (matched.includes(0)) {
+                // a way no row meets makes nothing: its count says so
+                continue;
+            }
             make(o.draft, acts);
             const steps = o.draft.steps().filter((step) => step.op !== "join.add");
             assert.lengthOf(steps, acts.length, `${code} is a step per act`);
@@ -613,6 +620,62 @@ describe("source-steps drafts: what matches can make", () => {
         session.dispose();
     });
 
+    it("keeps a way no row meets, with its count of 0, beside the ways that match", async () => {
+        const o = await opened(["people"], ["buildings"]);
+        const asked = [match(o.key, "people.person_id = buildings.city")];
+        const { outcomes } = o.draft.joinOutcomes({ matches: asked });
+        assert.deepStrictEqual(
+            outcomes.map((each) => [each.code, each.matched]),
+            [
+                ["fields", [0]],
+                ["link", [0]],
+            ],
+        );
+        o.session.dispose();
+    });
+
+    it("counts each match an outcome uses, as its acts read the rows", async () => {
+        const o = await opened(["people", "buildings"], ["entries"]);
+        const asked = ["buildings.building = entries.building", "entries.person = people.person_id"];
+        const { outcomes } = o.draft.joinOutcomes({ matches: asked.map((text) => match(o.key, text)) });
+        assert.deepStrictEqual(
+            outcomes.map((each) => [each.code, each.matched]),
+            [
+                ["edge", [3, 3]],
+                ["middle", [3, 3]],
+            ],
+        );
+        o.session.dispose();
+    });
+
+    it("turning Ignore case on keeps the side the count is of and the order of the outcomes", async () => {
+        const o = await opened([], ["genes", "ensembl"]);
+        const text = ["genes.symbol = ensembl.symbol"];
+        // as written only genes repeats a matched value (TP53); ignoring case ensembl repeats EGFR too
+        assert.deepStrictEqual(listed(o, text, false), [
+            "fields genes -> ensembl",
+            "fields ensembl -> genes",
+            "link genes -> ensembl",
+        ]);
+        // both repeat now, so neither side's columns have one place to go: only the link is left, read the same way
+        assert.deepStrictEqual(listed(o, text, true), ["link genes -> ensembl"]);
+        const rowsOf = (ignoreCase: boolean): unknown =>
+            o.draft.joinRows({
+                a: { source: o.key.genes },
+                b: { source: o.key.ensembl },
+                match: match(o.key, text[0]),
+                ignoreCase,
+                limit: 0,
+            }).rowsOf;
+        assert.strictEqual(rowsOf(true), rowsOf(false));
+        const counts = (ignoreCase: boolean): readonly (number | null)[][] =>
+            o.draft
+                .joinOutcomes({ matches: [match(o.key, text[0])], ignoreCase })
+                .outcomes.map((each) => [...each.matched]);
+        assert.notDeepEqual(counts(true), counts(false), "the counts change, the list does not");
+        o.session.dispose();
+    });
+
     it("never chains through a column the third source has of its own", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await session.data.import(csv("n.csv", "id,symbol", "N1,x", "N2,y"), { key: "id" });
@@ -772,8 +835,20 @@ describe("source-steps drafts: drawing one join of several matches", () => {
             assert.isAbove(scale("A1"), scale("A2"), `A1, which the watchlist reaches, rings wider than A2 (${name})`);
             assert.isAbove(scale("A2"), 0, `A2 keeps its ring (${name})`);
             assert.strictEqual(scale("A2"), scale("A3"), `A2 and A3 alike (${name})`);
+            // The wider ring is told as drawn: the focus ring on A1 alone, over the ring two steps would give it.
+            assert.deepStrictEqual(shown.rings, [{ kind: "focus", scale: 2.6, nodes: 1 }], `the rings (${name})`);
             shown.end();
+            assert.deepStrictEqual(shown.rings, [], `none once it ends (${name})`);
         }
+        // Without a focus, the ring two listed steps give A1 is the one told.
+        const unfocused = o.session.styles.showDraft({
+            merged: "#009E73",
+            new: "#D55E00",
+            steps: steps.map((step) => ({ step, color: "#999933" })),
+        });
+        await o.session.styles.settled();
+        assert.deepStrictEqual(unfocused.rings, [{ kind: "mergedAgain", scale: scale("A1"), nodes: 1 }]);
+        unfocused.end();
         o.session.dispose();
     });
 });

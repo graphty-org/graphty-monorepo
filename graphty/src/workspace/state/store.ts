@@ -14,19 +14,25 @@ import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
+    DocumentSection,
     GraphSession,
     GraphtyErrorCode,
+    JoinChoices,
     LoadDraft,
+    NodeId,
     NoteTargetInput,
     ScopeInput,
     ScoreTerm,
     SourceKey,
+    SourceStorage,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
 import { type ReactNode, useSyncExternalStore } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { InspectedKind } from "../commands/registry";
+import type { ExportDraft } from "../export/choices";
+import type { JoinHow } from "../join/commands";
 import {
     layoutOf,
     MAP_DEPTH_INDEPENDENT_SIZE,
@@ -34,6 +40,7 @@ import {
     readWorkspaceLayout,
     writeWorkspaceLayout,
 } from "../settings/preferences";
+import type { KeptShaderDrafts } from "../style/ShaderEditorDialog";
 
 /**
  * How the open project was opened, when opening it again gives the same project: one of the app's
@@ -288,6 +295,17 @@ export interface WorkspaceState {
     /** A joined table whose join the join screen is editing (its row's Edit join), or null. */
     readonly editingJoin: SourceKey | null;
     /**
+     * What the reader chose on the join screen so far, for the table it names (a joined table's
+     * key, or the file's name): the match, how it joins and the load Replace data replaces. Null
+     * once the join is done or canceled.
+     */
+    readonly joinDraft: {
+        readonly subject: string;
+        readonly choices: JoinChoices;
+        readonly how: JoinHow;
+        readonly target: SourceKey | null;
+    } | null;
+    /**
      * The edge ends picked for a load whose rows are still nodes (Fields' Rows are, or a header's
      * Role): the load is read again as edges once both are picked.
      */
@@ -412,6 +430,32 @@ export interface WorkspaceState {
     readonly analyzeOn: string | null;
     /** The settings Analyze opens that algorithm with (a result's Run again with changes...), else null. */
     readonly analyzeValues: Readonly<Record<string, unknown>> | null;
+    /**
+     * What the Path popover holds so far: each end's text and the node picked for it, and its
+     * other settings. Null until the reader changes one, and again once the popover closes.
+     */
+    readonly pathDraft: {
+        readonly source: { readonly text: string; readonly node: NodeId | null };
+        readonly target: { readonly text: string; readonly node: NodeId | null };
+        readonly values: Readonly<Record<string, unknown>>;
+    } | null;
+    /**
+     * What the reader chose in Save as so far: the name typed, the sections, the file's form and
+     * each source's copy or reference. Null until one is changed, and again once it closes.
+     */
+    readonly saveAsDraft: {
+        readonly name: string;
+        readonly chosen: readonly DocumentSection[];
+        readonly form: "full" | "section";
+        readonly storage: Readonly<Record<string, SourceStorage>>;
+    } | null;
+    /**
+     * What the Export dialog holds: the output shown, each output's choices (the Report's title
+     * and words among them) and the files exported. Null until the reader changes one.
+     */
+    readonly exportDraft: ExportDraft | null;
+    /** The shader editor's unsent drafts, one per target, kept when it closes without adding; null: none yet. */
+    readonly shaderDrafts: KeptShaderDrafts | null;
     /** The terms the Custom score dialog opens with (a result's Combine into a score...), else null. */
     readonly scoreOn: { readonly kind: "node" | "edge"; readonly terms: readonly ScoreTerm[] } | null;
     /** The source a Sources row's Export... opened Data on (its key), else null. */
@@ -528,6 +572,7 @@ export const ON_RELOAD = {
     dockMaximized: "kept",
     joining: "fresh: read: read again from graphty-element's prepared load (data.prepared()), which its autosave keeps",
     editingJoin: "kept",
+    joinDraft: "kept",
     ends: "kept",
     joinWorkspace: "kept",
     stagedEnds: "kept",
@@ -561,6 +606,10 @@ export const ON_RELOAD = {
     serverKind: "kept",
     analyzeOn: "kept",
     analyzeValues: "kept",
+    pathDraft: "kept",
+    saveAsDraft: "kept",
+    exportDraft: "kept",
+    shaderDrafts: "kept",
     scoreOn: "kept",
     serverEdit: "kept",
     singleKeyShortcuts: "fresh: read: read from this browser's settings at start",
@@ -684,6 +733,7 @@ const INITIAL: WorkspaceState = {
     dockMaximized: false,
     joining: null,
     editingJoin: null,
+    joinDraft: null,
     ends: null,
     joinWorkspace: false,
     stagedEnds: null,
@@ -718,6 +768,10 @@ const INITIAL: WorkspaceState = {
     serverKind: null,
     analyzeOn: null,
     analyzeValues: null,
+    pathDraft: null,
+    saveAsDraft: null,
+    exportDraft: null,
+    shaderDrafts: null,
     scoreOn: null,
     serverEdit: null,
     singleKeyShortcuts: true,

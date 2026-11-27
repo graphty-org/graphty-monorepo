@@ -3770,7 +3770,7 @@ export class UpdateManager implements Manager {
      * the change arrived (issue #5097). Not when the camera had already stopped following it.
      * @param following - The selection the camera was following before the change.
      */
-    holdSelectionFollow(following: readonly SelectedPlace[] = []): void {
+    holdSelectionFollow(following: readonly Node[] = []): void {
         if (following.length > 0 && !isHeld(following, this.heldSelection)) {
             this.finishGlideTo(following);
         }

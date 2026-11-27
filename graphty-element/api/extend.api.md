@@ -2518,6 +2518,8 @@ class Node_2 implements ModelUser {
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
     // @internal
+    static haloSource(cache: MeshCache, shape: Mesh, look: GraphSelectionStyleConfig, selection: GraphSelectionStyleConfig, is2D: boolean): Mesh;
+    // @internal
     get hiddenByStyle(): boolean;
     hideTooltip(): void;
     readonly id: NodeIdType;
@@ -2579,6 +2581,11 @@ class Node_2 implements ModelUser {
     // @internal
     resampleLabel(): void;
     get roundRadius(): number | null;
+    // @internal
+    static rowHalo(cache: MeshCache, shape: Mesh, layer: NonNullable<NodeStyleConfig["effect"]>["halo"] | undefined, selection: GraphSelectionStyleConfig, is2D: boolean): {
+        source: Mesh;
+        matrix: ArrayLike<number>;
+    } | null;
     // @internal
     get screenBorder(): boolean;
     // @internal

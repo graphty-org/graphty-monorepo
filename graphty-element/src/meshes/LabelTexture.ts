@@ -28,6 +28,11 @@ export class LabelTexture extends DynamicTexture {
     private copy: ICanvas | null = null;
     /** Whether the copy changed size since it was last made the uploaded canvas. */
     private resized = false;
+    /**
+     * Takes an upload instead of the texture: given the canvas the texture would upload, it returns true when it drew
+     * the label from that canvas itself (LabelAtlas), and the texture's own GPU copy is then left empty.
+     */
+    sink: ((canvas: ICanvas) => boolean) | null = null;
 
     /**
      * Make the texture over the canvas the label is drawn on, uploaded whole until {@link showAt}.
@@ -124,7 +129,26 @@ export class LabelTexture extends DynamicTexture {
             context.drawImage(this.drawing as unknown as CanvasImageSource, 0, 0, shown.width, shown.height);
         }
 
+        if (shown !== null && this.sink?.(shown) === true) {
+            // Drawn from elsewhere: the plane draws nothing, but whatever asks whether it is ready to is answered.
+            const internal = this.getInternalTexture();
+            if (internal) {
+                internal.isReady = true;
+            }
+            return;
+        }
+
         super.update(invertY, premulAlpha, allowGPUOptimization);
+    }
+
+    /**
+     * Whether it uploads a smaller copy of its drawing, sampled without blending mip levels (see RichTextLabel's
+     * `uploadAt`), rather than the drawing itself.
+     * @returns True while shown smaller.
+     */
+    get shrunk(): boolean {
+        const shown = this.fields()._canvas;
+        return shown !== null && shown !== this.drawing;
     }
 
     /** Dispose the texture, and empty the smaller copy it uploads; the drawing is the label's. */

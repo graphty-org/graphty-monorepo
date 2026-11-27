@@ -43,6 +43,7 @@ import {
     convexHull,
     drawnAgainstBox,
     flatShapeOutline,
+    insetOutline,
     inUnitBox,
     isFlatShape,
     mitredEdges,
@@ -640,11 +641,13 @@ export class NodeMesh {
         if (isFlatShape(createOptions.shape.type)) {
             const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
             const extents = this.extentsOf(createOptions.shape, size);
+            const { inset } = this.borderFit(createOptions.shape, createOptions.border, extents);
 
             return this.createFlatShape(
                 createOptions.shape,
-                this.fillExtents(extents, this.borderFit(createOptions.shape, createOptions.border, extents).inset),
+                this.fillExtents(extents, inset),
                 scene,
+                this.fillOutline(createOptions.shape, extents, inset),
             );
         }
 
@@ -826,17 +829,19 @@ export class NodeMesh {
      * @param shape - The node's shape block; its type is a flat shape.
      * @param extents - The node's extents.
      * @param scene - The scene.
+     * @param outline - The outline it is drawn with; by default the shape's own at its extents.
      * @returns The mesh.
      */
     private static createFlatShape(
         shape: NonNullable<NodeStyleConfig["shape"]>,
         extents: NodeExtents,
         scene?: Scene,
+        outline = this.flatOutline(shape, extents),
     ): Mesh {
         const type = shape.type ?? "";
 
         const build = type === "none" ? bodilessSlab : outlineSlab;
-        const mesh = build(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
+        const mesh = build(type, outline, extents.z ?? extents.across, scene);
         // a rounded polygon's label is placed against its sharp twin's box, the node's own width and height, as
         // Cytoscape.js places it: its rounded apex is lower than the box's top (json-cyjs-synth-nodes round-triangle)
         // the twins named in shapeOutlines' ROUNDED are node shapes too
@@ -898,11 +903,25 @@ export class NodeMesh {
         const flat = isFlatShape(shape.type);
         const instance = cache.get(`node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
             const extents = this.fillExtents(sized, inset);
-            const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+            const outline = flat ? this.fillOutline(shape, sized, inset) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
+            const style = border?.style ?? "solid";
+            // a solid ring round a drawn-in fill is the band out to the shape's own outline (or half the width past
+            // it, centered), point for point: grown back out from the fill, a corner the fill closed up came back
+            // sharp, past a rounded shape's outline
+            const full =
+                flat && inset > 0 && style === "solid" && wave === undefined ? this.flatOutline(shape, sized) : null;
             const piecesOf = (round: Point2[]): RingPiece[] =>
-                borderRing(round, width, border?.style ?? "solid", wave, options.dashUnit);
+                full === null
+                    ? borderRing(round, width, style, wave, options.dashUnit)
+                    : [
+                          {
+                              inner: round,
+                              outer: width > inset ? offsetOutline(full, width - inset) : full,
+                              closed: true,
+                          },
+                      ];
             const color = border?.color ?? "#000000";
 
             const ring = { outline, depth, piecesOf, flat, color, opacity };
@@ -955,7 +974,7 @@ export class NodeMesh {
         const flat = isFlatShape(shape.type);
         const instance = cache.get(`node-outer-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
             const extents = this.fillExtents(sized, inset);
-            const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+            const outline = flat ? this.fillOutline(shape, sized, inset) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             // each further ring (`count`, Graphviz's peripheries) starts the offset beyond the one before
             const step = width + Math.max(0, (outerBorder?.offset ?? 0) * perSize);
@@ -1291,17 +1310,35 @@ export class NodeMesh {
     ): { outline: Point2[]; width: number; height: number } {
         const shape = createOptions.shape ?? {};
         const sized = this.extentsOf(shape, Math.max(shape.size ?? size, MIN_NODE_SIZE));
-        const extents = this.fillExtents(sized, this.borderFit(shape, createOptions.border, sized).inset);
+        const { inset } = this.borderFit(shape, createOptions.border, sized);
+        const extents = this.fillExtents(sized, inset);
         const width = extents.x ?? extents.across;
         const height = extents.y ?? extents.across;
         // a node with no body has its box for a face
         const flat = shape.type !== undefined && isFlatShape(shape.type);
-        let outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+        let outline = flat ? this.fillOutline(shape, sized, inset) : this.solidOutline(fill);
         if (shape.type === "none") {
             outline = flatShapeOutline("rectangle", width, height);
         }
 
         return { outline, width, height };
+    }
+
+    /**
+     * A flat shape's fill outline: its own outline at its size, drawn in by a border's inset on every side.
+     * @param shape - The node's shape block; its type is a flat shape.
+     * @param sized - The node's extents at its size.
+     * @param inset - How far the fill is drawn in ({@link borderFit}).
+     * @returns The outline, counter-clockwise.
+     */
+    private static fillOutline(
+        shape: NonNullable<NodeStyleConfig["shape"]>,
+        sized: NodeExtents,
+        inset: number,
+    ): Point2[] {
+        const outline = this.flatOutline(shape, sized);
+
+        return inset > 0 && outline.length >= 3 ? insetOutline(outline, inset) : outline;
     }
 
     private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {

@@ -866,6 +866,103 @@ export function offsetOutline(outline: readonly Point2[], distance: number): Poi
     });
 }
 
+/**
+ * A closed outline drawn in by a distance on every side, point for point: each side moved in parallel to itself, and
+ * a side that shrinks to nothing on the way dropped, its neighbors meeting where it closed (a rounded corner's arc
+ * closes up into a sharp corner, a narrow point's sides into its tip). An outline narrower than twice the distance
+ * closes up to almost nothing: it is drawn in only as far as it can be. Scaling the shape about its center instead
+ * keeps a side parallel only on a rectangle or an ellipse: a triangle's slanted sides came in by less than the
+ * distance, and its fill sat off-center (issue #10408).
+ *
+ * ponytail: drops a side only where its neighbors meet over it (a straight skeleton's edge events); a concave outline
+ * whose two far-apart parts meet first (a split event) is drawn past where they meet. A full straight skeleton if a
+ * shape needs it.
+ * @param outline - The outline, counter-clockwise.
+ * @param distance - How far in.
+ * @returns The drawn-in outline; the point at i is where the outline's point i went.
+ */
+export function insetOutline(outline: readonly Point2[], distance: number): Point2[] {
+    // side k runs from point k to point k + 1, on the line n . X = c, n its outward normal; drawn in by t, n . X = c - t
+    const sides = outline.map(([x, y], k) => {
+        const [nx, ny] = outline[(k + 1) % outline.length];
+        const n = unitNormal(x, y, nx, ny);
+        return { n, c: n[0] * x + n[1] * y, d: [nx - x, ny - y] as Point2 };
+    });
+    // where side a's line meets side b's, drawn in by t: null when they are parallel
+    const meet = (a: number, b: number, t: number): Point2 | null => {
+        const [p, q] = [sides[a], sides[b]];
+        const det = p.n[0] * q.n[1] - p.n[1] * q.n[0];
+        if (Math.abs(det) < 1e-9) {
+            return null;
+        }
+        const [ca, cb] = [p.c - t, q.c - t];
+        return [(ca * q.n[1] - cb * p.n[1]) / det, (p.n[0] * cb - q.n[0] * ca) / det];
+    };
+    let alive = sides.map((_, k) => k).filter((k) => Math.hypot(...sides[k].d) > 1e-12);
+    // the corners of the sides left, drawn in by t: corner j starts side alive[j]
+    const corners = (live: number[], t: number): Point2[] | null => {
+        const out: Point2[] = [];
+        for (let j = 0; j < live.length; j++) {
+            const at = meet(live[(j + live.length - 1) % live.length], live[j], t);
+            if (at === null) {
+                return null;
+            }
+            out.push(at);
+        }
+        return out;
+    };
+    let reach = distance;
+    // how far in the last side dropped closed up
+    let since = 0;
+    for (;;) {
+        // a straight run of sides is one line: keep its first
+        const straight = alive.findIndex((k, j) => meet(alive[(j + alive.length - 1) % alive.length], k, 0) === null);
+        if (straight >= 0 && alive.length > 3) {
+            alive = alive.filter((_, j) => j !== straight);
+            continue;
+        }
+        const [now, later] = [corners(alive, 0), corners(alive, 1)];
+        if (now === null || later === null || alive.length < 3) {
+            return outline.map((p): Point2 => [p[0], p[1]]);
+        }
+        // side j shrinks along its own direction at a steady rate as t grows; it is gone where its length is 0
+        let first = -1;
+        let when = Infinity;
+        alive.forEach((k, j) => {
+            const next = (j + 1) % alive.length;
+            const { d } = sides[k];
+            const length = d[0] * (now[next][0] - now[j][0]) + d[1] * (now[next][1] - now[j][1]);
+            const rate = d[0] * (later[next][0] - later[j][0]) + d[1] * (later[next][1] - later[j][1]) - length;
+            if (rate < 0 && -length / rate >= since - 1e-9 && -length / rate < when) {
+                [first, when] = [j, -length / rate];
+            }
+        });
+        if (first < 0 || when >= reach) {
+            break;
+        }
+        if (alive.length <= 3) {
+            // it closes up here: drawn in all but a sliver of the way, so the fill keeps an area
+            reach = when * 0.999;
+            break;
+        }
+        alive = alive.filter((_, j) => j !== first);
+        since = when;
+    }
+
+    const drawn = corners(alive, reach) ?? [];
+    // point i went where the first side left at or after side i starts
+    const startOf = new Map(alive.map((k, j) => [k, j]));
+    return outline.map((_, i): Point2 => {
+        for (let k = 0; k < outline.length; k++) {
+            const j = startOf.get((i + k) % outline.length);
+            if (j !== undefined) {
+                return drawn[j];
+            }
+        }
+        return [0, 0];
+    });
+}
+
 /** How far a corner's mitre reaches past it, at most, as a multiple of the offset (see {@link offsetOutline}). */
 const MITRE_LIMIT = 3;
 

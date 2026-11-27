@@ -1113,6 +1113,13 @@ export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" |
     readonly suggested?: ColumnRole;
 }
 
+// @beta
+export interface DraftRing {
+    readonly kind: "mergedAgain" | "focus";
+    readonly nodes: number;
+    readonly scale: number;
+}
+
 // @public
 export interface DraftRow {
     readonly line: number;
@@ -9451,6 +9458,7 @@ export interface StylesApi {
     // @beta
     showDraft(view: DraftView): {
         end(): void;
+        readonly rings: readonly DraftRing[];
     };
     // @beta
     readonly showingBranches: boolean;

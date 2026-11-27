@@ -39,9 +39,15 @@ export interface EdgeRow {
     readonly target: NodeIdType;
 }
 
+/**
+ * A point in the graph's scene, in scene units: where a layout puts a node, or one end of an edge.
+ */
 export interface Position {
+    /** Distance along the horizontal axis. */
     x: number;
+    /** Distance along the vertical axis. */
     y: number;
+    /** Distance along the depth axis; absent (read as 0) for a point in a 2D layout. */
     z?: number;
 }
 
@@ -59,8 +65,14 @@ interface Coords {
     z: number;
 }
 
+/**
+ * Where a layout puts an edge: its two ends, and optionally the route, labels and line ends the
+ * layout laid out for it. A layout engine returns one from {@link LayoutEngine.getEdgePosition}.
+ */
 export interface EdgePosition {
+    /** Where the edge's source end is: normally the source node's position. */
     src: Position;
+    /** Where the edge's target end is: normally the target node's position. */
     dst: Position;
     /**
      * The route the layout laid the edge along, when it laid one (Graphviz's splines): `along, across`
@@ -118,7 +130,9 @@ export interface EdgePosition {
      * @since 3.36.0
      */
     lineEnds?: {
+        /** Where the line starts, at the source end. */
         readonly source: readonly [along: number, across: number];
+        /** Where the line ends, at the target end: where an arrowhead's tip goes. */
         readonly target: readonly [along: number, across: number];
     };
 }
@@ -268,8 +282,17 @@ export interface LayoutEngineStatics {
      * can answer a plugin's own id.
      */
     descriptor?: AuthoredLayoutDescriptor;
+    /** The options this layout accepts, with their defaults and limits; absent when it takes none. */
     zodOptionsSchema?: OptionsSchema;
+    /**
+     * The options this layout accepts.
+     * @returns The options schema, or an empty object when the layout takes no options.
+     */
     getZodOptionsSchema(): OptionsSchema;
+    /**
+     * Whether this layout accepts any options.
+     * @returns True when its options schema names at least one option.
+     */
     hasZodOptions(): boolean;
 }
 
@@ -595,7 +618,9 @@ export abstract class LayoutEngine {
         };
     }
 
+    /** The name a consumer passes to `setLayout` to choose this layout. Every engine class declares one. */
     static type: string;
+    /** The most dimensions this layout can arrange a graph in: 2, or 3 for one that also lays out depth. */
     static maxDimensions: number;
 
     /**
@@ -710,12 +735,22 @@ export abstract class LayoutEngine {
     private followerMembers: ReadonlyMap<number, readonly number[]> = new Map();
 
     // basic functionality
+    /**
+     * Prepare the engine before its first step: an engine that loads code or data does it here.
+     * The element awaits it once, after giving the engine the graph's nodes and edges.
+     * @returns A promise that settles when the engine is ready.
+     */
     abstract init(): Promise<void>;
     // The element's to call: the engine follows the graph slice, and a consumer who added or removed
     // an element here would leave the engine out of step with the graph, with no step to undo.
     // The element calls these through `layoutEngineInternals`; an engine author implements them.
     protected abstract addNode(n: Node): void;
     protected abstract addEdge(e: Edge): void;
+    /**
+     * Where the layout puts a node now.
+     * @param n - The node.
+     * @returns Its position, in scene units.
+     */
     abstract getNodePosition(n: Node): Position;
     /**
      * Place one node, as a drag or a restore does. Protected: the element reaches it through
@@ -723,6 +758,11 @@ export abstract class LayoutEngine {
      * so a caller cannot place a node without a step.
      */
     protected abstract setNodePosition(n: Node, p: Position): void;
+    /**
+     * Where the layout puts an edge now: its two ends, and any route or label places the layout lays out.
+     * @param e - The edge.
+     * @returns Its ends, in scene units, and whatever else the layout placed for it.
+     */
     abstract getEdgePosition(e: Edge): EdgePosition;
     /**
      * Where the layout put a node's external label (`xlabel`), when it places one (Graphviz's `xlp`): the label's
@@ -745,18 +785,28 @@ export abstract class LayoutEngine {
         return false;
     }
     // for animated layouts
+    /**
+     * Advance the layout by one step. An animated layout (a force simulation) moves its nodes a
+     * little each call; a layout computed in one pass does nothing here. The element calls it every
+     * frame until {@link LayoutEngine.isSettled} is true.
+     */
     abstract step(): void;
     /** Hold a node where it is; protected for the reason {@link LayoutEngine.setNodePosition} is. */
     protected abstract pin(n: Node): void;
     /** Release a held node; protected for the reason {@link LayoutEngine.setNodePosition} is. */
     protected abstract unpin(n: Node): void;
     // properties
+    /** Every node the engine lays out. */
     abstract get nodes(): Iterable<Node>;
     /**
      * Every edge the engine holds. An engine that takes an edge up later than it is told must
      * return an array: the frame loop notices that edge by the array's length.
      */
     abstract get edges(): Iterable<Edge>;
+    /**
+     * Whether the layout has finished moving nodes: true once further steps would change nothing,
+     * which is when the element stops stepping it.
+     */
     abstract get isSettled(): boolean;
 
     /**
@@ -1766,10 +1816,17 @@ export abstract class LayoutEngine {
     }
 }
 
+/**
+ * The options every layout computed in one pass accepts. Other keys pass through untouched, for the
+ * layout itself to read.
+ */
 export const SimpleLayoutConfig = z.looseObject({
+    /** How many scene units one layout unit spans: larger spreads the drawing out. Defaults to 100. */
     scalingFactor: z.number().default(100),
 });
+/** The options of a layout computed in one pass, with every default filled in. */
 export type SimpleLayoutConfigType = z.infer<typeof SimpleLayoutConfig>;
+/** The options a layout computed in one pass is constructed with; every one may be left out. */
 export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
 
 /**
@@ -2338,6 +2395,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         };
     }
 
+    /** The name a consumer passes to `setLayout` to choose this layout. Every engine class declares one. */
     static type: string;
     readonly #nodes: Node[] = [];
     readonly #edges: Edge[] = [];
@@ -2345,11 +2403,19 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     readonly #goneNodes = new Set<Node>();
     /** Edges removed since the list was last read. */
     readonly #goneEdges = new Set<Edge>();
+    /**
+     * Whether the graph changed since the layout was last computed, so the next read of a position
+     * computes it again. Set it to true to force a recompute.
+     */
     stale = true;
     /** What an engine that does not read the protected `graph` computed, keyed by node id, in layout units. */
     positions: Record<string | number, number[]> = {};
     /** What an engine that reads the protected `graph` computed: row `i` is row `i` of that graph. */
     protected result: LayoutResult | null = null;
+    /**
+     * How many scene units one layout unit spans: the engine multiplies what `doLayout` computes by
+     * this. Set from the `scalingFactor` option; 100 unless given.
+     */
     scalingFactor = 100;
 
     /** The graph of the run in progress or the last one, once `graph` has been read. */

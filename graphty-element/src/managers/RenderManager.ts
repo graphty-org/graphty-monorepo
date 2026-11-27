@@ -1160,10 +1160,6 @@ export class RenderManager implements Manager {
 
         // Initialize camera manager
         this.camera = new CameraManager(this.scene);
-        // A wheel run ends at a frame of its own, which a loop drawing on demand would not draw.
-        this.camera.requestFrame = () => {
-            this.requestFrame();
-        };
 
         // Store camera manager in scene metadata for access by other components
         this.scene.metadata ??= {};
@@ -2514,7 +2510,7 @@ export class RenderManager implements Manager {
         this.camera.registerCamera("orbit", orbitCamera, orbitInput);
 
         const twoDCamera = new TwoDCameraController(this.scene, this.engine, this.canvas, {
-            panAcceleration: 0.02,
+            panAcceleration: 0.004,
             panDamping: 0.85,
             zoomFactorPerFrame: 0.02,
             zoomDamping: 0.85,
@@ -2534,7 +2530,7 @@ export class RenderManager implements Manager {
             inertiaEnabled: true,
         });
         const twoDInput = new InputController(twoDCamera, this.canvas, {
-            panAcceleration: 0.02,
+            panAcceleration: 0.004,
             panDamping: 0.85,
             zoomFactorPerFrame: 0.02,
             zoomDamping: 0.85,

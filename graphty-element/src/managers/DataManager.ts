@@ -137,11 +137,18 @@ export interface EdgeBundle {
  * @param nodes - The nodes `teardown` disposes.
  * @param edges - The edges `teardown` disposes.
  * @param teardown - Disposes them.
+ * @param keep - Meshes of those nodes that `teardown` keeps, losing only what hangs from them (a
+ *     2D/3D switch, `keepNodeMeshForDimension`): they stay in the scene lists where they were.
  * @returns What `teardown` returns.
  */
-export function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
+export function disposeReleased<T>(
+    nodes: Iterable<Node>,
+    edges: Iterable<Edge>,
+    teardown: () => T,
+    keep?: ReadonlySet<AbstractMesh>,
+): T {
     // The labels go together too, after the lists below are restored: see LabelBatch (issue #2804).
-    return disposeLabelsTogether(() => setAsideAndDispose(nodes, edges, teardown));
+    return disposeLabelsTogether(() => setAsideAndDispose(nodes, edges, teardown, keep));
 }
 
 /**
@@ -149,11 +156,20 @@ export function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>,
  * @param nodes - The nodes `teardown` disposes.
  * @param edges - The edges `teardown` disposes.
  * @param teardown - Disposes them.
+ * @param keep - The meshes it keeps.
  * @returns What `teardown` returns.
  */
-function setAsideAndDispose<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
+function setAsideAndDispose<T>(
+    nodes: Iterable<Node>,
+    edges: Iterable<Edge>,
+    teardown: () => T,
+    keep?: ReadonlySet<AbstractMesh>,
+): T {
     const doomed = new Set<AbstractMesh>();
     collectDoomed(nodes, edges, doomed);
+    for (const mesh of keep ?? []) {
+        doomed.delete(mesh);
+    }
 
     // Only the parents that are not going themselves: a label's node mesh is, and its child list
     // is a handful long anyway.

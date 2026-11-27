@@ -72,6 +72,8 @@ interface EdgeMeshOptions {
     styleId: string;
     width: number;
     color: string;
+    /** The share of a solid line's width left undrawn down its middle (`JoinedLineOptions.hollow`); default 0. */
+    hollow?: number;
 }
 
 export interface ArrowHeadOptions {
@@ -613,7 +615,7 @@ export class EdgeMesh {
                         scene,
                         widened,
                         style.line?.minScreenWidth,
-                        { fade, opaque },
+                        { fade, opaque, hollow: options.hollow },
                     ),
                 ),
                 scene,
@@ -808,7 +810,7 @@ export class EdgeMesh {
 
         return cache.getPulledBatch(key, () => {
             const mesh = flat
-                ? this.createFlatPulledLine(options, style, scene, leanLine, pattern)
+                ? this.createFlatPulledLine(options, style, scene, leanLine, pattern, curve)
                 : this.createStaticLine(options, style, scene, false, kind, pattern);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
@@ -874,6 +876,7 @@ export class EdgeMesh {
      * @param scene - The scene.
      * @param lean - Whether it draws the lean program (`EDGE_PULLED_LEAN`), as a straight 3D batch does.
      * @param pattern - A dashed or dotted line's pattern, as the 2D joined line draws it (`lineBatch`).
+     * @param curve - Whether it is a curve batch (`EDGE_PULLED_CURVE`), as a 3D one is (#10083).
      * @returns The mesh.
      */
     private static createFlatPulledLine(
@@ -881,7 +884,8 @@ export class EdgeMesh {
         style: EdgeStyleConfig,
         scene: Scene,
         lean: LeanLines,
-        pattern?: JoinedLineOptions["pattern"],
+        pattern: JoinedLineOptions["pattern"] | undefined,
+        curve: boolean,
     ): Mesh {
         return CustomLineRenderer.createJoinedLineMesh(
             {
@@ -892,6 +896,7 @@ export class EdgeMesh {
                 minScreenWidth: style.line?.minScreenWidth,
                 opaque: this.drawsOpaque(style),
                 pulled: true,
+                pulledCurve: curve,
                 pulledLean: lean,
                 pattern,
             },
@@ -1282,6 +1287,7 @@ export class EdgeMesh {
                 opacity: this.opacityOf(style),
                 widened,
                 minScreenWidth: style.line?.minScreenWidth,
+                hollow: options.hollow,
                 fade: widened ? this.fadeOf(style) : undefined,
                 opaque: this.drawsOpaque(style),
                 pulled: pulled !== false,

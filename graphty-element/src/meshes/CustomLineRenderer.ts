@@ -86,6 +86,11 @@ export interface JoinedLineOptions {
     /** The fewest screen pixels wide the line is drawn at any zoom (`line.minScreenWidth`); default 0. */
     minScreenWidth?: number;
     /**
+     * The share of the line's drawn width, down its middle, left undrawn (`EDGE_HOLLOW`), 0 to 1: a
+     * casing around another line drawn there. Default 0, a solid line.
+     */
+    hollow?: number;
+    /**
      * Fade by the edge's length on screen (`line.fade`, `EDGE_FADE`), read from the whole edge's
      * length, which only a widened batch carries; so it implies `widened`.
      */
@@ -211,6 +216,7 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.program === undefined ? [] : ["#define EDGE_SHADED"]),
         ...(options.fade === undefined ? [] : ["#define EDGE_FADE"]),
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
+        ...((options.hollow ?? 0) > 0 ? ["#define EDGE_HOLLOW"] : []),
         ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
         ...(options.pulled === true && options.pulledCurve === true ? ["#define EDGE_PULLED_CURVE"] : []),
         ...(options.pulled === true && options.pulledCurve !== true ? leanDefines(options) : []),
@@ -651,6 +657,7 @@ void main(void) {
                     ...(options.pulled === true && options.pulledCurve !== true ? ["endsPlaced", "pulledPattern"] : []),
                     ...(widened ? ["edgeReach"] : []),
                     ...(fade === undefined ? [] : ["edgeFade"]),
+                    ...((options.hollow ?? 0) > 0 ? ["hollow"] : []),
                     ...(program?.uniforms ?? []),
                 ],
                 samplers: [...joinedLineSamplers(options), ...(program?.samplers ?? [])],
@@ -693,6 +700,7 @@ void main(void) {
         material.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
         material.setFloat("width", options.width);
         material.setFloat("minWidth", options.minScreenWidth ?? 0);
+        material.setFloat("hollow", options.hollow ?? 0);
         material.setFloat("opacity", opacity);
         material.setFloat("miterLimit", EDGE_MITER_LIMIT);
         setPattern(material, options);

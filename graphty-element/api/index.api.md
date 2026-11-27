@@ -6434,6 +6434,8 @@ class Node_2 implements ModelUser {
     // @internal
     get screenBorder(): boolean;
     // @internal
+    get selectionShowsOnlyHalo(): boolean;
+    // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
@@ -8590,7 +8592,7 @@ export class RenderManager implements Manager {
     relightBatches(): void;
     requestFrame(): void;
     // @internal
-    resize(): void;
+    resize(): boolean;
     // (undocumented)
     scene: Scene;
     setPixelRatio(ratio: PixelRatio): void;
@@ -9665,6 +9667,8 @@ export class UpdateManager implements Manager {
     get frameIsStable(): boolean;
     // @internal
     framing: GraphFraming | undefined;
+    // @internal
+    frozenListEpoch(): number | null;
     getRenderFrameCount(): number;
     glideToCleared(nodes: readonly Node_2[]): void;
     // @internal
@@ -9673,6 +9677,8 @@ export class UpdateManager implements Manager {
         finished: (frame: number) => boolean;
     } | null;
     get graphIsDrawn(): boolean;
+    // @internal
+    haloTouched(mesh: AbstractMesh, built: boolean): void;
     holdSelectionFollow(following?: readonly Node_2[]): void;
     // @internal
     holdsMesh(node: Node_2): void;

@@ -8,6 +8,7 @@ import { ActionIcon, Group } from "@mantine/core";
 import React, { useState } from "react";
 
 import { GLYPHS } from "../../glyphs";
+import { tippedWord } from "../segmentTips";
 import { LineFrame } from "./RubricLine";
 
 /**
@@ -105,7 +106,7 @@ export function Segments({
             onChange={onPick}
             data={options.map(([each, words, disabled]) => ({
                 value: each,
-                label: disabled === undefined ? words : <span title={disabled}>{words}</span>,
+                label: tippedWord(words, disabled),
                 disabled: disabled !== undefined,
             }))}
         />

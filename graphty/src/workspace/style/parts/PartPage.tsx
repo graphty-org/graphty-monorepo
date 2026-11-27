@@ -19,6 +19,7 @@ import { shownChannel } from "../offered";
 import { Field, type RowContext } from "../PropertyRow";
 import { lineIn, partlySet } from "../row";
 import { WireframeRow } from "../Section";
+import { tippedSegments } from "../segmentTips";
 import { writeWireframe } from "../shaderSlots";
 import { focusLineNext } from "../useFocusLine";
 import { failureWords } from "../words";
@@ -131,7 +132,7 @@ function ItemSettings({
                         size="xs"
                         fullWidth
                         value={page}
-                        data={pages}
+                        data={tippedSegments(pages.map((each) => ({ value: each, label: each })))}
                         onChange={setPage}
                     />
                     {(item.pages?.[page] ?? []).map((channel) => (

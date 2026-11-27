@@ -1810,6 +1810,20 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
         });
     });
 
+    it("Graph settings: a worded grouped button shows its name as a tooltip on hover (figma-spec 5.2)", async () => {
+        const store = createWorkspaceStore({ project: { name: "Pair", id: 1 }, inspected: { kind: "graph" } });
+        render(<Workspace store={store} />);
+        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+        const lighting = await screen.findByRole("radiogroup", { name: "Lighting" });
+        const first = within(lighting).getAllByRole("radio")[0];
+        const label = lighting.querySelector<HTMLElement>(`label[for="${first.id}"]`);
+        assert.isNotNull(label);
+        const name = label.textContent.trim();
+        assert.isAbove(name.length, 0, "the option is worded");
+        await userEvent.hover(label.querySelector("span") ?? label);
+        await screen.findByRole("tooltip", { name });
+    });
+
     it("the rule hiding link and settings buttons applies only on hover devices, outside hover and focus", () => {
         assert.isTrue(matchMedia("(hover: hover)").matches, "the test browser has hover");
         const hiding: { selector: string; guarded: boolean }[] = [];

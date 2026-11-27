@@ -21,6 +21,7 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type RowContext, VarySlot } from "./PropertyRow";
 import { type DataBinding, sourceName } from "./row";
+import { tippedSegments } from "./segmentTips";
 import {
     clockWords,
     colorName,
@@ -559,7 +560,7 @@ export function ParamControl({
                     fullWidth
                     size="xs"
                     value={listValue(option, shown) ?? ""}
-                    data={data}
+                    data={tippedSegments(data)}
                     onChange={pick}
                 />
             ) : (

@@ -32,6 +32,7 @@ import { flushSync } from "react-dom";
 
 import { ariaKey, formatKey, isMac } from "../keys/keys";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { tippedSegments } from "./segmentTips";
 import type { ShaderCodeEditor, ShaderCodeEditorHandle, ShaderCodeMark } from "./ShaderCodeEditor";
 import { PlaceDiagram } from "./ShaderGallery";
 import { shaderAddedNotice } from "./shaderNotice";
@@ -882,7 +883,7 @@ export function ShaderEditorDialog({
                                 label={EDITOR_WORDS.drawsOn}
                                 size="xs"
                                 value={tab}
-                                data={TAB_CHOICES}
+                                data={tippedSegments(TAB_CHOICES)}
                                 onChange={(picked) => {
                                     switchTab(picked as ShaderTab);
                                 }}

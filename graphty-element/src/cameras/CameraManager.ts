@@ -117,9 +117,6 @@ export class CameraManager {
     /** Told once when a reader's camera gesture ends, on whichever camera; see `camera:gesture-end`. */
     public onGestureEnd: ((kind: CameraGestureKind) => void) | null = null;
 
-    /** Asks the render loop for one more frame, for an input waiting on the frame that ends its gesture. */
-    public requestFrame: (() => void) | null = null;
-
     /** Frame time since the reader last moved the camera, for `camera.autoRotateResume`; null, not since it turned. */
     #idleMs: number | null = null;
 
@@ -142,9 +139,6 @@ export class CameraManager {
         this.inputs.set(key, inputHandler);
         inputHandler.onGestureEnd = (kind) => {
             this.onGestureEnd?.(kind);
-        };
-        inputHandler.requestFrame = () => {
-            this.requestFrame?.();
         };
         // A press stops autoRotate as a held one does, even pressed and let go between two frames,
         // which `busy`, read once a frame, never sees.

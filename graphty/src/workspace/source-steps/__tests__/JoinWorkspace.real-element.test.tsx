@@ -523,6 +523,47 @@ describe("the join workspace (source-steps)", () => {
         assert.deepStrictEqual([value("Source 1"), value("Source 2")], ["entries", "people"]);
     });
 
+    it("keeps the reader's camera while a card is opened and edited (#10204)", async () => {
+        await page.viewport(1280, 900);
+        const { store, session } = await emptyProject();
+        await session.data.import(
+            { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
+            { key: "badge", type: "person" },
+        );
+        store.set({ dockOpen: false, dockMaximized: false });
+        drop("entries.csv", ENTRIES);
+        await screen.findByRole("listitem", { name: "entries.csv" });
+        const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        );
+        if (element === null) {
+            throw new Error("no element");
+        }
+        await element.waitForSettled();
+        await element.waitForStableFrame();
+        const before = element.getCameraState();
+        const stayed = (when: string): void => {
+            const now = element.getCameraState();
+            for (const at of ["position", "target"] as const) {
+                for (const axis of ["x", "y", "z"] as const) {
+                    assert.closeTo(
+                        now[at]?.[axis] ?? Number.NaN,
+                        before[at]?.[axis] ?? Number.NaN,
+                        1e-3,
+                        `${when}: ${at}.${axis}`,
+                    );
+                }
+            }
+        };
+        const modal = await openJoins();
+        await element.waitForStableFrame();
+        stayed("opened");
+        await connect(modal, session);
+        await element.waitForSettled();
+        await element.waitForStableFrame();
+        stayed("edited");
+    });
+
     it("the preview keeps new nodes in sight framed whole, in Card colors and Styled", async () => {
         const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
         await matchBadge(modal);

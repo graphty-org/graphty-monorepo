@@ -135,6 +135,9 @@ const logger = GraphtyLogger.getLogger(["graphty", "node"]);
  */
 export const SELECTION_HALO_MESH = "graphty-selection-halo";
 
+/** Each scene's hidden halo instances no node draws, by their source's cache key; see `Node.takeSpareHalo`. */
+const spareHalos = new WeakMap<Scene, Map<string, AbstractMesh[]>>();
+
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
 
@@ -380,6 +383,23 @@ let rebuildsFor: (node: Node, paint: NodePaint) => boolean;
 /** Reads a node's own mesh in this module, where the consumer's {@link Node.mesh} is not read. */
 let ownAnchor: (node: Node) => TransformNode;
 
+/** Keeps a node's mesh through a 2D/3D switch; see {@link keepNodeMeshForDimension}. */
+let keepForDimension: (node: Node) => InstancedMesh | null;
+
+/**
+ * Keep a node's mesh through a 2D/3D switch, for its rebuild to draw from the new dimension's
+ * source (`moveInstance`) instead of disposing it and building another: the instance is taken off
+ * its source here, so the mesh cache's clear does not dispose it, and everything that hangs from it
+ * goes in {@link releaseNodeMesh} as it did with the mesh. Building 10,000 instances and disposing
+ * 10,000 more was most of a switch at 10,000 nodes. Only a shape's own instance is kept: a model, a
+ * group drawn as a region, a row a batch draws and a mesh a consumer read are rebuilt as before.
+ * @param node - A node the switch rebuilds.
+ * @returns The kept mesh, which the teardown must leave alone, or null when it is rebuilt.
+ */
+export function keepNodeMeshForDimension(node: Node): InstancedMesh | null {
+    return keepForDimension(node);
+}
+
 /**
  * The parts a node draws, as the tests that check its drawing read them, typed so a rename in
  * `Node` fails to compile rather than at run time (issue #6988). The class fills it in; no entry
@@ -457,10 +477,22 @@ export function releaseNodeMesh(node: Node): void {
     node.label?.dispose();
     node.label = undefined;
     const anchor = ownAnchor(node);
-    if (!anchor.isDisposed()) {
+    if (anchor.isDisposed()) {
+        return;
+    }
+
+    // A mesh kept through a 2D/3D switch loses only what hangs from it, as a dispose would take.
+    if (anchor === keptOf(node)) {
+        for (const child of anchor.getChildren()) {
+            child.dispose();
+        }
+    } else {
         anchor.dispose();
     }
 }
+
+/** Reads the mesh a node keeps through a 2D/3D switch, or null. */
+let keptOf: (node: Node) => InstancedMesh | null;
 
 /** Collects the nodes whose size or shape changed while {@link collectResizedNodes} runs. */
 let resizedSink: Set<Node> | null = null;
@@ -591,6 +623,8 @@ export class Node implements ModelUser {
             node.shaderDrawing?.dataChanged(node);
         };
         ownAnchor = (node) => node.#anchor;
+        keptOf = (node) => node.#kept;
+        keepForDimension = (node) => node.keepForDimension();
         resizeNode = (node) => {
             node.geometryChanged();
         };
@@ -688,6 +722,8 @@ export class Node implements ModelUser {
     #modelBuilt: { readonly mesh: AbstractMesh; readonly scale: Vector3 } | null = null;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
+    /** The mesh a 2D/3D switch kept for the next build to draw again; see {@link keepNodeMeshForDimension}. */
+    #kept: InstancedMesh | null = null;
 
     /**
      * The node's own mesh, for a consumer. Nothing in graphty-element reads it: the element reads
@@ -2172,6 +2208,11 @@ export class Node implements ModelUser {
 
     /** Dispose the node's mesh and its anchor, when they are apart, with what hangs from them. */
     private disposeMesh(): void {
+        if (this.#kept !== null && this.#kept === this.#mesh) {
+            this.dropGroupFill();
+            return;
+        }
+
         if (this.#mesh !== null && !this.#mesh.isDisposed()) {
             this.#mesh.dispose();
         }
@@ -3101,6 +3142,7 @@ export class Node implements ModelUser {
         const model = this.modelFor(o);
         return (
             sameGeometry &&
+            this.#kept === null &&
             !this.#anchor.isDisposed() &&
             !this.fitIsStale(o) &&
             model === this.drawnModel &&
@@ -3285,8 +3327,11 @@ export class Node implements ModelUser {
      * @returns The mesh.
      */
     private buildMesh(meshKey: string, o: NodeStyleConfig): AbstractMesh {
+        const kept = this.#kept;
+        this.#kept = null;
         const model = this.modelFor(o);
         if (model !== null) {
+            kept?.dispose();
             this.setDrawn(model, null);
             const mesh = NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
             this.#modelBuilt = { mesh, scale: mesh.scaling.clone() };
@@ -3295,11 +3340,48 @@ export class Node implements ModelUser {
 
         const image = this.imageFor(o);
         this.setDrawn(null, image);
+        if (kept !== null && !kept.isDisposed()) {
+            this.forgetMeasuredMesh();
+            this.drawnRadiusMesh = null;
+            return NodeMesh.reuse(
+                kept,
+                this.context.getMeshCache(),
+                ...this.sourceArgs(meshKey, o, image),
+                this.context.getScene(),
+            );
+        }
+
         return NodeMesh.create(
             this.context.getMeshCache(),
             ...this.sourceArgs(meshKey, o, image),
             this.context.getScene(),
         );
+    }
+
+    /**
+     * Keep this node's mesh through a 2D/3D switch: see {@link keepNodeMeshForDimension}.
+     * @returns The kept mesh, or null when the node is rebuilt as before.
+     */
+    private keepForDimension(): InstancedMesh | null {
+        const mesh = this.#mesh;
+        if (
+            !(mesh instanceof InstancedMesh) ||
+            mesh !== this.#anchor ||
+            mesh.isDisposed() ||
+            this.disposed ||
+            this.#meshHeld ||
+            this.batchSource !== null ||
+            this.drawnModel !== null ||
+            this.drawnAsGroup ||
+            this.groupFill !== null ||
+            this.groupFillKeep !== null
+        ) {
+            return null;
+        }
+
+        mesh.sourceMesh.removeInstance(mesh);
+        this.#kept = mesh;
+        return mesh;
     }
 
     /**
@@ -3376,6 +3458,7 @@ export class Node implements ModelUser {
         return (
             mesh instanceof InstancedMesh &&
             mesh === this.#anchor &&
+            this.#kept === null &&
             !mesh.isDisposed() &&
             drawn !== null &&
             this.drawnModel === null &&
@@ -3903,6 +3986,18 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether selecting or deselecting this node only shows, hides or builds its halo instance, which reports itself
+     * (`UpdateManager.haloTouched`): it has no label to ring, no shader drawing, no model and no batch.
+     * @returns True when it does.
+     * @internal
+     */
+    get selectionShowsOnlyHalo(): boolean {
+        return (
+            this.label === undefined && this.shaderDrawing === null && this.drawnModel === null && !this.drawnByBatch()
+        );
+    }
+
+    /**
      * Say whether this node is selected.
      * @param selected - What the selection mask says about this node.
      * @returns True when this changed the state.
@@ -3915,6 +4010,10 @@ export class Node implements ModelUser {
         this.selected = selected;
         this.applyRenderState();
         this.shaderStateChanged("selected", selected);
+        if (!this.selectionShowsOnlyHalo) {
+            // Its label rings the halo, or a shader or a model draws the selection: more than the halo it reports.
+            this.context.getUpdateManager?.().meshesShownOrHidden();
+        }
 
         return true;
     }
@@ -4161,14 +4260,7 @@ export class Node implements ModelUser {
         }
 
         const selection = look;
-        // A halo is the node's own shape, so a node redrawn in another shape needs another halo,
-        // and its own look's material, so a halo changing look needs another one too.
-        const stale = kind === "halo" && existing !== null && this.haloKey !== this.haloSourceKey(selection);
-        if (stale && !existing.isDisposed()) {
-            existing.dispose();
-        }
-
-        const overlay = existing && !stale && !existing.isDisposed() ? existing : this.createOverlay(kind, selection);
+        const { overlay, built } = this.overlayToShow(kind, existing, selection);
 
         if (kind === "halo") {
             this.halo = overlay;
@@ -4197,8 +4289,61 @@ export class Node implements ModelUser {
         }
 
         this.syncOverlayPositions();
+        if (kind === "halo") {
+            this.context.getUpdateManager?.().haloTouched(overlay, built);
+        }
+
         overlay.setEnabled(true);
         this.context.getNodeBatches?.()?.rewalk(this);
+    }
+
+    /**
+     * The overlay to draw: the one built already, a spare halo, or a new instance.
+     * @param kind - Which overlay.
+     * @param existing - The one this node holds, or null.
+     * @param selection - The halo's look.
+     * @returns The overlay, and whether it was just built.
+     */
+    private overlayToShow(
+        kind: "halo" | "context",
+        existing: AbstractMesh | null,
+        selection: GraphSelectionStyleConfig,
+    ): { overlay: AbstractMesh; built: boolean } {
+        // A halo is the node's own shape, so a node redrawn in another shape needs another halo,
+        // and its own look's material, so a halo changing look needs another one too.
+        const stale = kind === "halo" && existing !== null && this.haloKey !== this.haloSourceKey(selection);
+        if (stale && !existing.isDisposed()) {
+            existing.dispose();
+        }
+
+        if (existing && !stale && !existing.isDisposed()) {
+            return { overlay: existing, built: false };
+        }
+
+        const spare = kind === "halo" ? this.takeSpareHalo(selection) : null;
+        return spare === null
+            ? { overlay: this.createOverlay(kind, selection), built: true }
+            : { overlay: spare, built: false };
+    }
+
+    /**
+     * A halo another node gave back, in this look, to draw this node's with: a selection moved from one node to another
+     * then builds no mesh, which a frame would have to find and draw (issue #10128).
+     * @param look - The halo's look.
+     * @returns The halo, or null when none is spare.
+     */
+    private takeSpareHalo(look: GraphSelectionStyleConfig): AbstractMesh | null {
+        const key = this.haloSourceKey(look);
+        const spare = spareHalos.get(this.context.getScene())?.get(key);
+        while (spare !== undefined && spare.length > 0) {
+            const halo = spare.pop();
+            if (halo !== undefined && !halo.isDisposed()) {
+                this.haloKey = key;
+                return halo;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -4207,6 +4352,19 @@ export class Node implements ModelUser {
      * @param existing - The overlay, when one was built.
      */
     private hideOverlay(kind: "halo" | "context", existing: AbstractMesh | null): void {
+        if (kind === "halo" && existing && !existing.isDisposed() && this.haloKey !== null) {
+            // Given back, hidden, for the next node to draw a halo in this look (`takeSpareHalo`).
+            this.context.getUpdateManager?.().haloTouched(existing, false);
+            const scene = this.context.getScene();
+            const byKey = spareHalos.get(scene) ?? new Map<string, AbstractMesh[]>();
+            spareHalos.set(scene, byKey);
+            const spare = byKey.get(this.haloKey) ?? [];
+            byKey.set(this.haloKey, spare);
+            spare.push(existing);
+            this.halo = null;
+            this.haloKey = null;
+        }
+
         if (existing && !existing.isDisposed()) {
             existing.setEnabled(false);
         }

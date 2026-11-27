@@ -213,8 +213,8 @@ export function replaceTargets(ctx: CommandContext): ReplaceTarget[] {
  */
 export function closeJoin(ctx: CommandContext, subject?: JoinSubject): void {
     const { workspace } = ctx;
-    const { joining } = workspace.get();
-    workspace.set({ joining: null, editingJoin: null });
+    const { joining, joinDraft } = workspace.get();
+    workspace.set({ joining: null, editingJoin: null, joinDraft: null });
     const draft = subject?.draft;
     if (draft === undefined || joining === null) {
         return;
@@ -224,7 +224,7 @@ export function closeJoin(ctx: CommandContext, subject?: JoinSubject): void {
         action: {
             label: "Undo",
             run: () => {
-                workspace.set({ joining, editingJoin: null });
+                workspace.set({ joining, editingJoin: null, joinDraft });
             },
         },
     };
@@ -280,7 +280,7 @@ export async function finishJoin(
         draft?.dispose();
         openSeparate(workspace, { name: subject.name, source, ...callerKey });
     }
-    workspace.set({ joining: null, editingJoin: null });
+    workspace.set({ joining: null, editingJoin: null, joinDraft: null });
 }
 
 /** The join package's commands: Edit join on a joined source's row. */

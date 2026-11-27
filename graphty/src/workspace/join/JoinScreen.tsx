@@ -10,6 +10,7 @@ import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { errorWords } from "../project/words";
 import { TABLE_EVENTS, useSessionEvents } from "../sessionEvents";
+import type { WorkspaceState } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { columnChoices, headerIconsLabel, type RecordKind, type TableColumnChoice } from "../table/columns";
 import { HeaderIcons } from "../table/HeaderCell";
@@ -460,6 +461,7 @@ interface GraphTableProps {
  * @returns The table
  */
 function GraphTable({ session, kind, choices, onChange, only, height }: Readonly<GraphTableProps>): React.JSX.Element {
+    // on reload: fresh: pointer: a column sorted for a look
     const [sort, setSort] = useState<{ id: string; desc: boolean } | null>(null);
     const columns = columnChoices(session, kind).filter(
         (column) => column.hidden !== true && column.group !== "result",
@@ -524,20 +526,50 @@ function GraphTable({ session, kind, choices, onChange, only, height }: Readonly
 function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session: GraphSession }>): React.JSX.Element {
     const workspace = useWorkspace();
     useSessionEvents(session, TABLE_EVENTS);
-    const [choices, setChoices] = useState<JoinChoices>(subject.initial);
-    const [how, setHow] = useState<JoinHow>(subject.how);
+    // What the reader chose is kept in the workspace's joinDraft as it changes, and read back as
+    // the screen opens on the same table, so a reload reopens the join as the reader left it.
+    const draftKey = subject.edit ?? subject.name;
+    const keptDraft = (): WorkspaceState["joinDraft"] => {
+        const kept = workspace.store.get().joinDraft;
+        return kept?.subject === draftKey ? kept : null;
+    };
+    // on reload: fresh: derived: read from the kept joinDraft as the screen opens
+    const [choices, setChoices] = useState<JoinChoices>(() => keptDraft()?.choices ?? subject.initial);
+    // on reload: fresh: derived: read from the kept joinDraft as the screen opens
+    const [how, setHow] = useState<JoinHow>(() => keptDraft()?.how ?? subject.how);
+    // on reload: fresh: pointer: a count chip narrowing the rows for a look
     const [chosenShow, setShow] = useState<JoinShow>(null);
     const chipsId = useId();
+    // on reload: fresh: read: read again from the table
     const [rows, setRows] = useState<readonly Readonly<Record<string, unknown>>[]>([]);
+    // on reload: fresh: in flight: a join under way
     const [busy, setBusy] = useState(false);
     const graph = useElementSize();
     const incoming = useElementSize();
     const screenRef = useRef<HTMLElement>(null);
     const targets = replaceTargets(workspace);
     // Replace data names the source it replaces: the one the file matches; with one there is nothing to pick.
-    const [target, setTarget] = useState<ReplaceTarget | undefined>(
-        targets.find((each) => each.key === subject.matches) ?? (targets.length === 1 ? targets[0] : undefined),
-    );
+    // on reload: fresh: derived: read from the kept joinDraft as the screen opens
+    const [target, setTarget] = useState<ReplaceTarget | undefined>(() => {
+        const kept = keptDraft()?.target;
+        return (
+            targets.find((each) => each.key === (kept ?? subject.matches)) ??
+            (targets.length === 1 ? targets[0] : undefined)
+        );
+    });
+    // Kept once the reader changes something: a screen opened and left as it was keeps nothing.
+    const changed = useRef(false);
+    const choose = (next: JoinChoices): void => {
+        changed.current = true;
+        setChoices(next);
+    };
+    useEffect(() => {
+        if (changed.current) {
+            workspace.store.set({
+                joinDraft: { subject: draftKey, choices, how, target: target?.key ?? null },
+            });
+        }
+    }, [workspace.store, draftKey, choices, how, target]);
     // The screen takes focus as it opens, on its Join button, so Esc and Tab work in it at once.
     useEffect(() => {
         const screenEl = screenRef.current;
@@ -634,6 +666,7 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                     how={how}
                     hows={hows}
                     onHow={(next, to) => {
+                        changed.current = true;
                         setHow(next);
                         if (to !== undefined) {
                             setTarget(to);
@@ -675,7 +708,7 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                         columns={subject.columns}
                         graphPaths={graphPaths}
                         mappings={mappings}
-                        onChange={setChoices}
+                        onChange={choose}
                         extra={{
                             ignoringCase: counts?.extraIgnoringCase ?? 0,
                             ignoringSpaces: counts?.extraIgnoringSpaces ?? 0,
@@ -694,12 +727,12 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                             id={chipsId}
                             report={counts}
                             choices={choices}
-                            onChange={setChoices}
+                            onChange={choose}
                             show={show}
                             onShow={setShow}
                             repeatedIgnored={choices.ignore?.includes("repeatedKeys") === true}
                             onIgnoreRepeated={() => {
-                                setChoices({ ...choices, ignore: [...(choices.ignore ?? []), "repeatedKeys"] });
+                                choose({ ...choices, ignore: [...(choices.ignore ?? []), "repeatedKeys"] });
                             }}
                         />
                     )}
@@ -719,7 +752,7 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                             session={session}
                             kind={kind}
                             choices={choices}
-                            onChange={setChoices}
+                            onChange={choose}
                             only={show === "without-value" ? (counts?.withoutValueIds ?? null) : matchedIds}
                             height={Math.max(MIN_TABLE_HEIGHT, graph.height)}
                         />
@@ -736,7 +769,7 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                             rows={shown}
                             choices={choices}
                             report={counts}
-                            onChange={setChoices}
+                            onChange={choose}
                             height={Math.max(MIN_TABLE_HEIGHT, incoming.height)}
                         />
                     </div>

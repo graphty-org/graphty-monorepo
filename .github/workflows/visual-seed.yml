@@ -136,7 +136,7 @@ jobs:
                   restore-keys: lfs-${{ matrix.project }}-
 
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
-              run: tools/lfs-pull-retry.sh --include "${{ matrix.baselines }}/${{ matrix.project }}/**,${{ matrix.fonts }}"
+              run: git lfs pull --include "${{ matrix.baselines }}/${{ matrix.project }}/**,${{ matrix.fonts }}"
 
             - uses: pnpm/action-setup@v6
 

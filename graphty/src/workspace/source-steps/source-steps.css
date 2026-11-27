@@ -136,6 +136,17 @@ dialog.jw-modal {
     border-radius: 0;
 }
 
+/* A wider ring, as the preview draws it wider than the merged ring. */
+.jw-key-mark[data-mark^="ring-"] {
+    width: 18px;
+    height: 18px;
+}
+
+.jw-key-mark[data-mark="ring-focus"] {
+    width: 22px;
+    height: 22px;
+}
+
 /* Counted only: the preview draws no mark for it. */
 .jw-key-mark[data-mark="untouched"] {
     display: none;
@@ -169,12 +180,13 @@ dialog.jw-modal {
     align-items: center;
 }
 
-/* A card's named row: its words in one column, so the controls start at one x. */
+/* A card's named row: its words in one column, so the controls start at one x. The words share the
+   baseline of the controls' first line, so they stay on it when the controls wrap (#10216). */
 .jw-row {
     display: grid;
     grid-template-columns: 96px minmax(0, 1fr);
     gap: 8px;
-    align-items: center;
+    align-items: first baseline;
     min-height: 24px;
 }
 

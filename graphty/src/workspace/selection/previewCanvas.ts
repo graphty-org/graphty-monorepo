@@ -30,12 +30,15 @@ export function cameraRefused(error: unknown): void {
  * @param frame - The canvas column, holding `.ws-canvas`.
  * @param changed - Whether the workspace changed the graph, which is then framed on close: the camera from
  *   before was placed for another graph.
+ * @param keepCamera - True leaves the camera where the reader had it on open, so what the workspace changes is
+ *   seen against the view the reader already had.
  */
 export function usePreviewCanvas(
     active: boolean,
     root: RefObject<HTMLElement | null>,
     frame: HTMLElement | null,
     changed?: () => boolean,
+    keepCamera = false,
 ): void {
     const { element } = useWorkspace();
     useLayoutEffect(() => {
@@ -72,9 +75,11 @@ export function usePreviewCanvas(
         observer.observe(cell);
         observer.observe(canvas);
         // The element resizes its canvas on its own observer; the framing reads the new size after it.
-        let frameId = requestAnimationFrame(() => {
-            frameId = requestAnimationFrame(fit);
-        });
+        let frameId = keepCamera
+            ? 0
+            : requestAnimationFrame(() => {
+                  frameId = requestAnimationFrame(fit);
+              });
         return () => {
             cancelAnimationFrame(frameId);
             observer.disconnect();
@@ -101,5 +106,5 @@ export function usePreviewCanvas(
             }
         };
         // The canvas is placed once per opening; its observer follows the cell from there.
-    }, [active, root, frame, element, changed]);
+    }, [active, root, frame, element, changed, keepCamera]);
 }

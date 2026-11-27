@@ -149,7 +149,7 @@ import type { HistoryCause, SourceElementRef } from "../types";
 import { valueLabelsAt } from "../valueLabels";
 import { type HiddenNotDrawn, hiddenNotDrawn } from "../visibility/VisibilityApi";
 import { beneathAuthored, placementLayers } from "./autoApply";
-import { branchLayers, draftLayers, isStateMark } from "./branchesView";
+import { branchLayers, draftLayers, draftRings, isStateMark } from "./branchesView";
 import { carriedFor, checkCarried, holdCarried } from "./carried";
 import {
     channelDescriptor,
@@ -601,6 +601,24 @@ export interface DraftView {
 }
 
 /**
+ * A ring a draft view draws wider than the merged ring, and how many nodes it is drawn on: what a key beside the
+ * canvas names, one row a kind.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface DraftRing {
+    /**
+     * `"mergedAgain"`: a node two or more of the view's `steps` merge. `"focus"`: a node every step of the view's
+     * `focus` merges, drawn over the other.
+     */
+    readonly kind: "mergedAgain" | "focus";
+    /** The ring's scale, a multiple of the node's size (the merged ring is 1.4). */
+    readonly scale: number;
+    /** The nodes it is drawn on, each counted under the ring drawn on top. */
+    readonly nodes: number;
+}
+
+/**
  * Some counts of a draft's step, element references, or the draft's untouched nodes, whose session
  * ids a draft view reads.
  * @internal
@@ -645,12 +663,15 @@ export interface StylesApi {
      * a layer, not saved, and not a branches view (`showingBranches` stays false).
      * Experimental: may change or be removed in a minor release.
      * @param view - The colors.
-     * @returns Ends the view, the stack's picture back in the same repaint.
+     * @returns Ends the view, the stack's picture back in the same repaint; and `rings`, the rings it draws wider
+     *   than the merged ring, read when it is read (empty once the view has ended).
      * @beta
      */
     showDraft(view: DraftView): {
         /** Ends the view, the stack's picture back in the same repaint. */
         end(): void;
+        /** The rings the view draws wider than the merged ring, one a kind, each on at least one node. */
+        readonly rings: readonly DraftRing[];
     };
     /**
      * The draft view drawn now, as it was given, or null: what a key beside the canvas describes.
@@ -4945,11 +4966,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         showDraft(view: DraftView): {
             /** Ends the view, the stack's picture back in the same repaint. */
             end(): void;
+            /** The rings the view draws wider than the merged ring. */
+            readonly rings: readonly DraftRing[];
         } {
             const layers = draftLayers(view, current(), check, sources.draftIds);
             const replaced = branchesShown?.view ?? null;
             const before = painting(current());
-            const shown = { layers, view: null, draft: Object.freeze({ ...view }) };
+            const draft = Object.freeze({ ...view });
+            const shown = { layers, view: null, draft };
             branchesShown = shown;
             shownKeys = [];
             if (replaced !== null) {
@@ -4969,6 +4993,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     const drawn = painting(current());
                     branchesShown = null;
                     repaintBetween(drawn, painting(current()));
+                },
+                get rings(): readonly DraftRing[] {
+                    return branchesShown === shown ? draftRings(draft, sources.draftIds) : [];
                 },
             };
         },

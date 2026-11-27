@@ -835,8 +835,20 @@ describe("source-steps drafts: drawing one join of several matches", () => {
             assert.isAbove(scale("A1"), scale("A2"), `A1, which the watchlist reaches, rings wider than A2 (${name})`);
             assert.isAbove(scale("A2"), 0, `A2 keeps its ring (${name})`);
             assert.strictEqual(scale("A2"), scale("A3"), `A2 and A3 alike (${name})`);
+            // The wider ring is told as drawn: the focus ring on A1 alone, over the ring two steps would give it.
+            assert.deepStrictEqual(shown.rings, [{ kind: "focus", scale: 2.6, nodes: 1 }], `the rings (${name})`);
             shown.end();
+            assert.deepStrictEqual(shown.rings, [], `none once it ends (${name})`);
         }
+        // Without a focus, the ring two listed steps give A1 is the one told.
+        const unfocused = o.session.styles.showDraft({
+            merged: "#009E73",
+            new: "#D55E00",
+            steps: steps.map((step) => ({ step, color: "#999933" })),
+        });
+        await o.session.styles.settled();
+        assert.deepStrictEqual(unfocused.rings, [{ kind: "mergedAgain", scale: scale("A1"), nodes: 1 }]);
+        unfocused.end();
         o.session.dispose();
     });
 });

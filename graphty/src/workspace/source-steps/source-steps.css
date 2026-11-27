@@ -136,6 +136,17 @@ dialog.jw-modal {
     border-radius: 0;
 }
 
+/* A wider ring, as the preview draws it wider than the merged ring. */
+.jw-key-mark[data-mark^="ring-"] {
+    width: 18px;
+    height: 18px;
+}
+
+.jw-key-mark[data-mark="ring-focus"] {
+    width: 22px;
+    height: 22px;
+}
+
 /* Counted only: the preview draws no mark for it. */
 .jw-key-mark[data-mark="untouched"] {
     display: none;

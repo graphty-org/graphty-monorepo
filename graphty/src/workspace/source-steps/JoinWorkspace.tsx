@@ -2,7 +2,7 @@ import "../selection/selection.css";
 import "./source-steps.css";
 
 import { ControlSection } from "@graphty/compact-mantine";
-import type { GraphSession, SourceDraft, SourceKey } from "@graphty/graphty-element/session";
+import type { DraftRing, GraphSession, SourceDraft, SourceKey } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { type RefObject, useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -62,6 +62,8 @@ const KEY_COLORS: ReadonlySet<string> = new Set([MERGED_COLOR, NEW_COLOR, REMOVE
 
 /** No elements picked. */
 const NO_REFS: Picked["refs"] = [];
+/** No ring wider than the merged ring. */
+const NO_RINGS: readonly DraftRing[] = [];
 /** No open card: no steps to focus. */
 const NO_STEPS: JoinCardView["steps"] = [];
 /** The ring on what the open card merges, wider than the merged ring (1.4), so it reads apart framed whole. */
@@ -130,6 +132,7 @@ function useModalFocus(live: boolean, box: RefObject<HTMLElement | null>): void 
  * @param colors - whether each card has a color
  * @param marked - the rows picked
  * @param version - counts the draft's changes
+ * @returns the rings the preview draws wider than the merged ring, for the key
  */
 function useCardColors(
     session: GraphSession,
@@ -139,7 +142,9 @@ function useCardColors(
     colors: boolean,
     marked: Picked["refs"],
     version: unknown,
-): void {
+): readonly DraftRing[] {
+    // on reload: fresh: derived: what the preview drawn now tells
+    const [rings, setRings] = useState<readonly DraftRing[]>(NO_RINGS);
     const open = joins.openCard?.steps ?? NO_STEPS;
     const { cards } = joins;
     const openKey = open.map((step) => step.index).join();
@@ -161,11 +166,13 @@ function useCardColors(
             ...(colors ? { steps } : {}),
             ...(marked.length > 0 ? { mark: { refs: marked } } : {}),
         });
+        setRings(shown.rings);
         return () => {
             shown.end();
         };
         // The view reads the draft when shown: it is shown again after every draft change, and when another card opens.
     }, [draft, colors, version, marked, session, openKey]); // eslint-disable-line react-hooks/exhaustive-deps -- cards, colors and the open card are read from the draft, which `version` and `openKey` follow
+    return rings;
 }
 
 /**
@@ -488,7 +495,7 @@ function WorkspaceBody({
     const list = JSON.stringify(shows);
     const picked = pickedRows?.list === list ? pickedRows : null;
     const marked = picked?.refs ?? NO_REFS;
-    useCardColors(session, draft, joins, colorOf, colors, marked, version);
+    const rings = useCardColors(session, draft, joins, colorOf, colors, marked, version);
 
     const { marks, sources } = draft.preview();
     const rows = listRows(session, draft, names, joins, colors ? colorOf : null);
@@ -601,7 +608,7 @@ function WorkspaceBody({
                     onCancel={cancel}
                     onDone={done}
                 />
-                <JoinKey marks={marks} colors={colors} />
+                <JoinKey marks={marks} rings={rings} colors={colors} />
                 <div className="sel-ws-body">
                     <div className="sel-ws-cards jw-left">
                         <div className="jw-list">

@@ -826,14 +826,21 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
-     * Pin each held row body and free the rest, and weigh each by whether its row follows.
+     * Pin each held row body where the element's array has it and free the rest, and weigh each by whether its row
+     * follows. A held row with no `Node` (renderPath "batched") is placed here, as a scoped layout places a held
+     * `Node` before it holds it (`LayoutManager.applyHold`) (issue #10052).
      */
     private holdRowBodies(): void {
         const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
+        const at = { x: 0, y: 0, z: 0 };
         this.rowFollowers.clear();
         for (const [id, ngraphNode] of snapshot === undefined ? [] : this.rowNodes) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row !== INVALID_INDEX) {
+                if (this.isHeld(row) && this.readRowPosition(row, at, this.rowSource?.positions)) {
+                    this.moveRowBody(id, at);
+                }
+
                 this.ngraphLayout.pinNode(ngraphNode, this.isHeld(row));
                 this.weigh(row, id);
                 if (this.isFollower(row)) {
@@ -1157,35 +1164,26 @@ export class NGraphEngine extends LayoutEngine {
      */
     override loadArrangement(): void {
         super.loadArrangement();
-        this.loadRows(() => true);
-    }
-
-    /**
-     * Move each held row body with no `Node` (renderPath "batched") to where the element's array has it, as a scoped
-     * layout places a held `Node` before it holds it (`LayoutManager.applyHold`).
-     * @internal
-     */
-    placeHeldRows(): void {
-        this.loadRows((row) => this.isHeld(row));
-    }
-
-    /**
-     * Move the row bodies with no `Node` to where the element's array has them.
-     * @param take - Which rows to move.
-     */
-    private loadRows(take: (row: number) => boolean): void {
         const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
-            const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
-            if (row !== INVALID_INDEX && take(row) && this.readRowPosition(row, at, this.rowSource?.positions)) {
-                const pos = this.ngraphLayout.getNodePosition(id);
-                pos.x = at.x;
-                pos.y = at.y;
-                // A 2D engine holds its bodies on the plane, whatever Z the array carries.
-                pos.z = this.ngraphLayout.simulator.settings.dimensions === 3 ? at.z : 0;
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at, this.rowSource?.positions)) {
+                this.moveRowBody(id, at);
             }
         }
+    }
+
+    /**
+     * Move a row body to a position.
+     * @param id - The row's id.
+     * @param at - Where the element's array has the row.
+     */
+    private moveRowBody(id: NodeIdType, at: Required<Position>): void {
+        const pos = this.ngraphLayout.getNodePosition(id);
+        pos.x = at.x;
+        pos.y = at.y;
+        // A 2D engine holds its bodies on the plane, whatever Z the array carries.
+        pos.z = this.ngraphLayout.simulator.settings.dimensions === 3 ? at.z : 0;
     }
 
     /**

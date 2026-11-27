@@ -197,7 +197,7 @@
         },
         {
             "file": "src/layout/D3GraphLayoutEngine.ts",
-            "function": "D3GraphEngine.loadRows",
+            "function": "D3GraphEngine.loadArrangement",
             "case": "not agreed",
             "reason": "Maps the bodies it holds to the element's rows to read their positions."
         },
@@ -215,7 +215,7 @@
         },
         {
             "file": "src/layout/NGraphLayoutEngine.ts",
-            "function": "NGraphEngine.loadRows",
+            "function": "NGraphEngine.loadArrangement",
             "case": "not agreed",
             "reason": "Maps the bodies it holds to the element's rows to read their positions."
         },
@@ -266,12 +266,6 @@
             "function": "LayoutManager.holdMaskOf",
             "case": "not agreed",
             "reason": "A scoped layout's hold mask is over the element's rows."
-        },
-        {
-            "file": "src/managers/LayoutManager.ts",
-            "function": "LayoutManager.holdRowsOnPlane",
-            "case": "not agreed",
-            "reason": "Puts every held row on the plane in a 2D view, hidden rows included, as putOnPlane does."
         },
         {
             "file": "src/managers/LayoutManager.ts",

@@ -2961,38 +2961,35 @@ export class LayoutManager implements Manager {
             }
         }
 
-        this.holdRowsOnPlane(engine, members);
-        engine.setHoldMask(...this.holdMaskOf(members));
-        // A simulation's held rows with no `Node` are placed by row, once the mask says which they are.
-        if (engine instanceof D3GraphEngine || engine instanceof NGraphEngine) {
-            engine.placeHeldRows();
-        }
+        const [held, rows] = this.holdMaskOf(members);
+        this.holdRowsOnPlane(engine, held, rows);
+        // A simulation's held rows with no `Node` are placed by row as the mask holds them (`holdRowBodies`).
+        engine.setHoldMask(held, rows);
     }
 
     /**
      * Under a 2D static engine, put each held row stored with no `Node` (renderPath "batched") on the plane in the
      * array and have the engine take it by row, as {@link putOnPlane} does: getting its `Node` would build one for
-     * every held row (issue #10052). A simulation places its held rows itself (`placeHeldRows`).
+     * every held row (issue #10052). A simulation places its held rows itself as it holds them.
      * @param engine - The engine about to become current.
-     * @param members - The members it lays out.
+     * @param held - The hold mask ({@link holdMaskOf}): the rows that are not members.
+     * @param rows - The rows the mask covers.
      */
-    private holdRowsOnPlane(engine: LayoutEngine, members: ReadonlySet<NodeIdType>): void {
+    private holdRowsOnPlane(engine: LayoutEngine, held: NodeMask, rows: number): void {
         if (this.engineDimension !== 2 || !(engine instanceof StaticLayoutEngine)) {
             return;
         }
 
         const lane = this.dataManager[WRITABLE_LANE];
-        const { ids, nodeCount } = wholeGraph(this.dataManager);
         const placed = { x: 0, y: 0, z: 0 };
         let rowsWritten = false;
-        for (let row = 0; row < Math.min(lane.count, nodeCount); row++) {
-            const id = ids.idOf(row);
-            if (members.has(id) || !lane.isPlaced(row)) {
+        for (let row = 0; row < Math.min(lane.count, rows); row++) {
+            if (!maskTest(held, row) || !lane.isPlaced(row)) {
                 continue;
             }
 
             lane.read(row, placed);
-            if (placed.z !== 0 && dataManagerInternals.builtNode(this.dataManager, id) === undefined) {
+            if (placed.z !== 0 && dataManagerInternals.builtNodeAtRow(this.dataManager, row) === undefined) {
                 lane.write(row, placed.x, placed.y, 0);
                 rowsWritten = true;
             }

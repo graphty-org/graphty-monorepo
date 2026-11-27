@@ -606,11 +606,14 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
-     * Fix each held row body where it is and free the rest, and note each follower row's id.
+     * Fix each held row body where the element's array has it and free the rest, and note each follower row's id.
+     * A held row with no `Node` (renderPath "batched") is placed here, as a scoped layout places a held `Node`
+     * before it holds it (`LayoutManager.applyHold`); a held body already there stays put (issue #10052).
      * @param followers - The follower ids, which this adds to.
      */
     private holdRowBodies(followers: Set<NodeIdType>): void {
         const snapshot = this.rowBodies.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
+        const at = { x: 0, y: 0, z: 0 };
         for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row === INVALID_INDEX) {
@@ -622,6 +625,10 @@ export class D3GraphEngine extends LayoutEngine {
             }
 
             if (this.isHeld(row)) {
+                if (this.readRowPosition(row, at, this.rowSource?.positions) && this.moveBody(body, at)) {
+                    this.reheat = true;
+                }
+
                 fixAt(body as D3Node);
             } else {
                 body.fx = undefined;
@@ -904,36 +911,29 @@ export class D3GraphEngine extends LayoutEngine {
         this.refresh();
         super.loadArrangement();
         // and each row's body with no `Node`, which a `Node` built later takes where it is
-        this.loadRows(() => true);
-    }
-
-    /**
-     * Move each held row body with no `Node` (renderPath "batched") to where the element's array has it and fix it
-     * there, as a scoped layout places a held `Node` before it holds it (`LayoutManager.applyHold`).
-     * @internal
-     */
-    placeHeldRows(): void {
-        this.loadRows((row) => this.isHeld(row), fixAt);
-    }
-
-    /**
-     * Move the row bodies with no `Node` to where the element's array has them.
-     * @param take - Which rows to move.
-     * @param then - What else to do with each body moved.
-     */
-    private loadRows(take: (row: number) => boolean, then?: (body: D3Node) => void): void {
         const snapshot = this.rowBodies.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
-            const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
-            if (row !== INVALID_INDEX && take(row) && this.readRowPosition(row, at, this.rowSource?.positions)) {
-                body.x = at.x;
-                body.y = at.y;
-                body.z = this.dim === 2 ? 0 : at.z;
-                then?.(body as D3Node);
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at, this.rowSource?.positions)) {
+                this.moveBody(body, at);
                 this.reheat = true;
             }
         }
+    }
+
+    /**
+     * Move a row body to a position, on the plane in 2D.
+     * @param body - The body.
+     * @param at - Where the element's array has its row.
+     * @returns Whether that moved it.
+     */
+    private moveBody(body: D3InputNode, at: Required<Position>): boolean {
+        const z = this.dim === 2 ? 0 : at.z;
+        const moved = body.x !== at.x || body.y !== at.y || body.z !== z;
+        body.x = at.x;
+        body.y = at.y;
+        body.z = z;
+        return moved;
     }
 
     /**

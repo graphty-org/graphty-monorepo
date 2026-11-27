@@ -19,6 +19,7 @@ import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import type { ModelTemplate } from "../models/ModelCache";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { addGradientStops } from "./edgeGradient";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
@@ -35,6 +36,7 @@ import {
     setLabelBox,
 } from "./NodeShapeGeometry";
 import { prepareOverlayShader } from "./overlayMaterial";
+import { ON_TOP_RENDERING_GROUP } from "./RichTextLabel";
 import {
     borderRing,
     convexHull,
@@ -187,6 +189,11 @@ function nearestDrawing(ring: Mesh, view: Matrix, ahead: number, at: Vector3): T
  * @param is2D - Whether the graph is drawn in 2D.
  */
 function placeByZIndex(mesh: Mesh, shape: NodeStyleConfig["shape"], is2D: boolean): void {
+    // `node.onTop`: drawn after the graph with the depth cleared, so no edge or other node covers it in any view.
+    if (shape?.onTop === true) {
+        mesh.renderingGroupId = ON_TOP_RENDERING_GROUP;
+    }
+
     const zIndex = shape?.zIndex ?? 0;
     if (zIndex >= 0) {
         if (is2D) {
@@ -1427,6 +1434,8 @@ export class NodeMesh {
             }
             data.applyToMesh(mesh, true);
             mesh.refreshBoundingInfo();
+            // A new submesh: a frozen list of what is drawn holds the old one, whose counts overrun these buffers.
+            (scene.metadata as GraphSceneMetadata | null)?.thawActiveMeshes?.();
         });
         mesh.onDisposeObservable.addOnce(() => {
             scene.onBeforeRenderObservable.remove(observer);

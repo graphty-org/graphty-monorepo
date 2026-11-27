@@ -15,7 +15,8 @@ the page and start it through servherd as sections 1 and 2 there say, then expor
 - **Styles** (`style-*`), on the plain look, one at a time at 1k and 10k nodes: node color, size, shape, border,
   opacity, label and image; edge color, width, opacity, arrowhead, dash and curve; a hover layer; one node selected
   (the default Selected layer); one node pinned (the default Pinned layer). At 50k: node color, border and label,
-  arrowheads and curves. At 100k + 1M: node color and curves; at 1M + 1M: node color.
+  arrowheads and curves. The node label restyle again at 10k and 50k with `layoutBehavior.labels.labelText:
+"glyphs"` (`style-node-label-glyphs-*`), every label drawn from one shared atlas instead of its own texture. At 100k + 1M: node color and curves; at 1M + 1M: node color.
 - **Layouts** (`layout-*`), at 10k nodes, in 2D and 3D: the GPU force layout (`ngraph` with acceleration on), the
   CPU force layouts (`ngraph-cpu`, `d3`), `forceatlas2`, `circular`, `grid`, `random`, and `circular-glide`
   (circular reached through the glide layout transition). The GPU force layout also at 100k + 1M. Every other

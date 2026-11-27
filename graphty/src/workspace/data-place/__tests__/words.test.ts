@@ -1,15 +1,14 @@
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type { LoadedSource } from "@graphty/graphty-element/session";
+import { createGraphSession, type LoadedSource } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import { count } from "../../inspector/words";
+import { valueName } from "../../style/words";
 import {
     attributeRows,
     columnOf,
     countWords,
     fillOf,
-    joinMatch,
-    joinWords,
     leftOutRow,
     leftOutSentence,
     namesOnce,
@@ -220,40 +219,15 @@ describe("a column's kind", () => {
     });
 });
 
-describe("a Sources row's count and join words", () => {
+describe("a Sources entry's count words", () => {
     const load = (counts: { nodes: number; edges: number }, extra: Partial<LoadedSource> = {}): LoadedSource =>
         ({ counts, ...extra }) as LoadedSource;
 
     it("names the counts with their units, leaving out a count of 0", () => {
         assert.equal(countWords(load({ nodes: 13, edges: 18 })), "13 nodes, 18 edges");
-        assert.equal(countWords(load({ nodes: 1, edges: 0 })), "1 node");
-        assert.equal(countWords(load({ nodes: 4, edges: 0 }, { total: 12 })), "4 of 12 nodes");
-    });
-
-    it("says how many rows joined only when some did not", () => {
-        assert.equal(
-            joinWords(
-                load({ nodes: 0, edges: 0 }, {
-                    join: { matched: 17, rows: 19, shape: "edges" },
-                } as Partial<LoadedSource>),
-            ),
-            "17 of 19 rows joined",
-        );
-        assert.equal(
-            joinWords(
-                load({ nodes: 0, edges: 0 }, {
-                    join: { matched: 17, rows: 19, shape: "node-values" },
-                } as Partial<LoadedSource>),
-            ),
-            "17 nodes matched, 19 table rows",
-        );
-        assert.isNull(
-            joinWords(load({ nodes: 0, edges: 0 }, { join: { matched: 19, rows: 19 } } as Partial<LoadedSource>)),
-        );
-        assert.isNull(joinWords(load({ nodes: 0, edges: 0 })));
-        assert.isNull(
-            joinMatch(load({ nodes: 0, edges: 0 }, { join: { matched: 19, rows: 19 } } as Partial<LoadedSource>)),
-        );
+        assert.equal(countWords(load({ nodes: 1, edges: 0 })), "1 node, 0 edges");
+        assert.equal(countWords(load({ nodes: 4, edges: 0 }, { total: 12 })), "4 of 12 nodes, 0 edges");
+        assert.equal(countWords(load({ nodes: 60, edges: 0 }, { total: 60 })), "60 nodes, 0 edges", "nothing partial");
     });
 });
 
@@ -267,6 +241,18 @@ describe("what uses a result", () => {
     });
 });
 
+describe("a value that names a source", () => {
+    it("reads as the source's name, never its key", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import({ type: "csv", config: { data: "id,name\na,Ann" }, name: "people.csv" });
+        for (const path of ["graphty.load", "graphty.space"]) {
+            const read = session.data.valueCounts(path).values.map(({ value }) => valueName(session, path, value));
+            assert.deepEqual(read, ["people.csv"], path);
+        }
+        session.dispose();
+    });
+});
+
 describe("a source's details", () => {
     const facts = (source: LoadedSource): Record<string, string | number> => {
         const { source: about, statistics } = sourceFacts(source, [source], { issues: 0, waiting: false });
@@ -277,6 +263,27 @@ describe("a source's details", () => {
         const older = facts(loaded("people.csv", ["people.csv"], { nodes: 3, edges: 0 }));
         assert.deepEqual(Object.keys(older), ["Type", "Nodes", "Edges"]);
         assert.strictEqual(older.Nodes, 3);
+    });
+
+    it("names a web address one way, whether the network form or the data page read it", () => {
+        const url = "https://example.com/people.csv";
+        const base = loaded("people.csv", ["people.csv"], { nodes: 3, edges: 0 });
+        const form: LoadedSource = { ...base, kind: "server", type: "source:url", url };
+        const { source: about } = sourceFacts(form, [form], {
+            issues: 0,
+            waiting: false,
+            settings: [
+                { name: "URL", value: url },
+                { name: "Id column", value: "id" },
+            ],
+        });
+        const page = facts({ ...base, kind: "url", type: "csv", url });
+        assert.deepEqual(
+            about.map(({ name }) => name),
+            ["Type", "Address", "Id column"],
+        );
+        assert.strictEqual(about[0].value, page.Type);
+        assert.strictEqual(page.Address, url);
     });
 
     it("says when a load was retrieved, and its size in words", () => {

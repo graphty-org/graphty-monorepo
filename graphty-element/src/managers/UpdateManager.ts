@@ -700,6 +700,8 @@ export class UpdateManager implements Manager {
     private explicitZoomToFit = false;
     private readonly config: Required<UpdateManagerConfig>;
     private layoutStepCount = 0;
+    /** The engine the last layout frame stepped, so a new one's first frame takes one round: see `updateLayout`. */
+    private steppedEngine: WeakRef<LayoutEngine> | undefined;
     private readonly minLayoutStepsBeforeZoom = 10;
     private lastZoomStep = 0;
     private wasSettled = false;
@@ -874,6 +876,11 @@ export class UpdateManager implements Manager {
         // draws nothing and promotes nothing, `renderFrames` draws and promotes.
         this.watchOwnWork();
         this.watchFrames();
+        const scene = this.graphContext.getScene();
+        scene.metadata ??= {};
+        (scene.metadata as GraphSceneMetadata).thawActiveMeshes = () => {
+            this.thawActiveMeshes();
+        };
     }
 
     /**
@@ -3163,6 +3170,13 @@ export class UpdateManager implements Manager {
     fitAnnotations: (() => void) | null = null;
 
     /**
+     * Called once a pass, after the nodes have moved and been sized and annotations fitted: a held draft preview
+     * pushes the nodes it adds off the graph's once nothing else moves the picture. Null when nothing needs it.
+     * @internal
+     */
+    spreadDraft: (() => void) | null = null;
+
+    /**
      * The meshes a file's annotations are drawn on, which a fit frames with the nodes: Cytoscape desktop fits its
      * annotations into the view too (cys-import-and-save: a picture beside the network takes half the canvas). Null
      * when nothing draws annotations.
@@ -3687,7 +3701,9 @@ export class UpdateManager implements Manager {
         }
 
         // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
-        const scaled = this.sizeNodesForView();
+        // A framing this pass may have sized them already, for the camera it framed.
+        const scaled = this.sizeNodesForView() || this.sizedForFraming;
+        this.sizedForFraming = false;
         // A node drawn at a new scale is a new picture: its label's texture is fitted to its size on screen again.
         if (scaled) {
             this.pending.changed();
@@ -3707,6 +3723,7 @@ export class UpdateManager implements Manager {
         }
         this.refreshScreenBorders();
         this.fitAnnotations?.();
+        this.spreadDraft?.();
 
         // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
         // this frame rather than on the next one.
@@ -4024,8 +4041,18 @@ export class UpdateManager implements Manager {
         const { layoutEngine } = this.layoutManager;
         const simulation = layoutEngine instanceof SimulationLayoutEngine;
         const accelerated = simulation && layoutEngine.isAccelerated;
+        // NOT FOR THE TIME BEFORE THE ENGINE EXISTED. The first frame a new engine steps is handed
+        // the frame before it, which built the engine -- a 2D/3D switch, a new layout -- and drew no
+        // step of it. Caught up, that build time ran up to MAX_CATCH_UP_ROUNDS steps before the
+        // engine's first drawn frame: a 2D drawing lifted into 3D (issue #9372) showed up already
+        // risen instead of rising from the plane on a slow machine (issue #10272).
+        const fresh = layoutEngine !== undefined && this.steppedEngine?.deref() !== layoutEngine;
+        if (fresh) {
+            this.steppedEngine = new WeakRef(layoutEngine);
+        }
+
         const rounds =
-            accelerated || minimumWorkPerFrame()
+            accelerated || fresh || minimumWorkPerFrame()
                 ? 1
                 : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
         const started = rounds > 1 ? performance.now() : 0;
@@ -5471,6 +5498,9 @@ export class UpdateManager implements Manager {
     /** Whether node meshes may carry a view scale, so the next pass with none to size puts them back to 1. */
     private viewScaled = false;
 
+    /** Whether a framing sized nodes for the camera it framed since the last pass sized them. */
+    private sizedForFraming = false;
+
     /** The view matrix the last sizing pass sized at. */
     private readonly sizedView = new Float32Array(16);
 
@@ -5581,9 +5611,11 @@ export class UpdateManager implements Manager {
      * view. With none to size, and in XR, every node goes back to scale 1.
      *
      * ponytail: O(view-sized nodes) every frame while any is.
+     * @param exact - Whether to set a scale that moved by any amount, not only by more than a ten-thousandth: a
+     *     framing sizes nodes exactly for the camera it framed, so where it ends does not depend on where it began.
      * @returns Whether any node's scale changed, so the edges have to stop at the new surfaces.
      */
-    private sizeNodesForView(): boolean {
+    private sizeNodesForView(exact = false): boolean {
         const scene = this.graphContext.getScene();
         const camera = scene.activeCamera;
         const fallback = this.defaultSizeSpace();
@@ -5609,7 +5641,7 @@ export class UpdateManager implements Manager {
         const size = (node: Node): void => {
             const space = node.sizeSpace ?? fallback;
             const scale = viewSizeScale(space, sizeView, depthOf(node.drawnWorldPosition), zPivot, reference);
-            if (Math.abs(node.drawnScale - scale) > 1e-4) {
+            if (Math.abs(node.drawnScale - scale) > (exact ? 0 : 1e-4)) {
                 node.drawnScale = scale;
                 changed = true;
             }
@@ -6232,7 +6264,12 @@ export class UpdateManager implements Manager {
                 declutter instanceof LabelDeclutter && scene.activeCamera !== null
                     ? declutter.placeForFraming(scene.activeCamera)
                     : false;
-            if ((fits.size === 0 && !placed) || round === MAX_LABEL_FIT_ROUNDS) {
+            // A node sized on screen (`node.sizeSpace`) takes room in the scene that depends on the camera, as such a
+            // label does: measured at the size the last frame's camera gave it, the fit ended wherever the frames
+            // that ran before it had left the sizes, and the same graph was framed a few millionths apart.
+            const resized = this.sizeNodesForView(true);
+            this.sizedForFraming ||= resized;
+            if ((fits.size === 0 && !placed && !resized) || round === MAX_LABEL_FIT_ROUNDS) {
                 return current;
             }
 

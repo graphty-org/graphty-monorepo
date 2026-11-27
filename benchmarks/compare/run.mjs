@@ -32,9 +32,9 @@ const LIMITS = process.env.BENCH_LIMITS ? JSON.parse(process.env.BENCH_LIMITS) :
 const [lib, mode, accel, n, m, dpr, ...flags] = process.argv.slice(2);
 const skip = flags.includes("skip-layout"),
     labels = flags.includes("labels"),
-    // label sampling on (layoutBehavior.labels.sampleCell), only with labels
+    // label sampling on (layoutBehavior.labels.sampleCell), for the labels flag and a label style
     sampled = flags.includes("sampled"),
-    // labels drawn from the glyph atlas (layoutBehavior.labels.labelText "glyphs"), only with labels
+    // labels drawn from the glyph atlas (layoutBehavior.labels.labelText "glyphs"), for the labels flag and a label style
     glyphs = flags.includes("glyphs"),
     // every edge a curve (edge.curvature) with no caps, in 3D: the curve scenario of stage 21
     curves = flags.includes("curves"),

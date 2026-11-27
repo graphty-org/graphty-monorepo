@@ -56,6 +56,7 @@ import type {
     StructureValue,
 } from "../catalog/types";
 import { isPairConfig } from "../data/CSVDataSource";
+import { fixedIdsOf } from "../data/declaredPins";
 import { edgeCounterOf, edgeIdOf, pairKey as pairKeyOf, recordType, type RepeatGroup } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
@@ -241,7 +242,7 @@ import {
 } from "./sources/steps/compile";
 import type { DraftMark, DraftMarks } from "./sources/steps/draft";
 import { matchCounts, matchValues } from "./sources/steps/match";
-import { RECORD_PATHS } from "./sources/steps/paths";
+import { RECORD_NAMES, RECORD_PATHS } from "./sources/steps/paths";
 import { spaceProfile, tableHandle } from "./sources/steps/profile";
 import {
     applyEdit,
@@ -289,6 +290,7 @@ import {
 } from "./sources/steps/refresh";
 import { stepsMemberFields } from "./sources/steps/saved";
 import type { BuildResult, BuiltEdge, BuiltNode, CopyTables, Row } from "./sources/steps/types";
+import { waitingColumns, type WaitingGraph, waitingGraph } from "./sources/steps/waiting";
 import type {
     CollapseResult,
     ExpandOptions,
@@ -510,6 +512,8 @@ interface DataWrites {
     references?(): { readonly nodes: readonly NodeId[]; readonly edges: readonly (EdgeId | undefined)[] };
     /** A drawn source draft's After on the graph: taken off and put back around what must not see it. */
     readonly drawing?: {
+        /** Whether a draft's After is drawn now. */
+        active(): boolean;
         /** Settles once the graph draws what the open draft shows now. */
         drawn(): Promise<void>;
         /** Take After off the graph now, synchronously. */
@@ -1315,6 +1319,18 @@ export class SessionData implements SessionDataApi {
     >();
     /** The draft `prepare` returned last, until it is loaded or disposed: one is held at a time. */
     private heldDraft: Draft | null = null;
+    /**
+     * The draft the public `prepare` handed back, what it read and how, and that input as autosave
+     * keeps it, until the draft is loaded or disposed (issue #9846).
+     */
+    private offered: {
+        readonly draft: Draft;
+        readonly source: DataSourceInput;
+        readonly onto?: "graph";
+        readonly saved: SavedPrepared | null;
+    } | null = null;
+    /** Told when the offered draft changes, so autosave writes it again. Internal. */
+    readonly preparedChanged = new Set<() => void>();
     /** The draft of the sources and steps open now, under the source-steps experiment. */
     private sourceDraft: SourceDraftHandle | null = null;
     /**
@@ -1975,13 +1991,16 @@ export class SessionData implements SessionDataApi {
             nodes: readonly Record<string, unknown>[];
             edges: readonly Record<string, unknown>[];
         };
+        // Left off a command whose dataset marks none, so its step reads as before.
+        const marked = "src" in graph ? [] : fixedIdsOf(graph);
+        const fixed = marked.length === 0 ? undefined : marked;
         if (!("src" in graph)) {
             placeFromDrawing(graph, data.nodes);
         }
         const label = LABEL_COLUMNS.find((column) => data.nodes.some((node) => typeof node[column] === "string"));
         if (this.pages.batched?.() !== true || readsThroughDraft(options)) {
             const json = JSON.stringify({ directed: graph.directed, ...data });
-            return { source: { type: "json", name, config: { data: json } }, label };
+            return { source: { type: "json", name, config: { data: json } }, label, fixed };
         }
 
         const held: HeldRows = {
@@ -1995,7 +2014,7 @@ export class SessionData implements SessionDataApi {
             errors: [],
             errorLimit: SAMPLE_ERROR_LIMIT,
         };
-        return { source: { type: "json", name, config: {} }, label, held };
+        return { source: { type: "json", name, config: {} }, label, held, fixed };
     }
 
     /**
@@ -2053,7 +2072,7 @@ export class SessionData implements SessionDataApi {
         }
         this.heldDraft?.dispose();
         if (readsThroughDraft(options) || (this.stepsOn() && sample?.held === undefined)) {
-            const draft = await this.prepare(source, options.signal === undefined ? {} : { signal: options.signal });
+            const draft = await this.readDraft(source, options.signal === undefined ? {} : { signal: options.signal });
             try {
                 // The bytes the rows were read from name their copy (a dataset's are its download).
                 const bytes = sample === undefined ? await copyDigest(source.config) : sample.url?.sha256;
@@ -2078,6 +2097,7 @@ export class SessionData implements SessionDataApi {
         await turn.take(() => {
             const step: DataImportCommand = {
                 ...importCommand(resolved, options, sample?.held),
+                ...(sample?.fixed === undefined ? {} : { fixed: sample.fixed }),
                 ...(chosenOrigin === undefined ? {} : { origin: chosenOrigin }),
                 ...(this.stepsOn() ? { choices: stepsChoices(options) } : {}),
             };
@@ -2770,6 +2790,80 @@ export class SessionData implements SessionDataApi {
             readonly onProgress?: (change: ProgressChange) => void;
         } = {},
     ): Promise<Draft> {
+        const draft = await this.readDraft(source, options);
+        const blob = fileOf(source.config.file);
+        // The file's bytes, so autosave keeps the draft and a restore reads it again (issue #9846).
+        const bytes =
+            blob === null
+                ? undefined
+                : await blob
+                      .slice(0, blob.size)
+                      .arrayBuffer()
+                      .then((buffer) => new Uint8Array(buffer))
+                      .catch(() => undefined);
+        const input = savedInput(source, bytes);
+        const how = {
+            ...(options.onto === undefined ? {} : { onto: options.onto }),
+            ...(options.guess === undefined ? {} : { guess: options.guess }),
+        };
+        // Disposed while its bytes were read, it is no longer offered.
+        if (this.heldDraft === draft) {
+            this.offered = { draft, source, ...how, saved: input === undefined ? null : { input, ...how } };
+            this.tellPrepared();
+        }
+        return draft;
+    }
+
+    /**
+     * The draft the last `prepare` handed back, while it is neither loaded nor disposed.
+     * @returns It and what it was read from, or null.
+     */
+    prepared(): { readonly draft: Draft; readonly source: DataSourceInput; readonly onto?: "graph" } | null {
+        this.requireLive("prepared");
+        if (this.offered === null) {
+            return null;
+        }
+        const { draft, source, onto } = this.offered;
+        return { draft, source, ...(onto === undefined ? {} : { onto }) };
+    }
+
+    /**
+     * The offered draft as autosave keeps it. Internal.
+     * @returns It, or null when none is offered or its input cannot be kept.
+     */
+    savedPrepared(): SavedPrepared | null {
+        return this.offered?.saved ?? null;
+    }
+
+    /**
+     * Prepare again a draft autosave kept, so `prepared()` hands it back after a restore. Internal.
+     * @param saved - What `savedPrepared` returned.
+     * @returns Settles once it is read again.
+     */
+    async reopenPrepared(saved: SavedPrepared): Promise<void> {
+        await this.prepare(inputOfSaved(saved.input), {
+            ...(saved.onto === undefined ? {} : { onto: saved.onto }),
+            ...(saved.guess === undefined ? {} : { guess: saved.guess }),
+        });
+    }
+
+    /** Tell autosave the offered draft changed. */
+    private tellPrepared(): void {
+        for (const listener of this.preparedChanged) {
+            listener();
+        }
+    }
+
+    /**
+     * `prepare` for the element's own reads: the draft is not offered to the caller of `prepared`.
+     * @param source - What `import` takes.
+     * @param options - As `prepare` takes them.
+     * @returns The draft.
+     */
+    private async readDraft(
+        source: DataSourceInput,
+        options: Parameters<SessionData["prepare"]>[1] = {},
+    ): Promise<Draft> {
         this.requireLive("prepare");
         this.heldDraft?.dispose();
         const read = await readWithProgress(source, options.signal, (change) => {
@@ -2848,6 +2942,10 @@ export class SessionData implements SessionDataApi {
                 released: (released) => {
                     if (this.heldDraft === released) {
                         this.heldDraft = null;
+                    }
+                    if (this.offered?.draft === released) {
+                        this.offered = null;
+                        this.tellPrepared();
                     }
                 },
                 ...(options.onto === "graph"
@@ -3960,7 +4058,9 @@ export class SessionData implements SessionDataApi {
                     ...entry,
                     key,
                     kind,
-                    ...((input !== undefined && this.kept.has(input)) || this.openedInputs.has(key)
+                    ...((input !== undefined && this.kept.has(input)) ||
+                    this.openedInputs.has(key) ||
+                    (this.stepsOn() && addressInput({ ...each, kind }) !== undefined)
                         ? { reloadable: true as const }
                         : {}),
                     ...(this.referenced(key) ? { copy: "reference" as const } : {}),
@@ -4148,7 +4248,7 @@ export class SessionData implements SessionDataApi {
         { guess, ...options }: StageOptions,
     ): Promise<{ source: StepsSource; copies: Copies } | null> {
         checkSpace(options.space);
-        const draft = await this.prepare(source, guess === undefined ? {} : { guess });
+        const draft = await this.readDraft(source, guess === undefined ? {} : { guess });
         const { sha256: digest, size } = await copyFacts(source.config);
         const delimiter = draft.tables.find((table) => table.delimiter !== undefined)?.delimiter;
         const facts = {
@@ -4175,7 +4275,8 @@ export class SessionData implements SessionDataApi {
                         if (!Object.values(copies).some((tables) => hasRows(tables))) {
                             throw emptyCopy(load.source.type ?? source.type);
                         }
-                        read = { source: { ...compiled.edit.source, read: facts }, copies };
+                        // Kept, so the source can be read again as a load can.
+                        read = { source: { ...compiled.edit.source, input: this.keep(source), read: facts }, copies };
                     }
                     return Promise.resolve();
                 },
@@ -4265,6 +4366,22 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Whether the draft drawn now holds the committed graph's nodes where they are.
+     * @returns True while it does.
+     */
+    draftHolds(): boolean {
+        return this.sourceDraft?.holds === true;
+    }
+
+    /**
+     * Whether a draft's After is drawn: the graph holds what its commit would leave.
+     * @returns True while it is.
+     */
+    draftIsDrawn(): boolean {
+        return this.writes.drawing?.active() === true;
+    }
+
+    /**
      * Run a read of the project (a save) on the committed graph: a drawn draft's After is taken off
      * the graph while it runs, until a promise it returns settles, and drawn again after, so the
      * read never holds what the draft adds.
@@ -4337,19 +4454,24 @@ export class SessionData implements SessionDataApi {
      */
     sourceTable(source: SourceKey): SourceTable {
         this.requireSteps("sourceTable");
-        return tableHandle(() => ({ value: this.stepsValue(), copies: this.stepsCopies() }), source);
+        const now = (): { value: SourceSteps; copies: Copies } => ({
+            value: this.stepsValue(),
+            copies: this.stepsCopies(),
+        });
+        return tableHandle(now, source, this.loadFacts.get(source)?.loadedAt);
     }
 
     /**
-     * The profile of the keys of the nodes one id space holds.
-     * @param options - The space.
+     * The profile of the keys of the nodes one id space holds, or of a column they carry.
+     * @param options - The space, and the column.
      * @param options.space - The space.
+     * @param options.field - The column; absent, the keys.
      * @returns The profile.
      * @throws A `GraphtyError` with `E_FEATURE_OFF`.
      */
-    profile(options: { readonly space: string }): SourceColumnProfile {
+    profile(options: { readonly space: string; readonly field?: string }): SourceColumnProfile {
         this.requireSteps("profile");
-        return spaceProfile(this.stepsValue(), this.stepsCopies(), options.space);
+        return spaceProfile(this.stepsValue(), this.stepsCopies(), options.space, options.field);
     }
 
     /**
@@ -4582,6 +4704,16 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Under the source-steps experiment, a staged source as a graph of its own: what a filter made for
+     * it counts while it waits.
+     * @param source - The source's id.
+     * @returns It, or undefined for a source that is not staged, or with the experiment off.
+     */
+    waitingGraph(source: string): WaitingGraph | undefined {
+        return this.stepsOn() ? waitingGraph(this.stepsValue(), this.stepsCopies(), source) : undefined;
+    }
+
+    /**
      * Which halves of the source-steps build carry a value at a readable path, for the rule and
      * filter readers; none with the experiment off.
      * @param path - A readable path, such as `graphty.type`.
@@ -4682,6 +4814,18 @@ export class SessionData implements SessionDataApi {
     ref(key: string, options: { readonly space?: string } = {}): SourceNodeRef | null {
         this.requireLive("ref");
         return refOf(this.stepsBuild().result, key, options.space);
+    }
+
+    /**
+     * The type of a node or an edge in the graph.
+     * @param kind - Nodes or edges.
+     * @param id - Its id.
+     * @returns The type, or null for one with none or not in the graph.
+     */
+    typeOf(kind: "node" | "edge", id: NodeId | EdgeId): string | null {
+        this.requireSteps("typeOf");
+        const { nodes, edges } = elementsById(this.stepsBuild().result, this.stepsEdgeIds());
+        return (kind === "node" ? nodes.get(String(id)) : edges.get(id as EdgeId))?.type ?? null;
     }
 
     /**
@@ -5366,10 +5510,12 @@ export class SessionData implements SessionDataApi {
      */
     private async reloadStepsSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         const src = this.stepsValue().sources[key] as StepsSource | undefined;
-        const input = src?.input === undefined ? undefined : this.kept.get(src.input);
         if (src === undefined) {
             throw this.unknownSource(key);
         }
+        // an opened project still names the address a source was read from
+        const held = src.input === undefined ? undefined : this.kept.get(src.input);
+        const input = held ?? addressInput({ ...src, name: src.label ?? undefined });
         if (input === undefined || Object.keys(choices).length > 0) {
             throw new GraphtyError({
                 code: "E_UNSUPPORTED",
@@ -5435,7 +5581,7 @@ export class SessionData implements SessionDataApi {
         if (src === undefined) {
             throw this.unknownSource(key);
         }
-        if (source.source !== undefined) {
+        if (source.source !== undefined && source.source !== ADDRESS_SOURCE) {
             throw new GraphtyError({
                 code: "E_UNSUPPORTED",
                 message:
@@ -5465,6 +5611,7 @@ export class SessionData implements SessionDataApi {
                 label: source.name ?? src.label,
                 input: this.keep(source),
                 digest: await digest(),
+                numbered: null,
             });
             return Object.freeze({
                 nodes: counts.nodes,
@@ -5484,6 +5631,7 @@ export class SessionData implements SessionDataApi {
             input: this.keep(source),
             tables: compiled.edit.source.tables,
             digest: await digest(),
+            numbered: compiled.edit.source.numbered ?? null,
         });
         return Object.freeze({
             nodes: counts.nodes,
@@ -5499,9 +5647,13 @@ export class SessionData implements SessionDataApi {
      * @param options - How to read its rows.
      * @returns The import, or undefined when the draft dispatches none.
      */
-    private async captureLoad(source: DataSourceInput, options: ImportOptions): Promise<DataImportCommand | undefined> {
-        const read = this.reads.get(source);
-        const draft = read === undefined ? await this.prepare(source) : await this.draftOf(source, read);
+    private async captureLoad(
+        source: DataSourceInput,
+        options: ImportOptions & Pick<LoadChoices, "mapping">,
+    ): Promise<DataImportCommand | undefined> {
+        // what an address holds may have changed since it was read
+        const read = hasAddress(source) ? undefined : this.reads.get(source);
+        const draft = read === undefined ? await this.readDraft(source) : await this.draftOf(source, read);
         let captured: DataImportCommand | undefined;
         try {
             await draft.loadVia(
@@ -5528,6 +5680,7 @@ export class SessionData implements SessionDataApi {
      * @param about.input - Its input token.
      * @param about.tables - Its tables.
      * @param about.digest - The SHA-256 of the bytes the rows were read from, which names the copy.
+     * @param about.numbered - The column the rows were numbered under, null for none; absent leaves it.
      * @returns What changed and the issues.
      */
     private async swapStepsCopy(
@@ -5538,6 +5691,7 @@ export class SessionData implements SessionDataApi {
             readonly input?: string;
             readonly tables?: readonly string[];
             readonly digest?: string;
+            readonly numbered?: string | null;
         },
     ): Promise<
         ChangeCounts & {
@@ -5837,7 +5991,7 @@ export class SessionData implements SessionDataApi {
         let config: SessionCommand | undefined;
         // Rows a draft already read from this very source are read as they are, with no I/O.
         const read = this.reads.get(source);
-        const draft = read === undefined ? await this.prepare(source) : await this.draftOf(source, read);
+        const draft = read === undefined ? await this.readDraft(source) : await this.draftOf(source, read);
         await draft.loadVia((command) => {
             const steps = command.op === "batch" ? command.steps : [command];
             config = steps.find((step) => step.op === "config.set");
@@ -7588,18 +7742,38 @@ export class SessionData implements SessionDataApi {
         readonly readable: readonly AttributeDescriptor[];
     } {
         const snapshot = this.current();
-        return this.attributeCache.get("", () => {
+        const sources = this.stepsOn() ? Object.values(this.stepsValue().sources) : [];
+        return this.attributeCache.get(JSON.stringify(sources.map((src) => [src.id, src.label])), () => {
+            // A Both column is named by its source's id, and shown by the source's name.
+            const named = (each: AttributeDescriptor): AttributeDescriptor => {
+                const src = sources.find(({ id }) => each.name.endsWith(` (${id})`));
+                return src?.label === undefined || src.label === null
+                    ? each
+                    : { ...each, plainName: `${each.name.slice(0, -src.id.length - 3)} (${src.label})` };
+            };
             // The `_source.` facts are the element's bookkeeping of network loads, not the data's
             // columns, and so is what a collapsed group keeps for its expand.
+            // So is the direction of an edge linking nodes that share a value, which no source's rows hold.
+            const linked =
+                this.stepsOn() && ![...this.stepsBuild().result.edges.values()].some((e) => "directed" in e.values);
             const all = describeAttributes(snapshot, this.records).filter(
-                (each) => !isSourceFactKey(each.name) && each.name !== GROUP_RESTORE,
+                (each) =>
+                    !isSourceFactKey(each.name) &&
+                    each.name !== GROUP_RESTORE &&
+                    !(linked && each.kind === "edge" && each.name === "directed"),
             );
             const isReadable = (each: AttributeDescriptor): boolean =>
                 this.stepsOn() && RECORD_PATHS.includes(each.name);
             return {
-                columns: Object.freeze(all.filter((each) => !isReadable(each))),
+                columns: Object.freeze(all.filter((each) => !isReadable(each)).map((each) => named(each))),
                 readable: Object.freeze(
-                    all.filter((each) => isReadable(each)).map((each) => ({ ...each, path: each.name })),
+                    all
+                        .filter((each) => isReadable(each))
+                        .map((each) => ({
+                            ...each,
+                            path: each.name,
+                            plainName: RECORD_NAMES[each.name] ?? each.name,
+                        })),
                 ),
             };
         });
@@ -7733,11 +7907,23 @@ export class SessionData implements SessionDataApi {
     /**
      * Every value a rule or a binding can read: the node id, the data columns and the fields
      * finished runs published per element.
+     * @param options - Whose values.
+     * @param options.source - A staged source: the values its rows will carry.
      * @returns the values, the node id first, then the data columns, then each run's fields
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    readableValues(): readonly ReadableValue[] {
+    readableValues(options: { readonly source?: SourceKey } = {}): readonly ReadableValue[] {
         const snapshot = this.current();
+        const waiting = options.source === undefined ? undefined : this.waitingGraph(options.source);
+        if (waiting !== undefined) {
+            return readableValues({
+                snapshot: waiting.graph,
+                directed: true,
+                attributes: waitingColumns(this.stepsValue(), this.stepsCopies(), options.source ?? ""),
+                declarationOf: () => undefined,
+                runs: [],
+            });
+        }
         const declarations = this.writes.declarations();
         const runs: Run[] = [];
         for (const id of this.pages.runIds()) {
@@ -9806,6 +9992,8 @@ interface SampleLoad {
     readonly label: string | undefined;
     /** The records, handed to the import instead of a JSON text of them. */
     readonly held?: HeldRows;
+    /** The nodes a dataset's `fixed` column marks, which a `pins: "data"` load pins. */
+    readonly fixed?: readonly NodeId[];
 }
 
 /**
@@ -9831,7 +10019,7 @@ function withStepsMapping<O extends LoadChoices>(options: O): O {
  * @param src - The source.
  * @returns The choices; none for a source holding both nodes and edges, which the file says.
  */
-function readChoicesOf(src: StepsSource): ImportOptions {
+function readChoicesOf(src: StepsSource): ImportOptions & Pick<LoadChoices, "mapping"> {
     const { nodes, edges } = src.mapping;
     const asRead = (column: string, renamed: Readonly<Record<string, string>> | undefined): string =>
         Object.entries(renamed ?? {}).find(([, working]) => working === column)?.[0] ?? column;
@@ -9842,6 +10030,9 @@ function readChoicesOf(src: StepsSource): ImportOptions {
                 to: { column: asRead(edges.target, edges.renamed) },
             },
         };
+    }
+    if (nodes?.key !== undefined && nodes.key === src.numbered && edges === undefined) {
+        return { mapping: { rowsAre: "nodes", key: null } };
     }
     if (nodes?.key !== undefined && edges === undefined) {
         return { key: asRead(nodes.key, nodes.renamed) };
@@ -10356,6 +10547,13 @@ export interface SavedInput {
     readonly base64?: string;
 }
 
+/** A draft `prepare` handed back, as autosave keeps it: what it read and how. */
+export interface SavedPrepared {
+    readonly input: SavedInput;
+    readonly onto?: "graph";
+    readonly guess?: "names" | "values";
+}
+
 /**
  * Bytes as autosave keeps them.
  * @param bytes - The bytes.
@@ -10799,6 +10997,44 @@ function addressOf(
     }
 
     return record?.endpoint === undefined || record.endpoint === null ? {} : { url: record.endpoint };
+}
+
+/** The network source that reads one file at an address. */
+const ADDRESS_SOURCE = "url";
+
+/**
+ * Whether a source is read from an address.
+ * @param source - The source.
+ * @returns True when it is.
+ */
+function hasAddress(source: DataSourceInput): boolean {
+    const url = source.config?.url;
+    return typeof url === "string" && !url.startsWith("data:");
+}
+
+/**
+ * What a source read from an address is read again from, as it is listed or saved.
+ * @param source - The source.
+ * @param source.kind - How it was loaded.
+ * @param source.type - Its format, when the load named one.
+ * @param source.config - Its options, the address among them.
+ * @param source.name - Its name.
+ * @returns What `import` takes, or undefined for a source read from no address.
+ */
+function addressInput(source: {
+    readonly kind: string;
+    readonly type?: string;
+    readonly config?: Readonly<Record<string, unknown>>;
+    readonly name?: string;
+}): DataSourceInput | undefined {
+    const url = source.config?.url;
+    if (source.kind !== "url" || typeof url !== "string") {
+        return undefined;
+    }
+    const named = source.name === undefined ? {} : { name: source.name };
+    return source.type === undefined || source.type === ADDRESS_SOURCE
+        ? { source: ADDRESS_SOURCE, config: { url }, ...named }
+        : { type: source.type, config: { url }, ...named };
 }
 
 /**

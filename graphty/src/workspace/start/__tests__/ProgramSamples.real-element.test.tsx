@@ -4,9 +4,9 @@
  * load test's file (graph-io/test/corpus/programs/samples.json), byte for byte; and a click opens the file as a new
  * project holding every node and edge the file does. A styled sample is drawn in the app's own 3D view, with its label
  * settings, with the file's shapes, line styles and labels, counted over every node and edge, and with no two nodes
- * over each other that the file does not already overlap (graphty-element's program-samples test checks the rest of
- * the drawing); it opens with no key over the drawing, and the key the reader opens names no column that holds the
- * file's own style values.
+ * over each other that the file does not already overlap, its nodes as large beside the gaps between them as in the
+ * app's 2D view (graphty-element's program-samples test checks the rest of the drawing); it opens with no key over the
+ * drawing, and the key the reader opens names no column that holds the file's own style values.
  */
 
 import "../../../index.css";
@@ -22,9 +22,11 @@ import {
     fileOverlaps,
     LINE_CLASS,
     overlaps,
+    widthToSpacing,
 } from "../../../../../graph-io/test/programs/program-file-facts";
 import { PROGRAM_SAMPLES } from "../../../data/sampleManifest";
 import { withFeatures } from "../../../test/features";
+import { modeTo2d } from "../../../test/mode-2d";
 import { openBy } from "../../../test/open";
 import { pickSample, sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -86,6 +88,26 @@ async function openProgram(
     );
     assert.isNotNull(element);
     return { session, element };
+}
+
+/**
+ * The on-screen box of every node drawn now.
+ * @param element - the element drawing them
+ * @param ids - the nodes
+ * @returns each shown node's id, center and size, in pixels
+ */
+function drawnBoxes(
+    element: HTMLElementTagNameMap["graphty-element"],
+    ids: readonly string[],
+): { id: string; x: number; y: number; w: number; h: number }[] {
+    return ids.flatMap((id) => {
+        const at = element.nodeScreenPosition(id);
+        if (at?.visible !== true) {
+            return [];
+        }
+        const { left, top, right, bottom } = at.bounds;
+        return [{ id, x: (left + right) / 2, y: (top + bottom) / 2, w: right - left, h: bottom - top }];
+    });
 }
 
 /** A node as the session lists it: its id and its data. */
@@ -233,19 +255,25 @@ describe("the start page's files from other programs", () => {
             `${sample.program} labeled nodes`,
         );
         // no two nodes drawn over each other that the file does not already overlap
-        const boxes = nodes.flatMap((id) => {
-            const at = element.nodeScreenPosition(id);
-            if (at?.visible !== true) {
-                return [];
-            }
-            const { left, top, right, bottom } = at.bounds;
-            return [{ id, x: (left + right) / 2, y: (top + bottom) / 2, w: right - left, h: bottom - top }];
-        });
+        const boxes = drawnBoxes(element, nodes);
         const already = fileOverlaps(file);
         assert.deepEqual(
             [...overlaps(boxes, 1)].filter((pair) => !already.has(pair)),
             [],
             `${sample.program} nodes drawn over each other that the file does not overlap`,
+        );
+        // a drawing flat on its plane keeps its proportions in perspective: its nodes as large beside the gaps between
+        // them in 3D as in the app's 2D view (a centered label hung in front of a Graphviz box once drew every box a
+        // fifth larger beside its gaps in 3D, with no two boxes yet crossing)
+        await modeTo2d(session);
+        await element.waitForSettled();
+        await session.styles.settled();
+        await element.waitForStableFrame();
+        assert.closeTo(
+            widthToSpacing(boxes) / widthToSpacing(drawnBoxes(element, nodes)),
+            1,
+            0.03,
+            `${sample.program} node size beside the gaps, 3D over 2D`,
         );
 
         // the file's own drawing opens no key over it (Graphviz's row labels sat under one)

@@ -15,12 +15,13 @@
  * | `stash` | the consumer's stash |
  * | `drafts` | the filter drafts still open, reopened after a restore |
  * | `sourceDraft` | the draft of the sources and steps still open, written with `drafts` and reopened after a restore |
+ * | `prepared` | the draft `data.prepare` handed back and still held (a file's bytes included), written with `drafts` and prepared again after a restore |
  * @module autosave
  */
 
 import type { RunId } from "../catalog/types";
 import { assetsMember } from "../session/assets/projectMember";
-import type { SavedInput, SessionData } from "../session/data";
+import type { SavedInput, SavedPrepared, SessionData } from "../session/data";
 import { dispatcherOf, sessionRunsOf } from "../session/dispatchers";
 import {
     arrangementMember,
@@ -218,6 +219,18 @@ function dataParts(session: GraphSession): Record<string, string | null> {
     };
 }
 
+/** The parts kept apart from the graph, which a drawn source draft leaves as they are. */
+export const APART: ReadonlySet<PartTag> = new Set<PartTag>(["drafts", "stash"]);
+
+/**
+ * Whether a source draft's After is drawn on the graph.
+ * @param session - The session.
+ * @returns True while one is.
+ */
+export function draftIsDrawn(session: GraphSession): boolean {
+    return (session.data as Partial<Pick<SessionData, "draftIsDrawn">>).draftIsDrawn?.() === true;
+}
+
 /**
  * Build the parts a set of tags names, from the session as it is now.
  * @param session - The session.
@@ -234,6 +247,29 @@ export function buildParts(
     written: ReadonlyMap<RunId, unknown>,
     stash: ReadonlyMap<string, unknown>,
     writtenAssets: ReadonlySet<string> = new Set(),
+): BuiltParts {
+    const build = (): BuiltParts => partsNow(session, tags, written, stash, writtenAssets);
+    const data = session.data as Partial<Pick<SessionData, "withoutDrawnDraft">>;
+    // A source draft's After drawn on the graph is no part of the project; the drafts are kept apart.
+    const ofTheGraph = [...tags].some((tag) => !APART.has(tag));
+    return ofTheGraph && data.withoutDrawnDraft !== undefined ? data.withoutDrawnDraft(build) : build();
+}
+
+/**
+ * Build the parts from the session as it is drawn.
+ * @param session - The session.
+ * @param tags - What is unwritten.
+ * @param written - The run entries already in the store, by id.
+ * @param stash - The consumer's stash.
+ * @param writtenAssets - The digests whose `asset:` parts are already in the store.
+ * @returns The parts, and the run entries they hold.
+ */
+function partsNow(
+    session: GraphSession,
+    tags: ReadonlySet<PartTag>,
+    written: ReadonlyMap<RunId, unknown>,
+    stash: ReadonlyMap<string, unknown>,
+    writtenAssets: ReadonlySet<string>,
 ): BuiltParts {
     const sources = sourcesOf(session);
     const finished = sources.dispatcher.state.runs;
@@ -262,6 +298,8 @@ export function buildParts(
         parts.sourceDraft = attempt("sourceDraft", () =>
             JSON.stringify(sourceDraftHooks(session.data)?.saved() ?? null),
         );
+        const prepared = (session.data as Partial<Pick<SessionData, "savedPrepared">>).savedPrepared?.() ?? null;
+        parts.prepared = prepared === null ? null : attempt("prepared", () => JSON.stringify(prepared));
     }
 
     return { parts, runs, order: [...finished.keys()], ...(assets === undefined ? {} : { assets }) };
@@ -356,6 +394,16 @@ export function draftsOf(parts: AutosaveParts): SavedFilterDraft[] {
 export function sourceDraftOf(parts: AutosaveParts): SavedSourceDraft | null {
     const text = parts.sourceDraft;
     return typeof text === "string" ? (JSON.parse(text) as SavedSourceDraft | null) : null;
+}
+
+/**
+ * The prepared draft an entry holds; an entry written before prepared drafts were kept holds none.
+ * @param parts - The entry's parts.
+ * @returns The draft as kept, or null.
+ */
+export function preparedOf(parts: AutosaveParts): SavedPrepared | null {
+    const text = parts.prepared;
+    return typeof text === "string" ? (JSON.parse(text) as SavedPrepared) : null;
 }
 
 /**

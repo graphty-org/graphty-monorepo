@@ -48,8 +48,8 @@ describe("source-steps: the simple path", () => {
         assert.strictEqual(session.data.store.getSnapshot().ids.size, 2, "each in its own space");
         assert.deepStrictEqual(
             nodeIds(session),
-            sources.map((s) => `source:${s.key}:n1`).sort(),
-            "a key two spaces hold is <space>:<key>",
+            ["n1", "two.csv:n1"],
+            "the first keeps its key, the next is <source>:<key>: never an id of the element's own",
         );
         assert.deepStrictEqual(
             session.data.steps().map((s) => [s.op, s.source]),
@@ -62,50 +62,48 @@ describe("source-steps: the simple path", () => {
         session.dispose();
     });
 
-    it("a NodeId is the key when one space holds it, else <space>:<key>; { space, key } also works (9.1)", async () => {
+    it("a NodeId is the key, or <space>:<key> for a key an earlier node has; { space, key } also works (9.1)", async () => {
         const session = stepsSession();
         await session.data.import(csv("people.csv", "id,name\na,Ann\nb,Bo\n"), { type: "person" });
         assert.deepStrictEqual(nodeIds(session), ["a", "b"]);
         assert.deepStrictEqual(session.data.ref("a"), { space: "person", key: "a" });
         assert.strictEqual(session.data.node("a")?.id, "a");
         await session.data.import(csv("pets.csv", "id,kind\na,cat\n"), { mode: "merge", type: "pet" });
-        assert.deepStrictEqual(nodeIds(session), ["b", "person:a", "pet:a"]);
+        assert.deepStrictEqual(nodeIds(session), ["a", "b", "pet:a"], "no node the graph held is renamed");
+        assert.strictEqual(session.data.node("a")?.name, "Ann");
         assert.throws(() => session.data.ref("a"), /space/u);
         assert.strictEqual(session.data.node("a", { space: "pet" })?.id, "pet:a");
         assert.deepStrictEqual(session.data.ref("a", { space: "pet" }), { space: "pet", key: "a" });
         session.dispose();
     });
 
-    it("a direct edit naming a key two spaces hold is refused with E_AMBIGUOUS_ID and changes nothing (8.3, 9.1)", async () => {
+    it("a direct edit naming a NodeId edits that node, whatever space shares its key (8.3, 9.1)", async () => {
         const session = stepsSession();
         await session.data.import(csv("people.csv", "id\na\n"), { type: "person" });
         await session.data.import(csv("pets.csv", "id\na\n"), { mode: "merge", type: "pet" });
         const before = nodeIds(session);
-        const refused = (error: unknown): void =>
-            assert.strictEqual((error as { code?: string }).code, "E_AMBIGUOUS_ID");
-        await session.data
-            .updateNodes([{ id: "a", values: { score: 5 } }])
-            .then(() => assert.fail("updateNodes must name the space"), refused);
-        await session.data
-            .addEdges([{ source: "a", target: "pet:a" }])
-            .then(() => assert.fail("addEdges must name the space"), refused);
-        await session.data.removeNodes(["a"]).then(() => assert.fail("removeNodes must name the space"), refused);
-        assert.deepStrictEqual(session.data.edits(), []);
-        assert.deepStrictEqual(nodeIds(session), before);
-        await session.data.updateNodes([{ id: "pet:a", values: { score: 5 } }]);
-        assert.deepStrictEqual(nodeIds(session), before, "the spelled NodeId edits the pet, minting nothing");
+        assert.throws(() => session.data.ref("a"), /space/u, "as a key it names two nodes");
+        await session.data.updateNodes([{ id: "a", values: { score: 5 } }]);
+        assert.deepStrictEqual(
+            session.data.edits().map((e) => e.target),
+            [{ space: "person", key: "a" }],
+        );
+        await session.data.updateNodes([{ id: "pet:a", values: { score: 6 } }]);
+        await session.data.updateNodes([{ id: "person:a", values: { score: 7 } }]);
+        assert.deepStrictEqual(nodeIds(session), before, "a spelled NodeId edits its node, minting nothing");
+        assert.deepStrictEqual([session.data.node("a")?.score, session.data.node("pet:a")?.score], [7, 6]);
+        await session.data.removeNodes(["a"]);
+        assert.strictEqual(session.data.store.getSnapshot().ids.size, 1);
         session.dispose();
     });
 
-    it("two plain imports sharing a key: an edge to the bare key is refused, not drawn to a new reader node", async () => {
+    it("two plain imports sharing a key: an edge to a NodeId is drawn to that node, not a new reader node", async () => {
         const session = stepsSession();
         await session.data.import(csv("1.csv", "source,target\na,b\n"));
         await session.data.import(csv("2.csv", "source,target\nb,c\n"), { mode: "merge" });
         const before = nodeIds(session);
-        await session.data.addEdges([{ source: "b", target: "c" }]).then(
-            () => assert.fail("b is held in two spaces"),
-            (error: unknown) => assert.strictEqual((error as { code?: string }).code, "E_AMBIGUOUS_ID"),
-        );
+        assert.deepStrictEqual(before, ["2.csv:b", "a", "b", "c"]);
+        await session.data.addEdges([{ source: "b", target: "c" }]);
         assert.deepStrictEqual(nodeIds(session), before);
         session.dispose();
     });
@@ -169,10 +167,17 @@ describe("source-steps: the simple path", () => {
             .map((n) => [String(n.id), String(n.name)])
             .sort((a, b) => a[0].localeCompare(b[0]));
         assert.deepStrictEqual(names, [
-            ["person:x", "Ann"],
+            ["person:x", "Term"],
             ["pet:x", "Rex"],
-            ["term:person:x", "Term"],
+            ["x", "Ann"],
         ]);
+        await session.data.import(csv("things.csv", "id,name\npet:x,Thing\n"), {
+            mode: "merge",
+            key: "id",
+            type: "thing",
+        });
+        assert.strictEqual(session.data.node("pet:x")?.name, "Rex");
+        assert.strictEqual(session.data.node("thing:pet:x")?.name, "Thing");
         session.dispose();
     });
 

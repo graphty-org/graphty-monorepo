@@ -499,6 +499,29 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
+    renameJoin(id: string, name: string | null): void {
+        this.act("renameJoin", (state) => {
+            const { steps } = state.value;
+            if (!steps.some((step) => step.join?.id === id)) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: `No step carries the join ${JSON.stringify(id)}.`,
+                    source: "data",
+                    details: { reason: "no-join", id },
+                });
+            }
+            const named = steps.map((step) => {
+                if (step.join?.id !== id) {
+                    return step;
+                }
+                const { name: _old, ...rest } = step.join;
+                return { ...step, join: name === null ? rest : { ...rest, name } };
+            });
+            return draftApply(state, { kind: "set", value: { ...state.value, steps: named } });
+        });
+    }
+
+    /** @inheritdoc */
     removeStep(index: number, options: { readonly adds?: "keep" | "remove" } = {}): void {
         this.stepsAct("removeStep", { act: "remove-step", index, ...options });
     }

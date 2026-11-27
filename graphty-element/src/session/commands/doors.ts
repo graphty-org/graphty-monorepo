@@ -3714,6 +3714,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pick: DRAFT_ACT,
             use: DRAFT_ACT,
             editStep: DRAFT_ACT,
+            renameJoin: DRAFT_ACT,
             removeStep: DRAFT_ACT,
             moveStep: DRAFT_ACT,
             replaceStep: DRAFT_ACT,

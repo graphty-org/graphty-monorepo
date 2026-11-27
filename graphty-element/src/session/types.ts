@@ -5714,6 +5714,12 @@ export interface SourceJoinTag {
     readonly id: string;
     /** The join's matches, in the order given. */
     readonly matches: readonly SourceJoinMatch[];
+    /**
+     * The consumer's name for the join, as `UnionBranch.name` is. It is kept on every step the join
+     * wrote and saved with them (`draft.renameJoin` sets it later); absent, the consumer names the
+     * join itself.
+     */
+    readonly name?: string;
 }
 
 /**
@@ -6746,6 +6752,15 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      *   not hold as numbers, or `E_BAD_COMMAND` for no such step or a `repeated` it cannot take.
      */
     editStep(index: number, patch: SourceStepPatch): void;
+    /**
+     * Name, or take the name off, one join: every step whose `join.id` is `id` gets the name, as one
+     * undo step.
+     * @param id - The join's id (`SourceJoinTag.id`).
+     * @param name - The name, or `null` to take it off.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when no step carries that join id.
+     * @experimental source-steps
+     */
+    renameJoin(id: string, name: string | null): void;
     /**
      * Delete one step (as `data.removeStep` does).
      * @param index - The step's place.

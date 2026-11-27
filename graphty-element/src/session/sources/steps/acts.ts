@@ -1009,7 +1009,7 @@ function withJoin(before: SourceSteps, after: SourceSteps, join: StepJoin | unde
     if (join === undefined) {
         return after;
     }
-    const kept: StepJoin = { id: join.id, matches: [...join.matches] };
+    const kept: StepJoin = { ...join, matches: [...join.matches] };
     return {
         ...after,
         steps: after.steps.map((step, i) =>

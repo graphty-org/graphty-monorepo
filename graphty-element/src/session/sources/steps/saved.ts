@@ -619,7 +619,14 @@ function stepShaped(step: Record<string, unknown>): boolean {
         optional(step.except, filter) &&
         optional(step.clash, (v) => typeof v === "string" || isObject(v)) &&
         optional(step.aggregate, isObject) &&
-        optional(step.join, (v) => isObject(v) && typeof v.id === "string" && Array.isArray(v.matches)) &&
+        optional(
+            step.join,
+            (v) =>
+                isObject(v) &&
+                typeof v.id === "string" &&
+                Array.isArray(v.matches) &&
+                (v.name === undefined || typeof v.name === "string"),
+        ) &&
         optional(
             link,
             (v) => isObject(v) && isTexts(v.columns) && Number.isInteger(v.maxShared) && Number.isInteger(v.minShared),

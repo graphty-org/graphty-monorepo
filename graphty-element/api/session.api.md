@@ -7874,6 +7874,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     renameColumn(column: ColumnRef, name: string, options: {
         readonly source: SourceKey;
     }): void;
+    renameJoin(id: string, name: string | null): void;
     replaceStep(index: number, act: SourceJoinAct): void;
     setMapping(source: SourceKey, patch: SourceMappingPatch): void;
     show(side: "before" | "after"): Promise<void>;
@@ -8421,6 +8422,7 @@ export type SourceJoinSide = {
 export interface SourceJoinTag {
     readonly id: string;
     readonly matches: readonly SourceJoinMatch[];
+    readonly name?: string;
 }
 
 // @public

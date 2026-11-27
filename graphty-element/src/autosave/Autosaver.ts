@@ -620,9 +620,14 @@ export class Autosaver {
             this.#stops.push(() => drafts.changed.delete(changed));
         }
         // And the draft data.prepare handed back, which a page shows a join screen for (issue #9846).
+        // It is kept with work the entry already holds: alone (a first file read before it loads),
+        // it starts no entry, or the load would end that empty entry as replaced.
         const prepared = (session.data as Partial<Pick<SessionData, "preparedChanged">>).preparedChanged;
         if (prepared !== undefined) {
             const changed = (): void => {
+                if (!this.#entry.started || this.#entry === this.#setupOnly) {
+                    return;
+                }
                 this.#mark(["drafts"], false, false);
             };
             prepared.add(changed);

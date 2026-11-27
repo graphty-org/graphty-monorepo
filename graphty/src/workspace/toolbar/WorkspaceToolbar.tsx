@@ -482,7 +482,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                         }
                         delete openers.path;
                         delete openers.analyze;
-                        store.set({ analyzeOn: null, analyzeValues: null });
+                        store.set({ analyzeOn: null, analyzeValues: null, pathDraft: null });
                     }}
                     closeOnEscape={false}
                     width={380}

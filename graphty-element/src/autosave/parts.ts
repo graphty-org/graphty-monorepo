@@ -219,6 +219,18 @@ function dataParts(session: GraphSession): Record<string, string | null> {
     };
 }
 
+/** The parts kept apart from the graph, which a drawn source draft leaves as they are. */
+export const APART: ReadonlySet<PartTag> = new Set<PartTag>(["drafts", "stash"]);
+
+/**
+ * Whether a source draft's After is drawn on the graph.
+ * @param session - The session.
+ * @returns True while one is.
+ */
+export function draftIsDrawn(session: GraphSession): boolean {
+    return (session.data as Partial<Pick<SessionData, "draftIsDrawn">>).draftIsDrawn?.() === true;
+}
+
 /**
  * Build the parts a set of tags names, from the session as it is now.
  * @param session - The session.
@@ -235,6 +247,29 @@ export function buildParts(
     written: ReadonlyMap<RunId, unknown>,
     stash: ReadonlyMap<string, unknown>,
     writtenAssets: ReadonlySet<string> = new Set(),
+): BuiltParts {
+    const build = (): BuiltParts => partsNow(session, tags, written, stash, writtenAssets);
+    const data = session.data as Partial<Pick<SessionData, "withoutDrawnDraft">>;
+    // A source draft's After drawn on the graph is no part of the project; the drafts are kept apart.
+    const ofTheGraph = [...tags].some((tag) => !APART.has(tag));
+    return ofTheGraph && data.withoutDrawnDraft !== undefined ? data.withoutDrawnDraft(build) : build();
+}
+
+/**
+ * Build the parts from the session as it is drawn.
+ * @param session - The session.
+ * @param tags - What is unwritten.
+ * @param written - The run entries already in the store, by id.
+ * @param stash - The consumer's stash.
+ * @param writtenAssets - The digests whose `asset:` parts are already in the store.
+ * @returns The parts, and the run entries they hold.
+ */
+function partsNow(
+    session: GraphSession,
+    tags: ReadonlySet<PartTag>,
+    written: ReadonlyMap<RunId, unknown>,
+    stash: ReadonlyMap<string, unknown>,
+    writtenAssets: ReadonlySet<string>,
 ): BuiltParts {
     const sources = sourcesOf(session);
     const finished = sources.dispatcher.state.runs;

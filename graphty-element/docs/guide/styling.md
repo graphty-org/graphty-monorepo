@@ -498,6 +498,9 @@ stored `z` (XGMML, CX, CX2 and sessions) or Cytoscape.js's `z-index` where the f
 otherwise by the file's own order, a node later in the file on top. Each distinct value is its own source mesh, so use a few
 levels on a large graph. A 3D view draws by real depth and ignores it.
 
+`node.onTop` draws a node after the rest of the graph, in front of every edge and every node without it, in 2D and 3D
+views alike, so a node many edges meet is never covered by them. Nodes with it are drawn among themselves by depth.
+
 `edge.drawOrder` decides which of two crossing lines is drawn on top: the one with the higher value, from 0 to 100.
 A line without one is drawn over every line with one, and lines without one keep the order they always had, so give
 every line that may cross a value. Loading a Cytoscape.js file with `styles: "file"` sets it on every edge from the

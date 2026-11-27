@@ -1,13 +1,13 @@
 import { ModalFooter } from "@graphty/compact-mantine";
-import { Button, Modal } from "@mantine/core";
+import { Button, getDefaultZIndex, Modal } from "@mantine/core";
 import React from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { cancelCard, commitCard } from "./actions";
+import { commitWorkspace } from "./actions";
 import { PREVIEW_WORDS, STAGED_WORDS } from "./words";
 
 /**
- * The question a data write meets while a source card's draft is open (`E_DRAFT_OPEN`, the
+ * The question a data write meets while a source draft is open (`E_DRAFT_OPEN`, the
  * source-steps experiment): Commit the draft or Discard it, then make the write; or Cancel the
  * write and keep the draft.
  * @returns the dialog
@@ -29,7 +29,13 @@ export function DraftOpenDialog(): React.JSX.Element | null {
         }
     };
     return (
-        <Modal opened={asked !== null} onClose={close} title={PREVIEW_WORDS.draftOpen}>
+        // Above the join workspace and the drawing it lays over itself, where the question is met.
+        <Modal
+            opened={asked !== null}
+            onClose={close}
+            title={PREVIEW_WORDS.draftOpen}
+            zIndex={getDefaultZIndex("popover")}
+        >
             <ModalFooter>
                 <Button variant="default" onClick={close} data-autofocus>
                     {STAGED_WORDS.cancel}
@@ -38,7 +44,7 @@ export function DraftOpenDialog(): React.JSX.Element | null {
                     variant="default"
                     onClick={() => {
                         void then(() => {
-                            cancelCard(store, session);
+                            session.data.currentDraft()?.dispose();
                         });
                     }}
                 >
@@ -46,7 +52,12 @@ export function DraftOpenDialog(): React.JSX.Element | null {
                 </Button>
                 <Button
                     onClick={() => {
-                        void then(() => commitCard(store, session));
+                        void then(async () => {
+                            const draft = session.data.currentDraft();
+                            if (draft !== null) {
+                                await commitWorkspace(store, session, draft);
+                            }
+                        });
                     }}
                 >
                     {PREVIEW_WORDS.commit}

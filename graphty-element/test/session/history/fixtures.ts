@@ -156,6 +156,10 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
         kind: "act",
         act: { act: "extract", source: "src_fixture", options: { column: "target", space: "other" } },
     }),
+    actFixture("link", {
+        kind: "act",
+        act: { act: "link", options: { source: "src_fixture", columns: ["target"] } },
+    }),
     actFixture("move-columns", {
         kind: "act",
         act: { act: "move-columns", source: "src_fixture", options: { columns: ["target"], to: "source" } },

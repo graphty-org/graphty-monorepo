@@ -692,7 +692,7 @@ describe("ci.yml", () => {
         const test = job(ci, "test");
         assert.match(
             test,
-            /- name: Fetch the Git LFS files the shard reads\n\s+if: matrix\.lfs\n\s+run: git lfs pull --include "\$\{\{ matrix\.lfs \}\}"\n/,
+            /- name: Fetch the Git LFS files the shard reads\n\s+if: matrix\.lfs\n\s+run: tools\/lfs-pull-retry\.sh --include "\$\{\{ matrix\.lfs \}\}"\n/,
         );
         assert.ok(test.indexOf("Fetch the Git LFS files the shard reads") < test.indexOf("- name: Run tests"));
     });
@@ -3598,7 +3598,7 @@ describe("gpu.yml", () => {
         const t4 = job(gpu, "test-gpu");
         assert.match(
             t4,
-            /git lfs pull --include "visual-fonts\/\*\*,cytoscape-extensions\/test\/gpu-screenshots\/\*\*"/,
+            /tools\/lfs-pull-retry\.sh --include "visual-fonts\/\*\*,cytoscape-extensions\/test\/gpu-screenshots\/\*\*"/,
         );
         assert.match(
             t4,

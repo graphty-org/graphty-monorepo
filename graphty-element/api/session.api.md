@@ -1113,6 +1113,13 @@ export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" |
     readonly suggested?: ColumnRole;
 }
 
+// @beta
+export interface DraftRing {
+    readonly kind: "mergedAgain" | "focus";
+    readonly nodes: number;
+    readonly scale: number;
+}
+
 // @public
 export interface DraftRow {
     readonly line: number;
@@ -6119,12 +6126,26 @@ export interface RunProgressReport {
 }
 
 // @public
+export interface RunProgressSink {
+    setMessage(message: string): void;
+    setPhase(phase: string): void;
+    setProgress(percent: number): void;
+}
+
+// @public
 export interface RunQueue {
     cancelOperation(operationId: string): boolean;
     queueOperation(category: "algorithm-run" | "style-edit", execute: (context: RunQueueContext) => Promise<void> | void, options?: {
         description?: string;
     }): string;
     settled(): Promise<void>;
+}
+
+// @public
+export interface RunQueueContext {
+    readonly id: string;
+    readonly progress: RunProgressSink;
+    readonly signal: AbortSignal;
 }
 
 // @beta
@@ -7817,6 +7838,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     declareType(entry: SourceTypeEntry): void;
     display(on: boolean, options?: {
         readonly hold?: boolean;
+        readonly keepCamera?: boolean;
     }): Promise<void>;
     readonly displayed: boolean;
     dispose(): void;
@@ -9436,6 +9458,7 @@ export interface StylesApi {
     // @beta
     showDraft(view: DraftView): {
         end(): void;
+        readonly rings: readonly DraftRing[];
     };
     // @beta
     readonly showingBranches: boolean;

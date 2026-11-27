@@ -162,6 +162,7 @@ export class SourceDraftHandle implements SourceDraft {
     // Whether the draft is drawn, and which side of its commit.
     private shown: { readonly on: boolean; readonly side: "before" | "after" } = { on: false, side: "after" };
     private hold = false;
+    private keepCamera = false;
     // The marks of the current state, kept until an act or an undo changes it.
     private marked: { readonly state: DraftState; readonly marks: DraftMarks } | null = null;
     // the preview of the current state, kept until an act, an undo or the session's references and
@@ -208,15 +209,24 @@ export class SourceDraftHandle implements SourceDraft {
         return this.hold && this.shown.on;
     }
 
+    /**
+     * Whether the draft, while it is drawn, leaves the camera where it is.
+     * @returns True under `display(true, { keepCamera: true })`.
+     */
+    get keepsCamera(): boolean {
+        return this.keepCamera && this.shown.on;
+    }
+
     /** @inheritdoc */
     get side(): "before" | "after" {
         return this.shown.side;
     }
 
     /** @inheritdoc */
-    display(on: boolean, options: { readonly hold?: boolean } = {}): Promise<void> {
+    display(on: boolean, options: { readonly hold?: boolean; readonly keepCamera?: boolean } = {}): Promise<void> {
         this.live("display");
         const hold = options.hold === true;
+        this.keepCamera = options.keepCamera === true;
         if (this.shown.on !== on || this.hold !== hold) {
             this.shown = { ...this.shown, on };
             this.hold = hold;

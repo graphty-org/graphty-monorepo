@@ -31,6 +31,7 @@ import { type ReactNode, useSyncExternalStore } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { InspectedKind } from "../commands/registry";
+import type { ExportDraft } from "../export/choices";
 import type { JoinHow } from "../join/commands";
 import {
     layoutOf,
@@ -39,6 +40,7 @@ import {
     readWorkspaceLayout,
     writeWorkspaceLayout,
 } from "../settings/preferences";
+import type { KeptShaderDrafts } from "../style/ShaderEditorDialog";
 
 /**
  * How the open project was opened, when opening it again gives the same project: one of the app's
@@ -447,6 +449,13 @@ export interface WorkspaceState {
         readonly form: "full" | "section";
         readonly storage: Readonly<Record<string, SourceStorage>>;
     } | null;
+    /**
+     * What the Export dialog holds: the output shown, each output's choices (the Report's title
+     * and words among them) and the files exported. Null until the reader changes one.
+     */
+    readonly exportDraft: ExportDraft | null;
+    /** The shader editor's unsent drafts, one per target, kept when it closes without adding; null: none yet. */
+    readonly shaderDrafts: KeptShaderDrafts | null;
     /** The terms the Custom score dialog opens with (a result's Combine into a score...), else null. */
     readonly scoreOn: { readonly kind: "node" | "edge"; readonly terms: readonly ScoreTerm[] } | null;
     /** The source a Sources row's Export... opened Data on (its key), else null. */
@@ -599,6 +608,8 @@ export const ON_RELOAD = {
     analyzeValues: "kept",
     pathDraft: "kept",
     saveAsDraft: "kept",
+    exportDraft: "kept",
+    shaderDrafts: "kept",
     scoreOn: "kept",
     serverEdit: "kept",
     singleKeyShortcuts: "fresh: read: read from this browser's settings at start",
@@ -759,6 +770,8 @@ const INITIAL: WorkspaceState = {
     analyzeValues: null,
     pathDraft: null,
     saveAsDraft: null,
+    exportDraft: null,
+    shaderDrafts: null,
     scoreOn: null,
     serverEdit: null,
     singleKeyShortcuts: true,

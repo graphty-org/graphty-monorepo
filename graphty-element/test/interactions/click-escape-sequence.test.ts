@@ -84,4 +84,15 @@ describe("a run of clicks with Escape between", () => {
             );
         }
     });
+
+    it("sends the camera to a node whose selection is cleared before a frame is drawn", async () => {
+        const element = await mounted();
+        // Made and cleared in one task: no frame runs in between, as when Escape's key event
+        // reaches the page before the frame after the click (issue #10256).
+        void element.session.selection.apply({ nodes: ["n5"] }, "replace", { cause: "user" });
+        void element.session.selection.clear({ cause: "user" });
+        await element.waitForStableFrame();
+        const at = nodePoint(element, "n5");
+        assert.isBelow(Math.hypot(at.x - WIDTH / 2, at.y - HEIGHT / 2), 1, "n5 rests in the middle of the canvas");
+    });
 });

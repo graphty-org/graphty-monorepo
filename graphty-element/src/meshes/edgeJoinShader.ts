@@ -1021,6 +1021,10 @@ uniform vec2 resolution;
 uniform float miterLimit;
 // The viewport's size in the pixels being drawn (the canvas's, or a capture's); 0 when unknown.
 uniform vec2 fragmentSize;
+#ifdef EDGE_HOLLOW
+// The share of the line's drawn width, down its middle, left undrawn: a casing around another line.
+uniform float hollow;
+#endif
 
 #ifdef EDGE_PULLED
 // The piece's own color and opacity (PULLED_EDGE_GLSL).
@@ -1267,6 +1271,17 @@ void main() {
         }
     }
 
+#endif
+#ifdef EDGE_HOLLOW
+    // A casing leaves its middle to the line it surrounds, drawn there at its own depth: the
+    // casing can then stand in front of every other line and still not cover its own.
+    // The middle is that line's drawn half width, a pixel wide at least as a hairline is
+    // (drawnHalfWidth), and takes a pixel whose center is on its edge.
+    float hollowHw = vScreen.w * hollow;
+    hollowHw = hollowHw > 0.0 && hollowHw < 0.5 ? 0.5 : hollowHw;
+    if (abs(dot(x - vOwn.xy, vec2(-vOwn.w, vOwn.z))) <= hollowHw + TIE) {
+        discard;
+    }
 #endif
 #ifdef EDGE_SHADED
     // Where this pixel is on the whole edge: t along it from its source, side across the line's

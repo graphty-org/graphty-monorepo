@@ -151,6 +151,8 @@ export const WORKSPACE_WORDS = {
     perPair: "Per pair",
     untouched: "nodes with no match",
     nodesMerged: "nodes merged",
+    /** The rings the preview draws wider than the merged ring, by the kind graphty-element tells. */
+    rings: { mergedAgain: "nodes merged again", focus: "nodes every step merges" },
     nodesNew: "nodes new",
     edgesNew: "edges new",
     nodesChanged: "nodes changed",

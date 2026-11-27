@@ -6989,10 +6989,13 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      *     draft adds keeps its place through `show` and later acts, and the commit draws it from
      *     there. The hold ends with After; the reader's own layout scope is untouched. Default false:
      *     the layout runs over the whole of After, as over any graph.
+     * @param options.keepCamera - True leaves the camera where it is while the draft is drawn, so what
+     *     the draft adds appears in the view the reader already has. Default false: the element frames
+     *     the graph again when After adds nodes, as it does for any add.
      * @returns Settles once the graph draws it.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `draft-closed`) once the draft is closed.
      */
-    display(on: boolean, options?: { readonly hold?: boolean }): Promise<void>;
+    display(on: boolean, options?: { readonly hold?: boolean; readonly keepCamera?: boolean }): Promise<void>;
     /**
      * Choose which side of the commit a displayed draft draws. `"before"` draws the graph as it is,
      * where `graphty.draft` reads `"removed"` on what the commit would remove. `"after"` draws the
@@ -8128,10 +8131,9 @@ export interface SessionEventMap {
      * what the gesture did: `"orbit"` turned the view, `"pan"` moved it sideways, `"zoom"` moved
      * it nearer or farther (a wheel, a pinch, the zoom keys).
      *
-     * A gesture's end is defined by the input, never by a timer: a drag or a pinch ends at the
-     * pointer up that ends it; a run of wheel events ends at the first frame in which the camera
-     * comes to rest with no new wheel event since the frame before (wheel events dispatched in one
-     * task are always one gesture); a key gesture ends once the last camera key held is released
+     * A gesture's end is defined by the input: a drag or a pinch ends at the pointer up that ends
+     * it; a run of wheel events ends once the wheel has rested for half a second (a burst of wheel
+     * events is one gesture however the browser spreads it over frames); a key gesture ends once the last camera key held is released
      * and the camera's own inertia has come to rest, and a key pressed before then continues it.
      * Moves the element makes itself (a fit, a glide, `camera.autoRotate`) and calls such as
      * `setCameraState` publish nothing.

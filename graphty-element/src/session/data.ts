@@ -4374,6 +4374,14 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Whether the draft drawn now leaves the camera where it is.
+     * @returns True while it does.
+     */
+    draftKeepsCamera(): boolean {
+        return this.sourceDraft?.keepsCamera === true;
+    }
+
+    /**
      * Whether a draft's After is drawn: the graph holds what its commit would leave.
      * @returns True while it is.
      */

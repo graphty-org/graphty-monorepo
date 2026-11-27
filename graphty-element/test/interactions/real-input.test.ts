@@ -1181,6 +1181,27 @@ describe("a high-DPI screen", () => {
             });
         },
     );
+
+    // Issue #10198: a ratio change with no resize, as when a window moves to another screen.
+    it('with pixel-ratio="device", a ratio change that comes without a resize redraws the canvas at the new ratio', async () => {
+        const element = await mounted("3d");
+        element.setAttribute("pixel-ratio", "device");
+        await element.updateComplete;
+        const { canvas } = element.graph;
+        assert.strictEqual(canvas.width, canvas.clientWidth * window.devicePixelRatio, "drawn at the first ratio");
+        const resized = vi.fn();
+        window.addEventListener("resize", resized);
+        cleanups.push(() => {
+            window.removeEventListener("resize", resized);
+        });
+
+        await withDevicePixelRatio(window.devicePixelRatio * 2, async () => {
+            while (canvas.width !== canvas.clientWidth * window.devicePixelRatio) {
+                await nextFrame();
+            }
+        });
+        assert.strictEqual(resized.mock.calls.length, 0, "the ratio changed with no resize");
+    });
 });
 
 /**

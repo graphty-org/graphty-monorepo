@@ -311,6 +311,36 @@ describe("the join workspace's keys (source-steps)", () => {
 });
 
 describe("a join card's matches and table (source-steps)", () => {
+    it("draws Every match ignores on the first switch's line when the switches stack, at a tablet's width (#10216)", async () => {
+        // Rows whose door differs only by case, others only by a space: each switch alone matches 120 more, and
+        // the two switches' words no longer fit on one line.
+        const entries = [
+            "entry,badge,door",
+            ...Array.from({ length: 120 }, (_, i) => `C${String(i)},B1,bldg-01`),
+            ...Array.from({ length: 120 }, (_, i) => `S${String(i)},B2,BLDG-02 `),
+        ].join("\n");
+        const { modal } = await opened(["doors.csv", DOORS], ["entries.csv", entries]);
+        await page.viewport(1024, 1366);
+        await matchBoth(modal);
+        const label = await within(modal).findByText("Every match ignores");
+        const boxes = (): DOMRect[] =>
+            within(modal)
+                .getAllByRole("switch", { name: /^Ignore / })
+                .flatMap((each) => each.closest(".mantine-Switch-root")?.getBoundingClientRect() ?? []);
+        await waitFor(() => {
+            const [first, second] = boxes();
+            assert.isAtLeast(second.top, first.bottom, "the switches stack");
+        });
+        const [first] = boxes();
+        const middle = (box: DOMRect): number => box.top + box.height / 2;
+        const words = middle(label.getBoundingClientRect());
+        assert.isAtMost(
+            Math.abs(words - middle(first)),
+            2,
+            `the label's middle at ${String(words)}, the first switch's at ${String(middle(first))}`,
+        );
+    });
+
     it("offers both Ignore switches where only the two together match more, and shows either match's rows", async () => {
         const { session, modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
         await matchBoth(modal);

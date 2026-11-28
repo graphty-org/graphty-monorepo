@@ -524,7 +524,14 @@ describe("a join card's matches and table (source-steps)", () => {
             ),
         );
         await newest(session, (row) => row.act?.unlinked === "drop", "its options are changed in place");
-        assert.include(again.textContent ?? "", "1 removed nodes", "E3 badges no one");
+        assert.include(again.textContent ?? "", "1 removed node", "E3 badges no one: one, said in the singular");
+        await waitFor(() => {
+            assert.include(
+                again.querySelector(".jw-counts")?.textContent ?? "",
+                "1 removed node",
+                "the card counts the nodes its join takes out, as the key does",
+            );
+        });
         assert.deepStrictEqual(joinLines(again), ["entries + people", "New join"], "still one card");
         await done(again);
         assert.isUndefined(session.data.node("E3"));

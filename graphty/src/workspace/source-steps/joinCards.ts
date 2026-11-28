@@ -118,6 +118,8 @@ export interface ReaderCard extends Ignoring {
      * yet is drawn again once an undo brings any of them back.
      */
     readonly clearedWith?: readonly string[];
+    /** A removal an undo took back, made again by a redo. */
+    readonly undone?: { readonly deleted: true; readonly clearedWith?: readonly string[] };
     /** The name the reader gave it before it wrote a step; its join carries it from then on. */
     readonly name?: string;
 }
@@ -159,6 +161,20 @@ export interface Suggestion {
  */
 export function newCard(id: string, lines: readonly CardLine[] = [BLANK_LINE]): ReaderCard {
     return { id, lines, ignoreCase: false, ignoreSpaces: false, chosen: {}, written: [], at: null };
+}
+
+/**
+ * Turns a join's steps off or on, as one undo step: the join workspace's card and the Data panel's row both do.
+ * @param draft - the draft they are edited in
+ * @param steps - the join's steps
+ * @param off - off, or on
+ */
+export function setJoinOff(draft: SourceDraft, steps: readonly Pick<SourceStepRow, "index">[], off: boolean): void {
+    draft.batch(() => {
+        for (const step of steps) {
+            draft.editStep(step.index, { off });
+        }
+    });
 }
 
 /**

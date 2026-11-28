@@ -29,29 +29,30 @@
 }
 
 /* The key sits in a strip right under the drawing, at its left: the canvas is drawn above the modal, so
-   nothing of the modal can lie over it. The strip is one line high whatever it counts, so the drawing keeps
-   its size (and the reader's camera its view) as counts come and go. */
+   nothing of the modal can lie over it. The strip is one line high, so the drawing keeps its size (and the
+   reader's camera its view) as counts come and go, and takes a second line only when its counts do not fit
+   on one: a count cut off at the edge would be unreadable. */
 .jw-modal {
     --jw-key-height: 28px;
 }
 
 .jw-modal .sel-ws-center {
-    grid-template-rows: minmax(0, 1fr) var(--jw-key-height);
+    grid-template-rows: minmax(0, 1fr) minmax(var(--jw-key-height), auto);
 }
 
 .jw-modal .sel-ws-center[data-strip] {
-    grid-template-rows: minmax(0, 1fr) var(--jw-key-height) 40%;
+    grid-template-rows: minmax(0, 1fr) minmax(var(--jw-key-height), auto) 40%;
 }
 
 .jw-key {
     display: flex;
-    flex-wrap: nowrap;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 0 12px;
     align-items: center;
+    align-content: center;
     min-width: 0;
-    height: var(--jw-key-height);
-    padding: 0 8px;
-    overflow: auto hidden;
+    min-height: var(--jw-key-height);
+    padding: 2px 8px;
     white-space: nowrap;
 }
 
@@ -79,7 +80,7 @@
     }
 
     .jw-modal .sel-ws-center[data-strip] {
-        grid-template-rows: minmax(0, 1fr) var(--jw-key-height) 35%;
+        grid-template-rows: minmax(0, 1fr) minmax(var(--jw-key-height), auto) 35%;
     }
 }
 
@@ -279,4 +280,11 @@ dialog.jw-modal {
 /* Advanced folds inside its card's step: the step's own border is the only line, as in a selection card. */
 .jw-modal .sel-card .cm-section {
     border-bottom: 0;
+}
+
+/* A folded join card is named by its sources: its name gets the line first, and what it matches on
+   takes what is left (#10394). */
+.cm-list-card[data-join-card][data-folded] .cm-card-head > .cm-card-name,
+.cm-list-card[data-join-card][data-folded] .cm-card-head > .cm-card-title {
+    max-width: none;
 }

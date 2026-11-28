@@ -19,6 +19,7 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { cardPalette } from "../../selection/cardPalette";
 import type { WorkspaceStore } from "../../state/store";
+import { isJoin } from "../joinCards";
 import { WORKSPACE_WORDS } from "../words";
 import {
     addMatch,
@@ -988,8 +989,9 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         await connect(modal, session);
         await waitFor(() => {
             const count = openCard(modal).querySelector(".cm-card-head .sel-count");
-            assert.match(count?.textContent ?? "", /^\d+ of \d+ rows matched/u, "a live count in the card's header");
-            const named = count?.getAttribute("aria-label") ?? count?.textContent ?? "";
+            assert.match(count?.textContent ?? "", /^\d+ of \d+$/u, "a short live count in the card's header");
+            const named = count?.getAttribute("aria-label") ?? "";
+            assert.match(named, /^\d+ of \d+ rows matched/u, "it is named by its words");
             assert.include(named, count?.textContent ?? "", "it is named by what it says");
         });
         assert.isNull(within(modal).queryByLabelText("Match count 1"), "the first match is not counted twice");
@@ -1015,17 +1017,46 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         await waitFor(() => {
             assert.isNotNull(modal.querySelector(".jw-lower"), "Show table brings it back");
         });
+        // The draft's steps, by what each does.
+        const steps = (): string[] =>
+            draftOf(session)
+                .steps()
+                .map((row) => JSON.stringify([row.op, row.source, row.act]));
+        const joinSteps = (): number =>
+            draftOf(session)
+                .steps()
+                .filter((row) => isJoin(row)).length;
+        const written = steps();
+        assert.isAbove(joinSteps(), 0, "the join wrote its steps");
+        const both = ["people + entries", "New join"];
         await fromHeadMenu(modal, "Clear");
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), [], "Clear takes every card");
+            assert.strictEqual(joinSteps(), 0, "and every join step");
         });
+        const cleared = steps();
         await fromHeadMenu(modal, "Undo");
         await waitFor(() => {
             assert.deepStrictEqual(
                 joinLines(modal),
-                ["people + entries", "New join"],
+                both,
                 "one Undo brings every card back, the one not joined yet too",
             );
+            assert.deepStrictEqual(steps(), written, "and every step, as it was");
+        });
+        await fromHeadMenu(modal, "Redo");
+        await waitFor(() => {
+            assert.deepStrictEqual(
+                joinLines(modal),
+                [],
+                "Redo clears every card again: none comes back as not joined yet",
+            );
+            assert.deepStrictEqual(steps(), cleared, "and the steps, as Clear left them");
+        });
+        await fromHeadMenu(modal, "Undo");
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(modal), both, "a second Undo brings them back as they were");
+            assert.deepStrictEqual(steps(), written, "and every step, as it was");
         });
     });
 

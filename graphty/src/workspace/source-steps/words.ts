@@ -147,6 +147,7 @@ export const WORKSPACE_WORDS = {
     // The ways of those two rows, the one that makes or keeps a node first.
     addNode: "Add node",
     skipRow: "Skip row",
+    keepRow: "Keep row",
     keepNode: "Keep node",
     removeNode: "Remove node",
     skipEdge: "Skip edge",
@@ -161,17 +162,20 @@ export const WORKSPACE_WORDS = {
     edges: "Edges",
     perRow: "Per row",
     perPair: "Per pair",
-    untouched: "unmatched nodes",
-    nodesMerged: "merged nodes",
+    untouched: { one: "unmatched node", many: "unmatched nodes" },
+    nodesMerged: { one: "merged node", many: "merged nodes" },
     /** The rings the preview draws wider than the merged ring, by the kind graphty-element tells. */
-    rings: { mergedAgain: "nodes merged again", focus: "nodes every step merges" },
-    nodesNew: "new nodes",
-    edgesNew: "new edges",
-    nodesChanged: "changed nodes",
-    nodesRemoved: "removed nodes",
-    edgesChanged: "changed edges",
-    edgesRemoved: "removed edges",
-    edgesMerged: "merged edges",
+    rings: {
+        mergedAgain: { one: "node merged again", many: "nodes merged again" },
+        focus: { one: "node every step merges", many: "nodes every step merges" },
+    },
+    nodesNew: { one: "new node", many: "new nodes" },
+    edgesNew: { one: "new edge", many: "new edges" },
+    nodesChanged: { one: "changed node", many: "changed nodes" },
+    nodesRemoved: { one: "removed node", many: "removed nodes" },
+    edgesChanged: { one: "changed edge", many: "changed edges" },
+    edgesRemoved: { one: "removed edge", many: "removed edges" },
+    edgesMerged: { one: "merged edge", many: "merged edges" },
     removedSource: "removed source",
     cardColors: "Card colors",
     styled: "Styled",
@@ -185,7 +189,8 @@ export const WORKSPACE_WORDS = {
     unfinished: "Unfinished",
     unanswered: "Question unanswered",
     frameMatches: "Frame the matches",
-    rowsMatched: "rows matched",
+    /** Said of the rows read: "1 of 1 row matched", "2 of 3 rows matched". */
+    rowsMatched: { one: "row matched", many: "rows matched" },
     /** The rename box of a join in the Data panel's list. */
     joinName: "Join name",
     /** What the preview's two looks and its two sides show, on hover. */
@@ -198,6 +203,8 @@ export const WORKSPACE_WORDS = {
     showTable: "Show table",
     clear: "Clear",
     cleared: "Cleared",
+    /** Said when the cards cleared had written nothing, so Undo cannot bring them back. */
+    clearedForGood: "Cleared, cannot be undone",
     noCards: "No joins",
     off: "Off",
     rows: "Rows",
@@ -397,6 +404,12 @@ export function bucketCount(buckets: SourceStepCounts, id: SourceStepNumberBucke
 export function counted(count: number, words: { readonly one: string; readonly many: string }): string {
     return `${formatNumber(count)} ${count === 1 ? words.one : words.many}`;
 }
+
+/** A card's rows that reach no node, when Unmatched rows skips them. */
+export const SKIPPED_WORDS: Readonly<Record<"unmatched" | "emptyKey", Omit<BucketWords, "id">>> = {
+    unmatched: { one: "unmatched row skipped", many: "unmatched rows skipped" },
+    emptyKey: { one: "empty row skipped", many: "empty rows skipped" },
+};
 
 /** The values of a link too many nodes hold, as a card lists them. */
 export const OVER_CAP_WORDS = { one: "value over the cap", many: "values over the cap" } as const;

@@ -77,7 +77,7 @@ describe("the doors into the join workspace (source-steps)", () => {
         const plus = await joinPlus();
         assert.strictEqual(plus.getAttribute("aria-keyshortcuts"), "Shift+J");
         const row = plus.closest("[data-join-plus]");
-        assert.include(row?.textContent ?? "", "J", "the key is drawn beside the +");
+        assert.include(row?.textContent ?? "", "Shift+J", "the key is drawn beside the +");
         const list = screen.getByRole("list", { name: "Data sources" });
         assert.isTrue(
             (list.compareDocumentPosition(plus) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,

@@ -29,6 +29,7 @@ import {
     counted,
     JOIN_WORDS,
     OVER_CAP_WORDS,
+    SKIPPED_WORDS,
     WORKSPACE_WORDS,
 } from "./words";
 import { DifferRow, ReduceRow } from "./WorkspaceParts";
@@ -540,6 +541,19 @@ function edgeOptions(props: OptionProps, edgeType: AdvancedRow, newType: Advance
 }
 
 /**
+ * A way of Unmatched rows, as its choice names it. Where Missing end is asked beside it, the row is kept,
+ * never "added": Missing end's Add node makes the node a row names, and the two must not read alike.
+ * @param outcome - the card's join type
+ * @param way - the way
+ * @returns its label
+ */
+function noMatchLabel(outcome: SourceJoinOutcome, way: NoMatch): string {
+    return way === "add" && (outcome.code === "link" || outcome.code === "middle")
+        ? WORKSPACE_WORDS.keepRow
+        : NO_MATCH_WORDS[way];
+}
+
+/**
  * The options of what a card makes, one compact row each, and only those it needs: the rarer ones folded
  * under Advanced.
  * @param props - Component props
@@ -624,7 +638,7 @@ export function Options(props: OptionProps): React.JSX.Element {
                     data={
                         outcome.code === "edge"
                             ? MISSING
-                            : ways.map((way) => ({ value: way, label: NO_MATCH_WORDS[way] }))
+                            : ways.map((way) => ({ value: way, label: noMatchLabel(outcome, way) }))
                     }
                     onChange={(noMatch) => {
                         onSet({ noMatch });
@@ -660,21 +674,54 @@ const EFFECT_WORDS: Readonly<Record<string, BucketWords>> = {
 };
 
 /**
+ * A card's words for its counts, with the rows that reach no node said skipped where Unmatched rows skips them:
+ * rows that are nodes (a connect with no other end, or one that keeps its row). A missing end that makes a node
+ * reaches it. Remove node is not said of the rows: a row's node another source holds stays, so the nodes it
+ * takes out are counted apart, by the element, as the key counts them.
+ * @param step - the card's step
+ * @param noMatch - what Unmatched rows does, or null where it is not asked
+ * @param words - the step's words
+ * @returns the words
+ */
+function leftOutWords(
+    step: SourceStepRow,
+    noMatch: NoMatch | null,
+    words: readonly BucketWords[],
+): readonly BucketWords[] {
+    const { act } = step;
+    if (noMatch !== "skip" || act?.act !== "connect" || (act.to !== undefined && act.to.keepRow !== true)) {
+        return words;
+    }
+    return words.map((each) => {
+        if (each.id === "emptyKey" || (each.id === "unmatched" && act.unmatched !== "add")) {
+            return { ...SKIPPED_WORDS[each.id], id: each.id };
+        }
+        return each;
+    });
+}
+
+/**
  * A card's counts, each a button that lists what it counts in the table. What the join does to the graph is
  * counted over the card's whole join, every step it wrote and the sources it added for itself, so it agrees
  * with the key; a count no one step lists is not a button.
  * @param props - Component props
  * @param props.step - the card's step
+ * @param props.outcome - the card's join type, if it has one
+ * @param props.result - the card's options, which say what becomes of the rows that reach no node
  * @param props.reach - what the card's whole join does; null once the draft is closed
  * @param props.onShow - lists one count's rows
  * @returns the counts
  */
 export function StepCounts({
     step,
+    outcome,
+    result,
     reach,
     onShow,
 }: Readonly<{
     step: SourceStepRow;
+    outcome: SourceJoinOutcome | undefined;
+    result: CardResult;
     reach: SourceDraftMadeCounts | null;
     onShow: (bucket: string) => void;
 }>): React.JSX.Element | null {
@@ -682,9 +729,10 @@ export function StepCounts({
     if (buckets === null) {
         return null;
     }
+    const noMatch = outcome === undefined ? null : noMatchOf(outcome, result);
     const links = step.link?.nodes === undefined ? "links" : "nodeLinks";
     const made = step.link === null ? "edge" : links;
-    const words = BUCKET_WORDS[step.op === "join.merge" ? "merge" : made];
+    const words = leftOutWords(step, noMatch, BUCKET_WORDS[step.op === "join.merge" ? "merge" : made]);
     const effectOf = (id: string): (typeof EFFECTS)[number] | undefined =>
         EFFECTS.find(([, , ids]) => ids.includes(id));
     const show = (id: string, text: string): React.JSX.Element => (
@@ -710,9 +758,11 @@ export function StepCounts({
     };
     const listed = new Set(words.map((each) => effectOf(each.id)));
     const more = EFFECTS.flatMap((effect) => (listed.has(effect) ? [] : [EFFECT_WORDS[`${effect[0]}.${effect[1]}`]]));
+    const removed = reach?.nodes.removed ?? 0;
     return (
         <Group gap={12} wrap="wrap" className="jw-counts">
             {[...words, ...more].map((each) => item(each))}
+            {removed === 0 ? null : <span key="removed">{counted(removed, WORKSPACE_WORDS.nodesRemoved)}</span>}
             {step.link === null || buckets.hub.length === 0
                 ? null
                 : show("hub", counted(buckets.hub.length, OVER_CAP_WORDS))}

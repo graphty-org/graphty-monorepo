@@ -487,12 +487,12 @@ const CASES: readonly Case[] = [
 /**
  * The number the key above the graph gives one of its items.
  * @param modal - the workspace.
- * @param label - the item's label, such as "new nodes".
+ * @param label - the item's label for one and for several, such as "new node" and "new nodes".
  * @returns the number.
  */
-function keyCount(modal: HTMLElement, label: string): number {
+function keyCount(modal: HTMLElement, label: readonly [string, string]): number {
     const item = [...modal.querySelectorAll("[aria-label]")].find((each) =>
-        new RegExp(`^\\d+ ${label}$`).test(each.getAttribute("aria-label") ?? ""),
+        new RegExp(`^(1 ${label[0]}|\\d+ ${label[1]})$`).test(each.getAttribute("aria-label") ?? ""),
     );
     return Number(item?.getAttribute("aria-label")?.split(" ").at(0) ?? 0);
 }
@@ -504,13 +504,13 @@ function keyCount(modal: HTMLElement, label: string): number {
 async function countsAgree(modal: HTMLElement): Promise<void> {
     await waitFor(() => {
         const counts = modal.querySelector(".jw-counts")?.textContent ?? "";
-        for (const [label, one, many] of [
-            ["new nodes", "new node", "new nodes"],
-            ["new edges", "new edge", "new edges"],
+        for (const [one, many] of [
+            ["new node", "new nodes"],
+            ["new edge", "new edges"],
         ] as const) {
-            const n = keyCount(modal, label);
+            const n = keyCount(modal, [one, many]);
             const said = counts.match(new RegExp(`(\\d+) (${many}|${one})(?![a-z])`))?.[1];
-            assert.strictEqual(Number(said ?? 0), n, `the card's ${many} and the key's ${label}: ${counts}`);
+            assert.strictEqual(Number(said ?? 0), n, `the card's ${many} and the key's: ${counts}`);
         }
     });
 }
@@ -635,10 +635,14 @@ describe("a join card's ways to join (source-steps)", () => {
         for (const look of ["Card colors", "Styled"]) {
             await userEvent.click(within(modal).getByText(look));
             await waitFor(() => {
-                assert.strictEqual(keyCount(modal, "merged nodes"), 3, look);
+                assert.strictEqual(keyCount(modal, ["merged node", "merged nodes"]), 3, look);
                 const wider = ["A1", "A2", "A3"].filter((id) => ring(id) > ring("A2"));
                 assert.deepStrictEqual(wider, ["A1"], `A1 alone rings wider (${look})`);
-                assert.strictEqual(keyCount(modal, "nodes every step merges"), wider.length, `its key row (${look})`);
+                assert.strictEqual(
+                    keyCount(modal, ["node every step merges", "nodes every step merges"]),
+                    wider.length,
+                    `its key row (${look})`,
+                );
             });
         }
     });

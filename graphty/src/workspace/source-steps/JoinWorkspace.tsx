@@ -24,6 +24,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { commitWorkspace } from "./actions";
 import {
     foldedSummary,
+    matchShort,
     matchWords,
     nameOf,
     namingLines,
@@ -479,8 +480,9 @@ function joinCardItems(
                 acts.rename(id);
             },
             turn: (on) => {
-                joins.setOff(id, !on);
-                acts.say(on ? CARD_MENU_WORDS.on(item.title) : CARD_MENU_WORDS.off(item.title));
+                if (joins.setOff(id, !on)) {
+                    acts.say(on ? CARD_MENU_WORDS.on(item.title) : CARD_MENU_WORDS.off(item.title));
+                }
             },
             move: (by) => {
                 acts.reorder(id, at + by);
@@ -817,18 +819,22 @@ function WorkspaceBody({
                         </Text>
                     ),
                 header:
+                    // Short, as a Filters card's count is, so the card's name keeps its room: its words name it.
                     open && headCounts !== null ? (
-                        <Button
-                            size="compact-xs"
-                            variant="subtle"
-                            className="sel-count"
-                            onClick={() => {
-                                setShows(null);
-                                setView({ card: card.id, line: 0, only: "matched" });
-                            }}
-                        >
-                            {matchWords(headCounts)}
-                        </Button>
+                        <Tooltip label={matchWords(headCounts)}>
+                            <Button
+                                size="compact-xs"
+                                variant="subtle"
+                                className="sel-count"
+                                aria-label={matchWords(headCounts)}
+                                onClick={() => {
+                                    setShows(null);
+                                    setView({ card: card.id, line: 0, only: "matched" });
+                                }}
+                            >
+                                {matchShort(headCounts)}
+                            </Button>
+                        </Tooltip>
                     ) : undefined,
                 children: open ? <CardEditor key={card.id} {...editorProps} card={openCard} /> : null,
             };
@@ -853,8 +859,10 @@ function WorkspaceBody({
         }
     };
     const clear = (): void => {
-        joins.clear();
-        say(WORKSPACE_WORDS.cleared);
+        const cleared = joins.clear();
+        if (cleared !== null) {
+            say(cleared === "final" ? WORKSPACE_WORDS.clearedForGood : WORKSPACE_WORDS.cleared);
+        }
         box.current?.focus();
     };
     const toggleEdits = (): void => {
@@ -874,15 +882,15 @@ function WorkspaceBody({
             removeCard(joins.open);
         }
     };
-    const move = (make: () => boolean): void => {
-        joins.move(make);
+    const move = (way: "undo" | "redo"): void => {
+        joins.move(way);
         setPickedRows(null);
     };
     const undo = (): void => {
-        move(() => draft.undo());
+        move("undo");
     };
     const redo = (): void => {
-        move(() => draft.redo());
+        move("redo");
     };
     const cancel = (): void => {
         draft.dispose();

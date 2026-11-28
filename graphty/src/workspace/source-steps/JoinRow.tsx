@@ -9,7 +9,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { editJoins } from "./actions";
 import { namingLines, rowNames, sourceNames } from "./cardWords";
 import { openJoinWorkspace } from "./join";
-import { isJoin, linesOfJoin, stepCardId, stepGroups } from "./joinCards";
+import { isJoin, linesOfJoin, setJoinOff, stepCardId, stepGroups } from "./joinCards";
 import { JoinList, type JoinListRow } from "./JoinList";
 import { WORKSPACE_WORDS } from "./words";
 
@@ -81,13 +81,17 @@ export function JoinRow({ session }: Readonly<{ session: GraphSession }>): React
                         shortcut={undefined}
                         reason={null}
                         onRun={() => {
-                            void editJoins(store, session, (draft) => {
-                                for (const each of group) {
-                                    draft.editStep(each.index, { off: !off });
-                                }
-                            }).then((done) => {
+                            const words = off ? CARD_MENU_WORDS.on(name) : CARD_MENU_WORDS.off(name);
+                            void editJoins(
+                                store,
+                                session,
+                                (draft) => {
+                                    setJoinOff(draft, group, !off);
+                                },
+                                words,
+                            ).then((done) => {
                                 if (done) {
-                                    say(off ? CARD_MENU_WORDS.on(name) : CARD_MENU_WORDS.off(name));
+                                    say(words);
                                 }
                             });
                         }}
@@ -113,11 +117,17 @@ export function JoinRow({ session }: Readonly<{ session: GraphSession }>): React
         if (tag === undefined || name === (tag.name ?? names[at])) {
             return;
         }
-        void editJoins(store, session, (draft) => {
-            draft.renameJoin(tag.id, name === "" ? null : name);
-        }).then((done) => {
+        const words = name === "" ? CARD_MENU_WORDS.nameCleared : CARD_MENU_WORDS.renamed(name);
+        void editJoins(
+            store,
+            session,
+            (draft) => {
+                draft.renameJoin(tag.id, name === "" ? null : name);
+            },
+            words,
+        ).then((done) => {
             if (done) {
-                say(name === "" ? CARD_MENU_WORDS.nameCleared : CARD_MENU_WORDS.renamed(name));
+                say(words);
             }
         });
     };

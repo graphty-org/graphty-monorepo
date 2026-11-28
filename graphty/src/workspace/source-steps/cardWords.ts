@@ -428,7 +428,16 @@ export function profileWords(field: SourceSideField, from: string | null): strin
  */
 export function matchWords(counts: Pick<SourceMatchCounts, "matchedRows" | "rows" | "emptyRows">): string {
     const empty = counts.emptyRows === 0 ? "" : `, ${formatNumber(counts.emptyRows)} ${WORKSPACE_WORDS.empty}`;
-    return `${formatNumber(counts.matchedRows)} of ${formatNumber(counts.rows)} ${WORKSPACE_WORDS.rowsMatched}${empty}`;
+    return `${formatNumber(counts.matchedRows)} of ${counted(counts.rows, WORKSPACE_WORDS.rowsMatched)}${empty}`;
+}
+
+/**
+ * A match's count as a card's header draws it, short as a Filters card's count: its words are its name.
+ * @param counts - the element's counts
+ * @returns such as "283 of 308"
+ */
+export function matchShort(counts: Pick<SourceMatchCounts, "matchedRows" | "rows">): string {
+    return `${formatNumber(counts.matchedRows)} of ${formatNumber(counts.rows)}`;
 }
 
 /**

@@ -509,6 +509,8 @@ export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
                         {step === null ? null : (
                             <StepCounts
                                 step={step}
+                                outcome={current}
+                                result={result}
                                 reach={cardReach(draft, card.steps)}
                                 onShow={(bucket) => {
                                     props.onShowRows(step.index, bucket);

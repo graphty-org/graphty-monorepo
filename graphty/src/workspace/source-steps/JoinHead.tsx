@@ -3,17 +3,16 @@ import type { DraftRing, SourceDraft, SourceDraftMarkCounts } from "@graphty/gra
 import { Button, Group, Loader, Text, Tooltip } from "@mantine/core";
 import React from "react";
 
-import { formatNumber } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { SIDE_KEY } from "./keys";
-import { PREVIEW_WORDS, WORKSPACE_WORDS } from "./words";
+import { counted, PREVIEW_WORDS, WORKSPACE_WORDS } from "./words";
 import { MERGED_COLOR, NEW_COLOR, REMOVED_COLOR } from "./workspaceCards";
 
 /** One item of the header's key. */
 interface KeyItem {
     readonly id: string;
     readonly color: string;
-    readonly label: string;
+    readonly label: { readonly one: string; readonly many: string };
     readonly count: number;
 }
 
@@ -175,10 +174,10 @@ export function JoinKey({
     return (
         <div className="jw-key sel-count">
             {keyOf(marks, rings, colors).map((each, at, all) => (
-                <Group key={each.id} gap={4} wrap="nowrap" aria-label={`${String(each.count)} ${each.label}`}>
+                <Group key={each.id} gap={4} wrap="nowrap" aria-label={counted(each.count, each.label)}>
                     <span className="jw-key-mark" data-mark={each.id} style={{ color: each.color }} aria-hidden />
-                    {/* One list: "57 merged nodes, 12 new nodes, 3 removed nodes". */}
-                    <Text size="sm">{`${formatNumber(each.count)} ${each.label}${at < all.length - 1 ? "," : ""}`}</Text>
+                    {/* One list: "57 merged nodes, 12 new nodes, 1 removed node". */}
+                    <Text size="sm">{`${counted(each.count, each.label)}${at < all.length - 1 ? "," : ""}`}</Text>
                 </Group>
             ))}
         </div>

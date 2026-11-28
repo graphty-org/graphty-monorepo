@@ -1385,15 +1385,16 @@ const cardKeys = async (page) => {
     // The app names Cmd and listens for it wherever the browser says it is on Apple's systems, as
     // Playwright's WebKit does on Linux too; Playwright's ControlOrMeta follows the host instead.
     const mac = await inPage(v.page, () => /Mac|iPhone|iPad/.test(navigator.userAgent));
-    const [said, mod] = mac ? ["Cmd", "Meta"] : ["Ctrl", "Control"];
-    // A menu draws no key (owner, #10394); each item names its key on hover and to a screen reader.
-    for (const key of ["F2", `${said}+D`, `${said}+]`, `${said}+[`, "Del"]) {
-        const titles = await v.page
-            .getByRole("menu")
-            .getByRole("menuitem")
-            .evaluateAll((items) => items.map((item) => item.getAttribute("title")));
-        if (!titles.includes(key)) {
-            fail(`no item of the card's menu names ${key} on hover: ${titles.join(", ")}`);
+    const mod = mac ? "Meta" : "Control";
+    // A menu draws no key (owner, #10394); each item names its key to a screen reader (aria-keyshortcuts)
+    // and in its tooltip.
+    const named = await v.page
+        .getByRole("menu")
+        .getByRole("menuitem")
+        .evaluateAll((items) => items.map((item) => item.getAttribute("aria-keyshortcuts")));
+    for (const key of ["F2", `${mod}+D`, `${mod}+]`, `${mod}+[`, "Delete"]) {
+        if (!named.includes(key)) {
+            fail(`no item of the card's menu names ${key} to a screen reader: ${named.join(", ")}`);
         }
     }
     await v.page.keyboard.press("Escape");

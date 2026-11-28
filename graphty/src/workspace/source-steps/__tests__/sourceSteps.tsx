@@ -242,7 +242,9 @@ export async function advanced(modal: HTMLElement): Promise<void> {
  * @returns its words, or null while it shows none.
  */
 export function cardCount(modal: HTMLElement): string | null {
-    return modal.querySelector("[data-card-id]:not([data-folded]) .cm-card-head .sel-count")?.textContent ?? null;
+    // Drawn short ("283 of 308"); a reader hears, and a hover shows, its words.
+    const count = modal.querySelector("[data-card-id]:not([data-folded]) .cm-card-head .sel-count");
+    return count?.getAttribute("aria-label") ?? null;
 }
 
 /**

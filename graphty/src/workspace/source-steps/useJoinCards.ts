@@ -34,6 +34,7 @@ import {
     resultOf,
     sameMatches,
     sameOutcome,
+    setJoinOff,
     sigOf,
     type Suggestion,
     wholeLines,
@@ -66,15 +67,18 @@ export interface JoinCards {
     readonly select: (id: string | null) => void;
     readonly add: () => void;
     readonly remove: (id: string) => void;
-    /** Takes out every card, as one undo step. */
-    readonly clear: () => void;
+    /**
+     * Takes out every card, as one undo step: "undoable" once done, "final" when no card had written a step, so
+     * no undo brings them back, and null when refused, which a notice says.
+     */
+    readonly clear: () => "undoable" | "final" | null;
     /**
      * Names a card as typed, or takes its name off when nothing is: a written card's join carries it.
      * @returns whether its name changed
      */
     readonly rename: (id: string, typed: string) => boolean;
-    /** Turns every step of a written card off or on, as one undo step. */
-    readonly setOff: (id: string, off: boolean) => void;
+    /** Turns every step of a written card off or on, as one undo step; false when refused, which a notice says. */
+    readonly setOff: (id: string, off: boolean) => boolean;
     readonly setLines: (lines: readonly CardLine[], resided: boolean) => void;
     readonly setIgnoring: (change: Partial<Ignoring>) => void;
     readonly pick: (outcome: SourceJoinOutcome) => void;
@@ -83,7 +87,7 @@ export interface JoinCards {
     /** Adds the selected card's one waiting source as it is, and selects what was added. */
     readonly addAsIs: (source: string) => void;
     /** Undo or Redo. */
-    readonly move: (make: () => boolean) => void;
+    readonly move: (way: "undo" | "redo") => void;
     readonly refuse: (id: string) => (error: unknown) => void;
     /** Selects a card that must be finished or answered before Done, and says so. */
     readonly stopsDone: (unfinishedEnds: string | undefined) => boolean;
@@ -101,32 +105,47 @@ function keysNow(draft: SourceDraft, mine: readonly ReaderCard[]): ReadonlySet<s
 
 /**
  * The reader's cards after an undo or a redo: one whose step was taken back is as it was when the step
- * was written, and a removed one whose step came back is drawn again.
+ * was written, and a removed one whose step came back is drawn again. A removal an undo took back is kept
+ * beside the card while it can be redone, so a redo removes it again.
  * @param mine - the reader's cards
  * @param before - the cards as drawn before it
  * @param live - what the draft's steps match and make now
+ * @param redo - a redo, which makes again a removal an undo took back
  * @returns the reader's cards
  */
 function afterMove(
     mine: readonly ReaderCard[],
     before: readonly JoinCardView[],
     live: ReadonlySet<string>,
+    redo: boolean,
 ): readonly ReaderCard[] {
-    return mine.map(({ deleted, clearedWith, ...card }) => {
+    return mine.map(({ deleted, clearedWith, undone, ...card }) => {
+        const now = deleted === true ? { deleted, ...(clearedWith === undefined ? {} : { clearedWith }) } : undefined;
+        const removal = now ?? (redo ? undone : undefined);
         const back =
             card.written.some(({ sigs }) => live.has(JSON.stringify(sigs))) ||
-            (clearedWith?.some((key) => live.has(key)) ?? false);
+            (removal?.clearedWith?.some((key) => live.has(key)) ?? false);
         if (back) {
-            return card;
+            const kept = now ?? undone;
+            return kept === undefined ? card : { ...card, undone: kept };
         }
         const was = before.find((other) => other.id === card.id && other.step !== null)?.lines ?? card.lines;
-        return {
-            ...card,
-            lines: was,
-            ...(deleted === true ? { deleted } : {}),
-            ...(clearedWith === undefined ? {} : { clearedWith }),
-        };
+        return { ...card, lines: was, ...removal, ...(undone === undefined ? {} : { undone }) };
     });
+}
+
+/**
+ * How many steps there are of each signature.
+ * @param rows - the steps
+ * @returns each signature's count
+ */
+function countSigs(rows: readonly SourceStepRow[]): Map<string, number> {
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+        const sig = sigOf(row);
+        counts.set(sig, (counts.get(sig) ?? 0) + 1);
+    }
+    return counts;
 }
 
 /**
@@ -365,12 +384,14 @@ export function useJoinCards(
         const at = cards.findIndex((each) => each.id === id);
         select(rest[Math.min(Math.max(at, 0), rest.length - 1)]?.id ?? null);
     };
-    const move = (make: () => boolean): void => {
-        const before = cardsOf(draft, mine);
-        if (!make()) {
+    const move = (way: "undo" | "redo"): void => {
+        // A removal kept for a redo is gone once a new change took the redo away.
+        const held = draft.canRedo ? mine : mine.map(({ undone: _undone, ...card }) => card);
+        const before = cardsOf(draft, held);
+        if (!(way === "undo" ? draft.undo() : draft.redo())) {
             return;
         }
-        const next = afterMove(mine, before, keysNow(draft, mine));
+        const next = afterMove(held, before, keysNow(draft, held), way === "redo");
         setMine(next);
         const after = cardsOf(draft, next);
         if (openAdd === undefined && !after.some((card) => card.id === open)) {
@@ -408,22 +429,30 @@ export function useJoinCards(
         remove,
         clear: () => {
             // Every card's steps go as one undo step, each as Delete takes one card's: with the sources its join
-            // added. The newest goes first, and a step a removal already took along is not looked for again.
-            const targets = new Set([...cards.flatMap((card) => card.steps), ...addSteps].map((row) => sigOf(row)));
+            // added. The newest goes first. Steps are counted by signature, so two steps alike are both taken,
+            // and a step a removal took along is counted as taken.
+            const targets = countSigs([...cards.flatMap((card) => card.steps), ...addSteps]);
             try {
                 draft.batch(() => {
-                    for (let left = targets.size; left > 0; left--) {
-                        const row = draft.steps().findLast((each) => targets.has(sigOf(each)));
+                    for (;;) {
+                        const row = draft.steps().findLast((each) => (targets.get(sigOf(each)) ?? 0) > 0);
                         if (row === undefined) {
                             break;
                         }
-                        targets.delete(sigOf(row));
+                        const was = countSigs(draft.steps());
                         draft.removeStep(row.index, { adds: "remove" });
+                        const left = countSigs(draft.steps());
+                        for (const [sig, count] of was) {
+                            const target = targets.get(sig);
+                            if (target !== undefined) {
+                                targets.set(sig, target - (count - (left.get(sig) ?? 0)));
+                            }
+                        }
                     }
                 });
             } catch (error) {
                 refuse("")(error);
-                return;
+                return null;
             }
             // A written card waits behind its steps; one not written yet waits behind theirs, so one Undo
             // brings every card back.
@@ -438,6 +467,7 @@ export function useJoinCards(
                 }),
             );
             select(null);
+            return clearedWith.length === 0 ? "final" : "undoable";
         },
         rename: (id, typed) => {
             const name = typed.trim() === "" ? undefined : typed.trim();
@@ -465,14 +495,12 @@ export function useJoinCards(
         setOff: (id, off) => {
             const steps = cards.find((each) => each.id === id)?.steps ?? [];
             try {
-                draft.batch(() => {
-                    for (const step of steps) {
-                        draft.editStep(step.index, { off });
-                    }
-                });
+                setJoinOff(draft, steps, off);
             } catch (error) {
                 refuse(id)(error);
+                return false;
             }
+            return true;
         },
         setLines: onOpen(setLines),
         setIgnoring: onOpen(setIgnoring),

@@ -47,15 +47,22 @@ const LES_MISERABLES: Sample = { type: "gml", name: "les-miserables.gml", data: 
  * @param graph - the graph to load.
  * @param layerName - the layer's name.
  * @param where - the layer's selection, or everything.
- * @returns the session and the layer.
+ * @returns the session, the layer and every announcement heard.
  */
 async function openLayer(
     graph: Sample = LES_MISERABLES,
     layerName = "Calm",
     where?: UnionLeaf,
-): Promise<{ session: GraphSession; layer: Layer }> {
+): Promise<{ session: GraphSession; layer: Layer; heard: string[] }> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
+    const heard: string[] = [];
+    store.subscribe(() => {
+        const said = store.get().announcement;
+        if (typeof said === "string" && said !== "" && heard.at(-1) !== said) {
+            heard.push(said);
+        }
+    });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     const session = await waitFor(() => {
         const found = document.querySelector("graphty-element")?.session;
@@ -79,7 +86,7 @@ async function openLayer(
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
-    return { session, layer };
+    return { session, layer, heard };
 }
 
 /**
@@ -241,10 +248,10 @@ describe("the selection modal with colored group cards", () => {
 
 /**
  * Two cards: A holds degree 10 and up; B adds Degree, as the owner built it (with Louvain first).
- * @returns the session, the layer and the modal.
+ * @returns the session, the layer, the modal and every announcement heard.
  */
-async function twoCards(): Promise<{ session: GraphSession; layer: Layer; modal: HTMLElement }> {
-    const { session, layer } = await openLayer();
+async function twoCards(): Promise<{ session: GraphSession; layer: Layer; modal: HTMLElement; heard: string[] }> {
+    const { session, layer, heard } = await openLayer();
     const modal = await openModal();
     await pickValue("Degree");
     const min = await within(cards()[0]).findByRole("textbox", { name: "Degree from, number" });
@@ -261,7 +268,7 @@ async function twoCards(): Promise<{ session: GraphSession; layer: Layer; modal:
     await waitFor(() => {
         assert.lengthOf(unionOf(session, layer.id)?.branches[1]?.steps ?? [], 1);
     });
-    return { session, layer, modal };
+    return { session, layer, modal, heard };
 }
 
 /**
@@ -726,8 +733,8 @@ describe("a card's More menu and the title's", () => {
         });
     }
 
-    it("Turn off, Duplicate, Move up, Save as set and Delete act on their card", async () => {
-        const { session, layer } = await twoCards();
+    it("Turn off, Duplicate, Move up, Save as set and Delete act on their card, and each is said", async () => {
+        const { session, layer, heard } = await twoCards();
         const branches = (): UnionLeaf["branches"] => unionOf(session, layer.id)?.branches ?? [];
         const [a, b] = branches().map((each) => each.id ?? "");
 
@@ -735,9 +742,15 @@ describe("a card's More menu and the title's", () => {
         await waitFor(() => {
             assert.isFalse(branches()[1]?.on, "B is off");
         });
+        await waitFor(() => {
+            assert.include(heard, "B off", "the card menu's words, shared with the join workspace");
+        });
         await runItem("B", /^Turn on/);
         await waitFor(() => {
             assert.notStrictEqual(branches()[1]?.on, false, "B is on again");
+        });
+        await waitFor(() => {
+            assert.include(heard, "B on");
         });
 
         await runItem("B", /^Move up/);
@@ -746,6 +759,9 @@ describe("a card's More menu and the title's", () => {
                 branches().map((each) => each.id),
                 [b, a],
             );
+        });
+        await waitFor(() => {
+            assert.include(heard, "Moved up B", "said by which way it moved, never by the card it passed");
         });
 
         await runItem("A", /^Duplicate/);
@@ -788,6 +804,41 @@ describe("a card's More menu and the title's", () => {
             assert.lengthOf(cards(), 1);
         });
     });
+    it("names keys in tooltips and to a screen reader, never drawn in a menu (#10394)", async () => {
+        await twoCards();
+        await userEvent.click(screen.getByRole("button", { name: "More for B" }));
+        const menu = await screen.findByRole("menu");
+        const items = within(menu).getAllByRole("menuitem");
+        const withKeys = items.filter((item) => item.hasAttribute("aria-keyshortcuts"));
+        assert.isNotEmpty(withKeys, "the card's menu has keyed items");
+        for (const item of withKeys) {
+            // As a menu draws a key: "Control+D" is "Ctrl+D", "Delete" is "Del".
+            const drawn = (item.getAttribute("aria-keyshortcuts") ?? "")
+                .replace("Control", "Ctrl")
+                .replace("Meta", "Cmd")
+                .replace("Delete", "Del");
+            // A drawn key ends its row ("DeleteDel"); a label may hold its letters ("Delete").
+            assert.isFalse((item.textContent ?? "").endsWith(drawn), `${drawn} is not drawn on its row`);
+        }
+        const keyed = items.find(
+            (item) => item.hasAttribute("aria-keyshortcuts") && item.getAttribute("aria-disabled") !== "true",
+        );
+        if (keyed === undefined) {
+            throw new Error("no enabled menu item has a key");
+        }
+        // Arrow down to it: the item's tooltip then names its label and its key.
+        for (const _ of items) {
+            if (document.activeElement === keyed) {
+                break;
+            }
+            await userEvent.keyboard("{ArrowDown}");
+        }
+        assert.strictEqual(document.activeElement, keyed, "the keyed item has keyboard focus");
+        const tip = await screen.findByRole("tooltip", { name: new RegExp(`^${keyed.textContent ?? ""}`, "u") });
+        assert.notStrictEqual(tip.textContent, keyed.textContent, "the tooltip adds the key to the label");
+        await userEvent.keyboard("{Escape}");
+    });
+
     it("the title's Frame the matches frames what the cards match, from the angle the camera looks", async () => {
         await openLayer(LES_MISERABLES, "Calm", {
             kind: "union",

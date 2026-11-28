@@ -369,7 +369,7 @@ describe("a join card's choices (source-steps)", () => {
         assert.strictEqual(brought.textContent, "device devices, repeats, 1 empty");
         await userEvent.click(brought);
         await pickField(modal, "Field 2", "value");
-        assert.strictEqual(cardCount(modal), "1 of 1 rows matched");
+        assert.strictEqual(cardCount(modal), "1 of 1 row matched");
         await joinAs(modal, "Fields of watch on people");
         const flagged = await newest(
             session,
@@ -546,7 +546,8 @@ describe("a join card's choices (source-steps)", () => {
         const missing = within(modal).getByRole("radiogroup", { name: WORKSPACE_WORDS.missingEnd });
         // The way that makes or keeps a node first, in every row.
         for (const [group, ways] of [
-            [unmatched, [WORKSPACE_WORDS.addNode, WORKSPACE_WORDS.skipRow]],
+            // The row is kept; Add node is Missing end's alone, so the two never read alike.
+            [unmatched, [WORKSPACE_WORDS.keepRow, WORKSPACE_WORDS.skipRow]],
             [missing, [WORKSPACE_WORDS.addNode, WORKSPACE_WORDS.skipEdge]],
         ] as const) {
             assert.deepStrictEqual(
@@ -578,7 +579,7 @@ describe("a join card's choices (source-steps)", () => {
             });
         };
         await pick(WORKSPACE_WORDS.unmatchedRows, WORKSPACE_WORDS.skipRow, start - 1, "E4, naming no one, is skipped");
-        await pick(WORKSPACE_WORDS.unmatchedRows, WORKSPACE_WORDS.addNode, start, "E4 is a node again");
+        await pick(WORKSPACE_WORDS.unmatchedRows, WORKSPACE_WORDS.keepRow, start, "E4 is a node again");
         await pick(WORKSPACE_WORDS.missingEnd, WORKSPACE_WORDS.addNode, start + 1, "B9 is made a person");
         // A row whose cell is empty still reaches no node, so Unmatched rows is still asked.
         assert.isNotNull(within(modal).queryByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows }));

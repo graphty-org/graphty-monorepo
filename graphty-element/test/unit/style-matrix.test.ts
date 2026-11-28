@@ -469,6 +469,25 @@ describe("style combination matrix", () => {
         assert.isFalse(stretched.get("halo-scale")?.pass);
     });
 
+    it("expects a halo from the node's outline, with the fill a centered or inside border drew in", () => {
+        const full = frame((x, y) => (Math.hypot(x, y) <= 20 ? "fill" : undefined));
+        // the element grows the drawn-in fill back out by the border's inset before its band (haloAxisScale)
+        for (const [border, inset] of [
+            ["inside", 0.45],
+            ["center", 0.225],
+            ["outside", 0],
+        ] as const) {
+            const insets: number[] = [];
+            const keep = (scale: number, _border: number, given: number): [number, number] => {
+                insets.push(given);
+                return [scale, scale];
+            };
+            measured({ border, effect: "halo" }, full, { haloGrow: keep, haloHull: () => [] });
+            assert.lengthOf(insets, 1, border);
+            assert.approximately(insets[0], inset, 1e-9, border);
+        }
+    });
+
     it("leaves a plate unread when too few rays show its end", () => {
         // the underlay shows on three rays only, and wrongly wide there
         const full = frame((x, y) => {

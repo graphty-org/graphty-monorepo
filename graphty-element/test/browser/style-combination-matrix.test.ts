@@ -317,20 +317,26 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
 
 /**
  * How much the element stretches a node's halo along its measuring plane's axes: haloAxisScale (Node.ts) over the
- * node's own geometry and scaling, with its border's reach, each axis's stretch taken along the plane's u and v.
+ * node's own geometry and scaling, with its border's reach, each axis's stretch taken along the plane's u and v. The
+ * stretch is of the node's outline (where the plain node ends), not of its fill: a centered or inside border draws the
+ * fill `inset` in, and haloAxisScale grows that fill back out by the inset, so the outline, `inset` larger on each
+ * side, is grown by the same band less the inset.
  * @param measure - The node's plane and world frame.
  * @param haloScale - The halo's scale.
  * @param border - The border's reach, in world units.
+ * @param inset - How far in from the outline the fill is drawn, in world units.
  * @returns The stretch along u and v.
  */
-function haloGrowOf(measure: Measure, haloScale: number, border: number): [number, number] {
+function haloGrowOf(measure: Measure, haloScale: number, border: number, inset: number): [number, number] {
     const { mesh } = measure;
     const own = mesh.scaling;
-    const grow = haloAxisScale(
-        mesh.getBoundingInfo().boundingBox.extendSize,
-        haloScale,
-        own.x === 0 ? 0 : border / Math.abs(own.x),
-    );
+    const perUnit = own.x === 0 ? 0 : 1 / Math.abs(own.x);
+    const fill = mesh.getBoundingInfo().boundingBox.extendSize;
+    const into = inset * perUnit;
+    const face = Math.min(fill.x, fill.y);
+    // the element's halo reaches `fill + band` along each axis (haloAxisScale); the outline is `fill + into`
+    const outline = { x: fill.x + into, y: fill.y + into, z: fill.z > face / 4 ? fill.z + into : fill.z };
+    const grow = haloAxisScale(outline, haloScale, border * perUnit - into);
     const toLocal = mesh.getWorldMatrix().clone().invert();
     const along = (axis: Vector3): number => {
         const d = Vector3.TransformNormal(axis, toLocal).normalize();
@@ -347,18 +353,22 @@ function haloGrowOf(measure: Measure, haloScale: number, border: number): [numbe
  * @param measure - Its plane and world frame.
  * @param haloScale - The halo's scale.
  * @param border - The border's reach, in world units.
+ * @param inset - How far in from the outline a centered or inside border draws the fill, in world units: the halo's
+ *     vertices are the fill's, and its band is measured from the outline.
  * @returns The hull, empty without a halo mesh.
  */
-function haloHullOf(id: string, measure: Measure, haloScale: number, border: number): P2[] {
+function haloHullOf(id: string, measure: Measure, haloScale: number, border: number, inset: number): P2[] {
     const { halo } = element.graph.getDataManager().nodes.get(id) as unknown as Rings;
     if (halo === null) {
         return [];
     }
     const own = measure.mesh.scaling;
+    const perUnit = own.x === 0 ? 0 : 1 / Math.abs(own.x);
+    // the band grows from the outline, `inset` past the fill's edge: (haloScale - 1) of the inset more
     const grow = haloAxisScale(
         halo.getBoundingInfo().boundingBox.extendSize,
         haloScale,
-        own.x === 0 ? 0 : border / Math.abs(own.x),
+        (border + (haloScale - 1) * inset) * perUnit,
     );
     const has = halo.scaling;
     const ratio = (want: number, got: number): number => (got === 0 ? 1 : want / got);
@@ -588,10 +598,13 @@ async function runCase(c: MatrixCase, override: Expectations = {}): Promise<{ re
                 view: c.condition.view,
                 // "bottom" is the screen's bottom only in an unturned view
                 labelReadable: c.condition.angle === "0",
-                haloGrow: (haloScale, border) => haloGrowOf(measure, haloScale, border),
-                // a hull bridges a concave shape's hollows, so there the model above is used
-                haloHull: (haloScale, border) =>
-                    CONCAVE.has(c.settings.shape) ? [] : haloHullOf(id, measure, haloScale, border),
+                haloGrow: (haloScale, border, inset) => haloGrowOf(measure, haloScale, border, inset),
+                // a hull bridges a concave shape's hollows, so there the model above is used; a torus's hollow is
+                // inside it, where no ray from its fill reads a halo, and its outer edge is convex from every side
+                haloHull: (haloScale, border, inset) =>
+                    CONCAVE.has(c.settings.shape) && c.settings.shape !== "torus"
+                        ? []
+                        : haloHullOf(id, measure, haloScale, border, inset),
                 others: NODES.filter((n) => n.id !== id).map((n) => screenHullOf(n.id)),
                 ...(measure.flat && view === "3d" ? { shadowPlaneAt: shadowPlaneOf(id, measure) } : {}),
                 // the convex hull of a concave shape hides its sharp corners

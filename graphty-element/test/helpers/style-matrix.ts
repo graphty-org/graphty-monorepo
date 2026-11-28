@@ -965,6 +965,25 @@ export function insideConvex(hull: readonly P2[], p: P2): boolean {
 }
 
 /**
+ * The plain frame with the fill an edge or a label covers in it put back where the full frame shows the fill. With no
+ * ring to stop at, an edge in the plain frame can reach over the fill and across its outline (a tilted flat star's,
+ * pw-085), and the outline it covered was missing: the ring read wider than it is past the outline either side.
+ * @param plain - The classified plain frame.
+ * @param full - The classified full frame.
+ * @returns The plain frame, fill where it was covered and the full frame shows fill.
+ */
+export function fillUnderCrossings(plain: Classes, full: Classes): Classes {
+    const FILL = partIndex("fill");
+    const parts = Int8Array.from(plain.parts);
+    parts.forEach((part, i) => {
+        if (FOREIGN.has(part) && full.parts[i] === FILL) {
+            parts[i] = FILL;
+        }
+    });
+    return { ...plain, parts };
+}
+
+/**
  * A frame with every pixel another node's meshes cover marked {@link OTHER_NODE}: inside the convex hull of their
  * projected vertices, or within one pixel of it (a blended pixel at its edge).
  * @param classes - The classified frame.
@@ -1290,8 +1309,8 @@ export function measureNode(
     const BG = partIndex("bg");
     // what another node covers is not this node's: both frames are read only up to it
     const others = frames.others ?? [];
-    const plain = withoutOthers(frames.plain, others);
     let full = withoutOthers(frames.full, others);
+    const plain = fillUnderCrossings(withoutOthers(frames.plain, others), full);
     // A shape whose center is not filled (man, woman) is measured from its fill's centroid instead.
     const plane = centeredOnFill(plain, frames.plane, window);
     const shifted = plane !== frames.plane;
@@ -1540,6 +1559,7 @@ export function measureNode(
         const OUTER = partIndex("outer");
         const starts: number[] = [];
         const widths: number[] = [];
+        const cornered: boolean[] = [];
         const gaps: number[] = [];
         let unseen = 0;
         let seenOnly = 0;
@@ -1560,6 +1580,9 @@ export function measureNode(
             const outer = signed(run.to * Math.cos(a), run.to * Math.sin(a));
             starts.push(inner);
             widths.push(outer - inner);
+            cornered.push(
+                pastCorner(plainEdge, run.from * Math.cos(a), run.from * Math.sin(a), Math.max(edgeTol, inner / 2)),
+            );
             const b = runs.findIndex((r) => r.part === BORDER);
             if (b >= 0 && b < k) {
                 gaps.push(
@@ -1572,6 +1595,12 @@ export function measureNode(
         });
         const start =
             override.outerStart ?? borderEdge + (s.outer === "gap" ? AMOUNTS.outerGap : 0) * PER_SIZE * sizeFactor;
+        // a mitred corner of the border and of the outer ring reaches past them, so (as the border's position is)
+        // where the outer ring starts and how wide it is are read on the rays that leave through a side
+        const onSides = (list: number[]): number[] => {
+            const side = list.filter((_, j) => !cornered[j]);
+            return side.length >= MIN_RAYS ? side : list;
+        };
         const width = outerWidth;
         checks.push(
             check(
@@ -1586,7 +1615,7 @@ export function measureNode(
             check(
                 "outer-start",
                 "the outer ring starts outerBorderOffset past the border's outer edge",
-                readMedian(starts),
+                readMedian(onSides(starts)),
                 start,
                 edgeTol * 2 + width * WIDTH_SLACK,
                 starts,
@@ -1596,7 +1625,7 @@ export function measureNode(
             check(
                 "outer-width",
                 "the outer ring is outerBorderWidth border units wide",
-                quantile(widths, 0.5),
+                quantile(onSides(widths), 0.5),
                 width,
                 edgeTol * 2 + width * WIDTH_SLACK,
                 widths,

@@ -609,6 +609,65 @@ describe("style combination matrix", () => {
         assert.isTrue(c.get("border-width-thinnest")?.pass, String(c.get("border-width-thinnest")?.measured));
     });
 
+    it("reads the plain outline under an edge the plain frame draws over the fill", () => {
+        // pw-085: in the plain frame (no ring) an edge reaches over the fill and across its outline, which the full
+        // frame's ring hides; the outline under it is where the full frame shows it, so the ring reads its width
+        // past the outline on every ray, not past the outline either side of the edge
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            if (r <= 20) {
+                return "fill";
+            }
+            return r <= 29 ? "border" : undefined;
+        });
+        const plain = frame((x, y) => {
+            if (x < -4 && x > -60 && Math.abs(y) < 5) {
+                return "edge";
+            }
+            return Math.hypot(x, y) <= 20 ? "fill" : undefined;
+        });
+        const position = measured({}, full, { plain }).get("border-position");
+        assert.exists(position);
+        const rays = (position as { rays?: number[] }).rays ?? [];
+        assert.isAbove(rays.length, 0);
+        // 9 pixels past the outline at 20 a unit, within a band edge (1.5 pixels)
+        for (const offset of rays) {
+            assert.approximately(offset, 0.45, 1.5 / 20);
+        }
+    });
+
+    it("reads where an outer ring starts, and how wide it is, on the rays that leave through a side", () => {
+        // pw-085: a shape's mitred rings reach past their widths across its corners, and where the corners are most
+        // of the rays a median over every ray is a corner's. Here a triangle with an inradius of 0.08 units, 60
+        // pixels a unit, in a 0.45 border and a 0.3 outer ring past it, both mitred (triangles too).
+        const plane: Plane = {
+            m: [60, 0, 100, 0, -60, 100, 0, 0, 1],
+            inverse: [1 / 60, 0, -100 / 60, 0, -1 / 60, 100 / 60, 0, 0, 1],
+        };
+        // how far a pixel lies out along the triangle's side normals, in units (its inradius on its outline)
+        const out = (x: number, y: number): number =>
+            Math.max(
+                ...[90, 210, 330].map(
+                    (d) => (x * Math.cos((d * Math.PI) / 180) - y * Math.sin((d * Math.PI) / 180)) / 60,
+                ),
+            );
+        const full = frame((x, y) => {
+            const r = out(x, y);
+            if (r <= 0.08) {
+                return "fill";
+            }
+            if (r <= 0.53) {
+                return "border";
+            }
+            return r <= 0.83 ? "outer" : undefined;
+        });
+        const plain = frame((x, y) => (out(x, y) <= 0.08 ? "fill" : undefined));
+        const c = measured({ shape: "triangle", outer: "abut" }, full, { plain, plane, reach: 2 });
+        // on a side the outer ring starts at the border's outer edge, 0.45 units out, within a band edge (1.5 pixels)
+        assert.approximately(c.get("outer-start")?.measured ?? Number.NaN, 0.45, 1.5 / 60);
+        assert.isTrue(c.get("outer-width")?.pass, String(c.get("outer-width")?.measured));
+    });
+
     it("counts no hole in the fill as a gap between the fill and the ring", () => {
         const full = frame((x, y) => {
             const r = Math.hypot(x, y);

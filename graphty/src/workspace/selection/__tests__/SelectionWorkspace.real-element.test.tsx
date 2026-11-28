@@ -19,7 +19,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -91,7 +91,7 @@ async function openLayer(session: GraphSession, name: string, where?: UnionLeaf)
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -127,7 +127,7 @@ describe("the attribute finder takes the keys typed as it opens (#8943)", () => 
             }
         });
         watch.observe(document.body, { childList: true, subtree: true, attributes: true });
-        await userEvent.click(within(ws).getByRole("button", { name: "Value" }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "Value", exact: true }));
         await userEvent.keyboard("Degree");
         watch.disconnect();
         assert.isTrue(focusedWhenShown, "the search holds focus as soon as it shows");
@@ -143,7 +143,7 @@ describe("plain words (check 45, fix 5)", () => {
         await openLayer(session, "Words");
         await userEvent.click(await editButton());
         const ws = await opened();
-        await userEvent.click(await within(ws).findByRole("button", { name: "Value" }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "Value", exact: true }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         for (const word of ["links", "connections"]) {
             await userEvent.keyboard(word);
@@ -151,10 +151,10 @@ describe("plain words (check 45, fix 5)", () => {
             await userEvent.keyboard("{Control>}a{/Control}{Backspace}");
         }
         await userEvent.keyboard("Degree");
-        await userEvent.hover(await screen.findByRole("option", { name: /^Degree/ }));
+        await userEvent.hover(page.getByRole("option", { name: /^Degree/ }));
         await screen.findByText("Edges at a node");
         await userEvent.keyboard("{Control>}a{/Control}{Backspace}while");
-        await userEvent.hover(await screen.findByRole("option", { name: /^While/ }));
+        await userEvent.hover(page.getByRole("option", { name: /^While/ }));
         await screen.findByText("Everything while it holds a node, else nothing");
         await userEvent.keyboard("{Escape}");
         // No sentence is drawn in the workspace.

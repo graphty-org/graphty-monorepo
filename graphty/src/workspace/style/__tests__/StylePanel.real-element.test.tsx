@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { act, findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
@@ -53,7 +53,7 @@ async function openProject(): Promise<GraphSession> {
  */
 async function openRow(name: string): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     return screen.findByTestId("style-tab");
 }
 
@@ -97,32 +97,32 @@ describe("the Style tab's fields on the real element", () => {
                 .map((l) => (l.set as Record<string, unknown> | undefined)?.["node.size"]);
         const before = JSON.stringify(others());
 
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Size", exact: true }));
         const size = await within(tab).findByRole<HTMLInputElement>("spinbutton", { name: /^Node size/ });
         assert.equal(size.value, "1", "it shows the size beneath");
         assert.isUndefined(written(session, selected, "node.size"), "and writes nothing before a value");
-        await userEvent.tripleClick(size);
+        await userEvent.tripleClick(page.elementLocator(tab).getByRole("spinbutton", { name: /^Node size/ }));
         await userEvent.keyboard("2{Enter}");
         await waitFor(() => {
             assert.equal(written(session, selected, "node.size"), 2);
         });
         assert.equal(JSON.stringify(others()), before, "no other layer changed");
 
-        await userEvent.click(within(tab).getByRole("button", { name: "Remove node size" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Remove node size", exact: true }));
         await waitFor(() => {
             assert.isUndefined(written(session, selected, "node.size"));
             assert.isNull(tab.querySelector('[data-line="node.size"]'), "the row is gone");
         });
 
-        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Undo( |$)/ }));
         await waitFor(() => {
             assert.equal(written(session, selected, "node.size"), 2, "one Undo restores 2");
         });
 
         // Emptying the field and pressing Enter removes it too.
-        const again = await within(tab).findByRole("spinbutton", { name: /^Node size/ });
-        await userEvent.click(again);
+        const again = (): Locator => page.elementLocator(tab).getByRole("spinbutton", { name: /^Node size/ });
+        await userEvent.click(again());
         await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
         await waitFor(() => {
             assert.isUndefined(written(session, selected, "node.size"));
@@ -135,10 +135,10 @@ describe("the Style tab's fields on the real element", () => {
         const selected = nodePart(session, "Selected");
         const tab = await openRow("Selected");
 
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
-        await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node shape/ }));
-        await userEvent.click(await screen.findByRole("option", { name: "Octahedron" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Shape", exact: true }));
+        await userEvent.click(page.elementLocator(tab).getByRole("combobox", { name: /^Node shape/ }));
+        await userEvent.click(page.getByRole("option", { name: "Octahedron", exact: true }));
         await waitFor(() => {
             assert.equal(written(session, selected, "node.shape"), "octahedron");
         });
@@ -151,14 +151,16 @@ describe("the Style tab's fields on the real element", () => {
         });
 
         const visibility = within(tab).getByRole("group", { name: "Visibility" });
-        await userEvent.click(within(visibility).getByRole("button", { name: "Add to node visibility" }));
+        await userEvent.click(
+            page.elementLocator(visibility).getByRole("button", { name: "Add to node visibility", exact: true }),
+        );
         // Hide and Show are two items, and Show is offered with no layer beneath hiding anything.
         assert.isNotNull(await screen.findByRole("menuitem", { name: "Show elements a layer beneath hides" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Hide" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Hide", exact: true }));
         await waitFor(() => {
             assert.isFalse(written(session, selected, "node.visible"));
         });
-        assert.isNotNull(within(visibility).getByRole("button", { name: "Remove node show" }));
+        assert.isNotNull(await within(visibility).findByRole("button", { name: "Remove node show" }));
     });
 
     it("an edges-only layer opens on its Edge tab, its Node tab off", async () => {
@@ -277,7 +279,7 @@ function styleTab(): HTMLElement {
 async function pickStyleTab(): Promise<void> {
     const tab = await screen.findByRole("tab", { name: "Style" });
     if (tab.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(tab);
+        await userEvent.click(page.getByRole("tab", { name: "Style", exact: true }));
     }
 }
 
@@ -317,7 +319,7 @@ async function rowOf(field: string): Promise<HTMLElement> {
     await showKind(field.startsWith("Edge") ? "edge" : "node");
     const selector = `.ws-row[data-line="${channel}"]`;
     if (styleTab().querySelector(selector) === null) {
-        await userEvent.click(within(styleTab()).getByRole("button", { name: plus }));
+        await userEvent.click(page.elementLocator(styleTab()).getByRole("button", { name: plus, exact: true }));
         // A "+" with one thing left adds it at once; with more, it opens a menu.
         const menu = await waitFor(() => {
             const found = screen.queryByRole("menuitem", { name: item });
@@ -354,7 +356,7 @@ async function varyGlyph(field: string): Promise<HTMLElement> {
 async function varyBy(field: string, option: string): Promise<void> {
     await userEvent.click(await varyGlyph(field));
     const list = await findValuePicker();
-    await userEvent.click(within(list).getByRole("option", { name: new RegExp(`^${option}(,|$)`) }));
+    await userEvent.click(page.elementLocator(list).getByRole("option", { name: new RegExp(`^${option}(,|$)`) }));
 }
 
 /**
@@ -372,9 +374,11 @@ function hexOf(value: unknown): string | null {
  * @param hex - six hex digits.
  */
 async function typeColor(field: string, hex: string): Promise<void> {
-    const input = within(await rowOf(field)).getByRole("textbox", { name: new RegExp(`^${field}(,|$)`) });
-    await userEvent.clear(input);
-    await userEvent.type(input, `${hex}{Enter}`);
+    const inputScope = await rowOf(field);
+    const input = (): Locator =>
+        page.elementLocator(inputScope).getByRole("textbox", { name: new RegExp(`^${field}(,|$)`) });
+    await userEvent.clear(input());
+    await userEvent.type(input(), `${hex}{Enter}`);
 }
 
 describe("the Style tab's rows on the real element", () => {
@@ -413,7 +417,7 @@ describe("the Style tab's rows on the real element", () => {
             assert.isTrue(proposal.ok);
             assert.deepEqual(mine[0].encode?.["node.color"], proposal.ok ? proposal.binding : undefined);
         });
-        assert.isNotNull(within(styleTab()).getByRole("button", { name: /Stop varying node color by data/ }));
+        assert.isNotNull(await within(styleTab()).findByRole("button", { name: /Stop varying node color by data/ }));
     });
 
     it("a declared code column colors one color per group, and a group column cannot size", async () => {
@@ -432,7 +436,9 @@ describe("the Style tab's rows on the real element", () => {
         });
         await userEvent.click(await varyGlyph("Node size"));
         const sizes = await findValuePicker();
-        await userEvent.click(within(sizes).getByRole("option", { name: /^\d+ attributes?, (hidden|shown),/ }));
+        await userEvent.click(
+            page.elementLocator(sizes).getByRole("option", { name: /^\d+ attributes?, (hidden|shown),/ }),
+        );
         const dept = await within(sizes).findByRole("option", { name: /^dept(,|$)/ });
         assert.equal(dept.getAttribute("aria-disabled"), "true");
         // The fixture's few rows make every dept its own: the element reads it as text.
@@ -460,7 +466,7 @@ describe("the Style tab's rows on the real element", () => {
 
         await userEvent.click(await varyGlyph("Node size"));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: /^PageRank(,|$)/ }));
+        await userEvent.click(page.elementLocator(list).getByRole("option", { name: /^PageRank(,|$)/ }));
         await waitFor(() => {
             const size = session.styles.get(measure.id)?.encode?.["node.size"];
             assert.equal(size !== undefined && "by" in size ? size.by : undefined, session.results.path(runId));
@@ -478,7 +484,7 @@ describe("the Style tab's rows on the real element", () => {
         await screen.findByTestId("style-tab", {});
         await userEvent.click(await varyGlyph("Node size"));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: /^Degree(,|$)/ }));
+        await userEvent.click(page.elementLocator(list).getByRole("option", { name: /^Degree(,|$)/ }));
         const path = session.results.path(runId);
         await waitFor(() => {
             const mine = readerLayers(session).filter((l) => l.name === "Everything" && l.target === "node");
@@ -488,7 +494,9 @@ describe("the Style tab's rows on the real element", () => {
             assert.equal((mine[0].encode?.["node.size"] as { by?: string } | undefined)?.by, path);
             assert.isAbove(element.getNode("1")?.size ?? 0, element.getNode("2")?.size ?? 0);
         });
-        await userEvent.click(within(styleTab()).getByRole("button", { name: /Stop varying node size by data/ }));
+        await userEvent.click(
+            page.elementLocator(styleTab()).getByRole("button", { name: /Stop varying node size by data/ }),
+        );
         await waitFor(() => {
             const mine = readerLayers(session).filter((l) => l.name === "Everything" && l.target === "node");
             assert.lengthOf(mine, 1);
@@ -505,29 +513,39 @@ describe("the Style tab's rows on the real element", () => {
         // The way back to one color is the field's own button, and its tooltip says so. A tooltip
         // opens a second after the pointer arrives (compact-mantine's open delay), as long as
         // waitFor's own default wait, so the wait is the hang guard, not that default.
-        await userEvent.hover(within(styleTab()).getByRole("button", { name: "Stop varying node color by data" }));
+        await userEvent.hover(
+            page
+                .elementLocator(styleTab())
+                .getByRole("button", { name: "Stop varying node color by data", exact: true }),
+        );
         await waitFor(() => {
             assert.include(
                 screen.queryAllByRole("tooltip", { hidden: true }).map((t) => t.textContent),
                 "Stop varying node color by data",
             );
         });
-        await userEvent.click(await within(styleTab()).findByRole("button", { name: /^Node color: code,/ }));
+        await userEvent.click(page.elementLocator(styleTab()).getByRole("button", { name: /^Node color: code,/ }));
         const popover = await screen.findByRole("group", { name: "Color binding" });
         const binding = (): Record<string, unknown> =>
             readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"] ?? {};
-        await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
-        await userEvent.click(await screen.findByRole("option", { name: /^Shades of blue/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: /^Palette/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Shades of blue/ }));
         await waitFor(() => {
             assert.equal(binding().palette, "blues");
         });
-        await userEvent.click(within(popover).getByRole("button", { name: "Reverse palette" }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("button", { name: "Reverse palette", exact: true }),
+        );
         await waitFor(() => {
             assert.equal(binding().reverse, true);
         });
         assert.isNull(within(popover).queryByRole("button", { name: /^Use one color/ }), "not in the popover");
         await userEvent.keyboard("{Escape}");
-        await userEvent.click(within(styleTab()).getByRole("button", { name: "Stop varying node color by data" }));
+        await userEvent.click(
+            page
+                .elementLocator(styleTab())
+                .getByRole("button", { name: "Stop varying node color by data", exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"]);
             assert.isDefined(
@@ -567,15 +585,21 @@ describe("the Style tab's rows on the real element", () => {
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {});
         const color = await rowOf("Node color");
-        await userEvent.click(within(color).getByRole("button", { name: /^Pick node color/ }));
+        await userEvent.click(page.elementLocator(color).getByRole("button", { name: /^Pick node color/ }));
         const field = await screen.findByTestId("color-picker-saturation");
         const before = session.history.steps.length;
         const box = field.getBoundingClientRect();
-        await userEvent.hover(field, { position: { x: box.width * 0.2, y: box.height * 0.2 } });
-        await userEvent.dragAndDrop(field, field, {
-            sourcePosition: { x: box.width * 0.2, y: box.height * 0.2 },
-            targetPosition: { x: box.width * 0.9, y: box.height * 0.9 },
+        await userEvent.hover(page.getByTestId("color-picker-saturation"), {
+            position: { x: box.width * 0.2, y: box.height * 0.2 },
         });
+        await userEvent.dragAndDrop(
+            page.getByTestId("color-picker-saturation"),
+            page.getByTestId("color-picker-saturation"),
+            {
+                sourcePosition: { x: box.width * 0.2, y: box.height * 0.2 },
+                targetPosition: { x: box.width * 0.9, y: box.height * 0.9 },
+            },
+        );
         await waitFor(() => {
             assert.isString(readerLayers(session).find((l) => l.target === "node")?.set?.["node.color"]);
         });
@@ -623,8 +647,9 @@ describe("the Style tab's rows on the real element", () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {});
-        const size = within(await rowOf("Node size")).getByRole("spinbutton", { name: /^Node size/ });
-        await userEvent.tripleClick(size);
+        const sizeScope = await rowOf("Node size");
+        const size = (): Locator => page.elementLocator(sizeScope).getByRole("spinbutton", { name: /^Node size/ });
+        await userEvent.tripleClick(size());
         await userEvent.keyboard("3{Enter}");
         const everything = (): ReturnType<GraphSession["styles"]["list"]> =>
             readerLayers(session).filter((l) => l.name === "Everything");
@@ -645,8 +670,9 @@ describe("the Style tab's rows on the real element", () => {
         );
 
         // Emptying the field and pressing Enter removes the line; the row stays, as every row does.
-        const again = within(await rowOf("Node size")).getByRole("spinbutton", { name: /^Node size/ });
-        await userEvent.click(again);
+        const againScope = await rowOf("Node size");
+        const again = (): Locator => page.elementLocator(againScope).getByRole("spinbutton", { name: /^Node size/ });
+        await userEvent.click(again());
         await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
         await waitFor(() => {
             assert.isUndefined(everything().find((l) => l.target === "node")?.set?.["node.size"]);
@@ -659,15 +685,16 @@ describe("the Style tab's rows on the real element", () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {});
-        await userEvent.click(within(styleTab()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
         await userEvent.click(
-            within(await findValuePicker()).getByRole("option", {
-                name: "Fixed text",
-            }),
+            page.elementLocator(styleTab()).getByRole("button", { name: "Add to node text", exact: true }),
         );
-        const field = await within(styleTab()).findByRole("textbox", { name: "Node tooltip text" });
-        await userEvent.type(field, "hello{Enter}");
+        await userEvent.click(page.getByRole("menuitem", { name: /^Tooltip/ }));
+        await userEvent.click(
+            page.elementLocator(await findValuePicker()).getByRole("option", { name: "Fixed text", exact: true }),
+        );
+        const field = (): Locator =>
+            page.elementLocator(styleTab()).getByRole("textbox", { name: "Node tooltip text", exact: true });
+        await userEvent.type(field(), "hello{Enter}");
         await waitFor(() => {
             assert.equal(readerLayers(session).find((l) => l.target === "node")?.set?.["node.tooltip"], "hello");
         });

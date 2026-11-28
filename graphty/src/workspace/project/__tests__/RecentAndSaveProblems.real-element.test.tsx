@@ -14,7 +14,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { openSampleFromStart } from "../../../test/open";
-import { screen, waitFor, within } from "../../../test/test-utils";
+import { screen, waitFor } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
 import { clearRecent, refreshStored, rememberRecent } from "../recent";
 
@@ -45,9 +45,9 @@ function handleOf(file: File | null): FileSystemFileHandle {
  * @param name - the entry's name.
  */
 async function openRecentFromMenu(name: string): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-    await userEvent.hover(await screen.findByRole("menuitem", { name: "Open recent" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: new RegExp(`^${name}`) }));
+    await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+    await userEvent.hover(page.getByRole("menuitem", { name: "Open recent", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: new RegExp(`^${name}`) }));
 }
 
 /**
@@ -61,7 +61,7 @@ async function saveInBrowser(store: WorkspaceStore): Promise<void> {
     const before = store.get().notice;
     await userEvent.keyboard("{Control>}s{/Control}");
     const dialog = await screen.findByRole("dialog", { name: "Save Florentine families as" });
-    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Save", exact: true }));
     await waitFor(() => {
         const { notice } = store.get();
         assert.isTrue(notice !== null && notice !== before);
@@ -111,12 +111,12 @@ describe("Open recent in the main menu", () => {
         await refreshStored();
 
         await openRecentFromMenu("Friends study");
-        const locate = await screen.findByRole("button", { name: "Locate..." });
+        await screen.findByRole("button", { name: "Locate..." });
         assert.equal(store.get().notice?.message, "Friends study can no longer be read.");
 
         const picked = new File([FRIENDS_CSV], "friends.csv", { type: "text/csv" });
         vi.stubGlobal("showOpenFilePicker", () => Promise.resolve([handleOf(picked)]));
-        await userEvent.click(locate);
+        await userEvent.click(page.getByRole("button", { name: "Locate...", exact: true }));
         // A data file into a graph that holds data: the join screen, as File... adds it.
         assert.isNotNull(await screen.findByRole("region", { name: "Join friends.csv" }));
         assert.equal(store.get().project?.name, "Florentine families");
@@ -168,8 +168,8 @@ describe("saves the browser refuses", () => {
             throw new DOMException("Downloads are blocked.", "SecurityError");
         });
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Save local copy...", exact: true }));
         await waitFor(() => {
             assert.deepEqual(store.get().notice, {
                 message: "A copy of Florentine families could not be saved.",

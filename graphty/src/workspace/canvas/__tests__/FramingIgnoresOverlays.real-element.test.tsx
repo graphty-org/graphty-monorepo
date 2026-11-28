@@ -15,7 +15,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
+import { cleanup, render, screen, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -68,10 +68,10 @@ async function applyCircle(session: GraphSession): Promise<void> {
     await waitFor(() => {
         assert.isFalse(tool.hasAttribute("aria-disabled"));
     });
-    await userEvent.click(tool);
+    await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
     const popover = await screen.findByRole("dialog", { name: "Layout" });
-    await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
-    await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+    await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Circle(?!s)/ }));
+    await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
     await waitFor(() => {
         assert.strictEqual(session.layout.id, "circular");
     });

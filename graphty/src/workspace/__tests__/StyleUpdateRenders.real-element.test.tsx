@@ -14,7 +14,7 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../test/features";
-import { act, render, screen, waitFor, within } from "../../test/test-utils";
+import { act, render, screen, waitFor } from "../../test/test-utils";
 import { setRenderCounter } from "../renderCounter";
 import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
@@ -156,7 +156,7 @@ describe("one numeric style update in the workspace", () => {
         const { element, session, fade } = await openRing();
         // The Style tab shows the Dept layer, and the key does not show an animation's speed.
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(within(tree).getByRole("treeitem", { name: /^Dept, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Dept, / }));
         await screen.findByTestId("style-tab");
         assert.deepEqual(await animate(element, session, fade, "edge.animationSpeed"), {
             "canvas-overlays": 0,
@@ -171,7 +171,7 @@ describe("one numeric style update in the workspace", () => {
     it("re-renders the open layer's sections and the key that shows the value, and nothing else", async () => {
         const { element, session, fade } = await openRing();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(within(tree).getByRole("treeitem", { name: /^Fade, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Fade, / }));
         await screen.findByTestId("style-tab");
         const counted = await animate(element, session, fade, "edge.opacity");
         // Each frame's value is drawn in the open layer's Opacity, once a frame, and in the key.

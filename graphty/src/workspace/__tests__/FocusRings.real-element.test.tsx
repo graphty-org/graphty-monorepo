@@ -8,7 +8,7 @@
 import "@graphty/graphty-element";
 
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { inBothSchemes, insetRing } from "../../test/focus-ring";
 import { render, screen, waitFor } from "../../test/test-utils";
@@ -35,7 +35,7 @@ describe("the inspector's heading draws a focus ring", () => {
         await session.data.addNodes(NODES);
         await session.data.addEdges(EDGES);
 
-        await userEvent.click(screen.getByRole("combobox", { name: "Find" }));
+        await userEvent.click(page.getByRole("combobox", { name: "Find", exact: true }));
         await userEvent.keyboard("Node 0");
         await screen.findAllByRole("option", { name: /Node 0/ });
         await userEvent.keyboard("{Enter}");

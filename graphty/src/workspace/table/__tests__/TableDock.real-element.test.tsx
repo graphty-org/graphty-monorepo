@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
@@ -103,8 +103,9 @@ describe("the table dock", () => {
         const louvainRun = live.runs.start("louvain");
         await louvainRun;
         // The sort button reads the header's icons first: its type and its origin.
-        const header = await within(dock).findByRole("button", { name: /^number, computed PageRank/ });
-        await userEvent.click(header);
+        const header = (): Locator =>
+            page.elementLocator(dock).getByRole("button", { name: /^number, computed PageRank/ });
+        await userEvent.click(header());
         await within(dock).findByText("Sorted by PageRank, highest first");
         const expected = live.data
             .nodePage({ columns: [pagerank.id], sort: { run: pagerank.id, descending: true }, limit: 3 })
@@ -136,9 +137,9 @@ describe("the table dock", () => {
         const [, shown, all] = /^Columns: (\d+) of (\d+)$/.exec(columns.textContent) ?? [];
         assert.equal(shown, all);
         assert.isNotNull(within(dock).getByRole("button", { name: /^category team/ }));
-        await userEvent.click(columns);
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: /^Columns:/ }));
         assert.isNotNull(await screen.findByRole("menuitemcheckbox", { name: "PageRank" }));
-        await userEvent.click(await screen.findByRole("menuitemcheckbox", { name: "team" }));
+        await userEvent.click(page.getByRole("menuitemcheckbox", { name: "team", exact: true }));
         await within(dock).findByRole("button", { name: `Columns: ${String(Number(all) - 1)} of ${all}` });
         assert.isNull(within(dock).queryByRole("button", { name: /^category team/ }));
         await userEvent.keyboard("{Escape}");
@@ -153,16 +154,18 @@ describe("the table dock", () => {
         assert.isAtLeast(before.length, 3);
         // The key's header has a menu of its own too (Role, Type): open the first movable column's.
         const firstMovable = within(grid).getAllByRole("columnheader")[1];
-        await userEvent.click(within(firstMovable).getByTestId("data-table-header-menu"));
+        await userEvent.click(page.elementLocator(firstMovable).getByTestId("data-table-header-menu"));
         const left = await screen.findByRole("menuitem", { name: "Move left" });
         assert.isTrue(left.hasAttribute("disabled") || left.getAttribute("data-disabled") === "true");
-        await userEvent.click(screen.getByRole("menuitem", { name: "Move right" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Move right", exact: true }));
         await waitFor(() => {
             assert.deepEqual(headers(), [before[0], before[2], before[1], ...before.slice(3)]);
         });
 
         // A row click selects that node through the element.
-        await userEvent.click(within(dock).getAllByRole("rowheader", { name: expected[0] })[0]);
+        await userEvent.click(
+            page.elementLocator(dock).getByRole("rowheader", { name: expected[0], exact: true }).nth(0),
+        );
         await waitFor(() => {
             assert.deepEqual(live.selection.nodes.map(String), [expected[0]]);
         });
@@ -173,31 +176,33 @@ describe("the table dock", () => {
             .find((run) => run.algorithm === "louvain")
             ?.result?.summary().groups;
         assert.isDefined(groups);
-        await userEvent.click(within(dock).getByRole("tab", { name: "Louvain" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: "Louvain", exact: true }));
         await within(dock).findByText(`${String(groups?.length)} groups`);
         const [first] = groups ?? [];
         const name = groupName(first);
-        await userEvent.click(within(dock).getByRole("button", { name: `${name} options` }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Show members in table" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: `${name} options`, exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Show members in table", exact: true }));
         await within(dock).findByText(`${String(first.size)} nodes`);
         assert.isNotNull(within(dock).getByText(`Louvain: ${name}`));
-        await userEvent.click(within(dock).getByRole("button", { name: `Show every node, not only ${name}` }));
+        await userEvent.click(
+            page.elementLocator(dock).getByRole("button", { name: `Show every node, not only ${name}`, exact: true }),
+        );
         await within(dock).findByText("12 nodes");
         // The chip and its x went; focus goes to the tab it narrowed.
         assert.strictEqual(document.activeElement, within(dock).getByRole("tab", { name: "Nodes" }));
 
         // An Edges row click selects that edge through the element.
-        await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: "Edges", exact: true }));
         await within(dock).findByText(`${String(EDGES.length)} edges`);
         const [edge] = live.data.edgePage({ limit: 1 }).records;
-        await userEvent.click(within(screen.getByRole("grid", { name: "Edges" })).getAllByRole("rowheader")[0]);
+        await userEvent.click(page.getByRole("grid", { name: "Edges", exact: true }).getByRole("rowheader").nth(0));
         await waitFor(() => {
             assert.deepEqual(live.selection.edges.map(String), [edge.id]);
         });
 
         // Export... from the Edges tab opens the Export dialog on Data with the edge table.
-        await userEvent.click(within(dock).getByRole("button", { name: "Table options" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Export..." }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Table options", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Export...", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         // The CSV's Table option is on Edges.
         const edgesTable = await within(dialog).findByLabelText("Table", { selector: "input" });
@@ -226,7 +231,7 @@ describe("the table dock", () => {
         await userEvent.keyboard("{Shift>}T{/Shift}");
         const reopened = await screen.findByRole("region", { name: "Table" });
         assert.equal(within(reopened).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
-        await userEvent.click(within(reopened).getByRole("tab", { name: "Nodes" }));
+        await userEvent.click(page.elementLocator(reopened).getByRole("tab", { name: "Nodes", exact: true }));
         await within(reopened).findByRole("button", { name: `Columns: ${String(Number(all) - 1)} of ${all}` });
     });
     it("lists only what an on filter step keeps, counted against the whole graph", async () => {
@@ -250,12 +255,12 @@ describe("the table dock", () => {
 
         await userEvent.keyboard("{Shift>}T{/Shift}");
         const dock = await screen.findByRole("region", { name: "Table" });
-        await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: "Edges", exact: true }));
         await within(dock).findByText("13 edges");
         assert.lengthOf(drawnRows("Edges"), 13);
 
         // The card ("weight min 7") turned on from its box: the table lists the 6 edges it keeps.
-        await userEvent.click(await screen.findByRole("checkbox", { name: USE_WEIGHT }));
+        await userEvent.click(page.getByRole("checkbox", { name: USE_WEIGHT, exact: true }));
         await within(dock).findByText("6 of 13 edges");
         await waitFor(() => {
             assert.lengthOf(drawnRows("Edges"), 6);
@@ -263,7 +268,7 @@ describe("the table dock", () => {
         assert.equal(live.visibility.summary.visibleEdges, 6);
 
         // Off again: every edge, and the count says only that.
-        await userEvent.click(screen.getByRole("checkbox", { name: USE_WEIGHT }));
+        await userEvent.click(page.getByRole("checkbox", { name: USE_WEIGHT, exact: true }));
         await within(dock).findByText("13 edges");
         await waitFor(() => {
             assert.lengthOf(drawnRows("Edges"), 13);
@@ -296,7 +301,7 @@ describe("the table dock", () => {
         };
         check();
         // The reader moves to Edges by clicking its tab: the panel follows.
-        await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: "Edges", exact: true }));
         await within(dock).findByRole("grid", { name: "Edges" });
         check();
     });

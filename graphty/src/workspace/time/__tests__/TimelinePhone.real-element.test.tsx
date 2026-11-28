@@ -9,7 +9,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeEach, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { onTouchScreen, pinchOver, swipeAcross, tap } from "../../../test/real-pointer";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
@@ -205,7 +205,7 @@ describe("the timeline dock on a phone", () => {
         const { dock } = await openDock();
         await onTouchScreen(async () => {
             assert.deepEqual(smallTargets(dock), []);
-            await userEvent.click(within(dock).getByTestId("time-readout"));
+            await userEvent.click(page.elementLocator(dock).getByTestId("time-readout"));
             const sheet = await screen.findByRole("dialog", { name: "Time window" });
             await within(sheet).findByRole("slider", { name: "Window" });
             // Measured once the sheet has slid up: mid-slide its boxes read a fraction off.
@@ -326,7 +326,7 @@ describe("the timeline dock on a phone", () => {
         });
 
         await onTouchScreen(async () => {
-            await userEvent.click(within(dock).getByTestId("time-readout"));
+            await userEvent.click(page.elementLocator(dock).getByTestId("time-readout"));
             const sheet = await screen.findByRole("dialog", { name: "Time window" });
             await waitFor(() => {
                 assert.equal(sheet.getBoundingClientRect().bottom, window.innerHeight);
@@ -389,15 +389,18 @@ describe("the timeline dock on a phone", () => {
 
     it("sets the window from the sheet's fields, and closes", async () => {
         const { session, dock } = await openDock();
-        const sheet = within(await openSheet(dock));
-        const first = await sheet.findByRole("textbox", { name: "From" });
-        const last = sheet.getByRole("textbox", { name: "To" });
+        const sheetElement = await openSheet(dock);
+        await within(sheetElement).findByRole("textbox", { name: "From" });
+        const lastScope = await openSheet(dock);
+        const last = (): Locator => page.elementLocator(lastScope).getByRole("textbox", { name: "To", exact: true });
         const from = session.time.parse("2025-03-01", { timeZone: session.time.timeZone });
 
-        await userEvent.clear(first);
-        await userEvent.type(first, "2025-03-01");
-        await userEvent.clear(last);
-        await userEvent.type(last, "2025-03-10{Enter}");
+        const first = (): Locator =>
+            page.elementLocator(sheetElement).getByRole("textbox", { name: "From", exact: true });
+        await userEvent.clear(first());
+        await userEvent.type(first(), "2025-03-01");
+        await userEvent.clear(last());
+        await userEvent.type(last(), "2025-03-10{Enter}");
 
         await waitFor(() => {
             assert.equal(windowStart(session), from);
@@ -409,10 +412,11 @@ describe("the timeline dock on a phone", () => {
         const { session, dock } = await openDock();
         const before = session.time.current;
         const sheet = within(await openSheet(dock));
-        const last = await sheet.findByRole("textbox", { name: "To" });
+        const lastScope = await openSheet(dock);
+        const last = (): Locator => page.elementLocator(lastScope).getByRole("textbox", { name: "To", exact: true });
 
-        await userEvent.clear(last);
-        await userEvent.type(last, "not a date");
+        await userEvent.clear(last());
+        await userEvent.type(last(), "not a date");
         await tap(sheet.getByRole("button", { name: "Set" }));
 
         const words = await sheet.findByText("Not a range of dates");
@@ -420,7 +424,7 @@ describe("the timeline dock on a phone", () => {
         assert.strictEqual(document.elementFromPoint(x + width / 2, y + height / 2), words);
         assert.deepEqual(session.time.current, before);
 
-        await userEvent.type(last, "!");
+        await userEvent.type(last(), "!");
 
         await waitFor(() => {
             assert.isNull(sheet.queryByText("Not a range of dates"));

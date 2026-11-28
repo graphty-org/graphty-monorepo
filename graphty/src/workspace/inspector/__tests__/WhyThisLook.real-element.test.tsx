@@ -9,7 +9,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -51,7 +51,11 @@ describe("Why this look for an edge", () => {
             await session.selection.apply({ edges: [edge.id] });
         });
         const inspector = within(await screen.findByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(await inspector.findByRole("tab", { name: "Style" }));
+        await userEvent.click(
+            page
+                .getByRole("complementary", { name: "Inspector", exact: true })
+                .getByRole("tab", { name: "Style", exact: true }),
+        );
         const lines: HTMLElement[] = await inspector.findAllByTestId("why-line");
 
         const explanation = session.styles.explain({ edge: edge.id });
@@ -67,7 +71,7 @@ describe("Why this look for an edge", () => {
         assert.isDefined(painter, "some layer paints the edge's color");
         const at = expected.findIndex((contribution) => contribution.layerId === painter?.layerId);
         assert.isAtLeast(at, 0);
-        await userEvent.click(within(lines[at]).getByRole("button"));
+        await userEvent.click(page.elementLocator(lines[at]).getByRole("button"));
         await waitFor(() => {
             assert.equal(store.get().inspected?.tab, "style");
         });
@@ -80,7 +84,11 @@ describe("Why this look for an edge", () => {
             await session.selection.apply({ nodes: ["a"] });
         });
         const inspector = within(await screen.findByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(await inspector.findByRole("tab", { name: "Style" }));
+        await userEvent.click(
+            page
+                .getByRole("complementary", { name: "Inspector", exact: true })
+                .getByRole("tab", { name: "Style", exact: true }),
+        );
         const [line] = await inspector.findAllByTestId("why-line");
         const body = getComputedStyle(document.body).fontSize;
         assert.equal(getComputedStyle(within(line).getByRole("button")).fontSize, body);

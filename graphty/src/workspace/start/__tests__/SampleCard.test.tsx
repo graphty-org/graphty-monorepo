@@ -4,7 +4,7 @@
  * reaches each: the start page with no project open, and the dialog from a project's Sources "+".
  */
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
@@ -33,8 +33,8 @@ describe("the sample card", () => {
         start.unmount();
 
         render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" })} />);
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
+        await userEvent.click(page.getByRole("button", { name: "Add source", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /Samples/ }));
         const dialog = await screen.findByRole("dialog", { name: "Samples" });
         // Every card in the dialog, whatever its group: the dialog lists the start page's samples and
         // no others.

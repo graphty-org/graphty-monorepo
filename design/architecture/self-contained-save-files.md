@@ -369,8 +369,11 @@ Left out rather than named, so only a clean-room row can prove a fix (empty `pat
 `tools/check-figma-lock.mjs`: it judges each commit from the push base on its own, and a commit
 that adds an exception, an exception path, a `notSaved` key or a `volatile` field, removes a
 `selfContained` kind or a test file under `test/saved-format/`, or changes the shader-library
-snapshot must carry `Saved-Format-Exception-Approved: <reason>`. Removing a shipped hash or its
-archived text fails with no trailer escape unless the same commit adds it to the revoked list.
+snapshot must carry `Saved-Format-Exception-Approved: <reason>`, or a later commit in the same
+push must carry `Saved-Format-Exception-Approved: for <sha>: <reason>` naming it (10 or more hex
+characters), since history is never rewritten. Removing a shipped hash (one in the base's shipped
+list) or its archived text fails with no trailer escape unless the same commit adds it to the
+revoked list; a hash added and removed within the push never shipped and leaves freely.
 Free: adding a shipped hash with its archived text, adding a revoked hash, adding a
 `selfContained` kind, and removing an exception in the same commit that adds its kind's row.
 

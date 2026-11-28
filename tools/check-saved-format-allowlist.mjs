@@ -13,9 +13,13 @@
 //   - removes a selfContained kind,
 //   - deletes a test file under graphty-element/test/saved-format/, or
 //   - changes the shader-library snapshot (the helpers every carried shader may call).
-// Removing a shipped shader hash, or its archived text, fails with no trailer escape unless the same
-// commit adds that hash to the revoked list: a file carrying that text must stay trusted or be refused
-// on purpose. The one exception is an exact revert of a first-parent merge of the base (what
+// History is never rewritten, so the owner may instead approve such a commit from a later commit in the
+// same range: `Saved-Format-Exception-Approved: for <sha>: <reason>` (10 to 40 hex characters of the
+// approved commit's sha). A trailer that starts `for <sha>` approves only that commit, never its own.
+// Removing a shipped shader hash (one in the base's shipped list), or its archived text, fails with no
+// trailer escape unless the same commit adds that hash to the revoked list: a file carrying that text
+// must stay trusted or be refused on purpose. A hash added and removed within the range never shipped
+// and leaves freely. The one exception is an exact revert of a first-parent merge of the base (what
 // `git revert -m 1 <merge>` makes when master is red): it may drop the hashes that merge added. Free: adding a shipped hash with its text, adding a revoked hash, adding a selfContained
 // kind, removing an exception, and editing an exception's finding or issue.
 //
@@ -36,6 +40,30 @@ export const SHIPPED = "graphty-element/src/catalog/shipped-shader-hashes.json";
 export const REVOKED = "graphty-element/src/catalog/revoked-shader-hashes.json";
 const ARCHIVE = "graphty-element/test/shaders/shipped-texts/";
 const TRAILER = "Saved-Format-Exception-Approved";
+const FOR = /^for ([0-9a-f]{10,40})\b[:\s]*(.*)$/iu;
+
+/**
+ * Which commits the owner's trailers approve.
+ * @param commits `{ sha, trailers }` in order, oldest first; trailers are the trailer's values
+ * @returns the full shas approved: a commit with a plain reason approves itself, and
+ *   `for <sha>: <reason>` approves that earlier commit in the list
+ */
+export function approvals(commits) {
+    const approved = new Set();
+    commits.forEach(({ sha, trailers }, i) => {
+        for (const value of trailers) {
+            const target = FOR.exec(value);
+            if (target === null) {
+                approved.add(sha);
+            } else if (target[2] !== "") {
+                const prefix = target[1].toLowerCase();
+                const named = commits.slice(0, i).filter((c) => c.sha.startsWith(prefix));
+                if (named.length === 1) approved.add(named[0].sha);
+            }
+        }
+    });
+    return approved;
+}
 
 /**
  * What one commit does to the saved-format checks that needs the owner, and what it may never do.
@@ -43,9 +71,10 @@ const TRAILER = "Saved-Format-Exception-Approved";
  * @param after the same after it
  * @param changes `{ status, path }` of each file the commit changes
  * @param reverted shipped hashes the commit may drop: those a merge it exactly reverts added
+ * @param shipped the hashes shipped in the base; a hash outside it never shipped (undefined: all have)
  * @returns `{ needsOwner, forbidden }`, each a list of sentences
  */
-export function judge(before, after, changes, reverted = new Set()) {
+export function judge(before, after, changes, reverted = new Set(), shipped = undefined) {
     const needsOwner = [];
     const forbidden = [];
     const kinds = new Map((before.lists.exceptions ?? []).map((each) => [each.kind, each]));
@@ -86,7 +115,7 @@ export function judge(before, after, changes, reverted = new Set()) {
         ...archived.map((c) => c.path.slice(ARCHIVE.length).replace(/\.txt$/, "")),
     ];
     for (const hash of new Set(gone)) {
-        if (!revoked.has(hash) && !reverted.has(hash)) {
+        if (!revoked.has(hash) && !reverted.has(hash) && (shipped === undefined || shipped.has(hash))) {
             forbidden.push(`removes the shipped shader hash ${hash} or its archived text without revoking it`);
         }
     }
@@ -133,10 +162,29 @@ export function problems({ cwd, base }) {
     // The pull request that first adds the lists has nothing to ratchet against: its starting list is
     // approved by PR Integrity's code-owner review. Once the lists are in the base, every commit is judged.
     const bootstrap = json(base, LISTS, null) === null;
-    const commits = git(["rev-list", "--reverse", "--no-merges", `${base}..HEAD`])
-        .split("\n")
-        .filter(Boolean);
-    for (const sha of commits) {
+    const commits = git([
+        "log",
+        "--reverse",
+        "--no-merges",
+        `--format=%H%x00%(trailers:key=${TRAILER},valueonly)%x01`,
+        `${base}..HEAD`,
+    ])
+        .split("\x01")
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .map((entry) => {
+            const [sha, values = ""] = entry.split("\0");
+            return {
+                sha,
+                trailers: values
+                    .split("\n")
+                    .map((v) => v.trim())
+                    .filter(Boolean),
+            };
+        });
+    const approved = approvals(commits);
+    const shippedInBase = new Set(json(base, SHIPPED, []));
+    for (const { sha } of commits) {
         const changes = git(["diff-tree", "--no-commit-id", "-r", "--no-renames", "--name-status", "--root", sha])
             .split("\n")
             .filter(Boolean)
@@ -163,11 +211,11 @@ export function problems({ cwd, base }) {
             state(sha),
             changes,
             merge === null ? new Set() : addedBy(merge),
+            shippedInBase,
         );
         const subject = git(["log", "-1", "--format=%h %s", sha]).trim();
-        const approved = git(["log", "-1", `--format=%(trailers:key=${TRAILER},valueonly)`, sha]).trim() !== "";
         out.push(...forbidden.map((p) => `${subject}: ${p}`));
-        if (!approved && !bootstrap)
+        if (!approved.has(sha) && !bootstrap)
             out.push(...needsOwner.map((p) => `${subject}: ${p} (needs the owner's ${TRAILER} trailer)`));
     }
     return out;
@@ -185,7 +233,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     for (const line of found) console.error(`  ${line}`);
     console.error(
         "Carry what the file uses instead of naming it, or ask the owner: only he adds a " +
-            `\`${TRAILER}: <reason>\` trailer to the commit. Never add it yourself. ` +
+            `\`${TRAILER}: <reason>\` trailer to the commit, or \`${TRAILER}: for <sha>: <reason>\` to a later ` +
+            "commit when history cannot be rewritten. Never add it yourself. " +
             "A shipped shader hash leaves the list only by moving to the revoked list.",
     );
     process.exit(1);

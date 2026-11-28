@@ -289,7 +289,7 @@ describe("the join workspace's two tables (source-steps)", () => {
 });
 
 describe("the join workspace's preview (source-steps)", () => {
-    it("shows the reader's graph from the moment it opens, and keeps every node of it where it is through a join, B and Done", async () => {
+    it("shows the reader's graph from the moment it opens, and keeps every node of it where it is through a join and B, then lays out on from there after Done", async () => {
         const { session, modal } = await opened();
         await atRest();
         const ids = session.data.nodes().map((node) => String(node.id));
@@ -322,7 +322,12 @@ describe("the join workspace's preview (source-steps)", () => {
         assert.isBelow(moved(drawn, places(session, added)), size / 4, "a node the join adds keeps its place too");
         const at = places(session, ids);
         await done(modal);
-        assert.isBelow(moved(at, places(session, ids)), size / 4, "Done draws on from there");
+        // Let go, the layout goes on from the places the preview drew (issue #10215): every node moves
+        // on from there, by less than a new layout would take it, which is about one gap between nodes.
+        await atRest();
+        const after = moved(at, places(session, ids));
+        assert.isAbove(after, 0, "Done lets the layout go on");
+        assert.isBelow(after, size / 2, "from where the preview drew it");
     });
 
     it("draws the reader's graph at full strength whichever card is selected, and marks only what a join changes", async () => {

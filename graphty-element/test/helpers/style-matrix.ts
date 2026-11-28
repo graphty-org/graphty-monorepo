@@ -840,7 +840,9 @@ export const SEAM_PX = 3;
  * before the first run of an edge or a label crossing it (and the run that crossing cut short is dropped). A
  * fragment is a blended seam under {@link SEAM_PX} pixels, or a stretch of another part under {@link EDGE_PX}
  * pixels: where a ray grazes an outline it meets the stair-stepped pixels of the part beyond for a sample, then
- * the part it was in again, and read as it stands the ring past them would start at that sample.
+ * the part it was in again, and read as it stands the ring past them would start at that sample. Several
+ * fragments in a row (blended, the part beyond, blended: an anti-aliased edge crossed at a shallow angle) join
+ * the same way while together they span under {@link SEAM_PX} pixels.
  * @param runs - The runs.
  * @param pxPerUnit - Pixels per plane unit.
  * @returns The runs to read.
@@ -856,14 +858,20 @@ export function tidy(runs: readonly Run[], pxPerUnit: number): Run[] {
             return out;
         }
         out.push({ ...run });
-        while (out.length >= 3) {
-            const [before, middle, after] = out.slice(-3);
-            const length = (middle.to - middle.from) * pxPerUnit;
-            if (before.part !== after.part || length >= (middle.part === MIXED ? SEAM_PX : EDGE_PX)) {
+        const short = (r: Run): boolean => (r.to - r.from) * pxPerUnit < (r.part === MIXED ? SEAM_PX : EDGE_PX);
+        for (;;) {
+            const after = out[out.length - 1];
+            // walk back over the fragments to the last run of the part the ray is in again
+            let k = out.length - 2;
+            while (k >= 0 && out[k].part !== after.part && short(out[k])) {
+                k--;
+            }
+            const span = k >= 0 ? (out[out.length - 2].to - out[k + 1].from) * pxPerUnit : Infinity;
+            if (k < 0 || k === out.length - 2 || out[k].part !== after.part || span >= SEAM_PX) {
                 break;
             }
-            out.splice(-2, 2);
-            before.to = after.to;
+            out[k].to = after.to;
+            out.splice(k + 1);
         }
     }
     return out;

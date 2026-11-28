@@ -777,6 +777,8 @@ export interface DrawnNode {
     ring: { kind: Ring["kind"]; color: string | null; reachPx: number; inner: boolean } | null;
     /** How far the node's border position drew its fill in from its size, per side, in screen pixels. */
     insetPx: number;
+    /** {@link DrawnNode.insetPx} up the screen, when it differs from across (a polygon's fill drawn in from its outline). */
+    insetYPx?: number;
     /** The border ring drawn outside the fill, or null when the node has none. */
     border: DrawnBorder | null;
     /**
@@ -1520,9 +1522,9 @@ function meshBox(mesh: AbstractMesh, p: Projector): ScreenBox | null {
  * it, the ring for one inside it, half the ring for one inside it at opacity 0.
  * @param node - the node
  * @param p - the projector
- * @returns the inset on each side
+ * @returns the inset on each side, across and up
  */
-function readInset(node: Node, p: Projector): number {
+function readInset(node: Node, p: Projector): { x: number; y: number } {
     const { drawnStyle } = nodeInternals.drawn(node);
     const border = drawnStyle?.border;
     const shape = drawnStyle?.shape;
@@ -1532,12 +1534,20 @@ function readInset(node: Node, p: Projector): number {
         NodeMesh.extentsOf(shape ?? {}, Math.max(shape?.size ?? node.size, 1e-3)),
     );
     if (inset <= 0) {
-        return 0;
+        return { x: 0, y: 0 };
     }
+    // a polygon's fill is its outline drawn in by the inset on every side, whose box is further in than the inset (a
+    // triangle's drawn-in fill is a smaller triangle): its box is out from the fill's by what its outline's box is
+    const polygon = node.reachOutline !== null;
+    const across = {
+        x: polygon ? node.outlineHalfExtents.x - node.drawnHalfExtents.x : inset,
+        y: polygon ? node.outlineHalfExtents.y - node.drawnHalfExtents.y : inset,
+    };
     const at = node.drawnWorldPosition;
     const o = p.point(at);
-    const x = p.point(at.add(new Vector3(inset, 0, 0)));
-    return Math.hypot(x.x - o.x, x.y - o.y);
+    const x = p.point(at.add(new Vector3(across.x, 0, 0)));
+    const y = p.point(at.add(new Vector3(0, across.y, 0)));
+    return { x: Math.hypot(x.x - o.x, x.y - o.y), y: Math.hypot(y.x - o.x, y.y - o.y) };
 }
 
 /**
@@ -1688,6 +1698,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     const placedBy = picture?.box ?? (offCenter ? drawnBox : null);
     const figure = faces ? readFigure(mesh, p) : undefined;
     const shadow = readShadow(node, p);
+    const inset = readInset(node, p);
     return {
         x: placedBy === null ? center.x : (placedBy.x0 + placedBy.x1) / 2,
         y: placedBy === null ? center.y : (placedBy.y0 + placedBy.y1) / 2,
@@ -1703,7 +1714,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         visible: node.getRenderState() === "visible" && enabled && shown,
         shown: node.getRenderState() === "visible" && enabled,
         ring: ring ?? null,
-        insetPx: readInset(node, p),
+        insetPx: inset.x,
+        insetYPx: inset.y,
         border,
         tableOutline,
         innerBorder: outer === null ? null : own,

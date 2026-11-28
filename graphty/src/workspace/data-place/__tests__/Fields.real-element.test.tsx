@@ -77,10 +77,12 @@ async function openElement(): Promise<ElementUnderTest> {
  */
 async function loadSample(store: WorkspaceStore, name: string): Promise<ElementUnderTest> {
     const element = await openElement();
-    await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
+    await userEvent.click(page.getByRole("button", { name: "Add source", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: "Samples...", exact: true }));
     const samples = await screen.findByRole("dialog", { name: "Samples" });
-    await openBy(store, () => userEvent.click(within(samples).getByRole("button", { name: new RegExp(`^${name}`) })));
+    await openBy(store, () =>
+        userEvent.click(page.elementLocator(samples).getByRole("button", { name: new RegExp(`^${name}`) })),
+    );
     // A real click waits behind every frame drawn while the layout moves: start clicking once the
     // picture is at rest, as a reader would.
     await element.waitForStableFrame();
@@ -123,8 +125,8 @@ function entries(section: Within, side: "nodes" | "edges"): string[] {
  * @param column - the column, a menu item of the submenu.
  */
 async function pickFromSubmenu(kind: string, column: string | RegExp): Promise<void> {
-    await userEvent.hover(await screen.findByRole("menuitem", { name: kind }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: column }));
+    await userEvent.hover(page.getByRole("menuitem", { name: kind, exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: column, exact: true }));
 }
 
 /**
@@ -188,11 +190,11 @@ describe("Data > Fields as a + list on the real element", () => {
         render(<Workspace store={store} />);
         const element = await openElement();
         await fields();
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
+        await userEvent.click(page.getByRole("button", { name: "Add source", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Samples...", exact: true }));
         const samples = await screen.findByRole("dialog", { name: "Samples" });
         await openBy(store, () =>
-            userEvent.click(within(samples).getByRole("button", { name: /^OpenFlights airline routes/ })),
+            userEvent.click(page.elementLocator(samples).getByRole("button", { name: /^OpenFlights airline routes/ })),
         );
         assert.equal(element.session.data.statistics().nodeCount, 3214);
         // The load is a section of its own on the Sources tab.
@@ -255,7 +257,7 @@ describe("Data > Fields as a + list on the real element", () => {
         const plus = section.getByRole("button", { name: "Add to edge attributes" });
         await userEvent.click(plus);
         // Time asks for its column, as Weight does, the one the element reads as time first.
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Time" }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Time", exact: true }));
         const released = await screen.findByRole("menuitem", { name: /^released/ });
         const submenu = released.closest<HTMLElement>('[role="menu"]');
         assert.isNotNull(submenu);
@@ -298,7 +300,7 @@ describe("Data > Fields as a + list on the real element", () => {
         });
 
         await userEvent.click(plus);
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Label" }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Label", exact: true }));
         await screen.findByRole("menuitem", { name: "colour" });
         assert.deepEqual(entries(section, "nodes"), [], "no entry while the submenu is open");
         await userEvent.keyboard("{Escape}");
@@ -335,8 +337,8 @@ describe("Data > Fields as a + list on the real element", () => {
             const pills = [...grid.querySelectorAll<HTMLElement>(".ws-th-role")].map((each) => each.textContent);
             assert.includeMembers(pills, ["Latitude", "Longitude"]);
         });
-        await userEvent.click(await screen.findByRole("button", { name: "Options for lat" }));
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+        await userEvent.click(page.getByRole("button", { name: "Options for lat", exact: true }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Role", exact: true }));
         const latitude = await screen.findByRole("menuitemradio", { name: "Latitude" });
         assert.equal(latitude.getAttribute("aria-checked"), "true");
         assert.equal(screen.getByRole("menuitemradio", { name: "None" }).getAttribute("aria-checked"), "false");
@@ -491,7 +493,7 @@ describe("Data > Fields as a + list on the real element", () => {
 
         // Leaving a submenu with no pick adds nothing, and focus goes back to "+".
         await userEvent.click(plus);
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Region" }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Region", exact: true }));
         await screen.findByRole("menuitem", { name: "north" });
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
@@ -532,7 +534,7 @@ describe("Data > Fields' settings rows on the real element", () => {
      */
     async function choose(section: Within, name: string, option: string | RegExp): Promise<void> {
         await userEvent.click(section.getByRole("combobox", { name }));
-        await userEvent.click(await screen.findByRole("option", { name: option }));
+        await userEvent.click(page.getByRole("option", { name: option, exact: true }));
     }
 
     it("Direction writes the graph's direction, and Auto gives it back to the file", async () => {
@@ -650,9 +652,9 @@ describe("Data > Fields' settings rows on the real element", () => {
 
         await userEvent.keyboard("{Shift>}T{/Shift}");
         const grid = await screen.findByRole("grid", { name: "Nodes" });
-        await userEvent.click(within(grid).getByRole("button", { name: "Options for id" }));
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
-        await userEvent.click(await screen.findByRole("menuitemradio", { name: "Kind" }));
+        await userEvent.click(page.elementLocator(grid).getByRole("button", { name: "Options for id", exact: true }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Role", exact: true }));
+        await userEvent.click(page.getByRole("menuitemradio", { name: "Kind", exact: true }));
 
         await waitFor(() => {
             assert.equal(session.history.steps.length, steps + 1);

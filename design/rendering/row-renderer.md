@@ -450,7 +450,7 @@ As built (stage G3 of `cosmos-gap.md`): a plain solid straight 2D line is pulled
 mesh as the 2D line's joined program (`worldWidth`, a piece's width `edge.width / 40`, as `Simple2DLineRenderer` takes it), and
 the view keys the batch (`|2d`), so a 2D/3D switch builds another. Correction to `cosmos-gap.md` section 3.3 item 1, which drops
 the `drawsFlat` refusal whole: two refusals stay in 2D. A 2D curve (`EdgeMesh.pullsCurve`) stays an object edge, since no parity
-case covers a pulled 2D curve yet; and `Edge.pullsLine` now refuses an end at a node drawn behind every edge
+case covers a pulled 2D curve yet (since lifted, #10083: see "As built (issue #9201)" below); and `Edge.pullsLine` now refuses an end at a node drawn behind every edge
 (`Node.isDrawnBehindEdges`, which a 2D node below z-index 0 is, not only a group), because that line ends at the node's outline
 (`Edge.groupEnd`) where a pulled line runs to its center. `test/browser/pulled-edges-batched.test.ts` holds 2D to the objects
 picture, 0 pixels, at rest, after a mouse drag, across a 2D/3D switch and at a sub-pixel width. One `lean-m` run under
@@ -864,9 +864,17 @@ its order against the curves is then the two batches'. A curve takes the rest of
 on both paths, so a straight line added in the same write as the curve is under it and one added once it is drawn is
 over it. `test/browser/curve-crossing-draw-order.test.ts` holds both orders, a partly curved bundle, mixed widths and
 draw orders, a curve between two straight lines of one width (in one write and with the last added later), a restyle
-and a node turned translucent after its lines were drawn at 0 pixels against `"objects"`. Not fixed here: in the 2D
-view a curve is not pulled, and `"objects"` draws it over a crossing straight line in either order, where `"batched"`
-draws the straight line over it (#10083).
+and a node turned translucent after its lines were drawn at 0 pixels against `"objects"`.
+
+As built (issue #10083): the 2D view follows the same rule. A 2D curve is pulled too, into a flat curve batch (the 2D
+joined program with `EDGE_PULLED_CURVE`, its width in world units, keyed by width, `|curve|2d`), so a plain straight 2D
+line of that width and pass is drawn from it as in 3D. Before, `Edge.pullsLine` refused a 2D curve, which stayed in the
+2D line batch of its width, and the pulled straight batch drew just after that batch, so `"batched"` drew a straight line
+over a crossing curve in either order while `"objects"` drew the curve over it (its slots taken at placement). A 2D line
+an `Edge` pulls also makes the object line batch of its width first and draws where it does (`pulledLineSortsWith`), as
+a row line already did, so widths stack in the order the objects path made their batches. The test file above runs every
+case in the 2D view too, and checks on both paths that a straight line added once the curve is drawn, or one with a
+higher `edge.drawOrder`, is drawn over it.
 
 Correction from stage 22 (code read at origin/master 8593e8751a): the row's "fragment scroll" cannot ride the join shader.
 A straight animated line (`line.animationSpeed`, 3D only: in 2D `EdgeMesh` draws it flat and unanimated before it asks)

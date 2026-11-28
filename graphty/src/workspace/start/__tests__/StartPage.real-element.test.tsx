@@ -217,7 +217,7 @@ describe("the start page's graph", () => {
         assert.isUndefined(highlighted(session, "Myriel"), "and only that one");
 
         // Off the graph, onto the headline over the page's left side.
-        await userEvent.hover(screen.getByRole("heading", { level: 1 }));
+        await userEvent.hover(page.getByRole("heading", { level: 1 }));
         await waitFor(() => {
             assert.isNull(session.selection.hovered);
         });
@@ -247,7 +247,7 @@ describe("the start page's graph", () => {
         assert.isTrue(faded(session, "Napoleon"));
 
         // With the pointer off the graph the clicked node keeps its halo.
-        await userEvent.hover(screen.getByRole("heading", { level: 1 }));
+        await userEvent.hover(page.getByRole("heading", { level: 1 }));
         await waitFor(() => {
             assert.isNull(session.selection.hovered);
         });
@@ -270,7 +270,7 @@ describe("the start page's graph", () => {
         const look = (node: string) => session.styles.explain({ node }).merged;
         const pathColors = ["#588300", "#c4f23a"];
 
-        await userEvent.click(screen.getByRole("button", { name: "Key players" }));
+        await userEvent.click(page.getByRole("button", { name: "Key players", exact: true }));
         await waitFor(() => {
             assert.isDefined(runOf("betweenness")?.result);
             assert.isNotNull(screen.queryByText(/Valjean is the biggest\./));
@@ -279,7 +279,7 @@ describe("the start page's graph", () => {
             assert.isTrue(named(session, "Valjean"), "Key players names the biggest node");
         });
 
-        await userEvent.click(screen.getByRole("button", { name: "Shortest path" }));
+        await userEvent.click(page.getByRole("button", { name: "Shortest path", exact: true }));
         await waitFor(() => {
             assert.isDefined(runOf("shortest-path")?.result);
             assert.isNotNull(screen.queryByText("The shortest route from Napoleon to Brujon, in green: 4 steps."));
@@ -298,7 +298,7 @@ describe("the start page's graph", () => {
         assert.include(pathColors, look("Napoleon")["node.color"]?.hex);
 
         // Key players off: the route and its names stay.
-        await userEvent.click(screen.getByRole("button", { name: "Key players" }));
+        await userEvent.click(page.getByRole("button", { name: "Key players", exact: true }));
         await waitFor(() => {
             assert.isUndefined(runOf("betweenness"));
         });
@@ -311,11 +311,11 @@ describe("the start page's graph", () => {
         assert.isNotNull(screen.queryByText("The shortest route from Napoleon to Brujon, in green: 4 steps."));
 
         // Key players on again and Shortest path off: the sizes and Valjean's name stay.
-        await userEvent.click(screen.getByRole("button", { name: "Key players" }));
+        await userEvent.click(page.getByRole("button", { name: "Key players", exact: true }));
         await waitFor(() => {
             assert.isTrue(named(session, "Valjean"));
         });
-        await userEvent.click(screen.getByRole("button", { name: "Shortest path" }));
+        await userEvent.click(page.getByRole("button", { name: "Shortest path", exact: true }));
         await waitFor(() => {
             assert.isUndefined(runOf("shortest-path"));
         });
@@ -325,7 +325,7 @@ describe("the start page's graph", () => {
         assert.isFalse(named(session, "Brujon"), "the route's names went with it");
         assert.notInclude(pathColors, look("Napoleon")["node.color"]?.hex);
 
-        await userEvent.click(screen.getByRole("button", { name: "2D" }));
+        await userEvent.click(page.getByRole("button", { name: "2D", exact: true }));
         await waitFor(() => {
             assert.equal(session.layout.dimension, "2d");
         });
@@ -352,11 +352,11 @@ describe("the start page's graph", () => {
         };
         const before = framing();
 
-        await userEvent.click(screen.getByRole("button", { name: "Pause the turning" }));
+        await userEvent.click(page.getByRole("button", { name: "Pause the turning", exact: true }));
         await hero.waitForStableFrame();
         assert.equal(framing(), before, "pausing framed the graph again");
 
-        await userEvent.click(screen.getByRole("button", { name: "Turn the graph" }));
+        await userEvent.click(page.getByRole("button", { name: "Turn the graph", exact: true }));
         await hero.waitForStableFrame();
         assert.equal(framing(), before, "resuming framed the graph again");
         unmount();
@@ -366,7 +366,7 @@ describe("the start page's graph", () => {
         const { session } = await startPage();
         const runOf = (algorithm: string) => session.runs.list().find((run) => run.algorithm === algorithm);
 
-        await userEvent.click(screen.getByRole("button", { name: "Shortest path" }));
+        await userEvent.click(page.getByRole("button", { name: "Shortest path", exact: true }));
         await waitFor(() => {
             assert.isDefined(runOf("shortest-path")?.result);
         });
@@ -378,7 +378,7 @@ describe("the start page's graph", () => {
         assert.notEqual(colorOf("Cosette"), colorOf("Napoleon"));
 
         // Switched off, the route's look goes with its run.
-        await userEvent.click(screen.getByRole("button", { name: "Shortest path" }));
+        await userEvent.click(page.getByRole("button", { name: "Shortest path", exact: true }));
         await waitFor(() => {
             assert.isUndefined(runOf("shortest-path"));
         });
@@ -393,7 +393,7 @@ describe("the start page's graph", () => {
             assert.isDefined(session.runs.get("louvain")?.result);
         });
 
-        await userEvent.click(screen.getByRole("button", { name: "Communities" }));
+        await userEvent.click(page.getByRole("button", { name: "Communities", exact: true }));
         await waitFor(() => {
             assert.isUndefined(session.runs.get("louvain"));
         });
@@ -402,7 +402,7 @@ describe("the start page's graph", () => {
             assert.include(["#6b7286", "#9aa3b8"], colorOf(node), `${node} is the page's gray`);
         }
 
-        await userEvent.click(screen.getByRole("button", { name: "Communities" }));
+        await userEvent.click(page.getByRole("button", { name: "Communities", exact: true }));
         await waitFor(() => {
             assert.isDefined(session.runs.get("louvain")?.result);
         });
@@ -412,7 +412,7 @@ describe("the start page's graph", () => {
 
     it("names the shortest path's ends over the graph, not in it", async () => {
         const { session } = await startPage();
-        await userEvent.click(screen.getByRole("button", { name: "Shortest path" }));
+        await userEvent.click(page.getByRole("button", { name: "Shortest path", exact: true }));
         await waitFor(() => {
             assert.isTrue(named(session, "Brujon"));
         });
@@ -435,12 +435,12 @@ describe("the start page's fact bar", () => {
             "application/json",
             JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [{ src: "a", dst: "b" }] }),
         );
-        await openBy(store, () => userEvent.click(screen.getByRole("button", { name: /^Open a file/ })));
+        await openBy(store, () => userEvent.click(page.getByRole("button", { name: /^Open a file/ })));
         const tool = screen.getByRole("button", { name: "Layout" });
         await waitFor(() => {
             assert.isFalse(tool.hasAttribute("aria-disabled"));
         });
-        await userEvent.click(tool);
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
         assert.equal(Number(said), within(popover).getAllByRole("option").length);
     });
@@ -455,7 +455,7 @@ describe("the start page's ways in", () => {
             "application/json",
             JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [{ src: "a", dst: "b" }] }),
         );
-        const opened = await openBy(store, () => userEvent.click(screen.getByRole("button", { name: /^Open a file/ })));
+        const opened = await openBy(store, () => userEvent.click(page.getByRole("button", { name: /^Open a file/ })));
         assert.equal(store.get().project?.name, "triangle");
         assert.equal(opened.data.statistics().nodeCount, 3);
     });
@@ -479,12 +479,14 @@ describe("the start page's ways in", () => {
 
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
-        const resume = await screen.findByRole("button", { name: /^Resume Les Miserables study/ });
+        await screen.findByRole("button", { name: /^Resume Les Miserables study/ });
         // This browser kept no handle to the file, so Resume asks for it, as Locate... does, with
         // the file input (the File System Access picker is switched off, as where a browser has none).
         vi.stubGlobal("showOpenFilePicker", undefined);
         await commands.chooseNextFile("study.graphty.json", "application/json", saved.text);
-        const opened = await openBy(store, () => userEvent.click(resume));
+        const opened = await openBy(store, () =>
+            userEvent.click(page.getByRole("button", { name: /^Resume Les Miserables study/ })),
+        );
         assert.isNotNull(store.get().project);
         assert.equal(opened.data.statistics().nodeCount, 77);
     });

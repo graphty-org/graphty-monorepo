@@ -49,7 +49,7 @@ async function openLayer(): Promise<{ session: GraphSession; layer: Layer }> {
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Linked, / }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Linked, / }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -79,7 +79,7 @@ function firstStep(
  * @param id - the layer.
  */
 async function pickDegree(session: GraphSession, id: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-ws"), "the workspace is open");
     });
@@ -98,14 +98,14 @@ describe("a number card's Test", () => {
     it("switches a Degree card to By position and back to By value", async () => {
         const { session, layer } = await openLayer();
         await pickDegree(session, layer.id);
-        await userEvent.click(await screen.findByRole("button", { name: "Settings for Degree" }));
+        await userEvent.click(page.getByRole("button", { name: "Settings for Degree", exact: true }));
         const settings = await screen.findByRole("dialog", { name: "Degree" });
-        await userEvent.click(within(settings).getByText("By position"));
+        await userEvent.click(page.elementLocator(settings).getByText("By position", { exact: true }));
         await waitFor(() => {
             assert.strictEqual(firstStep(session, layer.id).mode, "top", "the step keeps By position");
         });
         const again = await screen.findByRole("dialog", { name: "Degree" });
-        await userEvent.click(within(again).getByText("By value"));
+        await userEvent.click(page.elementLocator(again).getByText("By value", { exact: true }));
         await waitFor(() => {
             assert.strictEqual(firstStep(session, layer.id).mode, "range", "the step is By value again");
         });
@@ -121,9 +121,9 @@ describe("a step's Edges where ...", () => {
         // Settings: Edges where ... closes them, draws the card's edge value and hands it focus. The
         // option switches on mouse-down, so the mouse-up lands on the drawing behind the closed
         // settings, and must not take the focus (issue #8920).
-        await userEvent.click(await screen.findByRole("button", { name: "Settings for Degree" }));
+        await userEvent.click(page.getByRole("button", { name: "Settings for Degree", exact: true }));
         const settings = await screen.findByRole("dialog", { name: "Degree" });
-        await userEvent.click(within(settings).getByText("Edges where ..."));
+        await userEvent.click(page.elementLocator(settings).getByText("Edges where ...", { exact: true }));
         const field = await screen.findByRole("button", { name: "Edge value: none" });
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Degree" }), "the settings close");
@@ -132,7 +132,7 @@ describe("a step's Edges where ...", () => {
         assert.isUndefined(firstStep(session, layer.id).links, "nothing is scoped until a value is picked");
 
         // The edge value's list holds the edges' own data: Les Miserables' "shared_chapters".
-        await userEvent.click(field);
+        await userEvent.click(page.getByRole("button", { name: "Edge value: none", exact: true }));
         await screen.findByRole("combobox", { name: /^Find edge attributes/ });
         await userEvent.keyboard("shared{Enter}");
         await screen.findByRole("button", { name: /^Edge value: shared/ });
@@ -155,8 +155,12 @@ describe("a step's Edges where ...", () => {
 
         // The settings button says a setting is changed; All edges takes the condition away, from
         // the element and from the card.
-        await userEvent.click(await screen.findByRole("button", { name: "Settings for Degree has configured values" }));
-        await userEvent.click(within(await screen.findByRole("dialog", { name: "Degree" })).getByText("All edges"));
+        await userEvent.click(
+            page.getByRole("button", { name: "Settings for Degree has configured values", exact: true }),
+        );
+        await userEvent.click(
+            page.getByRole("dialog", { name: "Degree", exact: true }).getByText("All edges", { exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(firstStep(session, layer.id).links, "every edge counts again");
             assert.isNull(document.querySelector("[data-card-links]"), "and the card draws no edge condition");

@@ -6,7 +6,7 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -43,7 +43,7 @@ describe("the selection editor on 50,000 nodes", () => {
         });
         assert.deepEqual(order(), before, "every row stayed where it was");
         assert.deepEqual(tops(), beforeTops);
-        const search = screen.getByRole("textbox", { name: "Search community" });
+        const search = page.getByRole("textbox", { name: "Search community", exact: true });
         await userEvent.type(search, "1");
         await userEvent.clear(search);
         await waitFor(() => {

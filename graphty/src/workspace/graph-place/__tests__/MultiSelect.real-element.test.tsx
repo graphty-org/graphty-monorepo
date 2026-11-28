@@ -111,7 +111,7 @@ describe("selecting several style layers", () => {
 
     it("has no Select layers in the tree's +", async () => {
         await workspace();
-        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
         const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
         assert.isTrue(
             items.some((text) => text?.includes("Layer")),
@@ -146,7 +146,7 @@ describe("selecting several style layers", () => {
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
         const menu = await screen.findByRole("menu");
         assert.strictEqual(within(menu).getAllByRole("menuitem")[0]?.textContent, "Select more");
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Select more" }));
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: "Select more", exact: true }));
         await userEvent.click(await row("Alpha"));
         await headed("2 layers");
         await userEvent.keyboard("{Escape}");

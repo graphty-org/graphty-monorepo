@@ -177,7 +177,11 @@ describe("node.outline around a node with a border", () => {
                             `walk ${String(i)} ${part}: outlined ${JSON.stringify(outlined)}, bare ${JSON.stringify(bare)}`,
                         );
                     }
-                    assert.isAbove(want.border, 0, `walk ${String(i)} crosses node b's border: ${JSON.stringify(bare)}`);
+                    assert.isAbove(
+                        want.border,
+                        0,
+                        `walk ${String(i)} crosses node b's border: ${JSON.stringify(bare)}`,
+                    );
                 }
             });
         }

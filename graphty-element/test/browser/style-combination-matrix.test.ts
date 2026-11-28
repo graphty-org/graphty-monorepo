@@ -257,10 +257,6 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
     if (fill.length === 0) {
         return [];
     }
-    // A ring or plate lies flat, square to the node's line of sight, and may sit in front of the node or behind it
-    // (an overlay, an underlay): projected through the camera it would read perspective-scaled by its depth, so it is
-    // dropped straight onto the measuring plane and measured in its own plane, as a flat node's are.
-    const flatRing: Measure = { ...measure, flat: true };
     const symmetric = SYMMETRIC.has(settings.shape);
     // a mesh edge is exact: allow half a pixel, or a hundredth of a unit and 5% of the border
     // (a solid's silhouette in 2D is its tessellation's, measured 0.02 off its true outline)
@@ -276,7 +272,7 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
     const inset = width - borderEdgeWorld(settings, sizeFactor);
     // a dashed ring's hull is the hull of its dashes, so it is not read
     if (node.border !== null && width > 0 && settings.border !== "dashed") {
-        const ring = hullOf(node.border, flatRing);
+        const ring = hullOf(node.border, measure);
         if (ring.length > 0) {
             if (!CONCAVE.has(settings.shape)) {
                 checks.push(...meshRingChecks(fill, ring, width, tol, symmetric, "border"));
@@ -284,7 +280,7 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
         }
     }
     if (node.outerBorder !== null && settings.border !== "screen") {
-        const ring = hullOf(node.outerBorder, flatRing);
+        const ring = hullOf(node.outerBorder, measure);
         const reach =
             width + ((settings.outer === "gap" ? AMOUNTS.outerGap : 0) + AMOUNTS.outerWidth) * PER_SIZE * sizeFactor;
         if (ring.length > 0 && !CONCAVE.has(settings.shape)) {
@@ -297,10 +293,21 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
     ] as const) {
         const mesh = node[field];
         if (mesh !== null && settings.border !== "screen") {
-            const ring = hullOf(mesh, flatRing);
+            const ring = hullOf(mesh, measure);
             if (ring.length > 0 && !CONCAVE.has(settings.shape)) {
+                // a plate round a solid seen in perspective sits at its own depth, in front or behind, so it is not
+                // the silhouette's exact offset in this plane: only its median is read there
+                const exact = measure.flat || view === "2d";
                 checks.push(
-                    ...meshRingChecks(fill, ring, padding * PER_SIZE * sizeFactor + inset, tol, symmetric, field),
+                    ...meshRingChecks(
+                        fill,
+                        ring,
+                        padding * PER_SIZE * sizeFactor + inset,
+                        tol,
+                        symmetric,
+                        field,
+                        exact,
+                    ),
                 );
             }
         }

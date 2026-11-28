@@ -2065,6 +2065,9 @@ export function mitredOffset(hull: readonly P2[], distance: number): P2[] {
  * @param tolerance - How far off it may be.
  * @param symmetric - Whether the shape is symmetric about its center, so the two middles must agree.
  * @param name - The ring's name in the checks.
+ * @param nearest - Whether the ring is the fill hull's exact mitred offset in this plane, so its nearest ray and the
+ * mitre's limit are read; false where it is not (a plate drawn at its own depth round a solid seen in perspective),
+ * where only the median is.
  * @returns The checks.
  */
 export function meshRingChecks(
@@ -2074,6 +2077,7 @@ export function meshRingChecks(
     tolerance: number,
     symmetric: boolean,
     name: string,
+    nearest = true,
 ): Check[] {
     const offsets = Array.from({ length: RAYS }, (_, i) => {
         const angle = (i / RAYS) * Math.PI * 2;
@@ -2091,19 +2095,25 @@ export function meshRingChecks(
     const checks = [
         check(
             `mesh-${name}-reach`,
-            `the ${name} mesh's outer edge lies its promised distance past the fill mesh's outline, at its nearest`,
-            least(offsets),
+            `the ${name} mesh's outer edge lies its promised distance past the fill mesh's outline${
+                nearest ? ", at its nearest" : ""
+            }`,
+            nearest ? least(offsets) : quantile(offsets, 0.5),
             expected,
             tolerance,
             offsets,
         ),
-        atMost(
-            `mesh-${name}-mitre`,
-            `the ${name} mesh reaches no more than ${String(MITRE_LIMIT)} times its distance past a corner`,
-            most(offsets) - MITRE_LIMIT * expected,
-            tolerance,
-        ),
     ];
+    if (nearest) {
+        checks.push(
+            atMost(
+                `mesh-${name}-mitre`,
+                `the ${name} mesh reaches no more than ${String(MITRE_LIMIT)} times its distance past a corner`,
+                most(offsets) - MITRE_LIMIT * expected,
+                tolerance,
+            ),
+        );
+    }
     if (symmetric) {
         checks.push(
             atMost(

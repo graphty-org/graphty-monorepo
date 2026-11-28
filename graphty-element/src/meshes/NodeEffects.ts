@@ -87,6 +87,8 @@ interface OutlineRingMetadata {
     flat: boolean;
     /** How far the node's border and outer border reach past its fill, in the fill's own units. */
     borderReach: () => number;
+    /** The rings the node draws round its fill (its border, its outer border), innermost first. */
+    rings: () => readonly (AbstractMesh | null)[];
     /** The width its style sets, if any. */
     width: number | undefined;
     world: Matrix;
@@ -209,27 +211,78 @@ function loneEdges(
  * @returns The outline, counter-clockwise; null when the face is not one closed loop (a solid, a shape with a hole).
  */
 function frontOutline(positions: ArrayLike<number>, indices: ArrayLike<number>, z: number): Point2[] | null {
+    const loops = faceLoops(positions, indices, z);
+    return loops?.length === 1 ? loops[0] : null;
+}
+
+/**
+ * The closed loops the edges of a flat face at one depth that only one of its triangles has make: one for a plain
+ * face, the outer and the inner edge for a band (a flat shape's border).
+ * @param positions - The mesh's vertex positions.
+ * @param indices - Its triangles.
+ * @param z - The face's depth.
+ * @returns The loops, each counter-clockwise; null when the edges do not make closed loops.
+ */
+function faceLoops(positions: ArrayLike<number>, indices: ArrayLike<number>, z: number): Point2[][] | null {
     const { next, at } = loneEdges(positions, indices, z);
     if (next.size < 3 || [...next.values()].some((n) => n.length !== 2)) {
         return null;
     }
-    const [start] = next.keys();
-    const loop = [start];
-    let [previous, current] = [start, (next.get(start) ?? [])[0]];
-    while (current !== start && loop.length <= next.size) {
-        loop.push(current);
-        const [a, b] = next.get(current) ?? [];
-        [previous, current] = [current, a === previous ? b : a];
+    const left = new Set(next.keys());
+    const loops: Point2[][] = [];
+    for (const start of next.keys()) {
+        if (!left.has(start)) {
+            continue;
+        }
+        const loop = [start];
+        left.delete(start);
+        let [previous, current] = [start, (next.get(start) ?? [])[0]];
+        while (current !== start && left.has(current)) {
+            loop.push(current);
+            left.delete(current);
+            const [a, b] = next.get(current) ?? [];
+            [previous, current] = [current, a === previous ? b : a];
+        }
+        if (current !== start || loop.length < 3) {
+            return null;
+        }
+        const outline = loop.map((k): Point2 => at.get(k) ?? [0, 0]);
+        if (signedArea(outline) < 0) {
+            outline.reverse();
+        }
+        loops.push(outline);
     }
-    if (loop.length !== next.size) {
-        return null;
-    }
-    const outline = loop.map((k): Point2 => at.get(k) ?? [0, 0]);
-    const signed = outline.reduce((sum, [x, y], i) => {
+    return loops;
+}
+
+/**
+ * Twice a closed outline's signed area.
+ * @param outline - A closed outline.
+ * @returns Twice its signed area: positive counter-clockwise.
+ */
+function signedArea(outline: readonly Point2[]): number {
+    return outline.reduce((sum, [x, y], i) => {
         const [nx, ny] = outline[(i + 1) % outline.length];
         return sum + x * ny - nx * y;
     }, 0);
-    return signed < 0 ? outline.reverse() : outline;
+}
+
+/**
+ * Whether a closed outline encloses a point.
+ * @param outline - A closed outline.
+ * @param x - The point, x.
+ * @param y - The point, y.
+ * @returns Whether the point lies inside it (even-odd).
+ */
+function encloses(outline: readonly Point2[], x: number, y: number): boolean {
+    let inside = false;
+    outline.forEach(([ax, ay], i) => {
+        const [bx, by] = outline[(i + 1) % outline.length];
+        if (ay > y !== by > y && x < ax + ((y - ay) * (bx - ax)) / (by - ay)) {
+            inside = !inside;
+        }
+    });
+    return inside;
 }
 
 /**
@@ -386,12 +439,15 @@ export class NodeEffects {
      * fill's own units, read every frame (a screen-pixel border changes with the zoom); the ring
      * starts there, so it never covers them (#10426).
      * @param flat - Whether the node's shape is flat, so its border lies in its own plane.
+     * @param rings - The rings the node draws round its fill (its border, its outer border), innermost first,
+     * read every frame: the ring is built round them as they are drawn.
      */
     static applyOutlineEffect(
         mesh: AbstractMesh,
         effect: NodeStyleConfig["effect"] | undefined,
         borderReach: () => number = () => 0,
         flat = false,
+        rings: () => readonly (AbstractMesh | null)[] = () => [],
     ): void {
         const existing = mesh.getChildMeshes(true).find((child) => child.name.startsWith(OUTLINE_RING_PREFIX));
 
@@ -432,6 +488,7 @@ export class NodeEffects {
             shape: this.ringShapeOf(mesh),
             flat,
             borderReach,
+            rings,
             width: own,
             world: before?.world ?? new Matrix(),
             // rebuilt on the next placement: the shape or the width may be new
@@ -495,11 +552,14 @@ export class NodeEffects {
      * short diagonal and cut into it along the long one, and a tetrahedron's, a box's or a cone's ring
      * cut across their slanted sides (`test/browser/node-outline-follows-view.test.ts`).
      *
-     * THE RING STARTS PAST THE BORDER (#10426), offset by the border's reach with mitred corners as the
-     * border is (#10437). A flat shape's border lies in its own plane, so its front outline is offset
-     * there before it is projected; growing its slab's depth too floated the ring far above and below a
-     * flat shape seen nearly edge-on. A solid's border follows the outline the camera sees (NodeMesh
-     * followView), so that outline is offset in the ring's plane.
+     * THE RING STARTS PAST THE BORDER (#10426), ON THE RINGS AS DRAWN: their vertices are projected with the
+     * node's, so the ring's inner edge is the outer edge of the outermost ring the camera sees. Growing the fill's
+     * outline by the rings' reach found a different edge wherever the rings are not that: a sharp corner's rings
+     * are cut square at three times their width (`mitredEdges`), so a wide tetrahedron's ring stood well off its
+     * outer border's cut point, and a star's inside border that closes its points up draws the fill in past where
+     * growing it back finds the star (`test/meshes/outline-ring-on-drawn-rings.test.ts`). A flat shape with a
+     * notch is ringed round its outermost ring's own outer edge, in order, at its face toward the camera; a
+     * dashed one, whose dashes make no such edge, round its fill's outline grown by the rings' reach.
      *
      * UNDER PERSPECTIVE the projection is through the camera's position, so the ring's edge lies on the
      * node's own edge on screen however far off to the side it is (`test/browser/node-outline-perspective.test.ts`).
@@ -524,8 +584,23 @@ export class NodeEffects {
         const [toCamera, right, up] = [TO_CAMERA, RING_RIGHT, RING_UP];
         const eye = camera.globalPosition;
 
-        const { local, notched } = this.ringPoints(shape, flat, border, m, toCamera);
-        const placed = local.map((p) => Vector3.TransformCoordinates(p, m));
+        const rings = metadata.rings().filter((r): r is AbstractMesh => r !== null && !r.isDisposed() && r.isEnabled());
+        const outermost = rings.at(-1);
+        const loop = flat && outermost !== undefined ? this.outerLoop(outermost, toCamera) : null;
+        let placed: Vector3[];
+        let notched = false;
+        if (loop !== null && convexHull(loop.flat).length < loop.flat.length) {
+            [placed, notched] = [loop.placed, true];
+        } else if (flat && (rings.length === 0 || loop === null)) {
+            const { local, notched: ordered } = this.ringPoints(shape, flat, border, m, toCamera);
+            placed = local.map((p) => Vector3.TransformCoordinates(p, m));
+            notched = ordered;
+        } else {
+            placed = shape.points.map((p) => Vector3.TransformCoordinates(p, m));
+            for (const mesh of rings) {
+                placed.push(...this.worldVertices(mesh));
+            }
+        }
         let depth = 0;
         for (const p of placed) {
             depth = Math.max(depth, Vector3.Dot(p.subtractToRef(center, RING_POINT), toCamera));
@@ -536,17 +611,13 @@ export class NodeEffects {
         const plane = center.add(toCamera.scale(lift));
         // Along the line of sight, how far the ring's plane is in front of the camera.
         const ahead = perspective ? Vector3.Dot(eye.subtract(plane), toCamera) : 0;
-        let outline = this.projectedHull(placed, plane, perspective ? { eye, ahead } : null, notched);
-        if (border > 0 && !flat) {
-            // the border's world width, drawn at the ring's plane as at the node's center
-            const atCenter = perspective ? Vector3.Dot(eye.subtract(center), toCamera) : 1;
-            const shrink = perspective && atCenter > 0 ? ahead / atCenter : 1;
-            outline = offsetOutline(outline, border * (Math.hypot(m.m[0], m.m[1], m.m[2]) || 1) * shrink);
-        }
+        const outline = this.projectedHull(placed, plane, perspective ? { eye, ahead } : null, notched);
         // The band starts a little inside the node's edge, so it overlaps it, or with a border at the
         // border's outer edge, so nothing the node draws is under it.
         const fitted =
-            border > 0 ? outline.map(([x, y]): Point2 => [x / OUTLINE_RING_INNER, y / OUTLINE_RING_INNER]) : outline;
+            rings.length > 0
+                ? outline.map(([x, y]): Point2 => [x / OUTLINE_RING_INNER, y / OUTLINE_RING_INNER])
+                : outline;
         if (!sameOutline(fitted, metadata.drawn)) {
             this.rebuildRing(ring, fitted);
         }
@@ -595,6 +666,61 @@ export class NodeEffects {
         right.normalize();
         Vector3.CrossToRef(toCamera, right, up);
         return perspective;
+    }
+
+    /**
+     * A mesh's vertices in world units.
+     * ponytail: every vertex every frame; outlines are on a few selected or hovered nodes.
+     * @param mesh - The mesh or instance.
+     * @returns The vertices.
+     */
+    private static worldVertices(mesh: AbstractMesh): Vector3[] {
+        const source = this.resolveRenderedMesh(mesh);
+        const positions = source.getVerticesData(VertexBuffer.PositionKind) ?? [];
+        const world = mesh.computeWorldMatrix();
+        const out: Vector3[] = [];
+        for (let i = 0; i + 2 < positions.length; i += 3) {
+            out.push(
+                Vector3.TransformCoordinatesFromFloatsToRef(
+                    positions[i],
+                    positions[i + 1],
+                    positions[i + 2],
+                    world,
+                    new Vector3(),
+                ),
+            );
+        }
+        return out;
+    }
+
+    /**
+     * A flat ring's outer edge, in order, at its face toward the camera: the largest loop of its face round the
+     * node's middle.
+     * @param mesh - The ring (a flat shape's border or outer border).
+     * @param toCamera - Toward the camera.
+     * @returns The edge in the ring's own (x, y) and in world units; null when its face makes no closed loops (a
+     * dashed ring).
+     */
+    private static outerLoop(mesh: AbstractMesh, toCamera: Vector3): { flat: Point2[]; placed: Vector3[] } | null {
+        const source = this.resolveRenderedMesh(mesh);
+        const positions = source.getVerticesData(VertexBuffer.PositionKind) ?? [];
+        let [low, high] = [Infinity, -Infinity];
+        for (let i = 2; i < positions.length; i += 3) {
+            [low, high] = [Math.min(low, positions[i]), Math.max(high, positions[i])];
+        }
+        const world = mesh.computeWorldMatrix();
+        const { m } = world;
+        const z = m[8] * toCamera.x + m[9] * toCamera.y + m[10] * toCamera.z >= 0 ? high : low;
+        const loops = faceLoops(positions, source.getIndices() ?? [], z);
+        const around = (loops ?? []).filter((l) => encloses(l, 0, 0));
+        if (around.length === 0) {
+            return null;
+        }
+        const outer = around.reduce((a, b) => (signedArea(b) > signedArea(a) ? b : a), around[0]);
+        return {
+            flat: outer,
+            placed: outer.map(([x, y]) => Vector3.TransformCoordinatesFromFloatsToRef(x, y, z, world, new Vector3())),
+        };
     }
 
     /**

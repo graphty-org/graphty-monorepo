@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, UnionLeaf } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { columnVerb } from "../../../test/column-header";
 import { withFeatures } from "../../../test/features";
@@ -76,10 +76,10 @@ async function card(name: RegExp): Promise<Within> {
 async function addValueCard(session: GraphSession): Promise<void> {
     await columnVerb("edge", "value", "Filter to...");
     // A new card's step is edited in the selection workspace (selection spec 3.0), written on Done.
-    const from = await screen.findByRole("textbox", { name: "value from, number" });
+    const from = page.getByRole("textbox", { name: "value from, number", exact: true });
     await userEvent.clear(from);
     await userEvent.type(from, "9{Enter}");
-    await userEvent.click(within(await workspace()).getByRole("button", { name: "Done" }));
+    await userEvent.click(page.elementLocator(await workspace()).getByRole("button", { name: "Done", exact: true }));
     await waitFor(() => {
         assert.lengthOf(session.visibility.conditions, 1);
     });
@@ -135,13 +135,13 @@ describe("Filter cards on the real element", () => {
         await addValueCard(session);
         await session.visibility.addCondition({ effect: "keep", rule: { kind: "member", of: "largest-component" } });
         const before = session.history.position;
-        await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+        await userEvent.click(page.getByRole("button", { name: "Clear filters", exact: true }));
         await waitFor(() => {
             assert.isTrue(session.visibility.conditions.every((c) => !c.on));
         });
         assert.equal(session.history.position, before + 1);
         assert.lengthOf(session.visibility.conditions, 2, "cards are kept, off");
-        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Undo( |$)/ }));
         await waitFor(() => {
             assert.isTrue(session.visibility.conditions.every((c) => c.on));
         });
@@ -189,10 +189,10 @@ describe("Filter cards on the real element", () => {
         const { session } = await openWithGraph();
         await addValueCard(session);
         const rename = async (keys: string): Promise<void> => {
-            await userEvent.click(within(filters()).getByRole("button", { name: "More" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: /^Rename/ }));
-            const field = await within(filters()).findByRole("textbox", { name: /^Rename / });
-            await userEvent.clear(field);
+            await userEvent.click(page.elementLocator(filters()).getByRole("button", { name: "More", exact: true }));
+            await userEvent.click(page.getByRole("menuitem", { name: /^Rename/ }));
+            const field = (): Locator => page.elementLocator(filters()).getByRole("textbox", { name: /^Rename / });
+            await userEvent.clear(field());
             await userEvent.keyboard(keys);
         };
         const before = session.history.position;
@@ -217,7 +217,7 @@ describe("Filter cards on the real element", () => {
         await addValueCard(session);
         const more = async (item: RegExp, row = 0): Promise<void> => {
             await userEvent.click(within(filters()).getAllByRole("button", { name: "More" })[row] ?? document.body);
-            await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+            await userEvent.click(page.getByRole("menuitem", { name: item, exact: true }));
         };
         await more(/^Select 4/);
         await waitFor(() => {
@@ -231,7 +231,9 @@ describe("Filter cards on the real element", () => {
         const [first, copy] = session.visibility.conditions;
         assert.deepEqual(copy?.rule, first?.rule, "the copy reads the same rule");
         assert.notEqual(copy?.id, first?.id);
-        await userEvent.click(within(await workspace()).getByRole("button", { name: "Done" }));
+        await userEvent.click(
+            page.elementLocator(await workspace()).getByRole("button", { name: "Done", exact: true }),
+        );
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
         });
@@ -274,7 +276,7 @@ describe("Filter cards on the real element", () => {
     it("a card's count in the workspace shows what it keeps in the table", async () => {
         await openWithGraph();
         await columnVerb("edge", "value", "Filter to...");
-        const from = await screen.findByRole("textbox", { name: "value from, number" });
+        const from = page.getByRole("textbox", { name: "value from, number", exact: true });
         await userEvent.clear(from);
         await userEvent.type(from, "9{Enter}");
         const ws = await workspace();
@@ -282,12 +284,17 @@ describe("Filter cards on the real element", () => {
         await within(ws).findByRole("region", { name: "Matches" });
         const more = within(ws).getAllByRole("button", { name: /^More for / })[0];
         assert.isDefined(more);
-        await userEvent.click(more);
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Hide table/ }));
+        await userEvent.click(
+            page
+                .elementLocator(ws)
+                .getByRole("button", { name: /^More for / })
+                .nth(0),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Hide table/ }));
         await waitFor(() => {
             assert.isNull(within(ws).queryByRole("region", { name: "Matches" }), "the table is hidden");
         });
-        await userEvent.click(await within(ws).findByRole("button", { name: /^Show 4 of 9 edges/ }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: /^Show 4 of 9 edges/ }));
         await within(ws).findByRole("region", { name: "Matches" });
     });
 
@@ -295,7 +302,7 @@ describe("Filter cards on the real element", () => {
         const { session, store } = await openWithGraph();
         await addValueCard(session);
         store.set({ place: "graph" });
-        await userEvent.click(await screen.findByRole("button", { name: /^Filter: / }));
+        await userEvent.click(page.getByRole("button", { name: /^Filter: / }));
         await waitFor(() => {
             assert.equal(store.get().place, "data");
         });

@@ -1309,6 +1309,33 @@ export class Graph implements GraphContext {
     /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
     readonly #teardown = new AbortController();
 
+    /**
+     * Style paint has been applied to the meshes and no frame has drawn it yet: applied outside a frame (a layout
+     * reading node sizes, `update()` pumped by hand), or in the update of a frame still to render. Cleared by the
+     * next drawn frame, so `waitForPainted` never takes paint the meshes hold for paint the canvas shows (#10322).
+     */
+    #paintUndrawn = false;
+
+    /** Clear {@link Graph.#paintUndrawn} on every frame the scene draws; called again for a new renderer's scene. */
+    #notePaintDrawnOnFrames(): void {
+        this.scene.onAfterRenderObservable.add(() => {
+            this.#paintUndrawn = false;
+        });
+    }
+
+    /**
+     * Run what may apply arrived style paint to the meshes, and note when it did.
+     * @param apply - The update or the paint apply.
+     */
+    #notingAppliedPaint(apply: () => void): void {
+        const painter = this.getStylePainter();
+        const had = painter.hasPending;
+        apply();
+        if (had && !painter.hasPending) {
+            this.#paintUndrawn = true;
+        }
+    }
+
     /** Aborted and replaced each time the data is cleared, so a repaint in flight stops. */
     #dataGeneration = new AbortController();
 
@@ -1601,6 +1628,7 @@ export class Graph implements GraphContext {
         // Get references from RenderManager for backward compatibility
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
+        this.#notePaintDrawnOnFrames();
         this.camera = this.renderManager.camera;
         this.#hookCamera();
 
@@ -2125,7 +2153,9 @@ export class Graph implements GraphContext {
             finished: (frame) => this.renderManager.gpuFinishedFrame(frame),
         };
         this.layoutManager.drawArrivedPaint = () => {
-            this.updateManager.drawArrivedPaint();
+            this.#notingAppliedPaint(() => {
+                this.updateManager.drawArrivedPaint();
+            });
         };
         // A change on its way through the derivation lane is paint on its way: its styles hook runs
         // after the graph and layout hooks it awaits, so until the pass ends the framing a
@@ -3037,6 +3067,7 @@ export class Graph implements GraphContext {
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
+        this.#notePaintDrawnOnFrames();
         this.camera = this.renderManager.camera;
         this.#hookCamera();
         this.camera.setViewInsets(this.#viewInsets);
@@ -3585,7 +3616,9 @@ export class Graph implements GraphContext {
 
         this.statsManager.measure("Graph.update", () => {
             this.statsManager.measure("Graph.updateManager", () => {
-                this.updateManager.update(frameMs);
+                this.#notingAppliedPaint(() => {
+                    this.updateManager.update(frameMs);
+                });
             });
 
             // The map follows the layout's frame and its `map` option; nothing happens unless one changed.
@@ -8657,7 +8690,10 @@ export class Graph implements GraphContext {
      * Resolve once every style change made so far is drawn on the canvas: the repaint passes have
      * ended (`styles.settled()`) and the renderer has applied their last batch. A large graph's
      * repaint is spread over many frames, so `styles.settled()` alone resolves while the canvas
-     * still shows the old colors (ws-polish 3). It does not wait for the layout or the camera, as
+     * still shows the old colors (ws-polish 3), and paint applied to the meshes is not on the canvas until a frame
+     * draws it: a layout reading node sizes, or `update()` pumped by hand, applies it between frames (#10322).
+     * Called before an edit is made (in a listener that runs ahead of the one making it), it does not wait for that
+     * edit. It does not wait for the layout or the camera, as
      * {@link Graph.waitForStableFrame} does, and it never rejects: a graph shut down ends the wait.
      * @returns Promise that resolves once the last repaint batch has been applied.
      * @beta
@@ -8667,7 +8703,7 @@ export class Graph implements GraphContext {
         const painter = this.getStylePainter();
         const teardown = this.#teardown.signal;
 
-        if (!painter.hasPending || teardown.aborted) {
+        if ((!painter.hasPending && !this.#paintUndrawn) || teardown.aborted) {
             return;
         }
 

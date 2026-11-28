@@ -163,8 +163,8 @@ async function saveAs(name: string, current = "Florentine families"): Promise<vo
  * Back to start from the main menu.
  */
 async function closeFromMenu(): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
+    await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: "Back to start", exact: true }));
 }
 
 beforeEach(async () => {
@@ -207,8 +207,8 @@ describe("T14: save and reopen, on the real element", () => {
         const saved = snapshot(session);
 
         // Save local copy... downloads the file and leaves the project saved.
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Save local copy...", exact: true }));
         await waitFor(() => {
             assert.deepEqual(
                 downloads.map((download) => download.name),
@@ -223,7 +223,7 @@ describe("T14: save and reopen, on the real element", () => {
         const recent = await screen.findByRole("gridcell", { name: /^Florentine, my copy/ });
         assert.isNotNull(within(recent).getByText(/^In this browser - 15 nodes - /));
 
-        await userEvent.click(recent);
+        await userEvent.click(page.getByRole("gridcell", { name: /^Florentine, my copy/ }));
         const reopened = await elementSession(session);
         await waitFor(() => {
             assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
@@ -256,11 +256,11 @@ describe("T14: save and reopen, on the real element", () => {
         });
         const kept = snapshot(reopened);
         store.set({ notice: null });
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Open recent" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Florentine, my copy/ }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Open recent", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Florentine, my copy/ }));
         const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-        await userEvent.click(within(ask).getByRole("button", { name: "Discard" }));
+        await userEvent.click(page.elementLocator(ask).getByRole("button", { name: "Discard", exact: true }));
         await waitFor(() => {
             assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
         });
@@ -272,8 +272,8 @@ describe("T14: save and reopen, on the real element", () => {
         const store = createWorkspaceStore();
         const { session } = await buildProject(store);
         assert.isTrue(session.project.dirty);
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Save local copy...", exact: true }));
         await waitFor(() => {
             assert.deepEqual(
                 downloads.map((download) => download.name),
@@ -293,7 +293,7 @@ describe("T14: save and reopen, on the real element", () => {
         });
 
         await userEvent.keyboard("{F2}");
-        const field = await screen.findByRole("textbox", { name: "Project name" });
+        const field = page.getByRole("textbox", { name: "Project name", exact: true });
         await userEvent.clear(field);
         await userEvent.type(field, "Florentine B{Enter}");
         await waitFor(() => {
@@ -313,7 +313,7 @@ describe("T14: save and reopen, on the real element", () => {
         // Close asks, because the rename is not saved.
         await closeFromMenu();
         const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-        await userEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(ask).getByRole("button", { name: "Cancel", exact: true }));
     });
 
     it("shows the name the element holds after a refused rename and after an Undo of a rename", async () => {
@@ -325,7 +325,7 @@ describe("T14: save and reopen, on the real element", () => {
         // project holds, and says the rename did not happen.
         const long = "x".repeat(257);
         await userEvent.keyboard("{F2}");
-        await userEvent.fill(await screen.findByRole("textbox", { name: "Project name" }), long);
+        await userEvent.fill(page.getByRole("textbox", { name: "Project name", exact: true }), long);
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.equal(store.get().notice?.message, `The project could not be renamed ${long}.`);
@@ -334,7 +334,7 @@ describe("T14: save and reopen, on the real element", () => {
         assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine families" }));
 
         await userEvent.keyboard("{F2}");
-        const field = await screen.findByRole("textbox", { name: "Project name" });
+        const field = page.getByRole("textbox", { name: "Project name", exact: true });
         await userEvent.clear(field);
         await userEvent.type(field, "Florentine B{Enter}");
         assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine B" }));
@@ -372,22 +372,22 @@ describe("T14: save and reopen, on the real element", () => {
         const { session } = await buildProject(store);
         assert.isTrue(session.project.dirty);
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "New project" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "New project", exact: true }));
         const asked = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-        await userEvent.click(within(asked).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(asked).getByRole("button", { name: "Cancel", exact: true }));
         assert.equal(store.get().project?.name, "Florentine families");
 
         await closeFromMenu();
         const dialog = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel", exact: true }));
         assert.isNotNull(store.get().project);
 
         await closeFromMenu();
         await userEvent.click(
-            within(await screen.findByRole("dialog", { name: "Discard unsaved changes?" })).getByRole("button", {
-                name: "Discard",
-            }),
+            page
+                .getByRole("dialog", { name: "Discard unsaved changes?", exact: true })
+                .getByRole("button", { name: "Discard", exact: true }),
         );
         assert.isNull(store.get().project);
     });
@@ -398,10 +398,10 @@ describe("T14: save and reopen, on the real element", () => {
         const { session } = await buildProject(store);
         assert.isTrue(session.project.dirty);
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "New project" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "New project", exact: true }));
         const asked = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-        await userEvent.click(within(asked).getByRole("button", { name: "Discard" }));
+        await userEvent.click(page.elementLocator(asked).getByRole("button", { name: "Discard", exact: true }));
 
         const fresh = await elementSession(session);
         assert.equal(store.get().project?.name, "Untitled");
@@ -486,7 +486,7 @@ describe("a reopened project's framing, on the real element", () => {
 
         await saveAs("Friends framed", "Friends");
         await closeFromMenu();
-        await userEvent.click(await screen.findByRole("gridcell", { name: /^Friends framed/ }));
+        await userEvent.click(page.getByRole("gridcell", { name: /^Friends framed/ }));
         const reopened = await elementSession(session);
         await waitFor(() => {
             assert.match(store.get().notice?.message ?? "", OPENED("Friends framed"));
@@ -547,7 +547,7 @@ describe("focus after Save", () => {
         });
         await userEvent.keyboard("{Control>}s{/Control}");
         let dialog = await screen.findByRole("dialog", { name: "Save Florentine families as" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Save", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
             // Back on the note it was opened from, not on the page.
@@ -556,10 +556,10 @@ describe("focus after Save", () => {
         await showsMarkOnNextKey();
 
         // The menu, by pointer: Save as... closed by its Save button.
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Save as/ }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Save as/ }));
         dialog = await screen.findByRole("dialog");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Save", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
             assert.strictEqual(
@@ -600,8 +600,8 @@ describe("a saved sample opened again with Open a file, on the real element", ()
             assert.deepEqual(counts, { nodes: 105, edges: 441 });
 
             // Save local copy... downloads the project file (Save keeps it in this browser).
-            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
+            await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+            await userEvent.click(page.getByRole("menuitem", { name: "Save local copy...", exact: true }));
             await waitFor(() => {
                 assert.lengthOf(downloads, 1);
             });
@@ -610,7 +610,7 @@ describe("a saved sample opened again with Open a file, on the real element", ()
             // Back to the start screen, then Open a file with the saved project.
             await closeFromMenu();
             await commands.chooseNextFile("Books about US politics.graphty.json", "application/json", text);
-            await userEvent.click(await screen.findByRole("button", { name: /^Open a file/ }));
+            await userEvent.click(page.getByRole("button", { name: /^Open a file/ }));
             const reopened = await elementSession(session);
             await waitFor(() => {
                 assert.match(store.get().notice?.message ?? "", /^Opened /);

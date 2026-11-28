@@ -41,15 +41,18 @@ describe("the shader dialog when the code editor cannot be loaded", () => {
         const id = await addNodeLayer(mounted.session);
         renderPanel(mounted, [id]);
         const gallery = await openGallery();
-        await userEvent.click(within(gallery).getByRole("button", { name: "New shader..." }));
+        await userEvent.click(page.elementLocator(gallery).getByRole("button", { name: "New shader...", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "New shader" });
         const box = within(dialog).getByRole<HTMLTextAreaElement>("textbox", { name: "Shader code" });
-        await userEvent.fill(box, TEXT);
+        await userEvent.fill(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Shader code", exact: true }),
+            TEXT,
+        );
         const add = within(dialog).getByRole("button", { name: "Add" });
         await waitFor(() => {
             assert.isNull(add.getAttribute("aria-disabled"), "the text passed its checks");
         });
-        await userEvent.click(add);
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Add", exact: true }));
         await waitFor(() => {
             assert.deepEqual(usesOn(mounted.session, id), [{ shader: "user/plain-box" }]);
         });

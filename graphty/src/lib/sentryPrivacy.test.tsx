@@ -2,7 +2,7 @@ import { GraphtyError } from "@graphty/graphty-element/session";
 import type { Breadcrumb, ErrorEvent, Event, ReplayFrameEvent } from "@sentry/react";
 import * as Sentry from "@sentry/react";
 import { afterAll, afterEach, assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen } from "../test/test-utils";
 import { PanelBoundary } from "../workspace/frame/PanelBoundary";
@@ -152,7 +152,7 @@ describe("error messages", () => {
         await Sentry.flush();
         // A later error carries the first one as a breadcrumb: its message must not ride along.
         broken.now = false;
-        await userEvent.click(screen.getByRole("button", { name: "Reload panel" }));
+        await userEvent.click(page.getByRole("button", { name: "Reload panel", exact: true }));
         await screen.findByText("Panel content");
         Sentry.captureException(new Error('could not open the "SECRET_PROJECT" project'));
         await Sentry.flush();

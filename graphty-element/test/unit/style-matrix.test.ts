@@ -309,6 +309,42 @@ describe("style combination matrix", () => {
         assert.strictEqual(seam[1].to, 1.5);
     });
 
+    it("joins a stair step of one-sample fragments with blended pixels round them", () => {
+        const [FILL, BORDER, MIXED, BG] = (["fill", "border", "mixed", "bg"] as const).map(partIndex);
+        const run = (part: number, from: number, to: number): Run => ({ part, from, to });
+        // bs-cone-inside-2d-near-a1 ray 7, in pixels (one unit a pixel): a ray crossing the anti-aliased fill and
+        // border edge at a shallow angle meets a sample of border, a sample of fill, then the 30 px ring
+        const stair = tidy(
+            [
+                run(FILL, 0, 13.2),
+                run(MIXED, 13.5, 14.1),
+                run(BORDER, 14.4, 14.7),
+                run(FILL, 15, 15.3),
+                run(MIXED, 15.6, 16.2),
+                run(BORDER, 16.5, 54.3),
+                run(MIXED, 54.6, 54.9),
+                run(BG, 55.2, 140.7),
+            ],
+            1,
+        );
+        assert.deepEqual(
+            stair.map((r) => [r.part, r.from, r.to]),
+            [
+                [FILL, 0, 15.3],
+                [MIXED, 15.6, 16.2],
+                [BORDER, 16.5, 54.3],
+                [MIXED, 54.6, 54.9],
+                [BG, 55.2, 140.7],
+            ],
+        );
+        // a thin ring that really is thin is kept: fill, a blended pixel, a 1 px border, then background
+        const thin = tidy([run(FILL, 0, 10), run(MIXED, 10.3, 10.6), run(BORDER, 10.9, 11.2), run(BG, 11.5, 30)], 1);
+        assert.deepEqual(
+            thin.map((r) => r.part),
+            [FILL, MIXED, BORDER, BG],
+        );
+    });
+
     it("reads a database node's border past the rim it draws across its face", () => {
         // the rim: a band in the border's color across the fill above its center
         const full = frame((x, y) => {

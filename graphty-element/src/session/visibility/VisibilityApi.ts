@@ -2084,12 +2084,10 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns The bytes, or null.
      */
     const outsideNow = (): ElementBytes | null => {
-        if (!insideUpToDate()) {
-            return null;
-        }
-
-        // A repaint asks once per element: within one turn, with the state, the masks and the
-        // graph unmoved, the bytes are the ones just answered.
+        // A repaint, a count or a recount asks once per element: within one turn, with the state,
+        // the slide, the masks and the graph unmoved, the bytes are the ones just answered. Checked
+        // before `insideUpToDate`, whose comparison of the window's inputs per element cost most
+        // of a timeline step, a layout apply or an undo at 10,000 nodes (#10291).
         // ponytail: per turn, since a set a filter names can move with no command; stamp the set
         // signatures too if a pass spanning turns ever costs.
         const stamp = (): readonly unknown[] => [
@@ -2097,9 +2095,15 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             inEdges.version,
             dispatcher.state,
             sources.snapshot(),
+            slid,
+            slidTo,
         ];
         if (outsideCache !== null && outsideStamp !== null && sameInputs(outsideStamp, stamp())) {
             return outsideCache.bytes;
+        }
+
+        if (!insideUpToDate()) {
+            return null;
         }
 
         const active = upToDate();

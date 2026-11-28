@@ -8,7 +8,7 @@
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useState } from "react";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
@@ -60,7 +60,7 @@ describe("graphty-element failing to load", () => {
         assert.include(alert.textContent, "The graph could not load.");
         assert.isUndefined(customElements.get("graphty-element"));
 
-        await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+        await userEvent.click(page.getByRole("button", { name: "Retry", exact: true }));
         await waitFor(() => {
             assert.isNotNull(session);
         });

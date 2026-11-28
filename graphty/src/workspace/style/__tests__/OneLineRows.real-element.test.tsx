@@ -84,11 +84,11 @@ async function openScene(width = 1440, height = 900): Promise<Scene> {
  */
 async function openStyle(name: string): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escape(name)}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${escape(name)}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     return screen.findByTestId("style-tab");
 }
@@ -170,12 +170,14 @@ describe("one line per property", () => {
         // Wider than a one-color chit (16), narrow enough that the source's name fits beside it.
         assert.isAtLeast(chit?.getBoundingClientRect().width ?? 0, 20, "a strip of its colors at rest");
         const before = pill?.getBoundingClientRect().width;
-        await userEvent.click(within(line).getByRole("button", { name: /^Node color: / }));
+        await userEvent.click(page.elementLocator(line).getByRole("button", { name: /^Node color: / }));
         await screen.findByRole("dialog", { name: /^Color by / });
         assert.equal(pill?.getBoundingClientRect().width, before, "open, the pill keeps its width");
         await userEvent.keyboard("{Escape}");
 
-        await userEvent.click(within(line).getByRole("button", { name: "Stop varying node color by data" }));
+        await userEvent.click(
+            page.elementLocator(line).getByRole("button", { name: "Stop varying node color by data", exact: true }),
+        );
         await waitFor(() => {
             const fixed = field(screen.getByTestId("style-tab"), "node.color");
             assert.isFalse(fixed.hasAttribute("data-bound"), "one value now");
@@ -192,9 +194,11 @@ describe("one line per property", () => {
         const { rows } = await openScene();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         const user = userEvent.setup();
-        await user.click(within(tree).getByRole("treeitem", { name: /^Key people, / }));
+        await user.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Key people, / }));
         await user.keyboard("{Control>}");
-        await user.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${escape(rows.route)}, `) }));
+        await user.click(
+            page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${escape(rows.route)}, `) }),
+        );
         await user.keyboard("{/Control}");
         const tab = await screen.findByTestId("style-tab");
         await within(tab).findByRole("button", { name: "Add to node shaders" });

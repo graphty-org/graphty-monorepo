@@ -4985,7 +4985,14 @@ function runPage(spec, out, wrap) {
             readFileSync(out, "utf8")
                 .split("\n")
                 .filter(Boolean)
-                .map((l) => JSON.parse(l))
+                // A line cut short (the disk filled mid-write) is no record of a case: it runs again.
+                .map((l) => {
+                    try {
+                        return JSON.parse(l);
+                    } catch {
+                        return {};
+                    }
+                })
                 .filter((r) => r.caseKey === spec.key && r.interaction)
                 .map((r) => r.interaction),
         );

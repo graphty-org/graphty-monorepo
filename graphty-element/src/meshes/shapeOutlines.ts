@@ -855,6 +855,40 @@ export function convexHull(points: readonly Point2[]): Point2[] {
 }
 
 /**
+ * The outline a solid's triangles show a camera looking along z: their convex hull when the triangles fill it, and
+ * otherwise their {@link silhouetteOutline}. A hull of a solid that is not convex, such as a torus-knot, bridges the
+ * hollows between its lobes, and a ring built round it left the background showing between the fill and the ring
+ * (issue #10492). The hull is filled when a point just inside the middle of each of its sides lies on a triangle.
+ * @param points - The triangles' corners, projected.
+ * @param triangles - Each triangle's three corners, as indices into `points`.
+ * @returns The outline, counter-clockwise.
+ */
+export function outlineOfTriangles(points: readonly Point2[], triangles: ArrayLike<number>): Point2[] {
+    const hull = convexHull(points);
+    const [cx, cy] = hull.reduce(([x, y], p): Point2 => [x + p[0] / hull.length, y + p[1] / hull.length], [0, 0]);
+    const cross = (o: Point2, a: Point2, x: number, y: number): number =>
+        (a[0] - o[0]) * (y - o[1]) - (a[1] - o[1]) * (x - o[0]);
+    const covered = (x: number, y: number): boolean => {
+        for (let t = 0; t + 2 < triangles.length; t += 3) {
+            const [a, b, c] = [points[triangles[t]], points[triangles[t + 1]], points[triangles[t + 2]]];
+            const sides = [cross(a, b, x, y), cross(b, c, x, y), cross(c, a, x, y)];
+            if (sides.every((side) => side >= 0) || sides.every((side) => side <= 0)) {
+                return true;
+            }
+        }
+        return false;
+    };
+    const filled = hull.every((a, i) => {
+        const b = hull[(i + 1) % hull.length];
+        const [mx, my] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        // 2% of the way in from the side's middle toward the hull's middle
+        return covered(mx + (cx - mx) * 0.02, my + (cy - my) * 0.02);
+    });
+
+    return filled ? hull : silhouetteOutline(points, triangles);
+}
+
+/**
  * The outline a set of triangles shows a camera looking along z: the outer edge of the triangles drawn into a grid
  * `cells` across, holes filled. Unlike {@link convexHull} it follows a shape that is not convex, such as a person's
  * head, arms and legs (issue #10376). Parts that do not touch are joined, each to the nearest, by a line of cells

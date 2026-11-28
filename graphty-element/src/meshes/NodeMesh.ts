@@ -39,17 +39,16 @@ import {
 import { ON_TOP_RENDERING_GROUP } from "./RichTextLabel";
 import {
     borderRing,
-    convexHull,
     drawnAgainstBox,
     flatShapeOutline,
     inUnitBox,
     isFlatShape,
     mitredEdges,
     offsetOutline,
+    outlineOfTriangles,
     type Point2,
     type RingPiece,
     sharpTwinOf,
-    silhouetteOutline,
     type WaveShape,
 } from "./shapeOutlines";
 
@@ -1554,25 +1553,20 @@ export class NodeMesh {
         at?: Vector3,
         groups = this.modelGroups(fill),
     ): Point2[] {
-        if (groups !== null) {
-            // a model is seldom convex (a person's arms and legs): its outline is its triangles' own, every part's
-            const points: Point2[] = [];
-            const triangles: number[] = [];
-            for (const group of groups) {
-                const base = points.length;
-                points.push(...projectedVertices(group, view, at));
-                const indices = group.getIndices() ?? [];
-                for (const index of indices) {
-                    triangles.push(base + index);
-                }
+        // a model's outline is every part's; a built-in solid's is its source mesh's
+        const parts = groups ?? [fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh];
+        const points: Point2[] = [];
+        const triangles: number[] = [];
+        for (const part of parts) {
+            const base = points.length;
+            points.push(...projectedVertices(part, view, at));
+            for (const index of part.getIndices() ?? []) {
+                triangles.push(base + index);
             }
-
-            return silhouetteOutline(points, triangles);
         }
 
-        const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
-
-        return convexHull(projectedVertices(source, view, at));
+        // a solid that is not convex (a torus-knot, a person's arms and legs) gets its triangles' own outline
+        return outlineOfTriangles(points, triangles);
     }
 
     /**

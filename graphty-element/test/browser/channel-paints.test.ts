@@ -55,6 +55,7 @@ import { UNPAINTED_CHANNELS } from "../../src/catalog/unreachable";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 import { CHANNEL_DESCRIPTORS, type ChannelDescriptor } from "../../src/session/styles/channels";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 import { assertSameFrame, pixelsOverBar, readCanvas } from "../helpers/whole-canvas";
 
 /** Two nodes and the edge between them: enough for every channel, small enough to be quick. */
@@ -548,6 +549,35 @@ describe("every channel the table says is renderable", () => {
     });
 });
 
+/**
+ * What a read frame was drawn from: every mesh with its position and readiness, and the glow
+ * layer's per-mesh opacities and strengths. Logged only when the two paths' frames differ: #10091
+ * failed twice in CI with one node's glow about 1% weaker on the objects read, and the frames
+ * alone could not say which mesh the glow pass drew differently.
+ * @param graph - The graph just read.
+ * @returns The state, one mesh per line.
+ */
+function drawnState(graph: Graph): string {
+    const scene = graph.getScene();
+    const { glowLayer, glowStrengths } = (scene.metadata ?? {}) as GraphSceneMetadata;
+    const meshes = scene.meshes.map((mesh) => {
+        const shown = mesh.isEnabled() && mesh.isVisible ? "" : " hidden";
+        const ready = mesh.isReady(true) ? "" : " unready";
+        return `  ${mesh.name}#${String(mesh.uniqueId)}${shown}${ready} at ${mesh.getAbsolutePosition().toString()}`;
+    });
+    const strengths = [...(glowStrengths ?? [])].map(
+        ([mesh, { strength, alpha }]) =>
+            `${mesh.name}#${String(mesh.uniqueId)} x${String(mesh.instances.length)} strength ${String(strength)} alpha ${String(alpha)}`,
+    );
+    const alphas = [...(glowLayer?.alphas ?? new Map<number, number>())].map(
+        ([id, alpha]) => `#${String(id)}=${String(alpha)}`,
+    );
+    return [
+        ...meshes,
+        `  glow: ${glowLayer ? `blur ${String(glowLayer.blurHorizontalSize)}` : "none"}; strengths ${strengths.join(", ")}; alphas ${alphas.join(", ")}`,
+    ].join("\n");
+}
+
 describe("every node channel on a batched row", () => {
     /** What a batch draws itself: each of these must keep its rows batched and change the picture. */
     const DRAWN_BY_THE_BATCH = new Set([
@@ -601,10 +631,12 @@ describe("every node channel on a batched row", () => {
                 set: { [descriptor.channel]: probeFor(descriptor) },
             });
             const batched = await readCanvas(graph);
+            const batchedDrawn = drawnState(graph);
             const { batchedNodes } = graph.rowCounts;
 
             graph.setRenderPath("objects");
             const objects = await readCanvas(graph);
+            const objectsDrawn = drawnState(graph);
             graph.setRenderPath("batched");
 
             await session.styles.remove(added.id);
@@ -615,6 +647,11 @@ describe("every node channel on a batched row", () => {
                 assert.isAbove(pixelsOverBar(before, batched), 0, `${descriptor.channel} changed nothing`);
             }
 
+            if (pixelsOverBar(batched, objects) > 0) {
+                console.log(
+                    `${descriptor.channel}: the batched read drew\n${batchedDrawn}\nthe objects read drew\n${objectsDrawn}`,
+                );
+            }
             assertSameFrame(batched, objects, `${descriptor.channel} differs between the paths`);
             assert.equal(pixelsOverBar(before, restored), 0, `removing ${descriptor.channel} left the picture changed`);
         });

@@ -36,6 +36,7 @@ import {
     type Classes,
     classify,
     CONCAVE,
+    drawnMeshes,
     type Expectations,
     fillMeshReach,
     type Frame,
@@ -381,18 +382,7 @@ type Drawn = Rings & { mesh: AbstractMesh | null; shadow: AbstractMesh[]; decora
  * @returns Its meshes.
  */
 function meshesOf(id: string): AbstractMesh[] {
-    const node = element.graph.getDataManager().nodes.get(id) as unknown as Drawn;
-    const all = [
-        node.mesh,
-        node.border,
-        node.outerBorder,
-        node.underlay,
-        node.overlay,
-        node.halo,
-        ...node.shadow,
-        ...node.decorations,
-    ];
-    return all.filter((m): m is AbstractMesh => m !== null && m.isEnabled() && m.isVisible && m.visibility > 0);
+    return drawnMeshes(element.graph.getDataManager().nodes.get(id) as unknown as Drawn);
 }
 
 /**

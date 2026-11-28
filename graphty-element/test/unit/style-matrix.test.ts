@@ -15,6 +15,8 @@ import {
     classify,
     CONDITION_FACTORS,
     covering,
+    type DrawnMesh,
+    drawnMeshes,
     fillMeshReach,
     inradius,
     measureNode,
@@ -666,6 +668,33 @@ describe("style combination matrix", () => {
         // on a side the outer ring starts at the border's outer edge, 0.45 units out, within a band edge (1.5 pixels)
         assert.approximately(c.get("outer-start")?.measured ?? Number.NaN, 0.45, 1.5 / 60);
         assert.isTrue(c.get("outer-width")?.pass, String(c.get("outer-width")?.measured));
+    });
+
+    it("counts a node's outline among what it draws, so a neighbor's outline over a node is not read as its own", () => {
+        // tw-166: three overlapping nodes; a neighbor's outline (a child of its fill mesh) lay over the measured
+        // node's outer ring, was read as the measured node's own outline, and its outer ring read as missing
+        const part = (name: string, children: unknown[] = []): DrawnMesh => ({
+            name,
+            isVisible: true,
+            visibility: 1,
+            isEnabled: () => true,
+            getChildMeshes: () => children as DrawnMesh[],
+        });
+        const outline = part("graphty-node-outline-7");
+        const label = part("richTextPlane_richLabel_x");
+        const fill = part("node-style-s1-3d", [outline, label]);
+        const border = part("node-border-s1-3d");
+        const meshes = drawnMeshes({
+            mesh: fill,
+            border,
+            outerBorder: null,
+            underlay: null,
+            overlay: null,
+            halo: null,
+            shadow: [],
+            decorations: [],
+        });
+        assert.sameMembers(meshes, [fill, border, outline]);
     });
 
     it("counts no hole in the fill as a gap between the fill and the ring", () => {

@@ -983,6 +983,52 @@ export function fillUnderCrossings(plain: Classes, full: Classes): Classes {
     return { ...plain, parts };
 }
 
+/** The parts of a mesh {@link drawnMeshes} reads. */
+export interface DrawnMesh {
+    name: string;
+    isVisible: boolean;
+    visibility: number;
+    isEnabled(): boolean;
+    getChildMeshes(directDescendantsOnly?: boolean): DrawnMesh[];
+}
+
+/** A node's meshes, as the element keeps them. */
+export interface DrawnNode<M extends DrawnMesh> {
+    mesh: M | null;
+    border: M | null;
+    outerBorder: M | null;
+    underlay: M | null;
+    overlay: M | null;
+    halo: M | null;
+    shadow: M[];
+    decorations: M[];
+}
+
+/** What a node's outline effect ring is named (NodeEffects.ts): a child of its fill mesh, not a field of its own. */
+const OUTLINE_RING_PREFIX = "graphty-node-outline-";
+
+/**
+ * Every enabled, visible mesh a node draws: its fill, rings, plates, shadows and decorations, and its outline effect
+ * ring, a child of the fill. Left out, a neighbor's outline lying over a node was read as that node's own.
+ * @param node - The node.
+ * @returns Its meshes.
+ */
+export function drawnMeshes<M extends DrawnMesh>(node: DrawnNode<M>): M[] {
+    const outlines = (node.mesh?.getChildMeshes(false) ?? []).filter((m) => m.name.startsWith(OUTLINE_RING_PREFIX));
+    const all = [
+        node.mesh,
+        node.border,
+        node.outerBorder,
+        node.underlay,
+        node.overlay,
+        node.halo,
+        ...node.shadow,
+        ...node.decorations,
+        ...(outlines as M[]),
+    ];
+    return all.filter((m): m is M => m !== null && m.isEnabled() && m.isVisible && m.visibility > 0);
+}
+
 /**
  * A frame with every pixel another node's meshes cover marked {@link OTHER_NODE}: inside the convex hull of their
  * projected vertices, or within one pixel of it (a blended pixel at its edge).

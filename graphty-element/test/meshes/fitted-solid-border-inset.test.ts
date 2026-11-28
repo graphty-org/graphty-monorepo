@@ -135,3 +135,28 @@ describe("an inside border's fill on a wide fitted solid in 2D is drawn in side 
         });
     }
 });
+
+describe("a solid at its own proportions under an inside or centered border in 2D", () => {
+    for (const type of ["cylinder", "sphere", "box"] as const) {
+        test(`a ${type}'s fill is drawn in along z as it is across the view`, () => {
+            const width = 0.3 * NODE_EXTENT_PER_SIZE;
+            const shape = { type, size: 1 };
+            const plain = NodeMesh.create(cache, { styleId: `${type}-own`, is2D: true, size: 1 }, { shape }, scene);
+            for (const [position, inset] of [
+                ["inside", width],
+                ["center", width / 2],
+            ] as const) {
+                const border = { width: 0.3, position, color: "#0000ff" };
+                const fill = NodeMesh.create(
+                    cache,
+                    { styleId: `${type}-own-${position}`, is2D: true, size: 1 },
+                    { shape, border },
+                    scene,
+                );
+                // kept at its full depth while its width came in, a drawn-in cylinder was a sliver ten times as deep as
+                // wide: its ridge so steep in depth that a renderer drew it through the overlay just in front of it
+                assert.approximately(depthOf(plain) - depthOf(fill), 2 * inset, 0.01, `${position} fill in depth`);
+            }
+        });
+    }
+});

@@ -3652,7 +3652,9 @@ export class Node implements ModelUser {
      * paint's own: a hidden node draws nothing, so the mesh it would be built from is never seen. Hiding a layer
      * over 10,000 nodes built every node's mesh again for the look under it, and showing the layer built them back
      * (issue #10323); kept, showing it finds the mesh it had (`keepsMeshFor`). Only a plain node drawn as it is:
-     * a filter's context point, a group's region, a model and a shader drawing are painted in full.
+     * a filter's context point, a group's region, a model and a shader drawing are painted in full, and so is a
+     * hidden look of another shape, border or label: its edges stop at the outline it is painted with, as they do on the
+     * batched path.
      * @param o - The paint's style.
      * @returns True when the paint only hides the node.
      */
@@ -3660,6 +3662,10 @@ export class Node implements ModelUser {
         return (
             o.visible === false &&
             this.drawnStyle !== null &&
+            // the hidden node's edges still stop at the outline it is painted with (`Edge.bareEnd`)
+            isEqual(o.shape, this.drawnStyle.shape) &&
+            isEqual(o.border, this.drawnStyle.border) &&
+            isEqual(o.label, this.drawnStyle.label) &&
             this.drawnStyle.visible !== false &&
             this.renderState === "visible" &&
             !this.drawnAsGroup &&

@@ -44,7 +44,9 @@ async function settle(element: Graphty): Promise<void> {
 
 /**
  * A mounted element on a render path, as the graphty app sets it up: the starting rows on, the base look in the
- * Everything row, which draws every node as a box (a channel that keys the node's mesh).
+ * Everything row, which colors every node. The look under it is another color of the same shape, so a hidden node's
+ * edges still stop at the outline it draws, and it can keep its mesh; a hidden look of another shape is painted in
+ * full (the render-parity matrix's hidden-node case).
  * @param path - The render path.
  * @returns The element and the Everything row's id.
  */
@@ -83,7 +85,7 @@ async function mounted(path: "objects" | "batched"): Promise<{ element: Graphty;
     await element.session.data.addEdges(edges);
     const row = element.session.styles.tree().find((each) => each.name === "Everything");
     assert.isDefined(row, "the Everything row");
-    await element.session.styles.writeRow(row.id, { set: { "node.shape": "box", "node.color": "#3366ff" } });
+    await element.session.styles.writeRow(row.id, { set: { "node.color": "#3366ff" } });
     await settle(element);
     return { element, everything: row.id };
 }

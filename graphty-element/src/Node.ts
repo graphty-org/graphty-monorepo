@@ -2303,6 +2303,20 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Keep a hidden halo no node draws for the next node to draw a halo in its look (`takeSpareHalo`).
+     * @param key - The cache key of its source.
+     * @param halo - The halo.
+     */
+    private spareHalo(key: string, halo: AbstractMesh): void {
+        const scene = this.context.getScene();
+        const byKey = spareHalos.get(scene) ?? new Map<string, AbstractMesh[]>();
+        spareHalos.set(scene, byKey);
+        const spare = byKey.get(key) ?? [];
+        byKey.set(key, spare);
+        spare.push(halo);
+    }
+
+    /**
      * Move a node's place, state and parts from one scene node to another.
      * @param from - What held them.
      * @param to - What holds them now.
@@ -4372,13 +4386,13 @@ export class Node implements ModelUser {
      * @param kind - Which overlay.
      * @param existing - The one this node holds, or null.
      * @param selection - The halo's look.
-     * @returns The overlay, and whether it was just built.
+     * @returns The overlay, and the meshes just built for it: none, its instance, or its instance and its source.
      */
     private overlayToShow(
         kind: "halo" | "context",
         existing: AbstractMesh | null,
         selection: GraphSelectionStyleConfig,
-    ): { overlay: AbstractMesh; built: boolean } {
+    ): { overlay: AbstractMesh; built: number } {
         // A halo is the node's own shape, so a node redrawn in another shape needs another halo,
         // and its own look's material, so a halo changing look needs another one too.
         const stale = kind === "halo" && existing !== null && this.haloKey !== this.haloSourceKey(selection);
@@ -4387,13 +4401,20 @@ export class Node implements ModelUser {
         }
 
         if (existing && !stale && !existing.isDisposed()) {
-            return { overlay: existing, built: false };
+            return { overlay: existing, built: 0 };
         }
 
         const spare = kind === "halo" ? this.takeSpareHalo(selection) : null;
-        return spare === null
-            ? { overlay: this.createOverlay(kind, selection), built: true }
-            : { overlay: spare, built: false };
+        if (spare !== null) {
+            return { overlay: spare, built: 0 };
+        }
+
+        // The first halo of a look also builds its source mesh (a cache miss), which the frame must be told of too, or
+        // the first selection on a page thaws the frozen list (issue #10124).
+        const cache = this.context.getMeshCache();
+        const { misses } = cache;
+        const overlay = this.createOverlay(kind, selection);
+        return { overlay, built: cache.misses > misses ? 2 : 1 };
     }
 
     /**
@@ -4424,13 +4445,8 @@ export class Node implements ModelUser {
     private hideOverlay(kind: "halo" | "context", existing: AbstractMesh | null): void {
         if (kind === "halo" && existing && !existing.isDisposed() && this.haloKey !== null) {
             // Given back, hidden, for the next node to draw a halo in this look (`takeSpareHalo`).
-            this.context.getUpdateManager?.().haloTouched(existing, false);
-            const scene = this.context.getScene();
-            const byKey = spareHalos.get(scene) ?? new Map<string, AbstractMesh[]>();
-            spareHalos.set(scene, byKey);
-            const spare = byKey.get(this.haloKey) ?? [];
-            byKey.set(this.haloKey, spare);
-            spare.push(existing);
+            this.context.getUpdateManager?.().haloTouched(existing, 0);
+            this.spareHalo(this.haloKey, existing);
             this.halo = null;
             this.haloKey = null;
         }

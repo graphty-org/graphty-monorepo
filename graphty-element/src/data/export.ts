@@ -418,8 +418,12 @@ interface ExportRecords {
  * @returns The records.
  */
 function recordsOf(session: GraphSession, rows: ExportRows): ExportRecords {
+    // No edge rows (a node table): no edge records either, the larger half of the build.
     return (
-        rows.records ?? { nodes: session.data.nodes({ scope: "graph" }), edges: session.data.edges({ scope: "graph" }) }
+        rows.records ?? {
+            nodes: session.data.nodes({ scope: "graph" }),
+            edges: rows.edges.length === 0 ? [] : session.data.edges({ scope: "graph" }),
+        }
     );
 }
 
@@ -427,20 +431,22 @@ function recordsOf(session: GraphSession, rows: ExportRows): ExportRecords {
  * The rows of the session a scope covers; with none, what `exportGraph` writes with none.
  * @param session - The session.
  * @param scope - The scope.
+ * @param nodesOnly - The file holds the nodes alone (a CSV node table): no edge rows, so no edge
+ * is read, painted or built into the snapshot.
  * @returns The rows.
  */
-function exportRows(session: GraphSession, scope: ExportScope | undefined): ExportRows {
+function exportRows(session: GraphSession, scope: ExportScope | undefined, nodesOnly = false): ExportRows {
     const all = (count: number): number[] => Array.from({ length: count }, (_value, row) => row);
     // No scope reads what every reader naming none reads: the working graph while it is on.
     const named = scope ?? (session.workingGraph ? "shown" : "all");
     if (named === "all") {
         // Only the counts: building every record here would build them twice per export.
         const counts = session.data.count({ scope: "graph" });
-        return { nodes: all(counts.nodes), edges: all(counts.edges) };
+        return { nodes: all(counts.nodes), edges: nodesOnly ? [] : all(counts.edges) };
     }
 
     const nodes = session.data.nodes({ scope: "graph" });
-    const edges = session.data.edges({ scope: "graph" });
+    const edges = nodesOnly ? [] : session.data.edges({ scope: "graph" });
 
     const resolver = scopeResolverOfSession(session);
     const resolved = resolver.resolveNow(resolver.canonical(scopeInputOf(named)));
@@ -654,7 +660,7 @@ export function buildExportSnapshot(
         builder.setMeta({ extra });
     }
 
-    const rows = options.rows ?? exportRows(session, "all");
+    const rows = options.rows ?? exportRows(session, "all", options.nodesOnly === true);
     const { nodes: allNodes, edges: allEdges } = recordsOf(session, rows);
     const nodes = rows.nodes.map((row) => allNodes[row]);
     const edges = rows.edges.map((row) => allEdges[row]);
@@ -1242,7 +1248,7 @@ export function exportSession(
     }
 
     const writer = writerFor(format, writerOptions);
-    const chosen = exportRows(session, scope);
+    const chosen = exportRows(session, scope, writer.build.nodesOnly === true);
     // One record build serves the snapshot and the style writer alike.
     const rows = { ...chosen, records: recordsOf(session, chosen) };
     const build = { ...writer.build, rows, ...(columns === undefined ? {} : { columns: new Set(columns) }) };

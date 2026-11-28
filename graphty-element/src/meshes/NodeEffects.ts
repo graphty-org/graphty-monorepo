@@ -162,6 +162,77 @@ export class NodeGlowLayer extends HighlightLayer {
 }
 
 /**
+ * The edges of a flat shape's face at one depth that only one of its triangles has, by their ends' (x, y).
+ * @param positions - The mesh's vertex positions.
+ * @param indices - Its triangles.
+ * @param z - The face's depth.
+ * @returns Each end's neighbors along those edges, and each end's point.
+ */
+function loneEdges(
+    positions: ArrayLike<number>,
+    indices: ArrayLike<number>,
+    z: number,
+): { next: Map<string, string[]>; at: Map<string, Point2> } {
+    const at = new Map<string, Point2>();
+    const edges = new Map<string, [string, string]>();
+    const keyOf = (i: number): string => `${positions[3 * i].toFixed(5)},${positions[3 * i + 1].toFixed(5)}`;
+    for (let t = 0; t + 2 < indices.length; t += 3) {
+        const corners = [indices[t], indices[t + 1], indices[t + 2]];
+        if (corners.some((i) => Math.abs(positions[3 * i + 2] - z) > 1e-5)) {
+            continue;
+        }
+        const keys = corners.map((i) => keyOf(i));
+        corners.forEach((i, k) => at.set(keys[k], [positions[3 * i], positions[3 * i + 1]]));
+        keys.forEach((a, k) => {
+            const b = keys[(k + 1) % 3];
+            const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+            if (a !== b && !edges.delete(key)) {
+                edges.set(key, [a, b]);
+            }
+        });
+    }
+    const next = new Map<string, string[]>();
+    for (const [a, b] of edges.values()) {
+        next.set(a, [...(next.get(a) ?? []), b]);
+        next.set(b, [...(next.get(b) ?? []), a]);
+    }
+    return { next, at };
+}
+
+/**
+ * The outline of a flat shape's face at one depth, notches and all: the edges of the face's triangles that only one
+ * of them has, joined end to end. A star's or a vee's convex hull bridged its notches, and the outline ring built
+ * round it left background between the node and its ring there.
+ * @param positions - The mesh's vertex positions.
+ * @param indices - Its triangles.
+ * @param z - The face's depth.
+ * @returns The outline, counter-clockwise; null when the face is not one closed loop (a solid, a shape with a hole).
+ */
+function frontOutline(positions: ArrayLike<number>, indices: ArrayLike<number>, z: number): Point2[] | null {
+    const { next, at } = loneEdges(positions, indices, z);
+    if (next.size < 3 || [...next.values()].some((n) => n.length !== 2)) {
+        return null;
+    }
+    const [start] = next.keys();
+    const loop = [start];
+    let [previous, current] = [start, (next.get(start) ?? [])[0]];
+    while (current !== start && loop.length <= next.size) {
+        loop.push(current);
+        const [a, b] = next.get(current) ?? [];
+        [previous, current] = [current, a === previous ? b : a];
+    }
+    if (loop.length !== next.size) {
+        return null;
+    }
+    const outline = loop.map((k): Point2 => at.get(k) ?? [0, 0]);
+    const signed = outline.reduce((sum, [x, y], i) => {
+        const [nx, ny] = outline[(i + 1) % outline.length];
+        return sum + x * ny - nx * y;
+    }, 0);
+    return signed < 0 ? outline.reverse() : outline;
+}
+
+/**
  * Manages visual effects for node meshes.
  * Currently supports:
  * - Outline effect: a ring mesh around the node
@@ -401,10 +472,13 @@ export class NodeEffects {
         }
         const points = [...distinct.values()];
         const zs = points.map((p) => p.z);
+        const depth: [number, number] = [Math.min(...zs), Math.max(...zs)];
         const shape: RingShape = {
             points,
-            front: convexHull(points.map((p): Point2 => [p.x, p.y])),
-            depth: [Math.min(...zs), Math.max(...zs)],
+            front:
+                frontOutline(positions, source.getIndices() ?? [], depth[1]) ??
+                convexHull(points.map((p): Point2 => [p.x, p.y])),
+            depth,
         };
         RING_SHAPES.set(source, shape);
         return shape;
@@ -450,12 +524,7 @@ export class NodeEffects {
         const [toCamera, right, up] = [TO_CAMERA, RING_RIGHT, RING_UP];
         const eye = camera.globalPosition;
 
-        // What the ring goes round, in the mesh's own units: a flat shape's front, offset by its border
-        // in its own plane, at its slab's two faces; else its vertices.
-        const local =
-            flat && border > 0
-                ? offsetOutline(shape.front, border).flatMap(([x, y]) => shape.depth.map((z) => new Vector3(x, y, z)))
-                : shape.points;
+        const { local, notched } = this.ringPoints(shape, flat, border, m, toCamera);
         const placed = local.map((p) => Vector3.TransformCoordinates(p, m));
         let depth = 0;
         for (const p of placed) {
@@ -467,7 +536,7 @@ export class NodeEffects {
         const plane = center.add(toCamera.scale(lift));
         // Along the line of sight, how far the ring's plane is in front of the camera.
         const ahead = perspective ? Vector3.Dot(eye.subtract(plane), toCamera) : 0;
-        let outline = this.projectedHull(placed, plane, perspective ? { eye, ahead } : null);
+        let outline = this.projectedHull(placed, plane, perspective ? { eye, ahead } : null, notched);
         if (border > 0 && !flat) {
             // the border's world width, drawn at the ring's plane as at the node's center
             const atCenter = perspective ? Vector3.Dot(eye.subtract(center), toCamera) : 1;
@@ -529,6 +598,40 @@ export class NodeEffects {
     }
 
     /**
+     * What a ring goes round, in the mesh's own units: a flat shape's front, offset by its border in its own plane, at
+     * its slab's two faces; else its vertices. A flat shape with a notch (a vee, a star) is ringed round its own
+     * outline, in order, at its face toward the camera: the convex hull of both faces bridged the notch.
+     * @param shape - The node's ring shape.
+     * @param flat - Whether the node's shape is flat.
+     * @param border - How far its border reaches past its fill, in its own units.
+     * @param m - The node's world matrix.
+     * @param toCamera - Toward the camera.
+     * @returns The points, and whether they are a notched outline in order.
+     */
+    private static ringPoints(
+        shape: RingShape,
+        flat: boolean,
+        border: number,
+        m: Matrix,
+        toCamera: Vector3,
+    ): { local: Vector3[]; notched: boolean } {
+        if (!flat) {
+            return { local: shape.points, notched: false };
+        }
+        const notched = convexHull(shape.front).length < shape.front.length;
+        const front = border > 0 ? offsetOutline(shape.front, border) : shape.front;
+        if (notched) {
+            // the face whose depth runs toward the camera along the mesh's own z
+            const near = m.m[8] * toCamera.x + m.m[9] * toCamera.y + m.m[10] * toCamera.z >= 0 ? 1 : 0;
+            return { local: front.map(([x, y]) => new Vector3(x, y, shape.depth[near])), notched };
+        }
+        return {
+            local: border > 0 ? front.flatMap(([x, y]) => shape.depth.map((z) => new Vector3(x, y, z))) : shape.points,
+            notched,
+        };
+    }
+
+    /**
      * The convex hull of points carried onto a ring's plane, in the plane's right and up (RING_RIGHT,
      * RING_UP): through the camera under perspective, else straight along the line of sight. A node
      * with no area yet gets a small square.
@@ -537,12 +640,14 @@ export class NodeEffects {
      * @param through - Under perspective, the camera's position and how far in front of it the plane is.
      * @param through.eye - The camera's position.
      * @param through.ahead - How far in front of the camera the plane is, along the line of sight.
+     * @param ordered - Whether the points are an outline already, in order, kept as it is (a notched flat shape's).
      * @returns The hull, in world units.
      */
     private static projectedHull(
         placed: Vector3[],
         plane: Vector3,
         through: { eye: Vector3; ahead: number } | null,
+        ordered = false,
     ): Point2[] {
         const projected: Point2[] = [];
         for (const p of placed) {
@@ -558,7 +663,7 @@ export class NodeEffects {
             p.subtractInPlace(plane);
             projected.push([Vector3.Dot(p, RING_RIGHT), Vector3.Dot(p, RING_UP)]);
         }
-        const hull = convexHull(projected);
+        const hull = ordered ? projected : convexHull(projected);
         const r = MIN_RING_RADIUS;
         return hull.length < 3
             ? [

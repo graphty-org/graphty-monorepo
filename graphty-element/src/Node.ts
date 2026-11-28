@@ -2643,6 +2643,9 @@ export class Node implements ModelUser {
         if (this.#wholeScale !== whole) {
             this.#wholeScale = whole;
             this.context.getNodeBatches?.()?.rescale(this);
+            // a border in screen pixels is built in the mesh's units, which the view scale sets (#10407): a node whose
+            // size space stopped scaling it, with the camera still, kept a border built at the old scale
+            this.refreshScreenBorder();
         }
     }
 

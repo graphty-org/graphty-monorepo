@@ -130,7 +130,7 @@ describe("accessible names in the workspace", () => {
     it("Escape in the background color box names the kept color in the box's words", async () => {
         await open(kinds);
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(within(tree).getByRole("treeitem", { name: /^Everything, / }));
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Everything, / }));
         const place = screen.getByRole("region", { name: "Graph place" });
         await userEvent.click(within(place).getByRole("button", { name: "Graph Kinds" }));
         const inspector = screen.getByRole("complementary", { name: "Inspector" });

@@ -883,6 +883,7 @@ export const READ_ONLY: readonly string[] = [
     "GraphSession.find",
     "GraphSession.fingerprint",
     "GraphSession.on",
+    "GraphSession.afterFrame",
     "GraphSession.plan",
     "GraphSession.recipe",
     "GraphSession.setAccelerator",

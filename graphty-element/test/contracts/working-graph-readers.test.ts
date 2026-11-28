@@ -472,6 +472,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "notes.toDocument()": "not the graph",
     "notes.update()": "writes",
     "on()": "not the graph",
+    "afterFrame()": "not the graph",
     "plan()": "names its target",
     "positions.capacity": "not the graph",
     "positions.count": "not the graph",

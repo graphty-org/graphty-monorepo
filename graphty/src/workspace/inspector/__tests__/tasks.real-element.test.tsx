@@ -152,7 +152,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             String(statistics.components.count),
         );
         // The header names the source once.
-        assert.isNotNull(inspector().getByRole("button", { name: "From karate.gml" }));
+        assert.isNotNull(await inspector().findByRole("button", { name: "From karate.gml" }));
     });
 
     it("T12: a picked node opens on Values, and Degree lists its neighbors in name order, each with its tie", async () => {

@@ -1042,6 +1042,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     recommendLayout: READ,
     plan: READ,
     on: LISTEN,
+    // Waits for a frame; changes nothing a project file saves.
+    afterFrame: READ,
     dispose: LIFECYCLE,
 };
 

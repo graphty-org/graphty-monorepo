@@ -148,4 +148,43 @@ describe("a listener asking to hear events after the frame", () => {
         assert.isAbove(frames, framesAtWrite, "a frame was drawn before it settled");
         assert.isFalse(painter.hasPending, "the write's paint was applied before it settled");
     });
+
+    test("session.afterFrame() settles only once after-frame listeners have heard every event before it", async () => {
+        const element = await mountElement();
+        const s = element.session;
+        await s.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await element.waitForSettled();
+
+        const told: string[] = [];
+        const heard: string[] = [];
+        for (const event of EVENTS) {
+            s.on(event, () => {
+                told.push(event);
+            });
+            s.on(
+                event,
+                () => {
+                    heard.push(event);
+                },
+                { afterFrame: true },
+            );
+        }
+
+        // Several edits in a row: details told while a listener's first wait runs are heard a round
+        // later, which a caller of afterFrame() must not overtake.
+        const layer = await s.styles.add({
+            name: "Red",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await s.styles.update(layer.id, { set: { "node.color": "#00ff00" } });
+        await s.styles.update(layer.id, { set: { "node.color": "#0000ff" } });
+        const toldBefore = [...told];
+        await s.afterFrame();
+
+        assert.isAbove(toldBefore.length, EVENTS.length, "more than one round of events was told");
+        assert.isAtLeast(heard.length, toldBefore.length, "every event told before the call was heard by then");
+        assert.includeMembers(heard, toldBefore);
+    });
 });

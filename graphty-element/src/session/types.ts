@@ -9981,7 +9981,8 @@ export interface GraphSession {
      * right after the frame that draws the last of it. Work that follows a write -- reading
      * `styles.counts()` for a receipt, re-rendering a panel -- awaits this so it never holds back
      * the frame that shows the change. With no frame coming (a hidden page, a stopped render loop,
-     * a session that draws nothing) it settles in the next task. Never rejects.
+     * a session that draws nothing) it settles in the next task. Every `{ afterFrame: true }`
+     * listener has heard the events told before the call by the time it settles. Never rejects.
      * @example
      * ```ts
      * await session.styles.update(id, { set: { "node.color": "red" } });

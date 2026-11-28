@@ -72,7 +72,7 @@ async function openEntry(name: string): Promise<HTMLElement> {
  */
 async function workspace(): Promise<HTMLElement> {
     const place = await screen.findByRole("region", { name: "Data place" });
-    await userEvent.click(within(place).getByRole("button", { name: "Join" }));
+    await userEvent.click(await within(place).findByRole("button", { name: "Join" }));
     return screen.findByRole("dialog", { name: "Join" });
 }
 

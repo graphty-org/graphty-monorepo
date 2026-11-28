@@ -670,6 +670,8 @@ class Session implements ElementSession {
     private readonly watchers: Watchers;
     /** See {@link SessionParts.paintDrawn}. */
     private readonly paintDrawn: () => Promise<void>;
+    /** The after-frame listeners' waits still to deliver; `afterFrame()` settles only once they have. */
+    private readonly afterFrameWaits = new Set<Promise<void>>();
     /** The layout's motion: the renderer's, or the runner's in a session that draws nothing. */
     private motion: LayoutMotion = "settled";
     /** Runs the layout when no renderer has handed the dispatcher its own. */
@@ -1697,14 +1699,27 @@ class Session implements ElementSession {
 
     /**
      * See {@link GraphSession.afterFrame}.
-     * @returns Settles in the task after the frame that draws every style change made so far.
+     * @returns Settles in the task after the frame that draws every style change made so far, once
+     *     every `{ afterFrame: true }` listener has heard the events told before the call.
      */
     async afterFrame(): Promise<void> {
+        await this.frameSettled();
+        // A listener's wait that started earlier may deliver a round later than this frame: a caller
+        // that awaits this reads what those listeners did, so it waits them out too.
+        while (this.afterFrameWaits.size > 0) {
+            await Promise.all(this.afterFrameWaits);
+        }
+        await nextTask();
+    }
+
+    /**
+     * Settles in the task after the frame that draws every style change made so far.
+     * @returns Settles as above; never rejects.
+     */
+    private async frameSettled(): Promise<void> {
         await this.styles.settled().catch(() => undefined);
         await this.paintDrawn();
-        await new Promise<void>((resolve) => {
-            setTimeout(resolve, 0);
-        });
+        await nextTask();
     }
 
     /**
@@ -1771,6 +1786,11 @@ class Session implements ElementSession {
         let live = true;
         let waiting = false;
         const held: Array<SessionEventMap[K]> = [];
+        const start = (): void => {
+            const round = wait();
+            this.afterFrameWaits.add(round);
+            void round.finally(() => this.afterFrameWaits.delete(round));
+        };
         const wait = async (): Promise<void> => {
             waiting = true;
             // After the dispatch that published the first detail has queued its repaint (an
@@ -1778,7 +1798,7 @@ class Session implements ElementSession {
             await Promise.resolve();
             // A detail told while this wait runs may have a repaint of its own: it waits again.
             const count = held.length;
-            await this.afterFrame();
+            await this.frameSettled();
             waiting = false;
             const due = held.splice(0, count);
             if (!live || this.disposed) {
@@ -1791,13 +1811,13 @@ class Session implements ElementSession {
             }
 
             if (held.length > 0) {
-                void wait();
+                start();
             }
         };
         const stop = this.on(event, (detail) => {
             held.push(detail);
             if (!waiting) {
-                void wait();
+                start();
             }
         });
 
@@ -6754,4 +6774,14 @@ function heldBySetsAndRuns(state: Pick<ProjectState, "sets" | "runs">, nodes: No
             }
         }
     }
+}
+
+/**
+ * Settles in a task of its own, after every task already queued.
+ * @returns Settles as above.
+ */
+function nextTask(): Promise<void> {
+    return new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+    });
 }

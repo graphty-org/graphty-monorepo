@@ -1154,9 +1154,11 @@ export class NodeMesh {
         const pad = (halo?.padding ?? 0) * perSize;
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
-        // a fitted solid's fill is drawn in by a centered or inside border (createMeshWithoutCache); grow its outline
-        // back out to the box first
-        const reach = flat || !this.isFitted(shape) ? pad : pad + this.borderFit(shape, border, sized).inset;
+        // a solid's fill is drawn in by a centered or inside border (createMeshWithoutCache), by scaling it, so a slanted
+        // or short side comes in by less than the inset: the plate grows the plain solid's outline, scaled back out
+        const plain = flat
+            ? undefined
+            : this.plainScaling(shape, sized, this.borderFit(shape, border, sized).inset, fill);
         const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
             const own = halo?.shape;
             const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
@@ -1174,8 +1176,8 @@ export class NodeMesh {
                     corner,
                 );
             } else {
-                const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
-                outline = offsetOutline(nodeOutline, reach);
+                const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill, plain);
+                outline = offsetOutline(nodeOutline, pad);
             }
             fill.computeWorldMatrix(true);
             const box = fill.getBoundingInfo().boundingBox;
@@ -1193,7 +1195,7 @@ export class NodeMesh {
                 mesh.refreshBoundingInfo();
             }
             if (!ownOutline && !flat && !options.is2D) {
-                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, reach)));
+                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, pad)), undefined, plain);
             }
             mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
 
@@ -1580,6 +1582,7 @@ export class NodeMesh {
      * @param depth - How deep the ring is along z.
      * @param piecesOf - The ring's pieces round an outline of the solid.
      * @param unit - A model's scale (see borderSlab): the ring is built at it and scaled back.
+     * @param plain - Scales the drawn-in solid back out to the plain one ({@link plainScaling}), whose outline is used.
      */
     private static followView(
         mesh: Mesh,
@@ -1587,6 +1590,7 @@ export class NodeMesh {
         depth: number,
         piecesOf: (outline: Point2[]) => RingPiece[],
         unit?: readonly [number, number, number],
+        plain?: Matrix,
     ): void {
         const scene = mesh.getScene();
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
@@ -1637,9 +1641,11 @@ export class NodeMesh {
                 // looking into the ring, its inner wall is seen down to the face away from the camera, drawn smaller
                 // than the node's middle by as much: that face's inner edge is put on the solid's outline
                 const back = (at.z + backZ) / at.z;
-                outline = this.solidOutline(fill, alongLine, at, groups).map(([x, y]): Point2 => [x * back, y * back]);
+                outline = this.solidOutline(fill, plain?.multiply(alongLine) ?? alongLine, at, groups).map(
+                    ([x, y]): Point2 => [x * back, y * back],
+                );
             } else {
-                outline = this.solidOutline(fill, toView, undefined, groups);
+                outline = this.solidOutline(fill, plain?.multiply(toView) ?? toView, undefined, groups);
             }
             const same =
                 outline.length === drawn.length &&
@@ -1685,6 +1691,42 @@ export class NodeMesh {
         mat.freeze();
 
         return mat;
+    }
+
+    /**
+     * The scaling that takes a solid's fill, drawn in by a border's inset (createMeshWithoutCache), back out to the
+     * plain solid: uniform for a solid at its own proportions (insetOutline), axis by axis for a fitted one.
+     * @param shape - The node's shape block.
+     * @param sized - The node's extents at its size.
+     * @param inset - How far the fill was drawn in ({@link borderFit}).
+     * @param fill - The node's mesh.
+     * @returns The scaling, or undefined when the fill is the plain solid (no inset, or a model, never drawn in).
+     */
+    private static plainScaling(
+        shape: NodeStyleConfig["shape"],
+        sized: NodeExtents,
+        inset: number,
+        fill: AbstractMesh,
+    ): Matrix | undefined {
+        if (inset <= 0 || this.modelGroups(fill) !== null) {
+            return undefined;
+        }
+
+        if (!this.isFitted(shape)) {
+            const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
+            const { extendSize } = source.getBoundingInfo().boundingBox;
+            const across = 2 * Math.max(extendSize.x, extendSize.y);
+            const grow = across > 0 ? (across + 2 * inset) / across : 1;
+
+            return Matrix.Scaling(grow, grow, grow);
+        }
+
+        const drawn = this.fillExtents(sized, inset);
+        const uniform = sized.across / drawn.across;
+        const ratio = (whole: number | undefined, part: number | undefined): number =>
+            whole === undefined || part === undefined ? uniform : whole / part;
+
+        return Matrix.Scaling(ratio(sized.x, drawn.x), ratio(sized.y, drawn.y), ratio(sized.z, drawn.z));
     }
 
     /**

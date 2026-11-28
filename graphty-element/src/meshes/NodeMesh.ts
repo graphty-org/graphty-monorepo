@@ -1164,12 +1164,16 @@ export class NodeMesh {
                 // a ring round a drawn-in fill is the band out to the shape's own outline (or half the width past it,
                 // centered), point for point ({@link bandRing})
                 const full = flat && inset > 0 ? this.flatOutline(shape, sized) : null;
+                // where the shape comes apart drawn in (a figure's head off its neck), the drawn-in edge has a point
+                // more than the outline on each side of the cut, paired with the outline's point there
+                const drawnIn = full === null || wave !== undefined ? null : insetOutline(full, inset);
+                const outer = full !== null && width > inset ? offsetOutline(full, width - inset) : full;
                 const band =
-                    full === null || wave !== undefined
+                    drawnIn === null || outer === null
                         ? null
                         : bandRing(
-                              insetOutline(full, inset),
-                              width > inset ? offsetOutline(full, width - inset) : full,
+                              drawnIn.points,
+                              drawnIn.from.map((i) => outer[i]),
                               style,
                               width,
                               options.dashUnit,
@@ -1246,7 +1250,10 @@ export class NodeMesh {
             `${this.ringKey("node-outer-border", options, fill)}${ownRingSuffix(shape, options.is2D, fill)}`,
             () => {
                 const extents = this.fillExtents(sized, inset);
-                const outline = flat ? this.fillOutline(shape, sized, inset) : this.solidOutline(fill);
+                // a flat shape's ring is offset from its own outline, not from the drawn-in fill's: insetting a star by
+                // more than half an arm folds the fill's outline over itself, and the ring offset from it crossed the
+                // middle
+                const outline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
                 const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
                 // a shrunk solid's outline is already the plain solid's, the inset out from its fill
                 const from = !flat && this.fillScales.has(this.sourceOf(fill)) ? gap - inset : gap;
@@ -1254,9 +1261,13 @@ export class NodeMesh {
                 const step = width + Math.max(0, (outerBorder?.offset ?? 0) * perSize);
                 const piecesOf = (round: Point2[]): RingPiece[] =>
                     Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
-                        const at = from + i * step;
+                        // a flat shape's: out from the fill's edge, which is the inset inside the outline
+                        const at = flat ? Math.max(gap + i * step, 0) - inset : from + i * step;
                         // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
-                        const base = at > 0 ? mitredEdges(round, [at])[0] : round;
+                        let base = flat && at < 0 ? insetOutline(round, -at).points : round;
+                        if (at > 0) {
+                            base = mitredEdges(round, [at])[0];
+                        }
                         return borderRing(base, width, outerBorder?.style ?? "solid", undefined, options.dashUnit);
                     }).flat();
                 const color = outerBorder?.color ?? "#000000";
@@ -1631,7 +1642,7 @@ export class NodeMesh {
             return outline;
         }
 
-        const drawn = insetOutline(outline, inset);
+        const drawn = insetOutline(outline, inset).fill;
         const same = (a: Point2, b: Point2): boolean => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9;
         return drawn.filter((p, i) => !same(p, drawn[(i + 1) % drawn.length]));
     }

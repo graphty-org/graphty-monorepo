@@ -1603,7 +1603,7 @@ export class Node implements ModelUser {
         this.shadow = NodeMesh.createShadow(
             this.context.getMeshCache(),
             { styleId: key, is2D: this.context.is2D(), size: this.size },
-            style.shape,
+            { shape: style.shape, border },
             style.shadow,
             this.#anchor as AbstractMesh,
             this.context.getScene(),

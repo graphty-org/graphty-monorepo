@@ -314,14 +314,19 @@ export function showText(issue) {
         "",
         issue.body ?? "",
     ];
-    for (const c of issue.comments.nodes) {
+    const push = (c) => {
         const who = c.author?.login ?? "ghost";
         const text = trustedText(c) ? c.body : `[comment by ${who} withheld: untrusted author]`;
         out.push("", `--- comment by ${who} at ${c.createdAt}`, text);
-    }
-    const more = issue.comments.totalCount - issue.comments.nodes.length;
-    // ponytail: only the first 100 comments; page through comments if an issue ever passes that
-    if (more > 0) out.push("", `[${more} later comments not shown]`);
+    };
+    // The oldest comments (the setup) and the newest (the current state); on a long issue the middle is skipped.
+    const first = issue.comments.nodes;
+    const last = issue.newest?.nodes ?? [];
+    const total = issue.comments.totalCount;
+    for (const c of first) push(c);
+    const skipped = total - first.length - last.length;
+    if (skipped > 0) out.push("", `[${skipped} comments in between not shown]`);
+    for (const c of last.slice(Math.max(0, -skipped))) push(c);
     return ascii(out.join("\n"));
 }
 
@@ -471,7 +476,8 @@ const SHOW_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
       number title state createdAt ${TEXT} labels(first: 30) { nodes { name } }
-      comments(first: 100) { totalCount nodes { createdAt ${TEXT} } }
+      comments(first: 10) { totalCount nodes { createdAt ${TEXT} } }
+      newest: comments(last: 90) { nodes { createdAt ${TEXT} } }
     }
   }
 }`;

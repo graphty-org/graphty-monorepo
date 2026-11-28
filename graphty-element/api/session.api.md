@@ -4091,6 +4091,7 @@ export interface LoadedSource extends DataSourceDescriptor {
         readonly edges: number;
     };
     readonly delimiter?: DraftTable["delimiter"];
+    readonly endNodes?: number;
     readonly features?: SourceFeatures;
     readonly issues?: readonly SourceSpaceOverlap[];
     readonly join?: JoinRecord;
@@ -4347,9 +4348,7 @@ export interface ModelLimits extends ModelLimits_2 {
 export interface ModelPart {
     readonly file?: string;
     readonly name: string;
-    // (undocumented)
     readonly role: ModelPartRole;
-    // (undocumented)
     readonly state: ModelPartState;
 }
 
@@ -4371,11 +4370,8 @@ export type MultipleTestingCorrection = "benjamini-hochberg" | "bonferroni" | "h
 
 // @public
 export interface NamedBlob {
-    // (undocumented)
     arrayBuffer(): Promise<ArrayBuffer>;
-    // (undocumented)
     readonly name: string;
-    // (undocumented)
     readonly size: number;
     readonly webkitRelativePath?: string;
 }

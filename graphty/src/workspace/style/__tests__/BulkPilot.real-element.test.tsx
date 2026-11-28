@@ -103,6 +103,22 @@ async function row(name: string): Promise<HTMLElement> {
 }
 
 /**
+ * A row of the style tree by its name, once the tree shows it inside a top-level folder. A row
+ * that moves into a folder is drawn anew there, so a click on the row it had at the top level
+ * would land on a row no longer in the page (issue #10475).
+ * @param name - The row's name.
+ * @returns The row.
+ */
+async function rowInFolder(name: string): Promise<HTMLElement> {
+    const shown = await tree();
+    return waitFor(() => {
+        const found = within(shown).getByRole("treeitem", { name: new RegExp(`^${name}, `) });
+        assert.equal(found.getAttribute("aria-level"), "2", `${name} is shown inside its folder`);
+        return found;
+    });
+}
+
+/**
  * Opens the Louvain folder in the tree from the keyboard, so its rows are drawn.
  */
 async function openFolder(): Promise<void> {
@@ -330,7 +346,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         });
         const folder = session.styles.tree().find((each) => each.name === "Louvain");
         await session.styles.moveRow(labels.row ?? labels.id, { parent: folder?.id ?? null, index: 0 });
-        await userEvent.click(await row("Top 10 labels"));
+        await userEvent.click(await rowInFolder("Top 10 labels"));
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
         await userEvent.click(page.getByRole("menuitem", { name: "Move to folder", exact: true }));
         await userEvent.click(page.getByRole("menuitem", { name: "Out of Louvain", exact: true }));
@@ -379,7 +395,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         // Three groups at size 2 and a layer that sets no size: Size reads 2, and says who is unset.
         await userEvent.click(await row(groups[0].name));
         await userEvent.click(await row(groups[2].name), { modifiers: ["Shift"] });
-        await userEvent.click(await row("Top 10 labels"), { modifiers: ["Control"] });
+        await userEvent.click(await rowInFolder("Top 10 labels"), { modifiers: ["Control"] });
         const size = await line("node.size");
         assert.equal(within(size).getByRole<HTMLInputElement>("spinbutton", { name: /^Node size/ }).value, "2");
         assert.match(

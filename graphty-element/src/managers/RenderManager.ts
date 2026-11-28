@@ -904,6 +904,8 @@ export class RenderManager implements Manager {
         smooth: 0,
         /** Ticks that drew nothing because a running GPU layout had landed no new positions since the last frame. */
         awaitedLanding: 0,
+        /** Frames drawn outside the loop, at once, for a resize (`drawNow`); counted in `drawn` too. */
+        drawnNow: 0,
     };
     /** Whether the tick {@link RenderManager.mayRest} last let rest rests on a final picture. */
     private restsFinal = false;
@@ -1641,6 +1643,7 @@ export class RenderManager implements Manager {
         this.skippedMs += this.engine.getDeltaTime();
         // A frame between two of the loop's: the frame guard does not measure the loop's next one.
         this.lastDrawAt = Number.NaN;
+        this.ticks.drawnNow++;
         try {
             this.drawFrame(performance.now());
         } catch (error) {

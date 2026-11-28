@@ -99,6 +99,29 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
             advanced: true,
         },
     },
+    barnesHut: {
+        // OFF BY DEFAULT: exact all-pairs repulsion is the mechanism's neutral behavior (issue #10447).
+        schema: z.boolean().default(false),
+        meta: {
+            label: "Barnes-Hut",
+            description:
+                "Approximate the push between nodes: a far group of nodes pushes as one, so each step " +
+                "costs n log n instead of n squared and large graphs settle much faster, with a slightly " +
+                "different drawing. Applies on the CPU; an accelerator ignores it.",
+            advanced: true,
+        },
+    },
+    barnesHutTheta: {
+        schema: z.number().positive().default(1.2),
+        meta: {
+            label: "Barnes-Hut Theta",
+            description:
+                "How far a group must be to push as one, with Barnes-Hut on: lower is closer to the " +
+                "exact push and slower",
+            step: 0.1,
+            advanced: true,
+        },
+    },
     nodeGap: nodeGapOption,
     nodeGapFront: nodeGapFrontOption,
     seed: {

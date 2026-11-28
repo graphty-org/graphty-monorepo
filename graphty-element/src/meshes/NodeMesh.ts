@@ -1116,7 +1116,15 @@ export class NodeMesh {
         }
 
         const flat = isFlatShape(shape.type);
-        const instance = cache.get(this.ringKey("node-border", options, fill), () => {
+        // in 3D drawn over the fill's edge, in front of the solid from any angle
+        const over = !flat && !options.is2D && this.plainOf.get(this.sourceOf(fill)) === "drawn-over";
+        // A ring drawn over the fill must sit exactly on the outline its own node shows: one ring shared by the style
+        // is built round the nearest node's, and a node seen from another direction showed its fill past it. So each
+        // node gets its own.
+        // ponytail: one rebuild per node each time the 3D view changes; share it again across nodes seen alike (an
+        // orthographic camera) if a large graph with inside borders on solids is slow to turn.
+        const key = this.ringKey("node-border", options, fill) + (over ? `-node-${String(fill.uniqueId)}` : "");
+        const instance = cache.get(key, () => {
             const extents = this.fillExtents(sized, inset);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
@@ -1164,8 +1172,6 @@ export class NodeMesh {
             };
             const color = border?.color ?? "#000000";
 
-            // in 3D drawn over the fill's edge, in front of the solid from any angle
-            const over = drawnInSolid && this.plainOf.get(this.sourceOf(fill)) === "drawn-over";
             const ring = { outline, depth, piecesOf, flat, color, opacity, over };
 
             return this.borderSlab("node-border", ring, shape, options, fill, scene);

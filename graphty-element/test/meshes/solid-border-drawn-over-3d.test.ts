@@ -40,7 +40,7 @@ afterEach(() => {
     scene.getEngine().dispose();
 });
 
-/** A vertex seen through the camera: on the node's middle plane, and how far along the view it is. */
+/** A vertex seen through the camera: on the node's middle plane, and how far it is along the line to the node. */
 interface Seen {
     p: Point2;
     z: number;
@@ -51,15 +51,16 @@ interface Seen {
  * @param middle - How far along the view the node's middle is.
  * @param world - Where it is drawn in the world: a node's mesh is drawn where its node is, a ring where its
  *   instance was last drawn (turned to the camera).
+ * @param toward - Which way the node's middle is from the camera, in the camera's view; straight ahead by default.
  * @returns Its vertices seen through the active camera.
  */
-function seen(mesh: AbstractMesh, middle: number, world: Matrix): Seen[] {
+function seen(mesh: AbstractMesh, middle: number, world: Matrix, toward = new Vector3(0, 0, 1)): Seen[] {
     const source = mesh instanceof InstancedMesh ? mesh.sourceMesh : (mesh as Mesh);
     const positions = source.getVerticesData(VertexBuffer.PositionKind) ?? [];
     const toView = world.multiply(scene.activeCamera?.getViewMatrix() ?? assert.fail("no camera"));
     return Array.from({ length: positions.length / 3 }, (_, i): Seen => {
         const v = Vector3.TransformCoordinates(Vector3.FromArray(positions, 3 * i), toView);
-        return { p: [(v.x / v.z) * middle, (v.y / v.z) * middle], z: v.z };
+        return { p: [(v.x / v.z) * middle, (v.y / v.z) * middle], z: Vector3.Dot(v, toward) };
     });
 }
 
@@ -199,5 +200,55 @@ describe("an inside border on a 3D solid is drawn over its plain fill's edge fro
                 }
             });
         }
+    }
+});
+
+describe("each node's ring drawn over its fill is built round the outline that node shows (#10438)", () => {
+    // one ring shared by a style is built round the nearest node's outline; a node of the style seen from another
+    // direction shows another outline, and its fill showed past the ring
+    for (const type of ["pentagonal_prism", "octahedron"] as const) {
+        test(`two ${type} nodes of one style, one off to the side and further away`, () => {
+            const camera = new FreeCamera("camera", new Vector3(0.8, 1.1, -4), scene);
+            camera.setTarget(Vector3.Zero());
+            scene.activeCamera = camera;
+            const shape: NodeStyleConfig["shape"] = { type, size: 1 };
+            const border = { width: 0.1, position: "inside" as const, color: "#0000ff" };
+            const options = { styleId: `${type}-two`, is2D: false, size: 1 };
+            const drawnAt = [Vector3.Zero(), new Vector3(2.6, -0.8, 2.5)].map((position) => {
+                const node = new TransformNode("node", scene);
+                node.position.copyFrom(position);
+                const fill = NodeMesh.create(cache, options, { shape, border }, scene);
+                const ring = NodeMesh.createBorder(cache, options, { shape, border }, fill, scene);
+                assert.exists(ring);
+                for (const mesh of [fill, ring]) {
+                    mesh.parent = node;
+                    mesh.position.setAll(0);
+                }
+                return { node, fill, ring };
+            });
+            scene.render();
+            scene.render();
+
+            const view = camera.getViewMatrix();
+            for (const [k, { node, fill, ring }] of drawnAt.entries()) {
+                // on the screen, as x / z and y / z; the ring faces the line to its node, so its far face is the one
+                // further along that line
+                const toward = Vector3.TransformCoordinates(node.getAbsolutePosition(), view).normalize();
+                const fillHull = convexHull(seen(fill, 1, node.computeWorldMatrix(true)).map(({ p }) => p));
+                const ringSeen = seen(ring, 1, ring.getWorldMatrix(), toward);
+                const zs = ringSeen.map(({ z }) => z);
+                const far = ringSeen.filter(({ z }) => z > (Math.min(...zs) + Math.max(...zs)) / 2).map(({ p }) => p);
+                const outer = convexHull(far);
+                const size = Math.max(...fillHull.map(([x, y]) => Math.hypot(x, y)));
+                for (const n of keptNormals(fillHull, 0)) {
+                    assert.approximately(
+                        reach(outer, n),
+                        reach(fillHull, n),
+                        1e-4 * size,
+                        `node ${String(k)}'s ring along (${n[0].toFixed(3)}, ${n[1].toFixed(3)})`,
+                    );
+                }
+            }
+        });
     }
 });

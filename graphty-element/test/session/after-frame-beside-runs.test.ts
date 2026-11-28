@@ -23,7 +23,7 @@ describe("after-frame listeners beside a run still going", () => {
         const run = session.runs.start("degree");
         run.then(undefined, () => undefined);
 
-        const heard: string[][] = [];
+        const heard: unknown[][] = [];
         session.on("selection:changed", () => heard.push([...session.selection.nodes]), { afterFrame: true });
         await session.selection.apply({ nodes: ["a"] });
         await session.afterFrame();

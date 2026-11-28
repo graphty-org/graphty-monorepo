@@ -2001,6 +2001,38 @@ export function distanceToPolygon(hull: readonly P2[], p: P2): number {
 }
 
 /**
+ * The radius of the largest circle inside a convex polygon: the deepest any point inside lies from its outline.
+ * The distance to the outline is concave over the polygon, so the deepest point is found by a ternary search
+ * along x of the deepest along each vertical line.
+ * @param hull - The polygon, in order (either way round).
+ * @returns The inradius; 0 for fewer than three points.
+ */
+export function inradius(hull: readonly P2[]): number {
+    if (hull.length < 3) {
+        return 0;
+    }
+    const xs = hull.map((p) => p[0]);
+    const ys = hull.map((p) => p[1]);
+    // inside the polygon the depth is the distance to the outline; outside, it counts against the point
+    const depth = (p: P2): number => {
+        const d = distanceToPolygon(hull, p);
+        return insideConvex(hull, p) ? d : -d;
+    };
+    const search = (lo: number, hi: number, f: (t: number) => number): number => {
+        for (let i = 0; i < 80; i++) {
+            const [a, b] = [lo + (hi - lo) / 3, hi - (hi - lo) / 3];
+            [lo, hi] = f(a) < f(b) ? [a, hi] : [lo, b];
+        }
+        return f((lo + hi) / 2);
+    };
+    const [y0, y1] = [Math.min(...ys), Math.max(...ys)];
+    return Math.max(
+        0,
+        search(Math.min(...xs), Math.max(...xs), (x) => search(y0, y1, (y) => depth([x, y]))),
+    );
+}
+
+/**
  * A convex polygon's mitred offset outward by a distance, each corner's mitre cut square to its bisector at
  * {@link MITRE_LIMIT} times the distance from the corner (as the element's mitredEdges cuts a sharp corner).
  * @param hull - The polygon, in order (either way round).
@@ -2092,6 +2124,9 @@ export function meshRingChecks(
     // under perspective a polyhedron's silhouette is uneven (near corners magnified), and an even mitred band round
     // it has its box's middle off the outline's: the ring is compared with the offset it should be
     const [a, b] = [middle(mitredOffset(fill, expected)), middle(ring)];
+    // a fill lies no deeper inside the ring's outer edge than that outline's inradius, however far in a border
+    // draws it (a 0.45 inside border on a capsule 0.25 deep, a cone's triangle with an inradius of 0.37)
+    const reach = Math.min(expected, inradius(ring));
     const checks = [
         check(
             `mesh-${name}-reach`,
@@ -2099,7 +2134,7 @@ export function meshRingChecks(
                 nearest ? ", at its nearest" : ""
             }`,
             nearest ? least(offsets) : quantile(offsets, 0.5),
-            expected,
+            reach,
             tolerance,
             offsets,
         ),

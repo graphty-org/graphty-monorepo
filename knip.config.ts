@@ -163,8 +163,15 @@ const config: KnipConfig = {
 
         // babylonjs-map package: the root and the Babylon-free "./location" and "./projection" subpaths are entries
         "babylonjs-map": {
-            entry: ["src/index.ts!", "src/location/index.ts!", "src/projection/index.ts!", "test/**/*.test.ts"],
-            project: ["src/**/*.ts!", "test/**/*.ts"],
+            entry: [
+                "src/index.ts!",
+                "src/location/index.ts!",
+                "src/projection/index.ts!",
+                "test/**/*.test.ts",
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set.
+                ".storybook/vitest.setup.visual.ts",
+            ],
+            project: ["src/**/*.ts!", "test/**/*.ts", "stories/**/*.{ts,mdx}", ".storybook/*.ts"],
             // `@babylonjs/core` is an optional peer (and a devDependency): only the root entry imports it, and the
             // two subpaths never load it. `lint:knip:prod` runs --strict and would report it as unlisted; the
             // default run resolves it as a devDependency and hints an ignore as redundant.

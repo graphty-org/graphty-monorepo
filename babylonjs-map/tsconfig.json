@@ -4,9 +4,9 @@
         "composite": true,
         "noEmit": true,
         "noImplicitOverride": true,
-        "lib": ["ES2020", "ES2021.String", "ES2022.Array", "DOM"],
+        "lib": ["ES2020", "ES2021.String", "ES2022.Array", "DOM", "DOM.Iterable"],
         "types": ["node", "vitest/globals"]
     },
-    "include": ["src/**/*.ts", "test/**/*.ts"],
+    "include": ["src/**/*.ts", "test/**/*.ts", "stories/**/*.ts", ".storybook/**/*.ts"],
     "exclude": ["node_modules", "dist", "coverage", "tmp"]
 }

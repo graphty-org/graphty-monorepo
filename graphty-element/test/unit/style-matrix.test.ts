@@ -17,8 +17,10 @@ import {
     covering,
     type DrawnMesh,
     drawnMeshes,
+    drawnOnFrame,
     fillMeshReach,
     inradius,
+    insetRetreat,
     measureNode,
     meshRingChecks,
     mitredOffset,
@@ -851,9 +853,25 @@ describe("style combination matrix", () => {
         const plain = frame((x, y) => (square(x, y, 10) ? "fill" : undefined));
         // a band 12 px (0.6 units) wide
         const c = measured({}, full, { plain, sizeFactor: 0.6 / (0.3 * 1.5) });
-        for (const name of ["border-width-thinnest", "border-width-thickest", "border-position"]) {
+        for (const name of [
+            "border-width-thinnest",
+            "border-width-median",
+            "border-width-thickest",
+            "border-position",
+        ]) {
             assert.isTrue(c.get(name)?.pass, `${name}: ${String(c.get(name)?.measured)}`);
+            assert.isNotTrue(c.get(name)?.unread, name);
         }
+        // the band right on its left side only, twice as wide on the others: right at its thinnest, not on its sides
+        const lopsided = frame((x, y) => {
+            if (square(x, y, 10)) {
+                return "fill";
+            }
+            return x >= -22 && x <= 34 && Math.abs(y) <= 34 ? "border" : undefined;
+        });
+        const d = measured({}, lopsided, { plain, sizeFactor: 0.6 / (0.3 * 1.5) });
+        assert.isTrue(d.get("border-width-thinnest")?.pass);
+        assert.isFalse(d.get("border-width-median")?.pass, String(d.get("border-width-median")?.measured));
     });
 
     it("lets an inset fill's tip retreat by the inset over sin(half its angle), and no further", () => {
@@ -876,6 +894,72 @@ describe("style combination matrix", () => {
         assert.isTrue(
             measured({ border: "inside" }, drawn, { sharpestCorner: Number.NaN }).get("border-width-thickest")?.unread,
         );
+        // given the outline itself (a solid in 3D), its own inset bounds the retreat: a square's corner allows it, a
+        // circle's does not
+        const polygon = (n: number, r: number): P2[] =>
+            Array.from({ length: n }, (_, i) => [
+                r * Math.cos(((i + 0.5) / n) * Math.PI * 2),
+                r * Math.sin(((i + 0.5) / n) * Math.PI * 2),
+            ]);
+        const withOutline = (outline: P2[]): boolean | undefined =>
+            measured({ border: "inside" }, drawn, { sharpestCorner: Math.PI, outlineHull: outline }).get(
+                "border-width-thickest",
+            )?.pass;
+        assert.isTrue(withOutline(polygon(4, Math.SQRT2)));
+        assert.isFalse(withOutline(polygon(64, 1)));
+    });
+
+    it("bounds an inset's retreat at a corner its tessellation splits into blunt ones by the corner it makes", () => {
+        // a unit square with each corner cut by a chamfer 0.02 long: its sharpest vertex is 135 degrees, which alone
+        // would allow 0.3 / sin(67.5) = 0.325, but an inset of 0.3 cuts the chamfer away and retreats as the square's
+        const c = 0.01 * Math.SQRT2;
+        const chamfered: P2[] = [
+            [1, 1 - c],
+            [1 - c, 1],
+            [-1 + c, 1],
+            [-1, 1 - c],
+            [-1, -1 + c],
+            [-1 + c, -1],
+            [1 - c, -1],
+            [1, -1 + c],
+        ];
+        const retreat = insetRetreat(chamfered, 0.3);
+        assert.isAbove(retreat, 0.3 * Math.SQRT2 - 0.03);
+        assert.isBelow(retreat, 0.3 * Math.SQRT2 + 1e-9);
+    });
+
+    it("reads a ring's width on its sides, not where a fill drawn in to a small square pulls its corners back", () => {
+        // an inside border 30 px wide on a square 33 px from its center: the fill drawn in to 3 px, so a ray past
+        // the fill's corner reads up to 30 sqrt(2); the ring is right, and its width on its sides is not misread
+        const square = (x: number, y: number, half: number): boolean => Math.abs(x) <= half && Math.abs(y) <= half;
+        const full = frame((x, y) => {
+            if (square(x, y, 3)) {
+                return "fill";
+            }
+            return square(x, y, 33) ? "border" : undefined;
+        });
+        const plain = frame((x, y) => (square(x, y, 32) ? "fill" : undefined));
+        const c = measured({ border: "inside" }, full, { plain, sizeFactor: 1.5 / (0.3 * 1.5) });
+        const median = c.get("border-width-median");
+        assert.isNotTrue(median?.unread);
+        assert.isTrue(median?.pass, String(median?.measured));
+        assert.isTrue(c.get("border-width-thinnest")?.pass);
+    });
+
+    it("reads a ring's width on its sides round a round fill drawn in far from its outline", () => {
+        // an inside border 14 px wide on a disc 20 px across: the fill drawn in to a disc of 6, round everywhere
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            if (r <= 6) {
+                return "fill";
+            }
+            return r <= 20 ? "border" : undefined;
+        });
+        const median = measured({ border: "inside" }, full, { sizeFactor: 0.7 / (0.3 * 1.5) }).get(
+            "border-width-median",
+        );
+        assert.isNotTrue(median?.unread);
+        assert.isTrue(median?.pass, String(median?.measured));
     });
 
     it("reads a tilted slab's ring shift in true device pixels", () => {
@@ -905,7 +989,7 @@ describe("style combination matrix", () => {
         assert.isFalse(concentric(ring(0.15, 0))?.pass);
     });
 
-    it("leaves a ring too thin across to hold a pure pixel unread, and reads one wide enough", () => {
+    it("reads no width of a ring too thin across to hold a pure pixel, and no bare ray without a side to see it on", () => {
         const across = (ppuV: number): Map<string, { pass: boolean; unread?: boolean; measured: number }> => {
             const tilted: Plane = {
                 m: [20, 0, 100, 0, -ppuV, 100, 0, 0, 1],
@@ -926,10 +1010,73 @@ describe("style combination matrix", () => {
             const plain = onPlane((u, v) => (Math.hypot(u, v) <= 1 ? "fill" : undefined));
             return measured({}, full, { plain, plane: tilted });
         };
-        // 0.45 units at 4 pixels a unit is 1.8 pixels across: nothing read
-        assert.isUndefined(across(4).get("border-drawn"));
+        // 0.45 units at 4 pixels a unit is 1.8 pixels across: no width read, and (no fill hull to find a side the
+        // plane stretches) a ray showing no ring is not counted bare
+        assert.isTrue(across(4).get("border-drawn")?.pass);
+        assert.isUndefined(across(4).get("border-width-thinnest"));
         // at 12 it is 5.4 pixels across: drawn
         assert.isTrue(across(12).get("border-drawn")?.pass);
+    });
+
+    it("reads a thin ring as drawn on the rays leaving through a side the plane stretches, and no width there", () => {
+        // 20 pixels a unit along u, 4 along v: a 0.45 unit ring is 9 pixels across beside the u axis, 1.8 beside v
+        const tilted: Plane = { m: [20, 0, 100, 0, -4, 100, 0, 0, 1], inverse: [0.05, 0, -5, 0, -0.25, 25, 0, 0, 1] };
+        const onPlane = (paint: (u: number, v: number) => Part | undefined): Classes =>
+            frame((x, y) => {
+                const [u, v] = toPlane(tilted, x + 100, y + 100);
+                return paint(u, v);
+            });
+        const disc1 = (u: number, v: number): Part | undefined => (Math.hypot(u, v) <= 1 ? "fill" : undefined);
+        const plain = onPlane(disc1);
+        const hull: P2[] = Array.from({ length: 64 }, (_, i) => [
+            Math.cos((i / 64) * Math.PI * 2),
+            Math.sin((i / 64) * Math.PI * 2),
+        ]);
+        const ringed = onPlane((u, v) => disc1(u, v) ?? (Math.hypot(u, v) <= 1.45 ? "border" : undefined));
+        const drawn = measured({}, ringed, { plain, plane: tilted, fillHull: hull });
+        assert.isTrue(drawn.get("border-drawn")?.pass);
+        assert.isNotTrue(drawn.get("border-drawn")?.unread);
+        assert.isTrue(drawn.get("border-touches-fill")?.pass);
+        assert.isNotTrue(drawn.get("border-touches-fill")?.unread);
+        for (const name of ["border-width-thinnest", "border-width-median", "border-position", "border-concentric"]) {
+            assert.isUndefined(drawn.get(name), name);
+        }
+        // no ring at all fails where one would be seen
+        assert.isFalse(
+            measured({}, onPlane(disc1), { plain, plane: tilted, fillHull: hull }).get("border-drawn")?.pass,
+        );
+        // a ring with background between it and the fill fails
+        const parted = onPlane(
+            (u, v) => disc1(u, v) ?? (Math.hypot(u, v) > 1.2 && Math.hypot(u, v) <= 1.65 ? "border" : undefined),
+        );
+        assert.isFalse(measured({}, parted, { plain, plane: tilted, fillHull: hull }).get("border-touches-fill")?.pass);
+    });
+
+    it("counts a node on the canvas by its drawn extent, at least a blend and a pure pixel inside the frame", () => {
+        // a node drawn from 3 to 197 pixels across a 200 pixel frame, which a looser window round it would leave
+        assert.isTrue(
+            drawnOnFrame(
+                [
+                    [3, 3, 0.5],
+                    [197, 197, 0.5],
+                ],
+                200,
+                200,
+            ),
+        );
+        assert.isFalse(
+            drawnOnFrame(
+                [
+                    [1, 3, 0.5],
+                    [197, 197, 0.5],
+                ],
+                200,
+                200,
+            ),
+        );
+        // behind the camera
+        assert.isFalse(drawnOnFrame([[100, 100, 1.2]], 200, 200));
+        assert.isFalse(drawnOnFrame([], 200, 200));
     });
 
     it("does not count an outer ring of a pixel or two, folded into its blends, as missing", () => {
@@ -970,6 +1117,60 @@ describe("style combination matrix", () => {
             sizeFactor: 1.05 / (0.4 * 1.5),
         }).get("underlay-padding");
         assert.isTrue(c?.pass, String(c?.measured));
+    });
+
+    it("reads a plate's end only where background follows it, not where the ray stops inside it", () => {
+        // a disc 20 px across with a bar out to 45 px along +u, its underlay every point within 12 px (0.6 units) of
+        // it: the walk (2.6 units, 52 px) stops inside the underlay past the bar's end, 7 px past the fill
+        const body = (x: number, y: number): boolean =>
+            Math.hypot(x, y) <= 20 || (x >= 0 && x <= 45 && Math.abs(y) <= 4);
+        const near = (x: number, y: number): boolean => {
+            const [cx, cy] = [Math.max(0, Math.min(45, x)), Math.max(-4, Math.min(4, y))];
+            return Math.hypot(x, y) <= 32 || Math.hypot(x - cx, y - cy) <= 12;
+        };
+        const full = frame((x, y) => {
+            if (body(x, y)) {
+                return "fill";
+            }
+            return near(x, y) ? "underlay" : undefined;
+        });
+        const plain = frame((x, y) => (body(x, y) ? "fill" : undefined));
+        const c = measured({ border: "none", plate: "underlay" }, full, { plain }).get("underlay-padding");
+        assert.isTrue(c?.pass, String(c?.measured));
+        // and an underlay drawn 5 px short of its padding still fails
+        const short = frame((x, y) => {
+            if (body(x, y)) {
+                return "fill";
+            }
+            const [cx, cy] = [Math.max(0, Math.min(45, x)), Math.max(-4, Math.min(4, y))];
+            return Math.hypot(x, y) <= 27 || Math.hypot(x - cx, y - cy) <= 7 ? "underlay" : undefined;
+        });
+        assert.isFalse(measured({ border: "none", plate: "underlay" }, short, { plain }).get("underlay-padding")?.pass);
+    });
+
+    it("leaves a halo whose edge shows only in blended pixels past a ring unread, not ended in a dash's gap", () => {
+        // a ring 20 to 29 px, a halo expected out to 32 px whose band past the ring is blended on the rays to the
+        // right, where the halo also shows through a gap in the ring (as through a dashed border's gaps) at 22-26 px
+        const drawn = (rim: Part | undefined): Classes =>
+            frame((x, y) => {
+                const r = Math.hypot(x, y);
+                const right = Math.abs(degrees(x, y)) < 60;
+                if (r <= 20) {
+                    return "fill";
+                }
+                if (r <= 29) {
+                    return right && r >= 22 && r <= 26 ? "halo" : "border";
+                }
+                if (r <= 32) {
+                    return right ? rim : "halo";
+                }
+                return undefined;
+            });
+        const grow = { haloGrow: (): [number, number] => [1.6, 1.6], haloHull: () => [] };
+        const blended = measured({ effect: "halo" }, drawn("mixed"), grow).get("halo-scale");
+        assert.isTrue(blended?.pass, String(blended?.measured));
+        // a halo that ends in the gap, background where its edge should be, still fails
+        assert.isFalse(measured({ effect: "halo" }, drawn(undefined), grow).get("halo-scale")?.pass);
     });
 
     it("walks a flat shadow in its own plane, where its depth behind the slab puts it on screen", () => {
@@ -1072,6 +1273,30 @@ describe("style combination matrix", () => {
         ];
         assert.isTrue(
             meshRingChecks(uneven, mitredOffset(uneven, 0.45), 0.45, 0.005, true, "border").every((k) => k.pass),
+        );
+        // a centered border on a sharp triangle: the fill is the outline drawn in side by side by d, its tip
+        // retreating d / sin(half its angle), and the ring is the outline's mitred offset by d, its tip cut at 3 d
+        const d = 0.225;
+        const outline: P2[] = [
+            [0.625, 0],
+            [0, 2],
+            [-0.625, 0],
+        ];
+        const r = 1.25 / ((2 * Math.hypot(0.625, 2) + 1.25) / 2);
+        const drawnIn = outline.map(([x, y]): P2 => [(x * (r - d)) / r, r + ((y - r) * (r - d)) / r]);
+        const band = mitredOffset(outline, d);
+        const mitre = (inset: number): boolean | undefined =>
+            new Map(
+                meshRingChecks(drawnIn, band, 2 * d, 0.005, false, "border", true, inset).map((k) => [k.name, k.pass]),
+            ).get("mesh-border-mitre");
+        assert.isTrue(mitre(d), "the drawn-in tip's retreat is allowed");
+        assert.isFalse(mitre(0), "read as a mitred offset of the fill, the tip is past the limit");
+        // a ring reaching past both at the tip fails
+        const past = band.map(([x, y]): P2 => (y > 2 ? [x, y + 0.2] : [x, y]));
+        assert.isFalse(
+            new Map(
+                meshRingChecks(drawnIn, past, 2 * d, 0.005, false, "border", true, d).map((k) => [k.name, k.pass]),
+            ).get("mesh-border-mitre"),
         );
         // a ring far wider than the mitre allows at one corner fails
         const bulged = ring.map((p, i): P2 => (i === 1 ? [4.5, 0] : p));

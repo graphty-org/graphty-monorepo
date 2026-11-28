@@ -17,7 +17,7 @@
 
 import "../../src/graphty-element";
 
-import { type AbstractMesh, Camera, type InstancedMesh, Matrix, Vector3 } from "@babylonjs/core";
+import { type AbstractMesh, Camera, type InstancedMesh, Matrix, type Mesh, Vector3 } from "@babylonjs/core";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import { commands } from "vitest/browser";
 
@@ -38,6 +38,7 @@ import {
     CONCAVE,
     drawnMeshes,
     type DrawnNode,
+    drawnOnFrame,
     type Expectations,
     fillMeshReach,
     type Frame,
@@ -54,9 +55,11 @@ import {
     planeOf,
     type Settings,
     shardOf,
+    sharpestCornerOf,
     SYMMETRIC,
     toPlane,
     toScreen,
+    WIDTH_SLACK,
 } from "../helpers/style-matrix";
 
 const env = import.meta.env as Record<string, string | undefined>;
@@ -193,21 +196,39 @@ function planeFor(id: string, shape: string): Measure {
 }
 
 /**
- * Whether a node's whole measuring window is on the canvas and in front of the camera.
- * @param plane - Its plane.
+ * Whether everything a node draws (its meshes, its outline ring and its label) is on the canvas and in front of the
+ * camera, by its vertices projected as the camera projects them: the node's exact extent, its actual rings in it.
+ * @param id - The node.
  * @param classes - A classified frame.
- * @param reach - How far round the node to look, in plane units.
  * @returns True when it can be measured.
  */
-function onCanvas(plane: Plane, classes: Classes, reach: number): boolean {
-    for (let i = 0; i < 16; i++) {
-        const a = (i / 16) * Math.PI * 2;
-        const [x, y] = toScreen(plane, reach * Math.cos(a), reach * Math.sin(a));
-        if (!(x >= 0 && y >= 0 && x < classes.width && y < classes.height)) {
-            return false;
-        }
+function drawnOnCanvas(id: string, classes: Classes): boolean {
+    const node = element.graph.getDataManager().nodes.get(id) as unknown as { label?: { labelMesh: Mesh | null } };
+    const label = node.label?.labelMesh ?? null;
+    const meshes = [...meshesOf(id), ...(label?.isEnabled() === true ? [label] : [])];
+    return drawnOnFrame(meshes.flatMap(projectedVertices), classes.width, classes.height);
+}
+
+/**
+ * A mesh's vertices projected by the camera: device pixels and depth.
+ * @param mesh - The mesh.
+ * @returns x, y and z of each vertex.
+ */
+function projectedVertices(mesh: AbstractMesh): [number, number, number][] {
+    const { scene, engine } = element.graph;
+    const transform = scene.getTransformMatrix();
+    const viewport = { x: 0, y: 0, width: engine.getRenderWidth(), height: engine.getRenderHeight() };
+    mesh.computeWorldMatrix(true);
+    const source = (mesh as InstancedMesh).sourceMesh ?? mesh;
+    const positions = source.getVerticesData("position") ?? [];
+    const world = mesh.getWorldMatrix();
+    const points: [number, number, number][] = [];
+    for (let i = 0; i < positions.length; i += 3) {
+        const p = Vector3.TransformCoordinates(new Vector3(positions[i], positions[i + 1], positions[i + 2]), world);
+        const s = Vector3.Project(p, Matrix.Identity(), transform, viewport as never);
+        points.push([s.x, s.y, s.z]);
     }
-    return pixelsPerUnit(plane).min > 0;
+    return points;
 }
 
 /**
@@ -264,9 +285,14 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
     // a mesh edge is exact: allow half a pixel, or a hundredth of a unit and 5% of the border
     // (a solid's silhouette in 2D is its tessellation's, measured 0.02 off its true outline)
     const rounding = !measure.flat && view === "2d" ? 0.02 : 0;
+    const ppu = pixelsPerUnit(plane);
+    // A screen-pixel ring is built borderScreenWidth CSS pixels wide at the most device pixels a unit spans here
+    // (Node.scaledBorder), its scale rounded to 1/16 of a doubling: it is that width past the fill, within the
+    // rounding (WIDTH_SLACK), wherever its pixels are too few to read.
+    const screenWidth = settings.border === "screen" ? (AMOUNTS.borderScreenWidth * dpr) / ppu.max : 0;
     const tol = Math.max(
-        0.01 + rounding + 0.05 * borderEdgeWorld(settings, sizeFactor),
-        0.5 / pixelsPerUnit(plane).min,
+        0.01 + rounding + 0.05 * borderEdgeWorld(settings, sizeFactor) + WIDTH_SLACK * screenWidth,
+        0.5 / ppu.min,
     );
     const checks: Check[] = [];
     // every ring is measured from the drawn fill mesh, which an inside or centered border insets but on a solid in
@@ -275,12 +301,10 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
         settings.border === "none" || settings.border === "screen" ? 0 : AMOUNTS.borderWidth * PER_SIZE * sizeFactor;
     const { inset, border } = fillMeshReach(settings, sizeFactor, !measure.flat && view === "3d");
     // a dashed ring's hull is the hull of its dashes, so it is not read
-    if (node.border !== null && width > 0 && settings.border !== "dashed") {
+    if (node.border !== null && (width > 0 || screenWidth > 0) && settings.border !== "dashed") {
         const ring = hullOf(node.border, measure);
-        if (ring.length > 0) {
-            if (!CONCAVE.has(settings.shape)) {
-                checks.push(...meshRingChecks(fill, ring, border, tol, symmetric, "border"));
-            }
+        if (ring.length > 0 && !CONCAVE.has(settings.shape)) {
+            checks.push(...meshRingChecks(fill, ring, border + screenWidth, tol, symmetric, "border", true, inset));
         }
     }
     if (node.outerBorder !== null && settings.border !== "screen") {
@@ -288,7 +312,7 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
         const reach =
             border + ((settings.outer === "gap" ? AMOUNTS.outerGap : 0) + AMOUNTS.outerWidth) * PER_SIZE * sizeFactor;
         if (ring.length > 0 && !CONCAVE.has(settings.shape)) {
-            checks.push(...meshRingChecks(fill, ring, reach, tol, symmetric, "outer-border"));
+            checks.push(...meshRingChecks(fill, ring, reach, tol, symmetric, "outer-border", true, inset));
         }
     }
     for (const [field, padding] of [
@@ -311,6 +335,7 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
                         symmetric,
                         field,
                         exact,
+                        inset,
                     ),
                 );
             }
@@ -402,24 +427,7 @@ function meshesOf(id: string): AbstractMesh[] {
  * @returns The hull.
  */
 function screenHullOf(id: string): P2[] {
-    const { scene, engine } = element.graph;
-    const transform = scene.getTransformMatrix();
-    const viewport = { x: 0, y: 0, width: engine.getRenderWidth(), height: engine.getRenderHeight() };
-    const points: P2[] = [];
-    for (const mesh of meshesOf(id)) {
-        mesh.computeWorldMatrix(true);
-        const source = (mesh as InstancedMesh).sourceMesh ?? mesh;
-        const positions = source.getVerticesData("position") ?? [];
-        const world = mesh.getWorldMatrix();
-        for (let i = 0; i < positions.length; i += 3) {
-            const p = Vector3.TransformCoordinates(
-                new Vector3(positions[i], positions[i + 1], positions[i + 2]),
-                world,
-            );
-            const s = Vector3.Project(p, Matrix.Identity(), transform, viewport as never);
-            points.push([s.x, s.y]);
-        }
-    }
+    const points = meshesOf(id).flatMap((mesh) => projectedVertices(mesh).map(([x, y]): P2 => [x, y]));
     return points.length < 3 ? [] : convexHull(points);
 }
 
@@ -451,26 +459,6 @@ function shadowPlaneOf(id: string, measure: Measure): ((u: number, v: number) =>
             engine.getRenderHeight(),
         );
     };
-}
-
-/**
- * The sharpest corner of a convex hull, in radians.
- * @param hull - The hull.
- * @returns Its smallest interior angle, pi for fewer than three points.
- */
-function sharpestCornerOf(hull: readonly P2[]): number {
-    let best = Math.PI;
-    hull.forEach((p, i) => {
-        const a = hull[(i - 1 + hull.length) % hull.length];
-        const b = hull[(i + 1) % hull.length];
-        const [ax, ay, bx, by] = [a[0] - p[0], a[1] - p[1], b[0] - p[0], b[1] - p[1]];
-        const la = Math.hypot(ax, ay);
-        const lb = Math.hypot(bx, by);
-        if (la > 1e-4 && lb > 1e-4) {
-            best = Math.min(best, Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (la * lb)))));
-        }
-    });
-    return best;
 }
 
 /**
@@ -575,7 +563,7 @@ async function runCase(c: MatrixCase, override: Expectations = {}): Promise<{ re
         // the node's drawn extent grown by its halo, and the rings past it
         // (a mesh with no vertices to read: the reach a size-1 sphere's would give)
         const reach = (Number.isFinite(meshReach) ? meshReach : 0.75) * AMOUNTS.haloScale + RING_REACH * sizeFactor;
-        if (!onCanvas(plane, full, reach)) {
+        if (!(drawnOnCanvas(id, full) && pixelsPerUnit(plane).min > 0)) {
             result.nodes[id] = { measured: false };
             continue;
         }
@@ -602,6 +590,9 @@ async function runCase(c: MatrixCase, override: Expectations = {}): Promise<{ re
                 ...(measure.flat && view === "3d" ? { shadowPlaneAt: shadowPlaneOf(id, measure) } : {}),
                 // the convex hull of a concave shape hides its sharp corners
                 sharpestCorner: CONCAVE.has(c.settings.shape) ? Number.NaN : sharpestCornerOf(hull),
+                fillHull: hull,
+                // a solid in 3D keeps its plain fill, its ring drawn over its edge: the fill mesh is the outline
+                ...(!measure.flat && view === "3d" && !CONCAVE.has(c.settings.shape) ? { outlineHull: hull } : {}),
             },
             override,
         );

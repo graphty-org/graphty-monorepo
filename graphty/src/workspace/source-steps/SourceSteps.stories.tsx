@@ -194,7 +194,7 @@ export const PickFields: Story = {
         await staged(context, "entries.csv", ENTRIES);
         const modal = await pickBadge(context, "entries");
         await within(modal).findByRole("grid", { name: "people" });
-        await within(modal).findByRole("radiogroup", { name: "Join as" });
+        await within(modal).findByRole("radiogroup", { name: "Join type" });
     },
 };
 
@@ -210,7 +210,7 @@ export const PreviewValuesDiffer: Story = {
     },
 };
 
-/** After a join is committed, the workspace lists it, one line, and its card reads back as it was made. */
+/** After a join is committed, the workspace shows it as a card, which reads back as it was made. */
 export const AfterCommitSteps: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
@@ -225,7 +225,10 @@ export const AfterCommitSteps: Story = {
             }
         });
         modal = await openJoin(context);
-        await userEvent.click(await within(modal).findByRole("gridcell", { name: "people + entries" }));
+        const fold = within(modal).queryByRole("button", { name: "Expand people + entries" });
+        if (fold !== null) {
+            await userEvent.click(fold);
+        }
         await within(modal).findByRole("radio", { checked: true, name: ENTRY_NODES });
         await session.styles.settled();
         // The clicked card's focus ring is a rounded outline: drawn as part of a partial repaint, its
@@ -253,13 +256,47 @@ export const JoinWorkspace: Story = {
     },
 };
 
-/** A new card: two blank pickers over the graph as it is. */
+/** A join renamed from its card's menu (#10394): the card reads the reader's name, the header stays Join. */
+export const JoinWorkspaceRenamed: Story = {
+    ...freshStore(DOORS),
+    play: async (context) => {
+        const session = await staged(context, "entries.csv", ENTRIES);
+        const modal = await pickBadge(context, "entries");
+        await joinAs(modal, ENTRY_NODES);
+        await userEvent.click(await within(modal).findByRole("button", { name: "More for people + entries" }));
+        await userEvent.click(await within(document.body).findByRole("menuitem", { name: /^Rename/ }));
+        const box = await within(modal).findByRole("textbox", { name: "Rename people + entries" });
+        await userEvent.clear(box);
+        await userEvent.type(box, "Badge entries{Enter}");
+        await within(modal).findByRole("region", { name: "Badge entries" });
+        await session.styles.settled();
+    },
+};
+
+/** "Only entries" picked under the preview (#10394): the entries' table alone, people's not drawn. */
+export const JoinWorkspaceOnlyOneTable: Story = {
+    ...freshStore(DOORS),
+    play: async (context) => {
+        const session = await staged(context, "entries.csv", ENTRIES);
+        const modal = await pickBadge(context, "entries");
+        await joinAs(modal, ENTRY_NODES);
+        const shown = await within(modal).findByRole("radiogroup", { name: "Rows shown" });
+        await userEvent.click(within(shown).getByText("Only entries"));
+        await waitFor(async () => {
+            await expect(within(modal).queryByRole("grid", { name: "people" })).toBeNull();
+        });
+        await within(modal).findByRole("grid", { name: "entries" });
+        await session.styles.settled();
+    },
+};
+
+/** A new card, colored as a selection card is: two blank pickers inside it, over the graph as it is. */
 export const JoinWorkspaceBlank: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         const session = await staged(context, "entries.csv", ENTRIES);
         const modal = await openJoin(context);
-        await within(modal).findByRole("gridcell", { name: "New join" });
+        await within(modal).findByRole("region", { name: "New join" });
         await expect(within(modal).queryByRole("grid", { name: "people" })).toBeNull();
         await session.styles.settled();
     },
@@ -281,7 +318,7 @@ export const JoinWorkspaceTables: Story = {
     },
 };
 
-/** Fields picked: what the matches can make, in words that say what appears, none picked. */
+/** Fields picked: what the matches can make, in words that say what appears, one that adds edges picked at once. */
 export const JoinWorkspaceEachRowBecomes: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
@@ -289,8 +326,8 @@ export const JoinWorkspaceEachRowBecomes: Story = {
         await staged(context, "entries.csv", ENTRIES, false);
         const modal = await pickBadge(context, "entries");
         await addMatch(modal, ["entries", "door"], ["doors", "door"]);
-        const ways = await within(modal).findByRole("radiogroup", { name: "Join as" });
-        await expect(within(ways).queryByRole("radio", { checked: true })).toBeNull();
+        const ways = await within(modal).findByRole("radiogroup", { name: "Join type" });
+        await within(ways).findByRole("radio", { checked: true });
     },
 };
 
@@ -359,7 +396,7 @@ export const JoinWorkspaceSharedValue: Story = {
     },
 };
 
-/** Several joins, one line each, with a source added as it is. */
+/** Several joins, one colored card each, with a source added as it is. */
 export const JoinList: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
@@ -372,9 +409,9 @@ export const JoinList: Story = {
         await match(modal, ["people", "badge"], ["entries", "badge"]);
         await joinAs(modal, ENTRY_NODES);
         await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
-        const list = await within(modal).findByRole("grid", { name: "Joins" });
+        const cards = await within(modal).findByRole("group", { name: "Joins" });
         await waitFor(async () => {
-            await expect(within(list).getAllByRole("row")).toHaveLength(3);
+            await expect(cards.querySelectorAll("[data-card-id]")).toHaveLength(3);
         });
         await session.styles.settled();
     },
@@ -399,7 +436,7 @@ export const JoinSidebarList: Story = {
     },
 };
 
-/** Adding a staged source as it is: the workspace lists it, one line. */
+/** Adding a staged source as it is: the workspace shows it as a card of its own. */
 export const JoinWorkspaceAddStaged: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
@@ -407,7 +444,7 @@ export const JoinWorkspaceAddStaged: Story = {
         const modal = await openJoin(context);
         await choose(modal, "Source 1", "doors");
         await userEvent.click(await within(modal).findByRole("button", { name: "Add as is" }));
-        await within(modal).findByRole("gridcell", { name: "doors, added" });
+        await within(modal).findByRole("region", { name: "doors, added" });
         await session.styles.settled();
     },
 };

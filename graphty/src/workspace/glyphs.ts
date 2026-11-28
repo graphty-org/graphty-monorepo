@@ -46,6 +46,7 @@ import {
     Database,
     Disc,
     EqualApproximately,
+    Eraser,
     Eye,
     EyeOff,
     FilePlus,
@@ -302,6 +303,8 @@ export const GLYPHS = {
     remove: Minus,
     // Delete a thing for good (a note).
     delete: Trash2,
+    // Empty a whole list at once (every join card), apart from deleting one thing.
+    clear: Eraser,
     link: Link2,
     // Take a property off the value it varies by, keeping one value.
     unlink: Unlink2,

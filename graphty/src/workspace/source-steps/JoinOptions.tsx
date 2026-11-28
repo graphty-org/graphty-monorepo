@@ -12,8 +12,15 @@ import { Group, MultiSelect, Text, UnstyledButton } from "@mantine/core";
 import React from "react";
 
 import { directions, NO_MATCH_WORDS, sameEnds } from "./cardWords";
-import { edgeTypeChoices } from "./join";
-import { type CardLine, type CardResult, DEFAULT_RESULT, directionOf, noMatchOf, noMatchWays } from "./joinCards";
+import {
+    type CardLine,
+    type CardResult,
+    DEFAULT_RESULT,
+    directionOf,
+    type NoMatch,
+    noMatchOf,
+    noMatchWays,
+} from "./joinCards";
 import { Pick } from "./Pick";
 import {
     BUCKET_WORDS,
@@ -22,6 +29,7 @@ import {
     counted,
     JOIN_WORDS,
     OVER_CAP_WORDS,
+    SKIPPED_WORDS,
     WORKSPACE_WORDS,
 } from "./words";
 import { DifferRow, ReduceRow } from "./WorkspaceParts";
@@ -36,7 +44,7 @@ import { DifferRow, ReduceRow } from "./WorkspaceParts";
 export function Row({ label, children }: Readonly<{ label: string; children: React.ReactNode }>): React.JSX.Element {
     return (
         <div className="jw-row">
-            <Text size="xs" truncate>
+            <Text size="xs" truncate title={label}>
                 {label}
             </Text>
             <div className="jw-row-controls">{children}</div>
@@ -67,7 +75,7 @@ function Choice<T extends string>({
     return (
         <Row label={label}>
             <SegmentedControl
-                size="xs"
+                fullWidth
                 aria-label={label}
                 value={value}
                 data={data.map((each) => ({ ...each }))}
@@ -235,10 +243,10 @@ function takesSeveral(step: SourceStepRow): boolean {
     return (step.buckets?.groups[0] ?? 0) > 2;
 }
 
-/** Whether a value naming nothing makes a node. */
+/** Whether a value naming nothing makes a node: the way that makes one first, as in every row. */
 const MISSING = [
-    { value: "skip", label: WORKSPACE_WORDS.skip },
-    { value: "add", label: WORKSPACE_WORDS.add },
+    { value: "add", label: WORKSPACE_WORDS.addNode },
+    { value: "skip", label: WORKSPACE_WORDS.skipEdge },
 ] as const;
 
 /** What a card's options take. */
@@ -484,10 +492,12 @@ function edgeOptions(props: OptionProps, edgeType: AdvancedRow, newType: Advance
             />
         </Row>
     );
+    // Unmatched rows stays asked under Add node: a row whose cell is empty, or names several nodes while
+    // Several match skips, still reaches no node, so a node is still kept or left out for it.
     const missing = (
         <Choice
             key="missing"
-            label={WORKSPACE_WORDS.missing}
+            label={WORKSPACE_WORDS.missingEnd}
             value={result.missing}
             data={MISSING}
             onChange={(next) => {
@@ -515,19 +525,32 @@ function edgeOptions(props: OptionProps, edgeType: AdvancedRow, newType: Advance
                         }}
                     />
                 ) : null}
+                {isEdge ? null : missing}
                 {meets ? existing : null}
                 {turns ? direction : null}
             </>
         ),
         advanced: [
             ...(isEdge && !meets ? [{ row: existing, set: result.existing !== DEFAULT_RESULT.existing }] : []),
-            ...(isEdge ? [] : [{ row: missing, set: result.missing !== DEFAULT_RESULT.missing }]),
             ...(turns ? [] : [{ row: direction, set: directionOf(outcome, result) !== "into-from" }]),
             edgeType,
             // Named after its column until the reader names it.
             ...(makesEnd ? [{ ...newType, set: newType.set && result.type !== outcome.fields.at(0) }] : []),
         ],
     };
+}
+
+/**
+ * A way of Unmatched rows, as its choice names it. Where Missing end is asked beside it, the row is kept,
+ * never "added": Missing end's Add node makes the node a row names, and the two must not read alike.
+ * @param outcome - the card's join type
+ * @param way - the way
+ * @returns its label
+ */
+function noMatchLabel(outcome: SourceJoinOutcome, way: NoMatch): string {
+    return way === "add" && (outcome.code === "link" || outcome.code === "middle")
+        ? WORKSPACE_WORDS.keepRow
+        : NO_MATCH_WORDS[way];
 }
 
 /**
@@ -538,13 +561,15 @@ function edgeOptions(props: OptionProps, edgeType: AdvancedRow, newType: Advance
  */
 export function Options(props: OptionProps): React.JSX.Element {
     const { session, outcome, result, several, onSet } = props;
+    const typesOf = (kind: "node" | "edge"): { value: string }[] =>
+        session.data.types().flatMap((type) => (type.kind === kind ? [{ value: type.name }] : []));
     const edgeType: AdvancedRow = {
         set: result.edgeType !== "",
         row: (
             <NameRow
                 key="edgeType"
                 label={JOIN_WORDS.edgeType}
-                options={edgeTypeChoices(session)}
+                options={typesOf("edge")}
                 value={result.edgeType}
                 onChange={(next) => {
                     onSet({ edgeType: next });
@@ -558,7 +583,7 @@ export function Options(props: OptionProps): React.JSX.Element {
             <NameRow
                 key="type"
                 label={WORKSPACE_WORDS.newType}
-                options={session.data.types().flatMap((type) => (type.kind === "node" ? [{ value: type.name }] : []))}
+                options={typesOf("node")}
                 value={result.type}
                 onChange={(type) => {
                     onSet({ type });
@@ -606,10 +631,15 @@ export function Options(props: OptionProps): React.JSX.Element {
     return (
         <>
             {ways === null ? null : (
-                <Choice
-                    label={WORKSPACE_WORDS.noMatch}
+                <Choice<NoMatch>
+                    // An edge's rows are the edges: what it asks is whether a missing end makes a node.
+                    label={outcome.code === "edge" ? WORKSPACE_WORDS.missingEnd : WORKSPACE_WORDS.unmatchedRows}
                     value={noMatchOf(outcome, result) ?? ways[0]}
-                    data={ways.map((way) => ({ value: way, label: NO_MATCH_WORDS[way] }))}
+                    data={
+                        outcome.code === "edge"
+                            ? MISSING
+                            : ways.map((way) => ({ value: way, label: noMatchLabel(outcome, way) }))
+                    }
                     onChange={(noMatch) => {
                         onSet({ noMatch });
                     }}
@@ -644,21 +674,54 @@ const EFFECT_WORDS: Readonly<Record<string, BucketWords>> = {
 };
 
 /**
+ * A card's words for its counts, with the rows that reach no node said skipped where Unmatched rows skips them:
+ * rows that are nodes (a connect with no other end, or one that keeps its row). A missing end that makes a node
+ * reaches it. Remove node is not said of the rows: a row's node another source holds stays, so the nodes it
+ * takes out are counted apart, by the element, as the key counts them.
+ * @param step - the card's step
+ * @param noMatch - what Unmatched rows does, or null where it is not asked
+ * @param words - the step's words
+ * @returns the words
+ */
+function leftOutWords(
+    step: SourceStepRow,
+    noMatch: NoMatch | null,
+    words: readonly BucketWords[],
+): readonly BucketWords[] {
+    const { act } = step;
+    if (noMatch !== "skip" || act?.act !== "connect" || (act.to !== undefined && act.to.keepRow !== true)) {
+        return words;
+    }
+    return words.map((each) => {
+        if (each.id === "emptyKey" || (each.id === "unmatched" && act.unmatched !== "add")) {
+            return { ...SKIPPED_WORDS[each.id], id: each.id };
+        }
+        return each;
+    });
+}
+
+/**
  * A card's counts, each a button that lists what it counts in the table. What the join does to the graph is
  * counted over the card's whole join, every step it wrote and the sources it added for itself, so it agrees
  * with the key; a count no one step lists is not a button.
  * @param props - Component props
  * @param props.step - the card's step
+ * @param props.outcome - the card's join type, if it has one
+ * @param props.result - the card's options, which say what becomes of the rows that reach no node
  * @param props.reach - what the card's whole join does; null once the draft is closed
  * @param props.onShow - lists one count's rows
  * @returns the counts
  */
 export function StepCounts({
     step,
+    outcome,
+    result,
     reach,
     onShow,
 }: Readonly<{
     step: SourceStepRow;
+    outcome: SourceJoinOutcome | undefined;
+    result: CardResult;
     reach: SourceDraftMadeCounts | null;
     onShow: (bucket: string) => void;
 }>): React.JSX.Element | null {
@@ -666,9 +729,10 @@ export function StepCounts({
     if (buckets === null) {
         return null;
     }
+    const noMatch = outcome === undefined ? null : noMatchOf(outcome, result);
     const links = step.link?.nodes === undefined ? "links" : "nodeLinks";
     const made = step.link === null ? "edge" : links;
-    const words = BUCKET_WORDS[step.op === "join.merge" ? "merge" : made];
+    const words = leftOutWords(step, noMatch, BUCKET_WORDS[step.op === "join.merge" ? "merge" : made]);
     const effectOf = (id: string): (typeof EFFECTS)[number] | undefined =>
         EFFECTS.find(([, , ids]) => ids.includes(id));
     const show = (id: string, text: string): React.JSX.Element => (
@@ -694,9 +758,11 @@ export function StepCounts({
     };
     const listed = new Set(words.map((each) => effectOf(each.id)));
     const more = EFFECTS.flatMap((effect) => (listed.has(effect) ? [] : [EFFECT_WORDS[`${effect[0]}.${effect[1]}`]]));
+    const removed = reach?.nodes.removed ?? 0;
     return (
         <Group gap={12} wrap="wrap" className="jw-counts">
             {[...words, ...more].map((each) => item(each))}
+            {removed === 0 ? null : <span key="removed">{counted(removed, WORKSPACE_WORDS.nodesRemoved)}</span>}
             {step.link === null || buckets.hub.length === 0
                 ? null
                 : show("hub", counted(buckets.hub.length, OVER_CAP_WORDS))}

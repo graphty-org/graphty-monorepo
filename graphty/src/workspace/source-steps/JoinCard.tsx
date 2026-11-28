@@ -10,7 +10,6 @@ import { ActionIcon, Button, Group, Radio, Stack, Switch, Text } from "@mantine/
 import React, { useId } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { ariaKey } from "../keys/keys";
 import { factWords, matchWords, outcomeWords, type SideChoices, sideName, type SourceNames } from "./cardWords";
 import {
     BLANK_LINE,
@@ -34,8 +33,6 @@ import {
     wholeLines,
 } from "./joinCards";
 import { Options, Row, StepCounts } from "./JoinOptions";
-import { DELETE_KEY } from "./keys";
-import { KeyWords } from "./KeyWords";
 import { Pick, type PickChoice, type PickGroup } from "./Pick";
 import { JOIN_WORDS, moreWords, WORKSPACE_WORDS } from "./words";
 import { cardReach } from "./workspaceCards";
@@ -247,16 +244,15 @@ function Line(
     return (
         <fieldset
             className="ss-field jw-line"
+            data-removable={at === 0 ? undefined : ""}
             aria-label={`${WORKSPACE_WORDS.match} ${String(at + 1)}`}
             onFocusCapture={onFocus}
         >
             <SidePick {...props} end="a" />
             <span />
             <SidePick {...props} end="b" />
-            {/* The first match keeps the remove column empty, so every match's "=" lines up. */}
-            {at === 0 ? (
-                <span />
-            ) : (
+            {/* The first match has no remove column: its pickers fill the card's width, as a selection card's do. */}
+            {at === 0 ? null : (
                 <ActionIcon
                     size="xs"
                     variant="subtle"
@@ -282,10 +278,11 @@ function Line(
                     ) : (
                         <FieldPick {...props} end="b" />
                     )}
-                    <span />
+                    {at === 0 ? null : <span />}
                 </>
             ) : null}
-            {counts === null ? null : (
+            {/* The first match is counted in the card's header: a later one counts its own rows here. */}
+            {counts === null || at === 0 ? null : (
                 <Text
                     size="xs"
                     className="jw-line-count"
@@ -366,8 +363,6 @@ interface JoinCardBodyProps {
     readonly outcomes: readonly SourceJoinOutcome[];
     /** Each line's likeliest fields. */
     readonly suggestions: readonly (Suggestion | null)[];
-    /** Whether it can be removed: not the one blank card there is. */
-    readonly removable: boolean;
     readonly error: string | undefined;
     /** What can be done with the rows picked in the table, while it lists the card's. */
     readonly tableActions: React.ReactNode;
@@ -383,14 +378,13 @@ interface JoinCardBodyProps {
     readonly onLine: (at: number) => void;
     readonly onShowCells: (step: number, column: string) => void;
     readonly onShowRows: (step: number, bucket: string) => void;
-    readonly onRemove: () => void;
 }
 
 /**
- * The editor of a selected card: its sources, then a field of each, then how to join them, and, once one
- * way is picked, that way's options and counts.
+ * The body of the open card, as a selection card's steps are drawn: its matches, then how to join them
+ * (the join type) with that way's options, then its counts, then how a waiting source's rows are read.
  * @param props - Component props
- * @returns the editor
+ * @returns the body
  */
 export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
     const { session, draft, names, card, choices, outcomes, suggestions, error, onLines } = props;
@@ -406,126 +400,139 @@ export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
     const worded = (outcome: SourceJoinOutcome): CardResult =>
         outcome === current ? result : { ...DEFAULT_RESULT, ...card.chosen };
     return (
-        <Stack gap={8} className="jw-card" data-join-editor={card.id}>
-            {lines.map((_line, at) => (
-                <Line
-                    // eslint-disable-next-line react/no-array-index-key -- a line is its place: two can be alike
-                    key={at}
-                    session={session}
-                    draft={draft}
-                    names={names}
-                    card={card}
-                    at={at}
-                    choices={choices}
-                    suggestion={suggestions.at(at) ?? null}
-                    counts={counts[at]}
-                    onLines={onLines}
-                    onFocus={() => {
-                        props.onLine(at);
-                    }}
-                />
-            ))}
-            {props.addAsIs}
-            {whole.length === 0 ? null : (
-                <>
-                    <IgnoreSwitches more={switchesOf(counts)} on={card} always={shared} onIgnore={props.onIgnore} />
-                    <Group>
-                        <Button
-                            size="compact-xs"
-                            variant="subtle"
-                            disabled={lines.some((line) => matchOf(line) === null)}
-                            onClick={() => {
-                                onLines([...lines, BLANK_LINE], false);
+        <div data-join-editor={card.id}>
+            <div className="sel-card-step">
+                <Stack gap={8}>
+                    {lines.map((_line, at) => (
+                        <Line
+                            // eslint-disable-next-line react/no-array-index-key -- a line is its place: two can be alike
+                            key={at}
+                            session={session}
+                            draft={draft}
+                            names={names}
+                            card={card}
+                            at={at}
+                            choices={choices}
+                            suggestion={suggestions.at(at) ?? null}
+                            counts={counts[at]}
+                            onLines={onLines}
+                            onFocus={() => {
+                                props.onLine(at);
+                            }}
+                        />
+                    ))}
+                    {props.addAsIs}
+                    {whole.length === 0 ? null : (
+                        <>
+                            <IgnoreSwitches
+                                more={switchesOf(counts)}
+                                on={card}
+                                always={shared}
+                                onIgnore={props.onIgnore}
+                            />
+                            <Group>
+                                <Button
+                                    size="compact-xs"
+                                    variant="subtle"
+                                    className="jw-add-match"
+                                    disabled={lines.some((line) => matchOf(line) === null)}
+                                    onClick={() => {
+                                        onLines([...lines, BLANK_LINE], false);
+                                    }}
+                                >
+                                    {`+ ${WORKSPACE_WORDS.match}`}
+                                </Button>
+                            </Group>
+                        </>
+                    )}
+                </Stack>
+            </div>
+            {outcomes.length === 0 ? (
+                // The join type is named from the start, as the selection card names its Start with: its
+                // choices come once both fields of a match are picked.
+                <div className="sel-card-step">
+                    <Pick
+                        name={WORKSPACE_WORDS.joinAs}
+                        placeholder={WORKSPACE_WORDS.joinAs}
+                        data={[]}
+                        value={null}
+                        disabled
+                        onPick={() => undefined}
+                    />
+                </div>
+            ) : (
+                <div className="sel-card-step">
+                    <Stack gap={8}>
+                        <Radio.Group
+                            name={group}
+                            size="xs"
+                            label={WORKSPACE_WORDS.joinAs}
+                            value={current === undefined ? null : outcomeKey(current)}
+                            onChange={(value) => {
+                                const next = outcomes.find((each) => outcomeKey(each) === value);
+                                if (next !== undefined) {
+                                    props.onOutcome(next);
+                                }
                             }}
                         >
-                            {`+ ${WORKSPACE_WORDS.match}`}
-                        </Button>
-                    </Group>
-                </>
-            )}
-            {props.readSettings}
-            {outcomes.length === 0 ? null : (
-                <Radio.Group
-                    name={group}
-                    size="xs"
-                    label={WORKSPACE_WORDS.joinAs}
-                    value={current === undefined ? null : outcomeKey(current)}
-                    onChange={(value) => {
-                        const next = outcomes.find((each) => outcomeKey(each) === value);
-                        if (next !== undefined) {
-                            props.onOutcome(next);
-                        }
-                    }}
-                >
-                    <Stack gap={4} mt={4}>
-                        {outcomes.map((each) => (
-                            <Radio
-                                key={outcomeKey(each)}
-                                size="xs"
-                                value={outcomeKey(each)}
-                                disabled={each.current !== true && each.matched.includes(0)}
-                                label={outcomeWords(each, { name, lines, result: worded(each) })}
+                            <Stack gap={4} mt={4}>
+                                {outcomes.map((each) => (
+                                    <Radio
+                                        key={outcomeKey(each)}
+                                        size="xs"
+                                        value={outcomeKey(each)}
+                                        disabled={each.current !== true && each.matched.includes(0)}
+                                        label={outcomeWords(each, { name, lines, result: worded(each) })}
+                                    />
+                                ))}
+                            </Stack>
+                        </Radio.Group>
+                        {step === null || current === undefined ? null : (
+                            <Options
+                                session={session}
+                                draft={draft}
+                                step={step}
+                                steps={card.steps}
+                                lines={lines}
+                                outcome={current}
+                                result={result}
+                                several={namesSeveral(draft, step)}
+                                name={name}
+                                onSet={(patch) => {
+                                    props.onSet(current, patch);
+                                }}
+                                onPatch={props.onPatch}
+                                onShowCells={props.onShowCells}
                             />
-                        ))}
+                        )}
+                        {/* What this join type makes, under it in the same step: never a footer of its own. */}
+                        {step === null ? null : (
+                            <StepCounts
+                                step={step}
+                                outcome={current}
+                                result={result}
+                                reach={cardReach(draft, card.steps)}
+                                onShow={(bucket) => {
+                                    props.onShowRows(step.index, bucket);
+                                }}
+                            />
+                        )}
                     </Stack>
-                </Radio.Group>
+                </div>
             )}
-            {step === null || current === undefined ? null : (
-                <Options
-                    session={session}
-                    draft={draft}
-                    step={step}
-                    steps={card.steps}
-                    lines={lines}
-                    outcome={current}
-                    result={result}
-                    several={namesSeveral(draft, step)}
-                    name={name}
-                    onSet={(patch) => {
-                        props.onSet(current, patch);
-                    }}
-                    onPatch={props.onPatch}
-                    onShowCells={props.onShowCells}
-                />
+            {error === undefined && props.tableActions === null ? null : (
+                <div className="sel-card-step">
+                    <Stack gap={8}>
+                        {error === undefined ? null : (
+                            <Text size="xs" c="red" role="alert">
+                                {error}
+                            </Text>
+                        )}
+                        {props.tableActions}
+                    </Stack>
+                </div>
             )}
-            {error === undefined ? null : (
-                <Text size="xs" c="red" role="alert">
-                    {error}
-                </Text>
-            )}
-            {step === null ? null : (
-                <StepCounts
-                    step={step}
-                    reach={cardReach(draft, card.steps)}
-                    onShow={(bucket) => {
-                        props.onShowRows(step.index, bucket);
-                    }}
-                />
-            )}
-            {props.tableActions}
-            {props.removable ? <RemoveButton onRemove={props.onRemove} /> : null}
-        </Stack>
-    );
-}
-
-/**
- * Removes the selected card.
- * @param props - Component props
- * @param props.onRemove - removes it
- * @returns the button
- */
-export function RemoveButton({ onRemove }: Readonly<{ onRemove: () => void }>): React.JSX.Element {
-    return (
-        <Group>
-            <Button
-                size="compact-xs"
-                variant="subtle"
-                aria-keyshortcuts={ariaKey(DELETE_KEY)}
-                rightSection={<KeyWords combo={DELETE_KEY} />}
-                onClick={onRemove}
-            >
-                {WORKSPACE_WORDS.remove}
-            </Button>
-        </Group>
+            {props.readSettings === null ? null : <div className="sel-card-step">{props.readSettings}</div>}
+        </div>
     );
 }

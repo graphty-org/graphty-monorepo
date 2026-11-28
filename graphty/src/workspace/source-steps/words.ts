@@ -38,6 +38,8 @@ export const STAGED_WORDS = {
     to: "To",
     meets: "meets",
     add: "Add",
+    /** A waiting source's menu item that draws it as its own nodes. */
+    addToGraph: "Add to graph",
     remove: "Remove",
     merge: "Merge",
     separate: "Keep separate",
@@ -126,7 +128,9 @@ export const WORKSPACE_WORDS = {
     repeats: "repeats",
     unique: "unique",
     empty: "empty",
-    joinAs: "Join as",
+    joinAs: "Join type",
+    /** A card whose join type is not picked yet. */
+    notJoined: "Not joined",
     advanced: "Advanced",
     all: "All",
     only: (name: string) => `Only ${name}`,
@@ -136,8 +140,17 @@ export const WORKSPACE_WORDS = {
     manyRows: "Rows per node",
     manyRowsByField: "Rows per node, by field",
     clash: "Both have",
-    noMatch: "No match",
-    missing: "Missing end",
+    // Rows that match nothing: what becomes of them.
+    unmatchedRows: "Unmatched rows",
+    // A value naming no node: whether a node is made for it.
+    missingEnd: "Missing end",
+    // The ways of those two rows, the one that makes or keeps a node first.
+    addNode: "Add node",
+    skipRow: "Skip row",
+    keepRow: "Keep row",
+    keepNode: "Keep node",
+    removeNode: "Remove node",
+    skipEdge: "Skip edge",
     severalMatch: "Several match",
     each: "Each",
     add: "Add",
@@ -149,17 +162,20 @@ export const WORKSPACE_WORDS = {
     edges: "Edges",
     perRow: "Per row",
     perPair: "Per pair",
-    untouched: "nodes with no match",
-    nodesMerged: "nodes merged",
+    untouched: { one: "unmatched node", many: "unmatched nodes" },
+    nodesMerged: { one: "merged node", many: "merged nodes" },
     /** The rings the preview draws wider than the merged ring, by the kind graphty-element tells. */
-    rings: { mergedAgain: "nodes merged again", focus: "nodes every step merges" },
-    nodesNew: "nodes new",
-    edgesNew: "edges new",
-    nodesChanged: "nodes changed",
-    nodesRemoved: "nodes removed",
-    edgesChanged: "edges changed",
-    edgesRemoved: "edges removed",
-    edgesMerged: "edges merged",
+    rings: {
+        mergedAgain: { one: "node merged again", many: "nodes merged again" },
+        focus: { one: "node every step merges", many: "nodes every step merges" },
+    },
+    nodesNew: { one: "new node", many: "new nodes" },
+    edgesNew: { one: "new edge", many: "new edges" },
+    nodesChanged: { one: "changed node", many: "changed nodes" },
+    nodesRemoved: { one: "removed node", many: "removed nodes" },
+    edgesChanged: { one: "changed edge", many: "changed edges" },
+    edgesRemoved: { one: "removed edge", many: "removed edges" },
+    edgesMerged: { one: "merged edge", many: "merged edges" },
     removedSource: "removed source",
     cardColors: "Card colors",
     styled: "Styled",
@@ -168,10 +184,29 @@ export const WORKSPACE_WORDS = {
     done: "Done",
     undo: "Undo",
     redo: "Redo",
+    nothingToUndo: "Nothing to undo",
+    nothingToRedo: "Nothing to redo",
     unfinished: "Unfinished",
     unanswered: "Question unanswered",
-    frame: "Frame",
+    frameMatches: "Frame the matches",
+    /** Said of the rows read: "1 of 1 row matched", "2 of 3 rows matched". */
+    rowsMatched: { one: "row matched", many: "rows matched" },
+    /** The rename box of a join in the Data panel's list. */
+    joinName: "Join name",
+    /** What the preview's two looks and its two sides show, on hover. */
+    cardColorsTip: "Card colors: each join's nodes and edges in its card's color. Styled: the graph's own style.",
+    sideTip: "Before: the graph as it is. After: the graph with these joins applied.",
+    /** What Join does, on hover of the sidebar's Join +. */
+    openTip: "Join loaded sources: match a field of one to a field of another to connect or merge their rows",
     remove: "Remove",
+    hideTable: "Hide table",
+    showTable: "Show table",
+    clear: "Clear",
+    cleared: "Cleared",
+    /** Said when the cards cleared had written nothing, so Undo cannot bring them back. */
+    clearedForGood: "Cleared, cannot be undone",
+    noCards: "No joins",
+    off: "Off",
     rows: "Rows",
     drawing: "Drawing",
     committed: "Joined",
@@ -322,8 +357,8 @@ export const BUCKET_WORDS: Readonly<Record<"merge" | "edge" | "links" | "nodeLin
         { id: "typeDiffers", one: "type differs", many: "types differ" },
         { id: "namedOnly", one: "named only", many: "named only" },
     ],
+    // The rows matched are counted once, in the card's header.
     edge: [
-        { id: "matched", one: "row matched", many: "rows matched" },
         { id: "unmatched", one: "row unmatched", many: "rows unmatched" },
         { id: "emptyKey", one: "empty row", many: "empty rows" },
         { id: "newNodes", one: "new node", many: "new nodes" },
@@ -369,6 +404,12 @@ export function bucketCount(buckets: SourceStepCounts, id: SourceStepNumberBucke
 export function counted(count: number, words: { readonly one: string; readonly many: string }): string {
     return `${formatNumber(count)} ${count === 1 ? words.one : words.many}`;
 }
+
+/** A card's rows that reach no node, when Unmatched rows skips them. */
+export const SKIPPED_WORDS: Readonly<Record<"unmatched" | "emptyKey", Omit<BucketWords, "id">>> = {
+    unmatched: { one: "unmatched row skipped", many: "unmatched rows skipped" },
+    emptyKey: { one: "empty row skipped", many: "empty rows skipped" },
+};
 
 /** The values of a link too many nodes hold, as a card lists them. */
 export const OVER_CAP_WORDS = { one: "value over the cap", many: "values over the cap" } as const;

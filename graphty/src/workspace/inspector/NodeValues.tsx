@@ -19,7 +19,7 @@ import { orNotice } from "../graph-place/actions";
 import { useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { edgeEnds } from "../table/columns";
+import { edgeEnds, type RecordKind, typeValue } from "../table/columns";
 import { timeValue } from "../time/timeActions";
 import { useAsyncValue } from "./hooks";
 import { groupInspected, neighborhoodKey, nodeKey } from "./inspected";
@@ -185,6 +185,7 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                     role="group"
                     aria-label="Summary values"
                 >
+                    <TypeRow session={session} kind="node" id={id} />
                     <AttributeRows rows={fileAttributes(session, "node", session.data.node(id))} />
                     {/* The row changes the selection, so it says so: in a tooltip for the pointer
                         and as its description for a screen reader; the command says the change. */}
@@ -608,6 +609,7 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
                         selectNode(session, edge.target);
                     }}
                 />
+                <TypeRow session={session} kind="edge" id={id} />
                 <AttributeRows rows={fileAttributes(session, "edge", edge)} />
             </ControlSection>
             {results.length > 0 && (
@@ -619,6 +621,27 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
             )}
         </>
     );
+}
+
+/**
+ * The type a join or an import gave a node or an edge, named as the Table's column of types is.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.kind - nodes or edges
+ * @param props.id - the node or edge
+ * @returns the row, as the other stat rows are, "No value" for a record with no type; nothing while the graph's
+ * records of its kind have no types
+ */
+function TypeRow({
+    session,
+    kind,
+    id,
+}: Readonly<{ session: GraphSession; kind: RecordKind; id: NodeId }>): React.JSX.Element | null {
+    const value = typeValue(session, kind);
+    if (value === undefined) {
+        return null;
+    }
+    return <DataRow stat name={value.plainName} value={session.data.typeOf(kind, id) ?? NO_VALUE} />;
 }
 
 /** How many selected edges the list names before "N more edges". */

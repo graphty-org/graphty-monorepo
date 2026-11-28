@@ -175,49 +175,72 @@ function firstField(session: GraphSession, lines: readonly CardLine[]): string |
     return fields.find((field) => field !== null) ?? null;
 }
 
+/** What a card is named by: the name the reader gave its join, else its lines. */
+export interface CardNaming {
+    readonly lines: readonly CardLine[];
+    readonly name?: string;
+}
+
 /**
- * The cards' lines in the list; cards that would read the same add their first field.
+ * The cards' lines in the list: the name the reader gave a join, else the words of its lines; cards that
+ * would read the same add their first field.
  * @param session - the element's session
  * @param names - the sources' names
- * @param all - each card's lines
+ * @param all - what each card is named by
  * @returns the words, in the order of the cards
  */
-export function rowNames(
-    session: GraphSession,
-    names: SourceNames,
-    all: readonly (readonly CardLine[])[],
-): readonly string[] {
-    const read = all.map((lines) => rowName(session, names, lines));
+export function rowNames(session: GraphSession, names: SourceNames, all: readonly CardNaming[]): readonly string[] {
+    const read = all.map(({ lines }) => rowName(session, names, lines));
     const again = new Set(read.filter((name, at) => read.indexOf(name) !== at));
     return read.map((name, at) => {
-        const field = firstField(session, all[at]);
+        const given = all[at].name;
+        if (given !== undefined) {
+            return given;
+        }
+        const field = firstField(session, all[at].lines);
         return again.has(name) && field !== null && !name.endsWith(`, ${field}`) ? `${name}, ${field}` : name;
     });
 }
 
 /**
- * The lines a card is named by: its own, in the order the reader picked them, else its step's, the
- * earlier loaded source first, as the card reopens on them.
+ * A folded card's line: its matches, each as its two fields.
+ * @param lines - the card's lines
+ * @returns such as "person_id = person_id"
+ */
+export function foldedSummary(lines: readonly CardLine[]): string {
+    return lines
+        .flatMap(({ a, b }) => (a.field !== null && b.field !== null ? [`${a.field} = ${b.field}`] : []))
+        .join(", ");
+}
+
+/**
+ * What a card is named by: the name given its join, and its lines -- its own, in the order the reader
+ * picked them, else its step's, the earlier loaded source first, as the card reopens on them.
  * @param session - the element's session
  * @param steps - the steps it is one of
  * @param card - the card
  * @param card.lines - its lines
  * @param card.step - its step
- * @returns the lines
+ * @param card.name - the name the reader gave it before it wrote a step
+ * @returns its naming
  */
 export function namingLines(
     session: GraphSession,
     steps: readonly SourceStepRow[],
-    card: { readonly lines: readonly CardLine[] | null; readonly step: SourceStepRow | null },
-): readonly CardLine[] {
+    card: { readonly lines: readonly CardLine[] | null; readonly step: SourceStepRow | null; readonly name?: string },
+): CardNaming {
+    // A written card is named by its join alone; the reader's own name is read only before that.
+    const name = card.step === null ? card.name : card.step.join?.name;
+    const named = name === undefined ? {} : { name };
     if (card.lines !== null) {
-        return card.lines;
+        return { lines: card.lines, ...named };
     }
     const place = ({ side }: CardEnd): number => (side === null ? Infinity : loadOrder(session, side));
     const read = card.step === null ? [] : linesNaming(steps, card.step);
-    return read
+    const lines = read
         .map((line) => (place(line.b) < place(line.a) ? { a: line.b, b: line.a } : line))
         .sort((x, y) => place(x.a) - place(y.a));
+    return { lines, ...named };
 }
 
 const or = (words: readonly string[]): string => words.join(" or ");
@@ -311,7 +334,7 @@ function madeWords(outcome: SourceJoinOutcome, w: Wording): string {
 }
 
 /**
- * An outcome as a card's "Join as" lists it: one that uses only some of the card's lines names the field
+ * An outcome as a card's "Join type" lists it: one that uses only some of the card's lines names the field
  * it matches.
  * @param outcome - the outcome
  * @param w - what it is worded by
@@ -363,10 +386,10 @@ export function sameEnds(outcome: SourceJoinOutcome): boolean {
 
 /** What a row matching nothing does, as a card names each way. */
 export const NO_MATCH_WORDS: Readonly<Record<NoMatch, string>> = {
-    add: "Add",
-    skip: "Skip",
-    keep: "Keep",
-    remove: "Remove",
+    add: WORKSPACE_WORDS.addNode,
+    skip: WORKSPACE_WORDS.skipRow,
+    keep: WORKSPACE_WORDS.keepNode,
+    remove: WORKSPACE_WORDS.removeNode,
 };
 
 /**
@@ -401,11 +424,20 @@ export function profileWords(field: SourceSideField, from: string | null): strin
 /**
  * A match's live count, of the rows it reads.
  * @param counts - the element's counts
- * @returns such as "283 of 308 match", or "205 of 308 match, 69 empty"
+ * @returns such as "283 of 308 rows matched", or "205 of 308 rows matched, 69 empty"
  */
 export function matchWords(counts: Pick<SourceMatchCounts, "matchedRows" | "rows" | "emptyRows">): string {
     const empty = counts.emptyRows === 0 ? "" : `, ${formatNumber(counts.emptyRows)} ${WORKSPACE_WORDS.empty}`;
-    return `${formatNumber(counts.matchedRows)} of ${formatNumber(counts.rows)} match${empty}`;
+    return `${formatNumber(counts.matchedRows)} of ${counted(counts.rows, WORKSPACE_WORDS.rowsMatched)}${empty}`;
+}
+
+/**
+ * A match's count as a card's header draws it, short as a Filters card's count: its words are its name.
+ * @param counts - the element's counts
+ * @returns such as "283 of 308"
+ */
+export function matchShort(counts: Pick<SourceMatchCounts, "matchedRows" | "rows">): string {
+    return `${formatNumber(counts.matchedRows)} of ${formatNumber(counts.rows)}`;
 }
 
 /**

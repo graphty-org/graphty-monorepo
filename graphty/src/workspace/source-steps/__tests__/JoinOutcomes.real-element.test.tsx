@@ -15,13 +15,16 @@ import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
+import { WORKSPACE_WORDS } from "../words";
 import {
     addMatch,
     advanced,
+    checkedWay,
     choose,
     done,
     draftOf,
     emptyProject,
+    fromHeadMenu,
     joinAs,
     joinLines,
     joinsOf,
@@ -30,6 +33,7 @@ import {
     pickableWays,
     pickFields,
     pickSources,
+    removeOpen,
     selectJoin,
     waysToJoin,
 } from "./sourceSteps";
@@ -483,14 +487,14 @@ const CASES: readonly Case[] = [
 /**
  * The number the key above the graph gives one of its items.
  * @param modal - the workspace.
- * @param label - the item's label, such as "nodes new".
+ * @param label - the item's label for one and for several, such as "new node" and "new nodes".
  * @returns the number.
  */
-function keyCount(modal: HTMLElement, label: string): number {
+function keyCount(modal: HTMLElement, label: readonly [string, string]): number {
     const item = [...modal.querySelectorAll("[aria-label]")].find((each) =>
-        new RegExp(`^${label} \\d+$`).test(each.getAttribute("aria-label") ?? ""),
+        new RegExp(`^(1 ${label[0]}|\\d+ ${label[1]})$`).test(each.getAttribute("aria-label") ?? ""),
     );
-    return Number(item?.getAttribute("aria-label")?.split(" ").at(-1) ?? 0);
+    return Number(item?.getAttribute("aria-label")?.split(" ").at(0) ?? 0);
 }
 
 /**
@@ -500,13 +504,13 @@ function keyCount(modal: HTMLElement, label: string): number {
 async function countsAgree(modal: HTMLElement): Promise<void> {
     await waitFor(() => {
         const counts = modal.querySelector(".jw-counts")?.textContent ?? "";
-        for (const [label, one, many] of [
-            ["nodes new", "new node", "new nodes"],
-            ["edges new", "new edge", "new edges"],
+        for (const [one, many] of [
+            ["new node", "new nodes"],
+            ["new edge", "new edges"],
         ] as const) {
-            const n = keyCount(modal, label);
+            const n = keyCount(modal, [one, many]);
             const said = counts.match(new RegExp(`(\\d+) (${many}|${one})(?![a-z])`))?.[1];
-            assert.strictEqual(Number(said ?? 0), n, `the card's ${many} and the key's ${label}: ${counts}`);
+            assert.strictEqual(Number(said ?? 0), n, `the card's ${many} and the key's: ${counts}`);
         }
     });
 }
@@ -521,7 +525,9 @@ describe("a join card's ways to join (source-steps)", () => {
             await addMatch(modal, at + 2, a, b);
         }
         assert.deepStrictEqual(waysToJoin(modal), ways);
-        assert.lengthOf(joinsOf(session), 0, "nothing is applied before one is picked");
+        // A complete match joins at once by a default type, which the reader's pick then replaces.
+        const first = checkedWay(modal);
+        assert.strictEqual(joinsOf(session).length > 0, first !== null, "a default type is applied as it is picked");
         await joinAs(modal, pick);
         await waitFor(() => {
             assert.lengthOf(joinsOf(session), steps);
@@ -529,15 +535,15 @@ describe("a join card's ways to join (source-steps)", () => {
         assert.deepStrictEqual(after(session), makes);
         await countsAgree(modal);
         assert.deepStrictEqual(joinLines(modal), lines);
-        // One undo takes the whole card's join back and leaves its lines.
-        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Undo/ }));
+        // Undo takes the card's last write back as one step, and Redo makes the picked join again.
+        const made = JSON.stringify(draftOf(session).steps());
+        await fromHeadMenu(modal, "Undo");
         await waitFor(() => {
-            assert.lengthOf(joinsOf(session), 0);
+            assert.notStrictEqual(JSON.stringify(draftOf(session).steps()), made, "the last write is taken back");
         });
-        assert.deepStrictEqual(waysToJoin(modal), ways, "its lines are there, how to join asked again");
-        assert.isNull(within(modal).queryByRole("radio", { checked: true, name: pick }));
-        await joinAs(modal, pick);
+        await fromHeadMenu(modal, "Redo");
         await waitFor(() => {
+            assert.strictEqual(checkedWay(modal), pick);
             assert.lengthOf(joinsOf(session), steps);
         });
         await done(modal);
@@ -601,7 +607,7 @@ describe("a join card's ways to join (source-steps)", () => {
         });
         assert.include(counts, "nodes matched", "both wait: the entries are new nodes, which the rows matched");
         assert.notInclude(counts, "merged");
-        assert.isNotNull(within(modal).getByLabelText("nodes merged 0"), "none of the graph's nodes is merged");
+        assert.isNull(within(modal).queryByLabelText(/^\d+ nodes merged$/u), "none of the graph's nodes is merged");
     });
 
     it("a set of matches no one join reads lists what each makes by itself, and picking one leaves the others out", async () => {
@@ -632,10 +638,14 @@ describe("a join card's ways to join (source-steps)", () => {
         for (const look of ["Card colors", "Styled"]) {
             await userEvent.click(page.elementLocator(modal).getByText(look, { exact: true }));
             await waitFor(() => {
-                assert.strictEqual(keyCount(modal, "nodes merged"), 3, look);
+                assert.strictEqual(keyCount(modal, ["merged node", "merged nodes"]), 3, look);
                 const wider = ["A1", "A2", "A3"].filter((id) => ring(id) > ring("A2"));
                 assert.deepStrictEqual(wider, ["A1"], `A1 alone rings wider (${look})`);
-                assert.strictEqual(keyCount(modal, "nodes every step merges"), wider.length, `its key row (${look})`);
+                assert.strictEqual(
+                    keyCount(modal, ["node every step merges", "nodes every step merges"]),
+                    wider.length,
+                    `its key row (${look})`,
+                );
             });
         }
     });
@@ -662,10 +672,10 @@ describe("a join card's ways to join (source-steps)", () => {
         await newest(session, (step) => step.act?.into.field === "phone", "on the phones the first card brought");
         assert.strictEqual(after(session)[0], 3);
         await selectJoin(modal, "accounts + identifiers");
-        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Remove/ }));
+        await removeOpen(modal);
         await selectJoin(modal, "accounts + watch");
         await within(modal).findByRole("radio", { checked: true, name: "Fields of watch on accounts" });
-        await within(modal).findByRole("radiogroup", { name: "No match" });
+        await within(modal).findByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows });
         await screen.findByRole("dialog", { name: "Join" });
         await choose(modal, "Source 1", "identifiers");
         assert.lengthOf(joinsOf(session), 0, "its source changed, the card asks again");

@@ -4,9 +4,16 @@
  * and filter readers can name them without loading it.
  */
 
+/**
+ * The path a record's type is read at (an edge type or a node type a join or a load set), as
+ * `data.readableValues()` lists it, so a consumer can find that row without spelling the path.
+ * @experimental source-steps
+ */
+export const TYPE_PATH = "graphty.type";
+
 /** The paths every built element answers, besides its own columns. */
 export const READABLE_PATHS = [
-    "graphty.type",
+    TYPE_PATH,
     "graphty.load",
     "_source.loads",
     "graphty.space",

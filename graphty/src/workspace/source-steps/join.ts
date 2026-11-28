@@ -47,15 +47,3 @@ export function spaceChoices(session: GraphSession): readonly Choice[] {
         return { value: row.space, label: owner === undefined ? row.space : sourceName(owner) };
     });
 }
-
-/**
- * The edge types the element declares, as an Edge type box offers them.
- * @param session - the element's session
- * @returns the choices
- */
-export function edgeTypeChoices(session: GraphSession): { readonly value: string }[] {
-    return session.data
-        .types()
-        .filter((type) => type.kind === "edge")
-        .map((type) => ({ value: type.name }));
-}

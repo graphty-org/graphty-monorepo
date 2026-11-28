@@ -157,12 +157,18 @@ export function markCounts(state: DraftState, marks: DraftMarks): SourceDraftMar
  * the nodes and edges they add, and those they fold rows into. An element a step adds counts as added
  * only when the commit adds it, as `markCounts` counts it: one the graph holds already, a committed join's
  * own included, is not new to the reader.
+ * @param base - The committed value and copies.
  * @param state - The draft.
  * @param marks - What the commit does to each element.
  * @param steps - The steps' places; a place the draft does not hold makes nothing.
  * @returns The counts.
  */
-export function madeCounts(state: DraftState, marks: DraftMarks, steps: readonly number[]): SourceDraftMadeCounts {
+export function madeCounts(
+    base: Omit<DraftState, "owned">,
+    state: DraftState,
+    marks: DraftMarks,
+    steps: readonly number[],
+): SourceDraftMadeCounts {
     const built = buildOf(state.value, state.copies);
     const ids = nodeIdsOf(built);
     const reached = (buckets: readonly string[]): Set<string> => {
@@ -184,8 +190,19 @@ export function madeCounts(state: DraftState, marks: DraftMarks, steps: readonly
     // A node a merge keeps is the one an earlier step made: new only when the commit adds it.
     const made = reached(["newNodes"]);
     const kept = [...reached(["keptNew"])].filter((id) => !made.has(id) && marks.nodes.get(id) === "new");
+    // A node a step took out is one the committed build holds, named by its committed NodeId.
+    const ids0 = nodeIdsOf(buildOf(base.value, base.copies));
+    const removed = new Set<string>();
+    for (const step of new Set(steps)) {
+        for (const id of built.dropped.get(step) ?? []) {
+            const at = String(ids0.get(id));
+            if (marks.nodes.get(at) === "removed") {
+                removed.add(at);
+            }
+        }
+    }
     return {
-        nodes: { new: added(made, marks.nodes) + kept.length, merged: merged.size },
+        nodes: { new: added(made, marks.nodes) + kept.length, merged: merged.size, removed: removed.size },
         edges: { new: added(reached(["newEdges"]), marks.edges), merged: mergedEdges.size },
     };
 }

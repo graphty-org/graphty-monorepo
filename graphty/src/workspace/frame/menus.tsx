@@ -4,19 +4,21 @@
  * line.
  */
 
-import { MenuItemDescription, MenuShortcut, TargetTooltip } from "@graphty/compact-mantine";
-import { Menu, UnstyledButton, VisuallyHidden } from "@mantine/core";
-import React, { Fragment } from "react";
+import { MenuItemDescription, MenuShortcut, TargetTooltip, TooltipShortcut } from "@graphty/compact-mantine";
+import { Menu, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
+import React, { Fragment, useContext } from "react";
 
 import { FILE_LIST } from "../commands/registry";
 import { GLYPHS } from "../glyphs";
 import { ariaKey, formatKey } from "../keys/keys";
 import { RecentMenu } from "../project/RecentMenu";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
+import { KeysInTooltips } from "./keysInTooltips";
 
 /**
- * One menu row for a command. A disabled row stays focusable with its reason (tier1-design.md
- * section 4, "Disabled"), so it is marked rather than given the `disabled` attribute.
+ * One menu row for a command, with its key drawn at the right, or named in a tooltip inside
+ * {@link KeysInTooltips}. A disabled row stays focusable with its reason (tier1-design.md section 4,
+ * "Disabled"), so it is marked rather than given the `disabled` attribute.
  * @param props - Component props
  * @param props.label - The command's label
  * @param props.shortcut - Its first key, or undefined
@@ -45,6 +47,7 @@ export function CommandMenuItem({
     reasonDrawn?: boolean;
     control?: string;
 }>): React.JSX.Element {
+    const inTooltip = useContext(KeysInTooltips);
     let why: React.ReactNode = null;
     if (reason !== null) {
         why = reasonDrawn ? (
@@ -53,7 +56,7 @@ export function CommandMenuItem({
             <VisuallyHidden>{reason}</VisuallyHidden>
         );
     }
-    return (
+    const row = (
         <Menu.Item
             leftSection={icon}
             onClick={reason === null ? onRun : undefined}
@@ -62,11 +65,20 @@ export function CommandMenuItem({
             data-disabled={reason === null ? undefined : true}
             data-ph-capture-attribute-control={control}
             aria-keyshortcuts={shortcut === undefined ? undefined : ariaKey(shortcut)}
-            rightSection={shortcut === undefined ? undefined : <MenuShortcut>{formatKey(shortcut)}</MenuShortcut>}
+            rightSection={
+                shortcut === undefined || inTooltip ? undefined : <MenuShortcut>{formatKey(shortcut)}</MenuShortcut>
+            }
         >
             {label}
             {why}
         </Menu.Item>
+    );
+    return shortcut === undefined || !inTooltip ? (
+        row
+    ) : (
+        <Tooltip label={<TooltipShortcut label={label} shortcut={formatKey(shortcut)} />} position="right">
+            {row}
+        </Tooltip>
     );
 }
 

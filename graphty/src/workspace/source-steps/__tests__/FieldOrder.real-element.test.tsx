@@ -13,7 +13,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { choose, drop, emptyProject, joinAs, openJoins, pickFields } from "./sourceSteps";
+import { choose, emptyProject, joinAs, openJoins, pickFields, stageFile } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -32,7 +32,7 @@ async function opened(): Promise<HTMLElement> {
         { key: "zid", type: "person" },
     );
     store.set({ dockOpen: false, dockMaximized: false });
-    drop("entries.csv", ENTRIES);
+    await stageFile("entries.csv", ENTRIES);
     await screen.findByRole("listitem", { name: "entries.csv" });
     return openJoins();
 }

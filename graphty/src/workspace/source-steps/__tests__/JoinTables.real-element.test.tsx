@@ -19,7 +19,6 @@ import {
     choose,
     done,
     draftOf,
-    drop,
     emptyProject,
     joinAs,
     joinsOf,
@@ -28,6 +27,7 @@ import {
     pickableWays,
     pickFields,
     pickSources,
+    stageFile,
     waysToJoin,
 } from "./sourceSteps";
 
@@ -59,7 +59,7 @@ async function opened(width = 1366, height = 1024): Promise<{ session: GraphSess
         { key: "badge", type: "person" },
     );
     store.set({ dockOpen: false, dockMaximized: false });
-    drop("entries.csv", ENTRIES);
+    await stageFile("entries.csv", ENTRIES);
     await screen.findByRole("listitem", { name: "entries.csv" });
     return { session, modal: await openJoins() };
 }
@@ -239,18 +239,23 @@ describe("the join workspace's two tables (source-steps)", () => {
         await pickSources(modal, "people", "entries");
         await pickFields(modal, "badge", "badge");
         const shown = within(modal).getByRole("radiogroup", { name: "Rows shown" });
+        const tables = (): string[] =>
+            ["people", "entries"].filter((name) => within(modal).queryByRole("grid", { name }) !== null);
         await userEvent.click(page.elementLocator(shown).getByText("Only entries", { exact: true }));
         await waitFor(() => {
             assert.deepStrictEqual([...rowsAt(modal, "entries").values()], ["B999"]);
         });
+        assert.deepStrictEqual(tables(), ["entries"], "people's table is not drawn (#10394)");
         await userEvent.click(page.elementLocator(shown).getByText("Only people", { exact: true }));
         await waitFor(() => {
             assert.strictEqual([...rowsAt(modal, "people").values()][0], "B30", "the first no entry names");
         });
+        assert.deepStrictEqual(tables(), ["people"], "entries' table is not drawn");
         await userEvent.click(page.elementLocator(shown).getByText("Matched", { exact: true }));
         await waitFor(() => {
             assert.notInclude([...rowsAt(modal, "people").values()], "");
         });
+        assert.deepStrictEqual(tables(), ["people", "entries"], "both tables again");
     });
 
     it("draws two tables under each other where there is no room beside, and beside each other on a tablet upright", async () => {

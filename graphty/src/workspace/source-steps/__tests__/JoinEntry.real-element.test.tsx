@@ -18,14 +18,15 @@ import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
 import {
     addMatch,
+    cardCount,
     done,
-    drop,
     emptyProject,
     joinAs,
     joinLines,
     openJoins,
     pickFields,
     pickSources,
+    stageFile,
 } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
@@ -46,7 +47,7 @@ async function foundingProject(): Promise<{ store: WorkspaceStore; session: Grap
         { key: "badge", type: "person" },
     );
     store.set({ dockOpen: false, dockMaximized: false });
-    drop("entries.csv", ENTRIES);
+    await stageFile("entries.csv", ENTRIES);
     await screen.findByRole("listitem", { name: "entries.csv" });
     return { store, session };
 }
@@ -76,7 +77,7 @@ describe("the doors into the join workspace (source-steps)", () => {
         const plus = await joinPlus();
         assert.strictEqual(plus.getAttribute("aria-keyshortcuts"), "Shift+J");
         const row = plus.closest("[data-join-plus]");
-        assert.include(row?.textContent ?? "", "J", "the key is drawn beside the +");
+        assert.include(row?.textContent ?? "", "Shift+J", "the key is drawn beside the +");
         const list = screen.getByRole("list", { name: "Data sources" });
         assert.isTrue(
             (list.compareDocumentPosition(plus) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
@@ -99,7 +100,7 @@ describe("the doors into the join workspace (source-steps)", () => {
         assert.isNull(within(place).queryByText("Steps"));
         assert.isNull(within(place).queryByRole("button", { name: /Edit joins/ }));
         assert.lengthOf(within(place).getAllByRole("button", { name: "Join" }), 1, "only Join +");
-        drop("buildings.csv", BUILDINGS);
+        await stageFile("buildings.csv", BUILDINGS);
         const staged = await within(place).findByRole("listitem", { name: "buildings.csv" });
         assert.isNull(
             within(staged).queryByRole("button", { name: /^(Add( as is)?|Join)$/ }),
@@ -135,7 +136,7 @@ describe("the doors into the join workspace (source-steps)", () => {
 
     it("a card of three sources is one line naming all three, cut by an ellipsis only where it does not fit, never a count", async () => {
         const { session } = await foundingProject();
-        drop("doors.csv", "door,name\nD1,North\nD2,South");
+        await stageFile("doors.csv", "door,name\nD1,North\nD2,South");
         await screen.findByRole("listitem", { name: "doors.csv" });
         const modal = await openJoins();
         await pickSources(modal, "people", "entries");
@@ -170,7 +171,7 @@ describe("the doors into the join workspace (source-steps)", () => {
 
     it("a committed join reopened counts what Done would add to the graph, as the key does, left as it is or changed", async () => {
         const { session } = await foundingProject();
-        drop("doors.csv", BUILDINGS);
+        await stageFile("doors.csv", BUILDINGS);
         await screen.findByRole("listitem", { name: "doors.csv" });
         const modal = await openJoins();
         await pickSources(modal, "people", "entries");
@@ -186,7 +187,7 @@ describe("the doors into the join workspace (source-steps)", () => {
         const again = await screen.findByRole("dialog", { name: "Join" });
         const counts = (): string => again.querySelector(".jw-counts")?.textContent ?? "";
         await waitFor(() => {
-            assert.include(counts(), "matched", "its counts are drawn");
+            assert.include(cardCount(again) ?? "", "rows matched", "its count is drawn, in the card's header");
         });
         assert.notMatch(counts(), /new (node|edge)/, "left as it is, it adds nothing the graph lacks");
         await joinAs(again, "Node per entries row, linked to people and doors");
@@ -199,7 +200,7 @@ describe("the doors into the join workspace (source-steps)", () => {
 
     it("a card of three sources stays one card in the order picked after a save and a reopen", async () => {
         const { session } = await foundingProject();
-        drop("doors.csv", "door,name\nD1,North\nD2,South");
+        await stageFile("doors.csv", "door,name\nD1,North\nD2,South");
         await screen.findByRole("listitem", { name: "doors.csv" });
         const modal = await openJoins();
         // Picked entries first: the name keeps that order, not the order loaded.
@@ -232,7 +233,7 @@ describe("the doors into the join workspace (source-steps)", () => {
         );
     });
 
-    it("its menu's Remove opens the workspace with the join taken out, and Done takes it out in one step", async () => {
+    it("its menu's Delete opens the workspace with the join taken out, and Done takes it out in one step", async () => {
         const { session } = await foundingProject();
         await joinEntries(session);
         assert.isAbove(session.data.edges().length, 0);
@@ -240,10 +241,10 @@ describe("the doors into the join workspace (source-steps)", () => {
         await userEvent.click(
             page.elementLocator(place).getByRole("button", { name: "people + entries menu", exact: true }),
         );
-        await userEvent.click(page.getByRole("menuitem", { name: "Remove", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Delete", exact: true }));
         const modal = await screen.findByRole("dialog", { name: "Join" });
         assert.deepStrictEqual(joinLines(modal), []);
-        await within(modal).findByText("edges removed 3");
+        await within(modal.querySelector<HTMLElement>(".jw-key") ?? modal).findByLabelText("3 removed edges");
         assert.isTrue(
             session.data.steps().some((row) => row.op === "join.edges"),
             "nothing is committed before Done",
@@ -268,7 +269,7 @@ describe("the doors into the join workspace (source-steps)", () => {
 
     it("two sources and an open draft: Join + still opens the workspace, which adopts the draft", async () => {
         const { session } = await foundingProject();
-        drop("buildings.csv", BUILDINGS);
+        await stageFile("buildings.csv", BUILDINGS);
         await screen.findByRole("listitem", { name: "buildings.csv" });
         const draft = session.data.draft();
         const plus = await joinPlus();

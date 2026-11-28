@@ -1,8 +1,10 @@
+import { TooltipShortcut } from "@graphty/compact-mantine";
 import type { GraphSession, SourceDraft } from "@graphty/graphty-element/session";
-import { Button, Group, Kbd, Stack, Text, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";
 
 import { sourceName } from "../data-place/words";
+import { GLYPHS } from "../glyphs";
 import { ariaKey, formatKey } from "../keys/keys";
 import { DELETE_KEY, READER_EDITS_KEY } from "./keys";
 import { editKindWords, editValueWords, STEP_WORDS } from "./words";
@@ -39,17 +41,21 @@ export function ReaderEdits({
     const sources = session.data.sources({ staged: true });
     return (
         <Stack gap={2} className="ss-steps">
-            <UnstyledButton aria-expanded={open} aria-keyshortcuts={ariaKey(READER_EDITS_KEY)} onClick={onToggle}>
-                <Group gap={6}>
-                    <Text size="xs" fw={600}>
-                        {STEP_WORDS.readerEdits}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                        {edits.length}
-                    </Text>
-                    <Kbd size="xs">{formatKey(READER_EDITS_KEY)}</Kbd>
-                </Group>
-            </UnstyledButton>
+            <Tooltip
+                label={<TooltipShortcut label={STEP_WORDS.readerEdits} shortcut={formatKey(READER_EDITS_KEY)} />}
+                openDelay={500}
+            >
+                <UnstyledButton aria-expanded={open} aria-keyshortcuts={ariaKey(READER_EDITS_KEY)} onClick={onToggle}>
+                    <Group gap={6}>
+                        <Text size="xs" fw={600}>
+                            {STEP_WORDS.readerEdits}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                            {edits.length}
+                        </Text>
+                    </Group>
+                </UnstyledButton>
+            </Tooltip>
             {open ? (
                 <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a <ul>/<li> would bring list styling the compact rows do not use; the role gives the same semantics
                     role="list"
@@ -99,15 +105,25 @@ export function ReaderEdits({
                                             {edit.state === "lost" ? STEP_WORDS.lost : STEP_WORDS.sourceChanged}
                                         </Text>
                                     ) : null}
-                                    <Button
-                                        size="compact-xs"
-                                        variant="subtle"
-                                        aria-label={`${STEP_WORDS.delete} ${label}`}
-                                        aria-keyshortcuts={ariaKey(DELETE_KEY)}
-                                        onClick={remove}
+                                    <Tooltip
+                                        label={
+                                            <TooltipShortcut
+                                                label={STEP_WORDS.delete}
+                                                shortcut={formatKey(DELETE_KEY)}
+                                            />
+                                        }
+                                        openDelay={500}
                                     >
-                                        <Kbd size="xs">{formatKey(DELETE_KEY)}</Kbd>
-                                    </Button>
+                                        <ActionIcon
+                                            size="sm"
+                                            variant="subtle"
+                                            aria-label={`${STEP_WORDS.delete} ${label}`}
+                                            aria-keyshortcuts={ariaKey(DELETE_KEY)}
+                                            onClick={remove}
+                                        >
+                                            <GLYPHS.delete size={12} aria-hidden />
+                                        </ActionIcon>
+                                    </Tooltip>
                                 </Group>
                             </div>
                         );

@@ -465,6 +465,7 @@ export {
     FILE_STYLE_ISSUE,
     FILE_STYLE_TRANSLATION_ISSUE,
 } from "./src/session";
+export { TYPE_PATH } from "./src/session/sources/steps/paths";
 
 // ---------------------------------------------------------------------------------------------
 // Runs: starting a computation, watching it, stopping it, and finding it again

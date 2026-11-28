@@ -510,6 +510,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "joinOutcomes",
                 "spaces",
                 "columns",
+                "renameJoin",
             ],
         },
         { root: "SourceTable", members: ["source", "summary", "profile", "rows"] },

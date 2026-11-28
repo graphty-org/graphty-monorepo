@@ -207,7 +207,6 @@ export interface PaneProps {
     readonly onView: (view: RowsView) => void;
     readonly onPick: (picked: Omit<Picked, "list">) => void;
     readonly onLines: (lines: readonly CardLine[], resided: boolean) => void;
-    readonly onFrame: () => void;
 }
 
 /**
@@ -269,7 +268,7 @@ function RowsChoices(
  * @returns the pane
  */
 export function JoinPane(props: PaneProps): React.JSX.Element {
-    const { session, draft, names, card, shows, view, suggestions, picked, onShows, onPick, onLines, onFrame } = props;
+    const { session, draft, names, card, shows, view, suggestions, picked, onShows, onPick, onLines } = props;
     const at = lineAt(card, view);
     const line = card.lines.at(at) ?? BLANK_LINE;
     const only = view.card === card.id ? view.only : "all";
@@ -297,10 +296,6 @@ export function JoinPane(props: PaneProps): React.JSX.Element {
                         {WORKSPACE_WORDS.tables}
                     </Button>
                 )}
-                <span className="sel-spacer" />
-                <Button size="compact-xs" variant="subtle" onClick={onFrame}>
-                    {WORKSPACE_WORDS.frame}
-                </Button>
             </Group>
             {shows === null ? (
                 <JoinTables
@@ -311,7 +306,8 @@ export function JoinPane(props: PaneProps): React.JSX.Element {
                     on={card}
                     before={card.step?.index}
                     only={only}
-                    sides={sides}
+                    // "Only <source>" draws that source's table alone.
+                    sides={only === "a" || only === "b" ? sides.filter((side) => side.end === only) : sides}
                     {...(two ? { onField: press } : {})}
                 />
             ) : (

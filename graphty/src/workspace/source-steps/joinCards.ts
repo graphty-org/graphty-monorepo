@@ -113,6 +113,15 @@ export interface ReaderCard extends Ignoring {
     readonly at: number | null;
     /** The reader removed its step: it is drawn again only once an undo brings the step back. */
     readonly deleted?: true;
+    /**
+     * Clear took it with the written cards beside it, by what their steps match and make: a card not written
+     * yet is drawn again once an undo brings any of them back.
+     */
+    readonly clearedWith?: readonly string[];
+    /** A removal an undo took back, made again by a redo. */
+    readonly undone?: { readonly deleted: true; readonly clearedWith?: readonly string[] };
+    /** The name the reader gave it before it wrote a step; its join carries it from then on. */
+    readonly name?: string;
 }
 
 /** What a card wrote: what its steps match and make, in step order, and its lines as the reader had them. */
@@ -131,6 +140,8 @@ export interface JoinCardView extends Ignoring {
     /** Its lines; null for a step not opened in this workspace yet. */
     readonly lines: readonly CardLine[] | null;
     readonly chosen: Partial<CardResult>;
+    /** The name the reader gave a card with no step yet; a step's join carries its own. */
+    readonly name?: string;
 }
 
 /** A card whose lines are known. */
@@ -150,6 +161,20 @@ export interface Suggestion {
  */
 export function newCard(id: string, lines: readonly CardLine[] = [BLANK_LINE]): ReaderCard {
     return { id, lines, ignoreCase: false, ignoreSpaces: false, chosen: {}, written: [], at: null };
+}
+
+/**
+ * Turns a join's steps off or on, as one undo step: the join workspace's card and the Data panel's row both do.
+ * @param draft - the draft they are edited in
+ * @param steps - the join's steps
+ * @param off - off, or on
+ */
+export function setJoinOff(draft: SourceDraft, steps: readonly Pick<SourceStepRow, "index">[], off: boolean): void {
+    draft.batch(() => {
+        for (const step of steps) {
+            draft.editStep(step.index, { off });
+        }
+    });
 }
 
 /**
@@ -287,7 +312,7 @@ export function cardsOf(draft: SourceDraft, mine: readonly ReaderCard[]): JoinCa
     );
     return [
         ...steps,
-        ...rest.map(({ id, lines, chosen, ignoreCase, ignoreSpaces }) => ({
+        ...rest.map(({ id, lines, chosen, ignoreCase, ignoreSpaces, name }) => ({
             id,
             step: null,
             steps: [],
@@ -295,6 +320,7 @@ export function cardsOf(draft: SourceDraft, mine: readonly ReaderCard[]): JoinCa
             chosen,
             ignoreCase,
             ignoreSpaces,
+            ...(name === undefined ? {} : { name }),
         })),
     ];
 }
@@ -1038,15 +1064,19 @@ function withJoin(act: SourceJoinAct, join: SourceJoinTag): SourceJoinAct {
  * @param steps - The steps the card is.
  * @param lines - Its lines.
  * @param outcome - The outcome it writes.
+ * @param given - The name the reader gave the card before it wrote a step, read only while it has none.
  * @returns The join.
  */
 export function joinOf(
     steps: readonly SourceStepRow[],
     lines: readonly CardLine[],
     outcome: SourceJoinOutcome,
+    given?: string,
 ): SourceJoinTag {
     const matches = lines.flatMap((line) => matchOf(line) ?? []).filter((_, at) => outcome.uses.includes(at));
-    return { id: steps.at(0)?.join?.id ?? crypto.randomUUID(), matches };
+    // Once a step is written its join alone holds the name: a name taken off it stays off.
+    const name = steps.length === 0 ? given : steps[0].join?.name;
+    return { id: steps.at(0)?.join?.id ?? crypto.randomUUID(), matches, ...(name === undefined ? {} : { name }) };
 }
 
 /**

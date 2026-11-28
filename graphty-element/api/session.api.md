@@ -7870,6 +7870,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     renameColumn(column: ColumnRef, name: string, options: {
         readonly source: SourceKey;
     }): void;
+    renameJoin(id: string, name: string | null): void;
     replaceStep(index: number, act: SourceJoinAct): void;
     setMapping(source: SourceKey, patch: SourceMappingPatch): void;
     show(side: "before" | "after"): Promise<void>;
@@ -7947,6 +7948,7 @@ export interface SourceDraftMadeCounts {
     readonly nodes: {
         readonly new: number;
         readonly merged: number;
+        readonly removed: number;
     };
 }
 
@@ -8417,6 +8419,7 @@ export type SourceJoinSide = {
 export interface SourceJoinTag {
     readonly id: string;
     readonly matches: readonly SourceJoinMatch[];
+    readonly name?: string;
 }
 
 // @public
@@ -9961,6 +9964,9 @@ export interface TransactionOptions {
 
 // @public
 export type TransactionScope = Omit<GraphSession, "undo" | "redo" | "history" | "dispose">;
+
+// @public
+export const TYPE_PATH = "graphty.type";
 
 // @public
 export interface TypeChangePreview {

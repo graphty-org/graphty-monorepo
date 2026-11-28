@@ -21,11 +21,13 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import {
     advanced,
     drop,
+    fromHeadMenu,
     joinAs,
     joinLines,
     openJoins,
     pickFields,
     pickSources,
+    stageFile,
 } from "../../source-steps/__tests__/sourceSteps";
 import { Workspace } from "../../Workspace";
 import { createWorkspaceStore } from "../store";
@@ -148,7 +150,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
 
             it("reopens the join workspace on its draft, on the side it showed, and Done commits it", async () => {
                 const { before, session } = await peopleProject();
-                drop("entries.csv", ENTRIES);
+                await stageFile("entries.csv", ENTRIES);
                 await screen.findByRole("listitem", { name: "entries.csv" });
                 const modal = await openJoins();
                 await pickSources(modal, "people", "entries");
@@ -221,7 +223,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 await userEvent.click(page.getByRole("menuitem", { name: "Remove", exact: true }));
                 const modal = await screen.findByRole("dialog", { name: "Join" });
                 await within(modal).findByRole("region", { name: "Remove people" });
-                await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Undo/ }));
+                await fromHeadMenu(modal, "Undo");
                 await waitFor(() => {
                     assert.isNull(within(modal).queryByRole("region", { name: "Remove people" }));
                 });

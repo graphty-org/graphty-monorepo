@@ -499,6 +499,45 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
+    renameJoin(id: string, name: string | null): void {
+        // Checked at run time: a caller in plain JavaScript can pass anything.
+        const given: unknown = name;
+        if (given !== null && typeof given !== "string") {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "A join's name is text or null.",
+                source: "data",
+                details: { reason: "bad-name", id },
+            });
+        }
+        const trimmed = name?.trim() ?? "";
+        const { steps } = this.state.value;
+        const joined = steps.filter((step) => step.join?.id === id);
+        if (joined.length > 0 && joined.every((step) => (step.join?.name ?? "") === trimmed)) {
+            this.live("renameJoin");
+            return;
+        }
+        this.act("renameJoin", (state) => {
+            if (joined.length === 0) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: `No step carries the join ${JSON.stringify(id)}.`,
+                    source: "data",
+                    details: { reason: "no-join", id },
+                });
+            }
+            const named = state.value.steps.map((step) => {
+                if (step.join?.id !== id) {
+                    return step;
+                }
+                const { name: _old, ...rest } = step.join;
+                return { ...step, join: trimmed === "" ? rest : { ...rest, name: trimmed } };
+            });
+            return draftApply(state, { kind: "set", value: { ...state.value, steps: named } });
+        });
+    }
+
+    /** @inheritdoc */
     removeStep(index: number, options: { readonly adds?: "keep" | "remove" } = {}): void {
         this.stepsAct("removeStep", { act: "remove-step", index, ...options });
     }
@@ -804,7 +843,7 @@ export class SourceDraftHandle implements SourceDraft {
                 const at = steps.join(",");
                 let out = made.get(at);
                 if (out === undefined) {
-                    out = madeCounts(state, drawn, steps);
+                    out = madeCounts(base, state, drawn, steps);
                     made.set(at, out);
                 }
                 return out;

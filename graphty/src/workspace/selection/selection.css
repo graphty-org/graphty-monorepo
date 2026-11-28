@@ -355,11 +355,6 @@
     flex: 0 0 auto;
 }
 
-/* A key shown on its button ("Cancel Esc"): its word, close to the button's. */
-.sel-key {
-    font-size: inherit;
-}
-
 .sel-ws-head .mantine-Button-section[data-position="right"] {
     margin-inline-start: 4px;
 }

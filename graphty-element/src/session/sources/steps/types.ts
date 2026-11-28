@@ -643,4 +643,6 @@ export interface BuildResult {
     readonly readerResults: ReaderResult[];
     /** What each count of each built step counted: by step place, then by count name. */
     readonly drill: ReadonlyMap<number, ReadonlyMap<string, readonly DrillUnit[]>>;
+    /** The internal ids of the nodes each built step took out, by step place. */
+    readonly dropped: ReadonlyMap<number, ReadonlySet<string>>;
 }

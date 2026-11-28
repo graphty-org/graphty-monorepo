@@ -268,10 +268,14 @@ describe("the workspace's cards, as the approved prototype", () => {
         assert.strictEqual(headCount(modal), 77);
     });
 
-    it("cancels on Escape, its key shown on Cancel", async () => {
+    it("cancels on Escape, its key said on Cancel's hover, never drawn", async () => {
         const { session, layer } = await openLayer();
         const modal = await openWorkspace();
-        assert.match(within(modal).getByRole("button", { name: /Cancel/u }).textContent ?? "", /Esc/u);
+        const cancel = within(modal).getByRole("button", { name: /Cancel/u });
+        assert.notMatch(cancel.textContent ?? "", /Esc/u, "no key drawn on the button");
+        assert.strictEqual(cancel.getAttribute("aria-keyshortcuts"), "Escape");
+        await userEvent.hover(page.elementLocator(modal).getByRole("button", { name: /Cancel/u }));
+        await screen.findByRole("tooltip", { name: /Esc/u });
         await pick(within(cards()[0]).getByRole("button", { name: "Value" }), "Degree");
         await waitFor(() => {
             assert.strictEqual(headCount(modal), 77);

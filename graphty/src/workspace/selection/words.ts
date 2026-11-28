@@ -24,6 +24,28 @@ import { NATURAL, valueName } from "../style/words";
 import type { Verb } from "./model";
 import { isRelative, referenceOf, STATE_WORDS, stepCard, waitingSource, WHILE } from "./values";
 
+/**
+ * A card's "..." menu in every workspace of cards (Filters and Join): its items, and the past-tense words a
+ * screen reader hears once one ran.
+ */
+export const CARD_MENU_WORDS = {
+    rename: "Rename",
+    turnOff: "Turn off",
+    turnOn: "Turn on",
+    moveUp: "Move up",
+    moveDown: "Move down",
+    delete: "Delete",
+    atTop: "Already at the top",
+    atBottom: "Already at the bottom",
+    removed: (name: string): string => `Removed ${name}`,
+    off: (name: string): string => `${name} off`,
+    on: (name: string): string => `${name} on`,
+    movedUp: (name: string): string => `Moved up ${name}`,
+    movedDown: (name: string): string => `Moved down ${name}`,
+    renamed: (name: string): string => `Renamed ${name}`,
+    nameCleared: "Name cleared",
+} as const;
+
 /** A verb's word, Figma's name for it, and the words a search finds it by. Verbs are words everywhere. */
 export const VERB_WORDS: Readonly<Record<Verb, { word: string; figma: string; aliases: readonly string[] }>> = {
     add: { word: "Add", figma: "Union", aliases: ["union", "or"] },

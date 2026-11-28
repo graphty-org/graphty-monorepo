@@ -16,9 +16,12 @@ import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
+import { WORKSPACE_WORDS } from "../words";
 import {
     addMatch,
     advanced,
+    cardCount,
+    checkedWay,
     choose,
     done,
     draftOf,
@@ -33,6 +36,7 @@ import {
     pickFields,
     pickSources,
     selectJoin,
+    stageFile,
     waysToJoin,
 } from "./sourceSteps";
 
@@ -69,7 +73,7 @@ async function opened(
     );
     store.set({ dockOpen: false, dockMaximized: false });
     for (const [name, text] of files) {
-        drop(name, text);
+        await stageFile(name, text);
         await screen.findByRole("listitem", { name });
     }
     return { session, modal: await openJoins() };
@@ -93,7 +97,7 @@ async function match(modal: HTMLElement, other: string, field = "badge", named =
  * @param name - the choice.
  * @param way - the way.
  */
-async function pickWay(modal: HTMLElement, name: string, way: string): Promise<void> {
+async function pickWay(modal: HTMLElement, name: string | RegExp, way: string): Promise<void> {
     await userEvent.click(
         page.elementLocator(modal).getByRole("radiogroup", { name, exact: true }).getByText(way, { exact: true }),
     );
@@ -139,14 +143,20 @@ describe("a join card's choices (source-steps)", () => {
         const { session, modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
         const steps = draftOf(session).steps().length;
         const card = modal.querySelector<HTMLElement>("[data-join-editor]") ?? modal;
+        // The boxes the reader can pick from: the Join type is named from the start, off until a match is whole.
         const boxes = (): string[] =>
             within(card)
                 .getAllByRole<HTMLInputElement>("combobox")
+                .filter((box) => !box.disabled)
                 .map((box) => `${box.getAttribute("aria-label") ?? ""}: ${box.value}`);
         assert.deepStrictEqual(boxes(), ["Source 1: ", "Source 2: "], "a new card is two blank pickers");
+        assert.isTrue(
+            within(card).getByRole<HTMLInputElement>("combobox", { name: "Join type" }).disabled,
+            "and its join type, named and waiting",
+        );
         assert.lengthOf(within(card).queryAllByRole("button", { name: /Add as is|Match|Remove/ }), 0);
         await choose(modal, "Source 1", "people");
-        assert.lengthOf(within(card).queryAllByRole("combobox"), 2, "fields wait for both sources");
+        assert.lengthOf(boxes(), 2, "fields wait for both sources");
         await choose(modal, "Source 2", "entries");
         assert.deepStrictEqual(boxes(), ["Source 1: people", "Source 2: entries", "Field 1: ", "Field 2: "]);
         await userEvent.click(page.elementLocator(modal).getByRole("combobox", { name: "Field 2", exact: true }));
@@ -159,10 +169,10 @@ describe("a join card's choices (source-steps)", () => {
         await userEvent.keyboard("{Escape}");
         assert.deepStrictEqual(waysToJoin(modal), [], "how to join waits for the fields");
         await pickFields(modal, "badge", "badge");
-        assert.strictEqual(within(modal).getByLabelText("Match count 1").textContent, "4 of 5 match");
+        assert.strictEqual(cardCount(modal), "4 of 5 rows matched");
         assert.deepStrictEqual(waysToJoin(modal), [FIELDS, NODE]);
-        assert.isNull(within(modal).queryByRole("radio", { checked: true, name: FIELDS }), "nothing is picked");
-        assert.strictEqual(draftOf(session).steps().length, steps, "nothing is applied");
+        assert.strictEqual(checkedWay(modal), NODE, "the type that adds edges is picked at once");
+        assert.isAbove(draftOf(session).steps().length, steps, "and applied");
         await joinAs(modal, NODE);
         await newest(session, (step) => step.act?.act === "connect", "a node linked to its person");
         assert.notInclude(offered(modal), "Existing edge", "only an edge meets another");
@@ -175,8 +185,8 @@ describe("a join card's choices (source-steps)", () => {
         assert.isNull(within(modal).queryByRole("combobox", { name: "Direction" }));
         await addMatch(modal, 2, ["entries", "door"], ["doors", "door"]);
         assert.include(waysToJoin(modal), EDGE);
-        assert.isNull(within(modal).queryByRole("radio", { checked: true, name: FIELDS }), "its join is asked again");
-        assert.lengthOf(joinsOf(session), 0, "and taken out until it is said");
+        assert.isNull(within(modal).queryByRole("radio", { checked: true, name: FIELDS }), "its join is picked again");
+        assert.strictEqual(checkedWay(modal), EDGE, "by the first type of both matches that adds edges");
     });
 
     it("an edge becomes a node between its two ends and back, and no node of the rows stays behind", async () => {
@@ -242,7 +252,7 @@ describe("a join card's choices (source-steps)", () => {
         const { session, modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
         await match(modal, "entries");
         await joinAs(modal, NODE);
-        await pickWay(modal, "No match", "Skip");
+        await pickWay(modal, WORKSPACE_WORDS.unmatchedRows, WORKSPACE_WORDS.skipRow);
         await advanced(modal);
         await typeIn(modal, "Edge type", "entered");
         await newest(session, (step) => step.act?.edgeType === "entered", "set");
@@ -304,7 +314,7 @@ describe("a join card's choices (source-steps)", () => {
         await pickWay(modal, "Existing edge", "Merge");
         const merged = await newest(session, (step) => step.act?.existing === "merge", "Merge");
         assert.deepInclude(merged.buckets, { newEdges: 0, mergedEdges: 4 });
-        await within(modal).findByText("edges merged 4");
+        await within(modal.querySelector<HTMLElement>(".jw-key") ?? modal).findByLabelText("4 merged edges");
         await within(modal).findByRole("button", { name: "4 edges merged" });
         await done(modal);
         assert.lengthOf(session.data.edges(), 4, "no edge runs beside another");
@@ -361,7 +371,7 @@ describe("a join card's choices (source-steps)", () => {
         assert.strictEqual(brought.textContent, "device devices, repeats, 1 empty");
         await userEvent.click(page.getByRole("option", { name: /^device / }));
         await pickField(modal, "Field 2", "value");
-        assert.strictEqual(within(modal).getByLabelText("Match count 1").textContent, "1 of 1 match");
+        assert.strictEqual(cardCount(modal), "1 of 1 row matched");
         await joinAs(modal, "Fields of watch on people");
         const flagged = await newest(
             session,
@@ -398,7 +408,7 @@ describe("a join card's choices (source-steps)", () => {
                 ["B7"],
             );
         });
-        await pickWay(modal, "No match", "Add");
+        await pickWay(modal, WORKSPACE_WORDS.unmatchedRows, WORKSPACE_WORDS.addNode);
         await within(modal).findByRole("button", { name: "1 new node" });
         assert.strictEqual(added(), 1, "B7");
     });
@@ -494,7 +504,7 @@ describe("a join card's choices (source-steps)", () => {
         // HR's B7 becomes a person, so a department it holds links it too.
         await match(modal, "hr");
         await joinAs(modal, "Fields of hr on people");
-        await pickWay(modal, "No match", "Add");
+        await pickWay(modal, WORKSPACE_WORDS.unmatchedRows, WORKSPACE_WORDS.addNode);
         await newest(session, (step) => step.act?.unmatchedFrom === "keep", "B7 is a person now");
         await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Join", exact: true }));
         await pickSources(modal, "person", "person");
@@ -502,7 +512,7 @@ describe("a join card's choices (source-steps)", () => {
         await joinAs(modal, "Edge between person sharing dept");
         await newest(session, (step) => step.buckets?.newEdges === 6, "B1, B2, B4 and B7 are Ops");
         await selectJoin(modal, "people + hr");
-        await pickWay(modal, "No match", "Skip");
+        await pickWay(modal, WORKSPACE_WORDS.unmatchedRows, WORKSPACE_WORDS.skipRow);
         await newest(session, (step) => step.buckets?.newEdges === 3, "B7's links go");
         await selectJoin(modal, "person, dept");
         await within(modal).findByRole("button", { name: "3 new edges" });
@@ -532,5 +542,97 @@ describe("a join card's choices (source-steps)", () => {
         assert.strictEqual(rule(), "overwrite", "with its rule");
         assert.lengthOf(session.data.staged(), 1, "buildings.csv is not staged");
         assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }));
+    });
+
+    it("asks Unmatched rows and Missing end in fixed words, each choice doing what it says (#10394)", async () => {
+        const { session, modal } = await opened(["entries.csv", ENTRIES]);
+        await match(modal, "entries");
+        await joinAs(modal, NODE);
+        const unmatched = await within(modal).findByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows });
+        const missing = within(modal).getByRole("radiogroup", { name: WORKSPACE_WORDS.missingEnd });
+        // The way that makes or keeps a node first, in every row.
+        for (const [group, ways] of [
+            // The row is kept; Add node is Missing end's alone, so the two never read alike.
+            [unmatched, [WORKSPACE_WORDS.keepRow, WORKSPACE_WORDS.skipRow]],
+            [missing, [WORKSPACE_WORDS.addNode, WORKSPACE_WORDS.skipEdge]],
+        ] as const) {
+            assert.deepStrictEqual(
+                within(group)
+                    .getAllByRole("radio")
+                    .map((radio) => group.querySelector(`label[for="${CSS.escape(radio.id)}"]`)?.textContent),
+                [...ways],
+            );
+            // Its label is read whole in the label column.
+            const label = group.closest(".jw-row")?.firstElementChild;
+            assert.strictEqual(label?.textContent, group.getAttribute("aria-label"));
+            assert.isAtMost(label?.scrollWidth ?? Infinity, label?.clientWidth ?? 0, "the label is not cut");
+        }
+        // Shown without opening Advanced, right under Unmatched rows.
+        assert.isTrue(missing.checkVisibility(), "Missing end is drawn without opening Advanced");
+        const rows = [...modal.querySelectorAll(".jw-row")];
+        const at = (group: HTMLElement): number => rows.findIndex((row) => row.contains(group));
+        assert.strictEqual(at(missing), at(unmatched) + 1, "Missing end sits right under Unmatched rows");
+        // Each two-way choice spans its row.
+        const row = unmatched.closest(".jw-row-controls")?.getBoundingClientRect();
+        const control = unmatched.getBoundingClientRect();
+        assert.isAtMost(Math.abs((row?.width ?? 0) - control.width), 1, "the control spans its row");
+        const nodes = (): number => draftOf(session).preview().after.nodes;
+        const start = nodes();
+        const pick = async (group: string, way: string, count: number, why: string): Promise<void> => {
+            await pickWay(modal, group, way);
+            await waitFor(() => {
+                assert.strictEqual(nodes(), count, why);
+            });
+        };
+        await pick(WORKSPACE_WORDS.unmatchedRows, WORKSPACE_WORDS.skipRow, start - 1, "E4, naming no one, is skipped");
+        await pick(WORKSPACE_WORDS.unmatchedRows, WORKSPACE_WORDS.keepRow, start, "E4 is a node again");
+        await pick(WORKSPACE_WORDS.missingEnd, WORKSPACE_WORDS.addNode, start + 1, "B9 is made a person");
+        // A row whose cell is empty still reaches no node, so Unmatched rows is still asked.
+        assert.isNotNull(within(modal).queryByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows }));
+        await pick(WORKSPACE_WORDS.missingEnd, WORKSPACE_WORDS.skipEdge, start, "B9 is not made");
+    });
+
+    it("an edge card asks Missing end alone, Add node making the end and its edge (#10394)", async () => {
+        const { session, modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
+        await match(modal, "entries");
+        await addMatch(modal, 2, ["entries", "door"], ["doors", "door"]);
+        await joinAs(modal, EDGE);
+        const missing = await within(modal).findByRole("radiogroup", { name: WORKSPACE_WORDS.missingEnd });
+        assert.deepStrictEqual(
+            within(missing)
+                .getAllByRole("radio")
+                .map((radio) => missing.querySelector(`label[for="${CSS.escape(radio.id)}"]`)?.textContent),
+            [WORKSPACE_WORDS.addNode, WORKSPACE_WORDS.skipEdge],
+        );
+        assert.isNull(within(modal).queryByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows }));
+        const after = (): readonly [number, number] => {
+            const totals = draftOf(session).preview().after;
+            return [totals.nodes, totals.edges];
+        };
+        await waitFor(() => {
+            assert.strictEqual(after()[1], 4, "E4's badge names no one: no edge");
+        });
+        const [nodes] = after();
+        await pickWay(modal, WORKSPACE_WORDS.missingEnd, WORKSPACE_WORDS.addNode);
+        await waitFor(() => {
+            assert.deepStrictEqual(after(), [nodes + 1, 5], "B9 is made, and E4's edge to it");
+        });
+        await pickWay(modal, WORKSPACE_WORDS.missingEnd, WORKSPACE_WORDS.skipEdge);
+        await waitFor(() => {
+            assert.deepStrictEqual(after(), [nodes, 4], "E4 is skipped again");
+        });
+    });
+
+    it("gives a row under Advanced the label column of the rows above it (#10394)", async () => {
+        const { modal } = await opened(["entries.csv", ENTRIES]);
+        await match(modal, "entries");
+        await joinAs(modal, NODE);
+        const above = await within(modal).findByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows });
+        await advanced(modal);
+        const type = await within(modal).findByRole("combobox", { name: "Edge type" });
+        const column = (each: Element): number =>
+            (each.closest(".jw-row-controls")?.getBoundingClientRect().left ?? NaN) -
+            (each.closest(".jw-row")?.getBoundingClientRect().left ?? NaN);
+        assert.strictEqual(column(type), column(above), "their controls start one label column in");
     });
 });

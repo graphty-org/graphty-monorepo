@@ -427,8 +427,8 @@ async function drawFirst(
 /**
  * A second source while the graph holds data (spec sections 2.1, 3.6 and 3.7): a copy of a loaded
  * source replaces it; anything else is read as a table to join and waits for the join screen. With
- * the source-steps experiment on, every second source is staged instead (design
- * design/data/multiple-data-sources-design.md, section 5.1).
+ * the source-steps experiment on, every second source is staged and then added, so it is drawn at
+ * once as its own nodes (issue #10364).
  * @param workspace - the workspace store.
  * @param session - the project's session.
  * @param incoming - the source.
@@ -441,19 +441,34 @@ async function takeIn(
     read?: LoadDraft,
 ): Promise<void> {
     if (sourceStepsOn(session)) {
-        // Sources and steps: it waits staged in its own section of the Data place, drawing nothing,
-        // until the reader adds or joins it there. Its key is guessed as a first source's is.
+        // Sources and steps: every loaded source is drawn at once, as its own nodes (the owner,
+        // 2026-11-27: "all loaded data should show up in the graph"); a join then connects or merges it.
+        // Its key is guessed as a first source's is. Staging is no undo step; adding it is one, and
+        // undoing that leaves it waiting.
         read?.dispose();
+        let key = "";
         const stage = async (): Promise<void> => {
-            await session.data.stage(incoming.source, { guess: "values" });
+            key = await session.data.stage(incoming.source, { guess: "values" });
             workspace.set({ place: "data", dataTab: "loaded" });
         };
-        // An open source card's draft refuses it: the reader commits or discards the draft first.
+        // Retried on its own, so a refused add never stages the file twice.
+        const add = async (): Promise<void> => {
+            if (key === "") {
+                return;
+            }
+            await session.data.add(key).catch((error: unknown) => {
+                if (!askIfDraftOpen(workspace, error, add)) {
+                    throw error;
+                }
+            });
+        };
+        // An open source card's draft refuses either: the reader commits or discards the draft first.
         await stage().catch((error: unknown) => {
-            if (!askIfDraftOpen(workspace, error, stage)) {
+            if (!askIfDraftOpen(workspace, error, () => stage().then(add))) {
                 throw error;
             }
         });
+        await add();
         return;
     }
     // The same columns: the same file again replaces at once; another file (next month's) opens

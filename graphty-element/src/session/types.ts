@@ -4914,10 +4914,10 @@ export interface SourceDraftPreview {
     readonly marks: SourceDraftMarkCounts;
     /**
      * How many elements some steps make, each counted once however many of the steps reach it: the
-     * nodes and edges they add and those they fold rows into. What a join written as several steps,
-     * with the staged sources it adds for itself, makes as a whole. Added counts only what the commit
-     * adds, as `marks` does: an element the graph holds already, a committed join's own included, is
-     * not new.
+     * nodes and edges they add, those they fold rows into, and the nodes they take out. What a join
+     * written as several steps, with the staged sources it adds for itself, makes as a whole. Added
+     * counts only what the commit adds, as `marks` does: an element the graph holds already, a
+     * committed join's own included, is not new.
      * Experimental: may change or be removed in a minor release.
      * @param steps - The steps' places, as `draft.steps()` lists them; a place the draft does not
      *   hold makes nothing.
@@ -4986,6 +4986,12 @@ export interface SourceDraftMadeCounts {
         readonly new: number;
         /** Nodes the steps merge a row or a node into. */
         readonly merged: number;
+        /**
+         * Nodes the graph holds that the steps take out (a row nothing links under `unlinked: "remove"`,
+         * a node a merge leaves out under `unmatchedFrom: "drop"`), as `marks.nodes.removed` counts them.
+         * @since 3.40.0
+         */
+        readonly removed: number;
     };
     /** The edges. */
     readonly edges: {
@@ -5722,6 +5728,12 @@ export interface SourceJoinTag {
     readonly id: string;
     /** The join's matches, in the order given. */
     readonly matches: readonly SourceJoinMatch[];
+    /**
+     * The consumer's name for the join, as `UnionBranch.name` is. It is kept on every step the join
+     * wrote and saved with them (`draft.renameJoin` sets it later); absent, the consumer names the
+     * join itself.
+     */
+    readonly name?: string;
 }
 
 /**
@@ -6754,6 +6766,17 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      *   not hold as numbers, or `E_BAD_COMMAND` for no such step or a `repeated` it cannot take.
      */
     editStep(index: number, patch: SourceStepPatch): void;
+    /**
+     * Name, or take the name off, one join: every step whose `join.id` is `id` gets the name, as one
+     * undo step.
+     * @param id - The join's id (`SourceJoinTag.id`).
+     * @param name - The name, trimmed, or `null` (or a blank name) to take it off. A name the join
+     *   already has changes nothing and adds no undo step.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`: reason `no-join` when no step carries that join
+     *   id, `bad-name` when `name` is neither text nor `null`.
+     * @experimental source-steps
+     */
+    renameJoin(id: string, name: string | null): void;
     /**
      * Delete one step (as `data.removeStep` does).
      * @param index - The step's place.

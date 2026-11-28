@@ -177,3 +177,27 @@ for (const type of ["star", "triangle", "round-pentagon"] as const) {
         );
     });
 }
+
+for (const type of ["star", "vee", "triangle"] as const) {
+    test(`the outer border round a ${type} with a wide inside border stays outside its outline`, () => {
+        const options = { styleId: `outer-inside-${type}`, is2D: true, size };
+        const shape = { type, size };
+        const border = { width, position: "inside" as const };
+        const bare = NodeMesh.create(cache, { ...options, styleId: `bare-o-${type}` }, { shape }, scene);
+        const silhouette = NodeMesh.faceOf({ shape }, size, bare).outline as P[];
+        const fill = NodeMesh.create(cache, options, { shape, border }, scene);
+        const outer = NodeMesh.createOuterBorder(
+            cache,
+            options,
+            { shape, border, outerBorder: { width: 0.2 * size, offset: 0 } },
+            fill,
+            scene,
+        );
+        assert.exists(outer);
+
+        // offset from the drawn-in fill, which folds over itself where the border is wider than an arm, the ring
+        // crossed back over the node's middle
+        const within = Math.max(...vertices(outer).map((p) => -signedDistance(p, silhouette)));
+        assert.isAtMost(within, tolerance, `${type} outer border reaches ${within.toFixed(3)} inside its outline`);
+    });
+}

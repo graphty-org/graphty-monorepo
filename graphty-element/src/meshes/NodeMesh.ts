@@ -1046,15 +1046,22 @@ export class NodeMesh {
         const flat = isFlatShape(shape.type);
         const instance = cache.get(this.ringKey("node-outer-border", options, fill), () => {
             const extents = this.fillExtents(sized, inset);
-            const outline = flat ? this.fillOutline(shape, sized, inset) : this.solidOutline(fill);
+            // a flat shape's ring is offset from its own outline, not from the drawn-in fill's: insetting a star by
+            // more than half an arm folds the fill's outline over itself, and the ring offset from it crossed the middle
+            const outline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
+            const drawnIn = flat ? inset : 0;
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             // each further ring (`count`, Graphviz's peripheries) starts the offset beyond the one before
             const step = width + Math.max(0, (outerBorder?.offset ?? 0) * perSize);
             const piecesOf = (round: Point2[]): RingPiece[] =>
                 Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
-                    const at = gap + i * step;
+                    // out from the fill's edge, which is `drawnIn` inside the outline
+                    const at = Math.max(gap + i * step, 0) - drawnIn;
                     // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
-                    const base = at > 0 ? mitredEdges(round, [at])[0] : round;
+                    let base = at < 0 ? insetOutline(round, -at) : round;
+                    if (at > 0) {
+                        base = mitredEdges(round, [at])[0];
+                    }
                     return borderRing(base, width, outerBorder?.style ?? "solid", undefined, options.dashUnit);
                 }).flat();
             const color = outerBorder?.color ?? "#000000";

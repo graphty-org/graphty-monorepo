@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import { browserProjects, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { openSampleFromStart } from "../../../test/open";
@@ -132,7 +132,7 @@ async function openSaveAs(): Promise<HTMLElement> {
  * @param label - "Copy" or "Reference".
  */
 async function pick(group: HTMLElement, label: "Copy" | "Reference"): Promise<void> {
-    await userEvent.click(within(group).getByText(label));
+    await userEvent.click(page.elementLocator(group).getByText(label, { exact: true }));
 }
 
 describe("the Ref mark, with the experiment on", () => {
@@ -166,9 +166,12 @@ describe("the Ref mark, with the experiment on", () => {
             assert.isFalse(within(dialog).getByRole<HTMLButtonElement>("button", { name: /^Save/ }).disabled);
         });
         await userEvent.click(
-            within(await within(dialog).findByRole("radiogroup", { name: "Sources" })).getByText("Reference"),
+            page
+                .elementLocator(dialog)
+                .getByRole("radiogroup", { name: "Sources", exact: true })
+                .getByText("Reference", { exact: true }),
         );
-        await userEvent.click(within(dialog).getByRole("button", { name: /^Save/ }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: /^Save/ }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Saved Towns in this browser.");
         });
@@ -199,7 +202,7 @@ describe("the Ref mark, with the experiment on", () => {
 
         const opening = session.project.open(saved.text, { discard: true });
         const ask = await screen.findByRole("dialog", { name: "Open a web address?" });
-        await userEvent.click(within(ask).getByRole("button", { name: "Continue" }));
+        await userEvent.click(page.elementLocator(ask).getByRole("button", { name: "Continue", exact: true }));
         await opening;
         assert.equal(session.data.sources()[0]?.copy, "reference");
         await waitFor(() => {
@@ -216,7 +219,7 @@ describe("a project saved with references, reopened", () => {
         const nodes = session.data.statistics().nodeCount;
         const dialog = await openSaveAs();
         await pick(await within(dialog).findByRole("radiogroup", { name: "Sources" }), "Reference");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Save", exact: true }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Saved Towns in this browser.");
         });
@@ -224,13 +227,13 @@ describe("a project saved with references, reopened", () => {
 
         // One source changes before the project opens again.
         site[PLACES] = site[PLACES].replace("Q1", "Q-one");
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
-        await userEvent.click(await screen.findByRole("gridcell", { name: /^Towns/ }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Back to start", exact: true }));
+        await userEvent.click(page.getByRole("gridcell", { name: /^Towns/ }));
 
         // The open asks before reading the web addresses again; Continue reads them.
         const ask = await screen.findByRole("dialog", { name: "Open a web address?" });
-        await userEvent.click(within(ask).getByRole("button", { name: "Continue" }));
+        await userEvent.click(page.elementLocator(ask).getByRole("button", { name: "Continue", exact: true }));
         const reopened = await elementSession(session);
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Opened Towns. places.json changed since it was saved.");
@@ -242,7 +245,7 @@ describe("a project saved with references, reopened", () => {
         );
         assert.deepEqual(choices(reopened), ["reference", "reference", "copy"]);
         // A reopened project starts on the Graph place; the Data place lists the sources.
-        await userEvent.click(screen.getByRole("button", { name: "Data" }));
+        await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
         const row = await screen.findByRole("listitem", { name: "people.json" });
         assert.isNotNull(within(row).getByText("Ref"));
     });
@@ -259,7 +262,7 @@ describe("a project saved with references, reopened", () => {
         await waitFor(() => {
             assert.isFalse(within(dialog).getByRole<HTMLButtonElement>("button", { name: /^Save/ }).disabled);
         });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Save", exact: true }));
         await waitFor(() => {
             assert.match(store.get().notice?.message ?? "", /^Saved .* in this browser\.$/);
         });
@@ -269,19 +272,19 @@ describe("a project saved with references, reopened", () => {
     it("names a reference that could not be read again, by its name", async () => {
         const { store, session } = await threeLoads();
         const dialog = await openSaveAs();
-        await userEvent.click(await within(dialog).findByRole("button", { name: "Each source" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Each source", exact: true }));
         await pick(await within(dialog).findByRole("radiogroup", { name: "Keep people.json" }), "Reference");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Save", exact: true }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Saved Towns in this browser.");
         });
 
         site = { [PLACES]: site[PLACES] };
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
-        await userEvent.click(await screen.findByRole("gridcell", { name: /^Towns/ }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Back to start", exact: true }));
+        await userEvent.click(page.getByRole("gridcell", { name: /^Towns/ }));
         const ask = await screen.findByRole("dialog", { name: "Open a web address?" });
-        await userEvent.click(within(ask).getByRole("button", { name: "Continue" }));
+        await userEvent.click(page.elementLocator(ask).getByRole("button", { name: "Continue", exact: true }));
         await elementSession(session);
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Opened Towns. people.json could not be read again (not found).");
@@ -296,7 +299,7 @@ describe("the Ref mark, with the experiment off", () => {
         const { store, session } = await threeLoads();
         const dialog = await openSaveAs();
         await pick(await within(dialog).findByRole("radiogroup", { name: "Sources" }), "Reference");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Save", exact: true }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Saved Towns in this browser.");
         });
@@ -315,9 +318,9 @@ describe("the Ref mark, with the experiment off", () => {
         const before = await kept();
         assert.strictEqual(before.version, 2, "only a version 2 file keeps a reference with the experiment off");
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
-        await userEvent.click(await screen.findByRole("gridcell", { name: /^Towns/ }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Back to start", exact: true }));
+        await userEvent.click(page.getByRole("gridcell", { name: /^Towns/ }));
         await elementSession(session);
         await waitFor(() => {
             assert.match(store.get().notice?.message ?? "", /^Opened Towns/);

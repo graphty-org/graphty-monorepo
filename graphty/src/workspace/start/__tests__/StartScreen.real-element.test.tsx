@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
@@ -67,7 +67,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
 
         // T1: the question is pinned over the start screen until it is answered.
         assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
-        await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
+        await userEvent.click(page.getByRole("button", { name: "Share usage data", exact: true }));
         assert.isNotNull(
             screen.getByText(/Thank you\. Usage data is on, with content masked\./, { selector: ".ws-start-answer" }),
         );

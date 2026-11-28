@@ -64,10 +64,10 @@ async function fillRedFrom(session: GraphSession, node: string): Promise<void> {
     await act(async () => {
         await session.selection.apply({ nodes: [node] });
     });
-    await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
+    await userEvent.click(page.getByRole("tab", { name: "Style", exact: true }));
+    await userEvent.click(page.getByRole("button", { name: "Add to node fill", exact: true }));
     // Fill also offers Picture, so its "+" opens a menu.
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+    await userEvent.click(page.getByRole("menuitem", { name: "Color", exact: true }));
     await waitFor(() => {
         assert.isNotNull(document.activeElement?.closest('[data-line="node.color"]'), "focus in the new line");
     });
@@ -100,7 +100,7 @@ describe("the selected layer", () => {
         await page.viewport(1440, 900);
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
-        await userEvent.click(screen.getByRole("button", { name: sampleTile("Les Miserables") }));
+        await userEvent.click(page.getByRole("button", { name: sampleTile("Les Miserables"), exact: true }));
         await store.get().opened;
         const session = document.querySelector("graphty-element")?.session;
         const whole = session === undefined ? undefined : paintsEverything(session);
@@ -137,7 +137,7 @@ describe("the selected layer", () => {
         await act(async () => {
             await session.selection.apply({ nodes: [idOf("Cosette")] });
         });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+        await userEvent.click(page.getByRole("tab", { name: "Style", exact: true }));
         // The row already holds the base look: its Color line is there to change.
         const box = await waitFor(() => {
             const found = screen

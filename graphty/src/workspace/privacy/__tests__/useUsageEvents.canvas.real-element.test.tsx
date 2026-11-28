@@ -274,10 +274,10 @@ describe("usage counts from the reader's hands on the canvas", () => {
         await element.waitForStableFrame();
 
         // The Camera button is a command of its own (view.camera); Fit is the row it opens.
-        await userEvent.click(screen.getByRole("button", { name: /^Camera/ }));
-        const row = await screen.findByRole("menuitem", { name: /^Fit(?! selection)/ });
+        await userEvent.click(page.getByRole("button", { name: /^Camera/ }));
+        await screen.findByRole("menuitem", { name: /^Fit(?! selection)/ });
         const fit = next("command_run");
-        await userEvent.click(row);
+        await userEvent.click(page.getByRole("menuitem", { name: /^Fit(?! selection)/ }));
         assert.strictEqual((await fit).command, "view.fit");
         // Fit's own animation is not the reader's gesture: it sends no camera_used at all.
         await element.waitForStableFrame();
@@ -325,7 +325,7 @@ describe("usage counts from the reader's hands on the canvas", () => {
         await openedAtRest();
         (document.activeElement as HTMLElement | null)?.blur();
         await userEvent.keyboard("{Control>}k{/Control}");
-        const field = await screen.findByPlaceholderText("Search commands");
+        const field = page.getByPlaceholder("Search commands", { exact: true });
         await userEvent.type(field, "Legend");
         await screen.findByRole("option", { name: /^Legend\b/ });
         const ran = next("command_run");

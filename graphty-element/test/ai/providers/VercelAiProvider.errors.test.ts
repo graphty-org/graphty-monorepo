@@ -12,7 +12,7 @@ import { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
 import type { AiEvent } from "../../../src/events";
 import { redactSecrets } from "../../../src/logging";
-import { createMessageGraph } from "../../helpers/message-graph";
+import { createCommandGraph } from "../../helpers/session-graph";
 
 /** The configured key, and a value from the graph that must never leave in an error. */
 const KEY = "sk-ant-api03-SENTINELKEY0123456789abcdefghij";
@@ -129,7 +129,7 @@ describe("AiController errors", () => {
         const controller = new AiController({
             provider,
             commandRegistry: new CommandRegistry(),
-            graph: createMessageGraph(),
+            graph: await createCommandGraph(),
             emitEvent: (event) => events.push(event),
         });
 

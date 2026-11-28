@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
@@ -58,7 +58,7 @@ async function openScene(): Promise<{
  */
 async function clickRow(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
 /**
@@ -110,16 +110,18 @@ describe("the layer panel", () => {
         // Nodes picked by hand: one layer of them still edits its cards (a rule opens the selection editor).
         const selector = { match: "ids" as const, nodes: [idOf("Cosette")], edges: [] };
         const layer = await openLayer(session, { name: "Group one", selector });
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+        await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: /^Remove / }));
+        await userEvent.click(page.elementLocator(region).getByRole("button", { name: /^Remove / }));
         await noticeSays(/^Group one now styles all 77 nodes: no condition is left/);
         assert.isNotNull(within(region).queryByRole("button", { name: "Done" }), "Done stays");
         await waitFor(() => {
             assert.equal(session.styles.get(layer.id)?.selector.match, "everything");
         });
         const notice = document.querySelector<HTMLElement>(".ws-notice-slot");
-        await userEvent.click(within(notice ?? document.body).getByRole("button", { name: "Undo" }));
+        await userEvent.click(
+            page.elementLocator(notice ?? document.body).getByRole("button", { name: "Undo", exact: true }),
+        );
         await waitFor(() => {
             assert.notEqual(session.styles.get(layer.id)?.selector.match, "everything", "the condition is back");
         });
@@ -130,11 +132,12 @@ describe("the layer panel", () => {
         const where = { kind: "text" as const, reads: "data.name", mode: "substring" as const, text: "Co" };
         // The cards of a layer and its twin: one rule layer alone opens the selection editor.
         const layer = await openCards(session, { name: "Group one", selector: { match: "rule", where } });
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+        await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
-        const box = await within(region).findByRole("combobox", { name: "name: text to match" });
-        await userEvent.clear(box);
-        await userEvent.type(box, "missing{Enter}");
+        const box = (): Locator =>
+            page.elementLocator(region).getByRole("combobox", { name: "name: text to match", exact: true });
+        await userEvent.clear(box());
+        await userEvent.type(box(), "missing{Enter}");
         // Kept as the reader wrote it, its count of 0 said in the row's name and tooltip, never
         // drawn in the sidebar as a badge (#8739).
         const row = await screen.findByRole("button", { name: /^Which nodes, .*, 0 nodes(,|$)/ });
@@ -146,19 +149,19 @@ describe("the layer panel", () => {
     it("an unfinished card shows no count and, dropped by Done, is said", async () => {
         const { session } = await openScene();
         await openCards(session, { name: "Plain", selector: { match: "everything" } });
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+        await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
         // A row with no card opens on Add a condition, whose list one more click opens.
-        await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a condition", exact: true }));
         const search = await screen.findByRole("combobox", { name: "Find an attribute" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, search);
         });
         await userEvent.keyboard("name");
-        await userEvent.click(await screen.findByRole("option", { name: /^name/ }));
+        await userEvent.click(page.getByRole("option", { name: /^name/ }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const card = await within(region).findByRole("group", { name: /^name/ });
         assert.strictEqual(card.getAttribute("aria-label"), "name", "no count before a value");
-        await userEvent.click(within(region).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(region).getByRole("button", { name: "Done", exact: true }));
         await noticeSays(/^Dropped the name condition: it was not finished/);
     });
 
@@ -170,18 +173,26 @@ describe("the layer panel", () => {
             selector: { match: "ids", nodes: [idOf("Cosette")] },
             userData: { [DEFAULT_NAME_KEY]: "Cosette" },
         });
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+        await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: /^Remove / }));
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await userEvent.click(page.elementLocator(region).getByRole("button", { name: /^Remove / }));
+        await userEvent.click(
+            page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+        );
         await userEvent.keyboard("name");
-        await userEvent.click(await screen.findByRole("option", { name: /^name/ }));
-        await userEvent.type(await within(region).findByRole("combobox", { name: "name: text to match" }), "Co");
+        await userEvent.click(page.getByRole("option", { name: /^name/ }));
+        await userEvent.type(
+            page.elementLocator(region).getByRole("combobox", { name: "name: text to match", exact: true }),
+            "Co",
+        );
         await waitFor(() => {
             assert.strictEqual(session.styles.get(made.id)?.name, "name contains Co");
         });
         await session.styles.update(made.id, { name: "My people" });
-        await userEvent.type(within(region).getByRole("combobox", { name: "name: text to match" }), "s");
+        await userEvent.type(
+            page.elementLocator(region).getByRole("combobox", { name: "name: text to match", exact: true }),
+            "s",
+        );
         await waitFor(() => {
             assert.strictEqual(session.styles.get(made.id)?.selector.match, "rule");
         });
@@ -194,7 +205,7 @@ describe("the layer panel", () => {
         await openLayer(session, { name: "Named", selector: { match: "expression", where: "name" } });
         const row = await screen.findByRole("button", { name: /^Which nodes, / });
         assert.include(row.getAttribute("aria-label") ?? "", "name: has a value");
-        await userEvent.click(row);
+        await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const card = await within(region).findByRole("group", { name: /^name, 77 nodes$/ });
         assert.strictEqual(card.querySelector<HTMLInputElement>("input:not([type=hidden])")?.value, "Has a value");
@@ -203,9 +214,9 @@ describe("the layer panel", () => {
     it("opens a new layer on its Node tab, and its tab has no line for the other kind", async () => {
         await openScene();
         await clickRow("Everything");
-        await userEvent.click(await screen.findByRole("tab", { name: /^Edge/ }));
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await userEvent.click(page.getByRole("tab", { name: /^Edge/ }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Layer", exact: true }));
         await screen.findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Escape}");
         const tab = await screen.findByTestId("style-tab");
@@ -213,7 +224,7 @@ describe("the layer panel", () => {
             assert.strictEqual(within(tab).getByRole("tab", { name: /^Node/ }).getAttribute("aria-selected"), "true");
         });
         await clickRow("Everything");
-        await userEvent.click(await screen.findByRole("tab", { name: /^Node/ }));
+        await userEvent.click(page.getByRole("tab", { name: /^Node/ }));
         const panel = await within(screen.getByTestId("style-tab")).findByRole("tabpanel");
         // The other kind is reached by its own tab: no "Edges: ..." line, no Edit edges (issue #6811).
         assert.isNotNull(panel.querySelector(".ws-style-group"));

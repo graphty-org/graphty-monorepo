@@ -8,7 +8,7 @@ import { BUILT_IN_ALGORITHMS, type OptionDescriptor } from "@graphty/graphty-ele
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import React from "react";
 import { afterEach, assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { optionWords } from "../../analyze/words";
@@ -125,9 +125,9 @@ describe("the options form", () => {
         const box = screen.getByRole("spinbutton", { name: /^Damping factor(,|$)/ });
         assert.strictEqual((box as HTMLInputElement).value, "0.85");
         assert.isNull(screen.queryByRole("button", { name: /reset/i }));
-        await user.clear(box);
-        await user.type(box, "0.9{Enter}");
-        await user.click(screen.getByRole("button", { name: /reset/i }));
+        await user.clear(page.getByRole("spinbutton", { name: /^Damping factor(,|$)/ }));
+        await user.type(page.getByRole("spinbutton", { name: /^Damping factor(,|$)/ }), "0.9{Enter}");
+        await user.click(page.getByRole("button", { name: /reset/i }));
         // The reset puts the default back as the value, so the run reads as unchanged.
         assert.deepEqual(last, { dampingFactor: 0.85 });
         assert.strictEqual((box as HTMLInputElement).value, "0.85");
@@ -213,11 +213,11 @@ describe("the options form", () => {
         );
         const select = screen.getByRole("combobox", { name: "Weight" });
         assert.equal((select as HTMLInputElement).value, "emails (closer, loaded)");
-        await userEvent.click(select);
+        await userEvent.click(page.getByRole("combobox", { name: "Weight", exact: true }));
         const options = screen.getAllByRole("option").map((option) => option.textContent);
         // A column is named alone, without what the run reads it as (OptionsForm.tsx).
         assert.deepEqual(options, ["emails (closer, loaded)", "None", "cost"]);
-        await userEvent.click(screen.getByRole("option", { name: "None" }));
+        await userEvent.click(page.getByRole("option", { name: "None", exact: true }));
         assert.deepEqual(changes, [null]);
     });
     describe("options drawn from a descriptor the form is handed", () => {
@@ -269,12 +269,12 @@ describe("the options form", () => {
             const hex = screen.getByTestId<HTMLInputElement>("compact-color-input-hex");
             assert.strictEqual(hex.value, "FF8800");
 
-            await userEvent.tripleClick(hex);
+            await userEvent.tripleClick(page.getByTestId("compact-color-input-hex"));
             await userEvent.keyboard("00aa00{Enter}");
             assert.deepEqual(changes, [["tint", "#00AA00"]]);
 
             // The color already shown is no change.
-            await userEvent.tripleClick(hex);
+            await userEvent.tripleClick(page.getByTestId("compact-color-input-hex"));
             await userEvent.keyboard("00AA00{Enter}");
             assert.deepEqual(changes, [["tint", "#00AA00"]]);
         });
@@ -285,9 +285,9 @@ describe("the options form", () => {
             assert.strictEqual(box.value, "");
             assert.strictEqual(box.placeholder, "n");
 
-            await userEvent.type(box, "ab");
+            await userEvent.type(page.getByRole("textbox", { name: "Prefix", exact: true }), "ab");
             assert.deepEqual(changes.at(-1), ["prefix", "ab"]);
-            await userEvent.clear(box);
+            await userEvent.clear(page.getByRole("textbox", { name: "Prefix", exact: true }));
             assert.deepEqual(changes.at(-1), ["prefix", undefined]);
             assert.strictEqual(box.value, "");
         });
@@ -325,7 +325,7 @@ describe("the options form", () => {
             }
             render(<Form />);
             assert.isNotNull(screen.getByText("None"), "no node yet");
-            await userEvent.click(screen.getByRole("button", { name: "Use selected node as Source" }));
+            await userEvent.click(page.getByRole("button", { name: "Use selected node as Source", exact: true }));
             assert.deepEqual(changes, [["source", "b"]]);
             // The selected node is the option's now: named, and not offered again.
             const named = made.data.nodeName("b").name;
@@ -364,7 +364,7 @@ describe("the options form", () => {
                     disabledReason: (option) => (option.name === "mode" ? "Set by the layout" : null),
                 },
             );
-            await userEvent.click(screen.getByRole("combobox", { name: "Where" }));
+            await userEvent.click(page.getByRole("combobox", { name: "Where", exact: true }));
             const refused = screen.getByRole("option", { name: /^name/ });
             assert.include(refused.textContent, "refused: location.column-unfit");
             assert.strictEqual(refused.getAttribute("data-combobox-disabled"), "true");
@@ -436,15 +436,15 @@ describe("the options form", () => {
         render(<Form />);
         const select = screen.getByRole<HTMLInputElement>("combobox", { name: "Weight" });
         assert.equal(select.value, "None");
-        await userEvent.click(select);
-        await userEvent.click(screen.getByRole("option", { name: "emails (closer, loaded)" }));
+        await userEvent.click(page.getByRole("combobox", { name: "Weight", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "emails (closer, loaded)", exact: true }));
         // The loaded weight is the option left absent.
         assert.deepEqual(changes, [undefined]);
         await waitFor(() => {
             assert.equal(select.value, "emails (closer, loaded)");
         });
-        await userEvent.click(select);
-        await userEvent.click(screen.getByRole("option", { name: "cost" }));
+        await userEvent.click(page.getByRole("combobox", { name: "Weight", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "cost", exact: true }));
         assert.deepEqual(changes, [undefined, "cost"]);
         await waitFor(() => {
             assert.equal(select.value, "cost");
@@ -487,7 +487,7 @@ describe("the options form", () => {
             assert.equal(select.value, "None");
             assert.include(document.body.textContent, "Each edge counts as 1.");
         });
-        await userEvent.click(select);
+        await userEvent.click(page.getByRole("combobox", { name: "Weight", exact: true }));
         const loaded = screen.getByRole("option", { name: /^flow \(.*loaded, not read\)$/ });
         assert.strictEqual(loaded.getAttribute("data-combobox-disabled"), "true");
     });

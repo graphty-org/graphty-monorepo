@@ -265,8 +265,8 @@ section). The packages without a CLAUDE.md:
 ### Coverage Thresholds
 
 At least 80% lines, functions and statements and 75% branches in every package; graph-format, graph-io,
-graph-samples, babylonjs-map, babylonjs-models, cytoscape-extensions, algorithms, layout, remote-logger,
-webgpu-graph-algorithms and visual-review require 90% in all four. Every package is moving to 90 (issue #3043); a
+graph-samples, babylonjs-map, babylonjs-models, cytoscape-extensions, compact-mantine, algorithms, layout,
+remote-logger, webgpu-graph-algorithms and visual-review require 90% in all four. Every package is moving to 90 (issue #3043); a
 package's thresholds rise to 90 in the pull request that brings it there.
 
 ## Testing

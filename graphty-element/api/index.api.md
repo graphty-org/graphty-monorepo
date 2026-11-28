@@ -8600,6 +8600,7 @@ export class RenderManager implements Manager {
         gpuBehind: number;
         smooth: number;
         awaitedLanding: number;
+        drawnNow: number;
     };
 }
 

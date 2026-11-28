@@ -48,12 +48,13 @@ async function outlined(): Promise<Graphty> {
 }
 
 /**
- * How far the outline ring reaches, as the scene holds its geometry: the largest radius of the
- * ring source mesh's vertices. The outline is a ring mesh around the node (e8546ecf5f), and its
- * width is the band between the ring's inner and outer radius.
+ * How far the outline ring reaches, as the scene holds its geometry, in multiples of where it starts:
+ * the outer radius of its first point over the inner. The outline is a ring mesh around the node
+ * (e8546ecf5f), built in world units round the outline the node shows the camera (#10503), so its
+ * width is the band between the ring's inner and outer edge at one point of that outline.
  * @param element - The element.
- * @param color - The ring's color, which starts its source mesh's name.
- * @returns The ring's inner and outer radius.
+ * @param color - The ring's color, which starts its mesh's name.
+ * @returns The ring's inner and outer radius, in multiples of the inner.
  */
 function ring(element: Graphty, color = "#ff0000"): [number, number] {
     const source = element.graph.scene.meshes.find(
@@ -62,12 +63,11 @@ function ring(element: Graphty, color = "#ff0000"): [number, number] {
     );
     assert.isDefined(source, "an outlined node drew an outline ring");
     const positions = source?.getVerticesData(VertexBuffer.PositionKind) ?? [];
-    const radii: number[] = [];
-    for (let at = 0; at < positions.length; at += 3) {
-        radii.push(Math.hypot(positions[at], positions[at + 1]));
-    }
+    // the band's first point: its inner vertex, then its outer one
+    const inner = Math.hypot(positions[0], positions[1]);
+    const outer = Math.hypot(positions[3], positions[4]);
 
-    return [Math.min(...radii), Math.max(...radii)];
+    return [1, outer / inner];
 }
 
 /**

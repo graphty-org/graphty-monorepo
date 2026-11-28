@@ -15,7 +15,6 @@ import type { NodeStyleConfig } from "../config";
 import { GraphtyLogger, type Logger } from "../logging";
 import { DEFAULT_GLOW_COLOR, DEFAULT_OUTLINE_COLOR } from "../session/styles/channels";
 import type { GraphSceneMetadata } from "../types/sceneMetadata";
-import type { MeshCache } from "./MeshCache";
 import { readColor } from "./readColor";
 import { convexHull, offsetOutline, type Point2 } from "./shapeOutlines";
 
@@ -49,55 +48,66 @@ const OUTLINE_RING_OUTER = 1.35;
  */
 const OUTLINE_RING_LIFT = 1.05;
 
-/** How many straight pieces the ring is drawn in. */
-const OUTLINE_RING_SEGMENTS = 48;
-
-/** The ring's depth offset; see createOutlineRingSource. */
+/** The ring's depth offset; see createOutlineRingMaterial. */
 const OUTLINE_RING_DEPTH_OFFSET = 2;
 
 /** The smallest node radius a ring is sized for, so a node with no bounds yet still gets one. */
 const MIN_RING_RADIUS = 0.01;
 
-/** Scratch vectors, so placing a ring every frame allocates nothing. */
+/** How far, in world units, a point of a ring's outline may move before the ring is rebuilt round it. */
+const RING_REBUILD_TOLERANCE = 1e-5;
+
+/** Scratch vectors, so placing a ring every frame allocates little. */
 const TO_CAMERA = new Vector3();
 const RING_RIGHT = new Vector3();
 const RING_UP = new Vector3();
-const NODE_AXES = [new Vector3(), new Vector3(), new Vector3()] as const;
-
-/** What separates a ring's color from the node outline it follows, in the ring's name. */
-const OUTLINE_SHAPE_MARK = "-o";
-
-/** How far a node's outline may stand off the ellipse through its half-extents and still be drawn round. */
-const ROUND_TOLERANCE = 0.02;
-
-/** The most distinct corners a node's mesh may have for its reach to be measured from them rather than its ellipsoid. */
-const MAX_REACH_CORNERS = 64;
+const RING_POINT = new Vector3();
 
 /**
- * The outline a ring follows, from its node's mesh: the front (local x, y) outline in its half-extents
- * (null for a round one, which the ring draws as an ellipse), and the mesh's distinct corners in its
- * own units when there are few enough to measure its reach from (null for a finely tessellated one).
+ * What a ring goes round, from its node's mesh, in the mesh's own units: its distinct vertices, and for
+ * a flat shape the convex hull of its front (x, y) and how deep its slab is.
  */
 interface RingShape {
-    outline: Point2[] | null;
-    corners: Vector3[] | null;
-    /** What tells this outline's ring apart from another's in its name; empty for a round one. */
-    key: string;
+    points: Vector3[];
+    front: Point2[];
+    /** The slab's least and greatest z. */
+    depth: readonly [number, number];
 }
 
 /** Each node source mesh's ring shape, worked out once from its vertices. */
 const RING_SHAPES = new WeakMap<AbstractMesh, RingShape>();
 
-/** Each ring source mesh's outline (null for an ellipse), so a width change rebuilds it with its own. */
-const RING_OUTLINES = new WeakMap<Mesh, Point2[] | null>();
+/** Each scene's ring materials, one per color. */
+const RING_MATERIALS = new WeakMap<Scene, Map<string, StandardMaterial>>();
 
-/** What a ring keeps between frames: its node's half-extents, and the world matrix it is drawn with. */
+/** What a ring keeps between frames. */
 interface OutlineRingMetadata {
-    outlineExtent: Vector3;
     shape: RingShape;
+    /** Whether the node's shape is flat: its border lies in its own plane, not round the outline the camera sees. */
+    flat: boolean;
     /** How far the node's border and outer border reach past its fill, in the fill's own units. */
     borderReach: () => number;
+    /** The width its style sets, if any. */
+    width: number | undefined;
     world: Matrix;
+    /** The outline the ring was last built round, in its own plane, in world units; empty before the first. */
+    drawn: Point2[];
+}
+
+/**
+ * Whether two outlines are the same to within {@link RING_REBUILD_TOLERANCE}.
+ * @param a - One outline.
+ * @param b - The other.
+ * @returns True when they match point for point.
+ */
+function sameOutline(a: readonly Point2[], b: readonly Point2[]): boolean {
+    return (
+        a.length === b.length &&
+        a.every(
+            ([x, y], i) =>
+                Math.abs(x - b[i][0]) < RING_REBUILD_TOLERANCE && Math.abs(y - b[i][1]) < RING_REBUILD_TOLERANCE,
+        )
+    );
 }
 
 /**
@@ -236,14 +246,13 @@ export class NodeEffects {
     static setOutlineWidth(scene: Scene, width: number | undefined): void {
         scene.metadata ??= {};
         (scene.metadata as GraphSceneMetadata).outlineWidth = width;
-        const outer = this.ringOuterOf(this.outlineWidthOf(scene, undefined));
         for (const mesh of scene.meshes) {
             if (
                 mesh instanceof Mesh &&
                 mesh.name.startsWith(OUTLINE_RING_PREFIX) &&
                 !mesh.name.includes(OUTLINE_WIDTH_MARK)
             ) {
-                this.ringVertexData(outer, RING_OUTLINES.get(mesh) ?? null).applyToMesh(mesh, true);
+                this.rebuildRing(mesh, (mesh.metadata as OutlineRingMetadata).drawn);
             }
         }
     }
@@ -291,23 +300,27 @@ export class NodeEffects {
      * at the node's front surface, a nearer node or label covers the ring, a label beside it is
      * drawn over it, and the node's own edges pass behind it.
      *
-     * ONE SOURCE MESH PER OUTLINE COLOR AND WIDTH, cached in the mesh cache, and one instance of it per
-     * outlined node. The instance is a CHILD of the node's mesh, so it moves, hides and is
-     * disposed with it (a restyle that rebuilds the mesh takes the old ring with it, and this is
-     * called again for the new mesh). followCamera sets its world matrix from the node's own
-     * half-extents and world matrix, so the node mesh's scaling and the graph root's carry through.
+     * ONE RING MESH PER OUTLINED NODE, sharing one material per color. Each ring is built round the
+     * outline its own node shows the camera (followCamera), which differs from node to node under
+     * perspective, so rings are not instances of one source. The ring is a CHILD of the node's mesh,
+     * so it hides and is disposed with it (a restyle that rebuilds the mesh takes the old ring with
+     * it, and this is called again for the new mesh).
+     *
+     * ponytail: a mesh and a draw call per outlined node, and a rebuild whenever the outline it shows
+     * changes (every frame while a perspective camera moves); the outline is usually on a few
+     * selected or hovered nodes. Draw rings in one batch if many outlined nodes show it.
      * @param mesh - The node's mesh, normally an InstancedMesh from MeshCache.
      * @param effect - The effect configuration from the node style.
-     * @param cache - The mesh cache the ring's source mesh is kept in.
      * @param borderReach - How far the node's border and outer border reach past its fill, in the
      * fill's own units, read every frame (a screen-pixel border changes with the zoom); the ring
      * starts there, so it never covers them (#10426).
+     * @param flat - Whether the node's shape is flat, so its border lies in its own plane.
      */
     static applyOutlineEffect(
         mesh: AbstractMesh,
         effect: NodeStyleConfig["effect"] | undefined,
-        cache: MeshCache,
         borderReach: () => number = () => 0,
+        flat = false,
     ): void {
         const existing = mesh.getChildMeshes(true).find((child) => child.name.startsWith(OUTLINE_RING_PREFIX));
 
@@ -321,25 +334,20 @@ export class NodeEffects {
         // THE ALPHA IS DROPPED: an outline is drawn opaque. The layer check reports it as
         // W_ALPHA_IGNORED, so the drop is said rather than silent.
         const { rgb } = readColor(this.extractColorValue(outline.color), DEFAULT_OUTLINE_COLOR);
-        // ONE SOURCE PER COLOR AND WIDTH. A ring with no width of its own is named by its color
-        // alone and drawn at the scene's width, which setOutlineWidth rewrites in place.
+        // Named by color and the width its style sets: a ring with no width of its own is drawn at
+        // the scene's width, which setOutlineWidth rewrites in place.
         const own = outline.width;
         const widthPart = own === undefined ? "" : OUTLINE_WIDTH_MARK + String(own);
-        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
-        const shape = this.ringShapeOf(mesh, extent);
-        const name = `${OUTLINE_RING_PREFIX}${rgb.toHexString()}${shape.key}${widthPart}`;
+        const name = `${OUTLINE_RING_PREFIX}${rgb.toHexString()}${widthPart}`;
         const scene = mesh.getScene();
-        const ring =
-            existing?.name === name && !existing.isDisposed()
-                ? existing
-                : cache.get(name, () =>
-                      this.createOutlineRingSource(name, rgb, scene, this.outlineWidthOf(scene, own), shape.outline),
-                  );
+        const kept = existing?.name === name && !existing.isDisposed() && existing instanceof Mesh ? existing : null;
+        const ring = kept ?? new Mesh(name, scene);
 
         if (ring !== existing) {
             existing?.dispose();
             ring.isPickable = false;
             ring.parent = mesh;
+            ring.material = this.ringMaterialOf(rgb, scene);
             const observer = scene.onBeforeCameraRenderObservable.add((camera) => {
                 this.followCamera(ring, camera);
             });
@@ -348,16 +356,15 @@ export class NodeEffects {
             });
         }
 
-        const kept = ring.metadata as Partial<OutlineRingMetadata> | null;
+        const before = ring.metadata as Partial<OutlineRingMetadata> | null;
         const metadata: OutlineRingMetadata = {
-            outlineExtent: new Vector3(
-                Math.max(extent.x, MIN_RING_RADIUS),
-                Math.max(extent.y, MIN_RING_RADIUS),
-                Math.max(extent.z, MIN_RING_RADIUS),
-            ),
-            shape,
-            world: kept?.world ?? new Matrix(),
+            shape: this.ringShapeOf(mesh),
+            flat,
             borderReach,
+            width: own,
+            world: before?.world ?? new Matrix(),
+            // rebuilt on the next placement: the shape or the width may be new
+            drawn: [],
         };
         ring.metadata = metadata;
         const camera = scene.activeCamera;
@@ -367,15 +374,13 @@ export class NodeEffects {
     }
 
     /**
-     * The outline a node's ring follows, worked out once per node source mesh from its vertices: the
-     * convex hull of its front (x, y), in its half-extents. An outline on the ellipse through them (a
-     * sphere, an ellipse, a cylinder) is drawn as that ellipse; any other (a box, a rectangle, a
-     * diamond, a capsule) as itself, so the ring goes round the corners instead of across them (#10437).
+     * What a node's ring goes round, worked out once per node source mesh from its vertices: its
+     * distinct vertices, and the convex hull of its front (x, y) with its slab's depth, in its own units.
+     * A mesh with no vertices yet is taken as a small box.
      * @param mesh - The node's mesh.
-     * @param extent - Its half-extents.
      * @returns The ring shape.
      */
-    private static ringShapeOf(mesh: AbstractMesh, extent: Vector3): RingShape {
+    private static ringShapeOf(mesh: AbstractMesh): RingShape {
         const source = this.resolveRenderedMesh(mesh);
         const kept = RING_SHAPES.get(source);
         if (kept !== undefined) {
@@ -383,175 +388,116 @@ export class NodeEffects {
         }
 
         const positions = source.getVerticesData(VertexBuffer.PositionKind) ?? [];
-        const ex = Math.max(extent.x, MIN_RING_RADIUS);
-        const ey = Math.max(extent.y, MIN_RING_RADIUS);
-        const ez = Math.max(extent.z, MIN_RING_RADIUS);
         const distinct = new Map<string, Vector3>();
-        const front: Point2[] = [];
         for (let i = 0; i + 2 < positions.length; i += 3) {
             const [x, y, z] = [positions[i], positions[i + 1], positions[i + 2]];
-            front.push([x / ex, y / ey]);
-            if (distinct.size <= MAX_REACH_CORNERS) {
-                // in half-extents, as reach() measures them along each axis's world image times its half-extent
-                distinct.set(`${x.toFixed(5)},${y.toFixed(5)},${z.toFixed(5)}`, new Vector3(x / ex, y / ey, z / ez));
+            distinct.set(`${x.toFixed(5)},${y.toFixed(5)},${z.toFixed(5)}`, new Vector3(x, y, z));
+        }
+        if (distinct.size === 0) {
+            const r = MIN_RING_RADIUS;
+            for (const corner of [-r, r].flatMap((x) => [-r, r].flatMap((y) => [-r, r].map((z) => [x, y, z])))) {
+                distinct.set(corner.join(","), Vector3.FromArray(corner));
             }
         }
-        const hull = convexHull(front);
-        // Round when every corner and the middle of every side is on the ellipse: a diamond's
-        // corners are on it, but the middles of its sides are well inside.
-        const round =
-            hull.length < 3 ||
-            hull.every(([x, y], i) => {
-                const [nx, ny] = hull[(i + 1) % hull.length];
-                return (
-                    Math.hypot(x, y) <= 1 + ROUND_TOLERANCE &&
-                    Math.hypot((x + nx) / 2, (y + ny) / 2) >= 1 - ROUND_TOLERANCE
-                );
-            });
-        const corners = distinct.size <= MAX_REACH_CORNERS ? [...distinct.values()] : null;
-        const outline = round ? null : hull;
-        const key = outline === null ? "" : OUTLINE_SHAPE_MARK + this.outlineKey(outline);
-        const shape: RingShape = { outline, corners, key };
+        const points = [...distinct.values()];
+        const zs = points.map((p) => p.z);
+        const shape: RingShape = {
+            points,
+            front: convexHull(points.map((p): Point2 => [p.x, p.y])),
+            depth: [Math.min(...zs), Math.max(...zs)],
+        };
         RING_SHAPES.set(source, shape);
         return shape;
     }
 
     /**
-     * A short name for an outline, the same for the same points to three places.
-     * @param outline - The outline.
-     * @returns The name.
-     */
-    private static outlineKey(outline: readonly Point2[]): string {
-        let hash = 5381;
-        for (const ch of outline.map(([x, y]) => `${x.toFixed(3)},${y.toFixed(3)}`).join(";")) {
-            hash = ((hash * 33) ^ (ch.codePointAt(0) ?? 0)) >>> 0;
-        }
-        return hash.toString(36);
-    }
-
-    /**
-     * Place a node's ring for one camera, before that camera draws: square to the line of sight to
-     * the node, in front of its center by its depth toward the camera, and stretched along the
-     * screen's two axes to the node's own half-width and half-height as seen from there, so its
-     * inner edge lies on the node's visible edge whatever the node's shape.
+     * Place a node's ring for one camera, before that camera draws: square to the line of sight to the
+     * node, in front of it, and built round the outline the node shows that camera, past its border.
      *
-     * WHY AN ELLIPSE PER AXIS (#10406). The ring was a circle of the node's LONGEST half-extent, so
-     * around a node that is not round (a capsule, half as wide as it is tall) the ring met the node
-     * at its long ends and stood off it at its short sides (`test/browser/node-outline-follows-shape.test.ts`).
-     * The width and height on screen are the node's bounding ellipsoid measured along the screen's axes,
-     * from the node's world matrix, so a node scaled unequally per axis is measured as drawn.
+     * THE OUTLINE IS THE ONE THE CAMERA SEES (#10503). The node's vertices are carried through its world
+     * matrix and projected, through the camera, onto the ring's plane, and the ring's inner edge is
+     * their convex hull. It was the node's bounding ellipsoid (or its front outline) stretched to its
+     * reach along the camera's right and up: on a rolled view that stood off a wide ellipse along its
+     * short diagonal and cut into it along the long one, and a tetrahedron's, a box's or a cone's ring
+     * cut across their slanted sides (`test/browser/node-outline-follows-view.test.ts`).
      *
-     * WHY EVERY FRAME. Under perspective a node's visible edge is where the cone of sight lines that
-     * graze it meets it, and the cone depends on how far away and in which direction the camera is.
-     * A ring placed for a node straight ahead opened a gap for a node off to the side
-     * (`test/browser/node-outline-perspective.test.ts`). An orthographic camera has no cone.
+     * THE RING STARTS PAST THE BORDER (#10426), offset by the border's reach with mitred corners as the
+     * border is (#10437). A flat shape's border lies in its own plane, so its front outline is offset
+     * there before it is projected; growing its slab's depth too floated the ring far above and below a
+     * flat shape seen nearly edge-on. A solid's border follows the outline the camera sees (NodeMesh
+     * followView), so that outline is offset in the ring's plane.
      *
-     * THE WORLD MATRIX IS SET DIRECTLY, not through a billboard: a billboard keeps its parent's
-     * scale along the parent's axes, which are not the screen's.
+     * UNDER PERSPECTIVE the projection is through the camera's position, so the ring's edge lies on the
+     * node's own edge on screen however far off to the side it is (`test/browser/node-outline-perspective.test.ts`).
      *
-     * Cost: a few vector operations per outlined node per camera, no scene search.
+     * THE WORLD MATRIX IS SET DIRECTLY, not through a billboard: the ring's geometry is already in world
+     * units in its plane.
      * @param ring - The node's ring, a child of the node's mesh.
      * @param camera - The camera about to draw.
      */
-    private static followCamera(ring: AbstractMesh, camera: Camera): void {
+    private static followCamera(ring: Mesh, camera: Camera): void {
         const node = ring.parent;
-        const metadata = ring.metadata as Partial<OutlineRingMetadata> | null;
-        const extent = metadata?.outlineExtent;
-        const world = metadata?.world;
-        if (!(node instanceof AbstractMesh) || extent === undefined || world === undefined) {
+        const metadata = ring.metadata as OutlineRingMetadata | null;
+        if (!(node instanceof AbstractMesh) || metadata === null) {
             return;
         }
 
-        // THE RING STARTS PAST THE BORDER (#10426). It is drawn in front of the node, so sized from
-        // the fill alone it covered the border and outer border (separate meshes reaching further
-        // out). With a border, its inner edge is the border's outer edge rather than a little inside
-        // the fill's, so nothing the node draws is under it.
-        const border = metadata?.borderReach?.() ?? 0;
-        const outline = metadata?.shape?.outline ?? null;
-        const corners = metadata?.shape?.corners ?? null;
-        // An outline with corners is grown past the border in the ring's plane, below; an ellipse here.
-        const grow = (e: number): number => (border > 0 && outline === null ? (e + border) / OUTLINE_RING_INNER : e);
-        const { m } = node.computeWorldMatrix();
-        // The node's half-extents as world vectors: each local axis's image, times its half-extent.
-        NODE_AXES[0].set(m[0], m[1], m[2]).scaleInPlace(grow(extent.x));
-        NODE_AXES[1].set(m[4], m[5], m[6]).scaleInPlace(grow(extent.y));
-        NODE_AXES[2].set(m[8], m[9], m[10]).scaleInPlace(grow(extent.z));
-        // How far the node reaches along a world direction, taken as the ellipsoid in its bounding
-        // box: exact for a sphere, capsule or ellipse, and inside a box's corners as a circle was.
-        // The box itself would reach up to 1.7 times a sphere's radius along a slanted line of sight.
-        // A mesh with few corners (a box, a flat shape) is measured from them, exactly: its
-        // ellipsoid passes inside a box's corners, so a box turned to the camera reached further.
-        const reach = (u: Vector3): number => {
-            const [ax, ay, az] = NODE_AXES.map((axis) => Vector3.Dot(u, axis));
-            if (corners === null) {
-                return Math.hypot(ax, ay, az);
-            }
-            let most = 0;
-            for (const c of corners) {
-                most = Math.max(most, Math.abs(ax * c.x + ay * c.y + az * c.z));
-            }
-            return most;
-        };
-        const worldBorder = outline === null ? 0 : border * (Math.hypot(m[0], m[1], m[2]) || 1);
-
+        const { shape, flat, world } = metadata;
+        const border = metadata.borderReach();
+        const m = node.computeWorldMatrix();
         const center = node.getAbsolutePosition();
-        const toCamera = TO_CAMERA;
-        const right = RING_RIGHT;
-        const up = RING_UP;
-        camera.getDirectionToRef(Vector3.Up(), up);
-        let distance = Infinity;
-        if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
-            camera.getDirectionToRef(Vector3.Forward(camera.getScene().useRightHandedSystem), toCamera);
-            toCamera.scaleInPlace(-1);
-        } else {
-            camera.globalPosition.subtractToRef(center, toCamera);
-            distance = toCamera.length();
-            toCamera.scaleInPlace(1 / (distance || 1));
-        }
-        // Square to the line of sight, kept upright with the camera.
-        Vector3.CrossToRef(up, toCamera, right);
-        right.normalize();
-        Vector3.CrossToRef(toCamera, right, up);
+        const perspective = this.faceCamera(camera, center);
+        const [toCamera, right, up] = [TO_CAMERA, RING_RIGHT, RING_UP];
+        const eye = camera.globalPosition;
 
-        const lift = OUTLINE_RING_LIFT * (reach(toCamera) + worldBorder);
-        // The cone's radius at the ring's distance from the camera, for a node of half-size h.
-        const seen = (h: number): number =>
-            Number.isFinite(distance)
-                ? (Math.max(distance - lift, 0) * h) / Math.sqrt(Math.max(distance * distance - h * h, h * h * 1e-6))
-                : h;
-        let hx = Math.max(reach(right), MIN_RING_RADIUS);
-        let hy = Math.max(reach(up), MIN_RING_RADIUS);
-        if (outline !== null && worldBorder > 0) {
-            // THE RING FOLLOWS THE BORDER'S CORNERS (#10437). The border is the outline offset with
-            // mitred corners, which reach further than the border's width (a wide diamond's points
-            // by more than twice it). The ring is the outline stretched to that offset's half-width
-            // and half-height: exact for a rectangle, a diamond and a regular polygon.
-            const [x, y] = offsetOutline(
-                outline.map(([px, py]): Point2 => [px * hx, py * hy]),
-                worldBorder,
-            ).reduce(([wx, wy], [px, py]) => [Math.max(wx, Math.abs(px)), Math.max(wy, Math.abs(py))], [0, 0]);
-            hx = x / OUTLINE_RING_INNER;
-            hy = y / OUTLINE_RING_INNER;
+        // What the ring goes round, in the mesh's own units: a flat shape's front, offset by its border
+        // in its own plane, at its slab's two faces; else its vertices.
+        const local =
+            flat && border > 0
+                ? offsetOutline(shape.front, border).flatMap(([x, y]) => shape.depth.map((z) => new Vector3(x, y, z)))
+                : shape.points;
+        const placed = local.map((p) => Vector3.TransformCoordinates(p, m));
+        let depth = 0;
+        for (const p of placed) {
+            depth = Math.max(depth, Vector3.Dot(p.subtractToRef(center, RING_POINT), toCamera));
         }
-        const sx = seen(hx);
-        const sy = seen(hy);
+        // In front of the node's front surface: through its center, the node's own edges (which meet
+        // there) were drawn over the ring wherever they crossed it.
+        const lift = OUTLINE_RING_LIFT * Math.max(depth, MIN_RING_RADIUS);
+        const plane = center.add(toCamera.scale(lift));
+        // Along the line of sight, how far the ring's plane is in front of the camera.
+        const ahead = perspective ? Vector3.Dot(eye.subtract(plane), toCamera) : 0;
+        let outline = this.projectedHull(placed, plane, perspective ? { eye, ahead } : null);
+        if (border > 0 && !flat) {
+            // the border's world width, drawn at the ring's plane as at the node's center
+            const atCenter = perspective ? Vector3.Dot(eye.subtract(center), toCamera) : 1;
+            const shrink = perspective && atCenter > 0 ? ahead / atCenter : 1;
+            outline = offsetOutline(outline, border * (Math.hypot(m.m[0], m.m[1], m.m[2]) || 1) * shrink);
+        }
+        // The band starts a little inside the node's edge, so it overlaps it, or with a border at the
+        // border's outer edge, so nothing the node draws is under it.
+        const fitted =
+            border > 0 ? outline.map(([x, y]): Point2 => [x / OUTLINE_RING_INNER, y / OUTLINE_RING_INNER]) : outline;
+        if (!sameOutline(fitted, metadata.drawn)) {
+            this.rebuildRing(ring, fitted);
+        }
 
         Matrix.FromValuesToRef(
-            right.x * sx,
-            right.y * sx,
-            right.z * sx,
+            right.x,
+            right.y,
+            right.z,
             0,
-            up.x * sy,
-            up.y * sy,
-            up.z * sy,
+            up.x,
+            up.y,
+            up.z,
             0,
             toCamera.x,
             toCamera.y,
             toCamera.z,
             0,
-            center.x + toCamera.x * lift,
-            center.y + toCamera.y * lift,
-            center.z + toCamera.z * lift,
+            plane.x,
+            plane.y,
+            plane.z,
             1,
             world,
         );
@@ -559,19 +505,105 @@ export class NodeEffects {
     }
 
     /**
-     * A ring's geometry: a flat band from {@link OUTLINE_RING_INNER} to an outer radius in the XY
-     * plane, facing +z.
-     * @param outer - The outer radius.
-     * @param outline - The node outline the band follows, in its half-extents; null for an ellipse.
+     * Point TO_CAMERA from a node toward a camera, and RING_RIGHT and RING_UP square to it, kept upright
+     * with the camera.
+     * @param camera - The camera.
+     * @param center - The node's center.
+     * @returns Whether the camera has perspective.
+     */
+    private static faceCamera(camera: Camera, center: Vector3): boolean {
+        const [toCamera, right, up] = [TO_CAMERA, RING_RIGHT, RING_UP];
+        camera.getDirectionToRef(Vector3.Up(), up);
+        const perspective = camera.mode !== Camera.ORTHOGRAPHIC_CAMERA;
+        if (perspective) {
+            camera.globalPosition.subtractToRef(center, toCamera);
+            toCamera.normalize();
+        } else {
+            camera.getDirectionToRef(Vector3.Forward(camera.getScene().useRightHandedSystem), toCamera);
+            toCamera.scaleInPlace(-1);
+        }
+        Vector3.CrossToRef(up, toCamera, right);
+        right.normalize();
+        Vector3.CrossToRef(toCamera, right, up);
+        return perspective;
+    }
+
+    /**
+     * The convex hull of points carried onto a ring's plane, in the plane's right and up (RING_RIGHT,
+     * RING_UP): through the camera under perspective, else straight along the line of sight. A node
+     * with no area yet gets a small square.
+     * @param placed - The points, in world units; moved in place.
+     * @param plane - The ring's center.
+     * @param through - Under perspective, the camera's position and how far in front of it the plane is.
+     * @param through.eye - The camera's position.
+     * @param through.ahead - How far in front of the camera the plane is, along the line of sight.
+     * @returns The hull, in world units.
+     */
+    private static projectedHull(
+        placed: Vector3[],
+        plane: Vector3,
+        through: { eye: Vector3; ahead: number } | null,
+    ): Point2[] {
+        const projected: Point2[] = [];
+        for (const p of placed) {
+            if (through !== null) {
+                const along = Vector3.Dot(through.eye.subtract(p), TO_CAMERA);
+                if (along <= through.ahead) {
+                    continue;
+                }
+                p.subtractInPlace(through.eye)
+                    .scaleInPlace(through.ahead / along)
+                    .addInPlace(through.eye);
+            }
+            p.subtractInPlace(plane);
+            projected.push([Vector3.Dot(p, RING_RIGHT), Vector3.Dot(p, RING_UP)]);
+        }
+        const hull = convexHull(projected);
+        const r = MIN_RING_RADIUS;
+        return hull.length < 3
+            ? [
+                  [-r, -r],
+                  [r, -r],
+                  [r, r],
+                  [-r, r],
+              ]
+            : hull;
+    }
+
+    /**
+     * Build a ring's band round an outline in its own plane, at the width its style or the scene sets.
+     * @param ring - The ring.
+     * @param outline - The outline, in world units; the band runs from {@link OUTLINE_RING_INNER} of it outward.
+     */
+    private static rebuildRing(ring: Mesh, outline: Point2[]): void {
+        const metadata = ring.metadata as OutlineRingMetadata;
+        metadata.drawn = outline;
+        if (outline.length === 0) {
+            return;
+        }
+        const scene = ring.getScene();
+        this.ringVertexData(this.ringOuterOf(this.outlineWidthOf(scene, metadata.width)), outline).applyToMesh(
+            ring,
+            true,
+        );
+        ring.refreshBoundingInfo();
+        // A new submesh: a frozen list of what is drawn holds the old one, whose counts overrun these buffers.
+        (scene.metadata as GraphSceneMetadata | null)?.thawActiveMeshes?.();
+    }
+
+    /**
+     * A ring's geometry: a flat band from {@link OUTLINE_RING_INNER} of an outline to an outer
+     * multiple of it, in the XY plane, facing +z.
+     * @param outer - The outer multiple.
+     * @param outline - The outline the band follows.
      * @returns The vertex data.
      */
-    private static ringVertexData(outer: number, outline: readonly Point2[] | null): VertexData {
+    private static ringVertexData(outer: number, outline: readonly Point2[]): VertexData {
         const positions: number[] = [];
         const indices: number[] = [];
-        const segments = outline?.length ?? OUTLINE_RING_SEGMENTS;
+        const segments = outline.length;
         for (let i = 0; i <= segments; i++) {
-            const angle = (i / segments) * Math.PI * 2;
-            const [x, y] = outline?.[i % segments] ?? [Math.cos(angle), Math.sin(angle)];
+            const [x, y] = outline[i % segments];
             positions.push(x * OUTLINE_RING_INNER, y * OUTLINE_RING_INNER, 0, x * outer, y * outer, 0);
             if (i < segments) {
                 const at = i * 2;
@@ -582,34 +614,30 @@ export class NodeEffects {
         const data = new VertexData();
         data.positions = positions;
         data.indices = indices;
-        // +z faces the camera: the ring is a billboard turned toward the camera's position.
+        // +z faces the camera.
         data.normals = positions.map((_, i) => (i % 3 === 2 ? 1 : 0));
         return data;
     }
 
     /**
-     * Build the source mesh of one outline color and width: a flat ring of inner radius
-     * {@link OUTLINE_RING_INNER} in the XY plane, its band widened by the width;
-     * followCamera places and sizes it.
-     * @param name - The mesh name, which is also its cache key.
+     * The material of every ring of one color in a scene.
      * @param color - The ring's color.
-     * @param scene - The scene to build it in.
-     * @param width - The band's width, as a multiple of its own.
-     * @param outline - The node outline the ring follows, in its half-extents; null for an ellipse.
-     * @returns The source mesh.
+     * @param scene - The scene.
+     * @returns The frozen material.
      */
-    private static createOutlineRingSource(
-        name: string,
-        color: Color3,
-        scene: Scene,
-        width: number,
-        outline: Point2[] | null,
-    ): Mesh {
-        const source = new Mesh(name, scene);
-        this.ringVertexData(this.ringOuterOf(width), outline).applyToMesh(source, true);
-        RING_OUTLINES.set(source, outline);
+    private static ringMaterialOf(color: Color3, scene: Scene): StandardMaterial {
+        let materials = RING_MATERIALS.get(scene);
+        if (materials === undefined) {
+            materials = new Map();
+            RING_MATERIALS.set(scene, materials);
+        }
+        const key = color.toHexString();
+        const kept = materials.get(key);
+        if (kept !== undefined && scene.materials.includes(kept)) {
+            return kept;
+        }
 
-        const material = new StandardMaterial(`${name}-material`, scene);
+        const material = new StandardMaterial(`${OUTLINE_RING_PREFIX}${key}-material`, scene);
         // Unlit: a ring is a mark on the node, the same color from every side.
         material.disableLighting = true;
         material.emissiveColor = color;
@@ -620,9 +648,8 @@ export class NodeEffects {
         // the same node) is drawn over the ring rather than fighting it for the pixel.
         material.zOffset = OUTLINE_RING_DEPTH_OFFSET;
         material.freeze();
-        source.material = material;
-
-        return source;
+        materials.set(key, material);
+        return material;
     }
 
     /**

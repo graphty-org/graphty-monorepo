@@ -1190,7 +1190,7 @@ export class NodeMesh {
                 mesh.refreshBoundingInfo();
             }
             if (!ownOutline && !flat && !options.is2D) {
-                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, reach)));
+                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, reach)), undefined, true);
             }
             mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
 
@@ -1271,7 +1271,7 @@ export class NodeMesh {
                     mesh.refreshBoundingInfo();
                 }
                 if (!flat && !options.is2D) {
-                    this.followView(mesh, fill, depth, piecesOf);
+                    this.followView(mesh, fill, depth, piecesOf, undefined, true);
                 }
                 mesh.material = this.createBorderMaterial(shadow?.color ?? "#000000", share, scene);
 
@@ -1577,6 +1577,8 @@ export class NodeMesh {
      * @param depth - How deep the ring is along z.
      * @param piecesOf - The ring's pieces round an outline of the solid.
      * @param unit - A model's scale (see borderSlab): the ring is built at it and scaled back.
+     * @param plate - A plate filled from its middle (an underlay, overlay or shadow), whose outer edge shows at its face
+     * toward the camera, so that face is put on the outline; a ring's inner edge shows at its face away from it.
      */
     private static followView(
         mesh: Mesh,
@@ -1584,6 +1586,7 @@ export class NodeMesh {
         depth: number,
         piecesOf: (outline: Point2[]) => RingPiece[],
         unit?: readonly [number, number, number],
+        plate = false,
     ): void {
         const scene = mesh.getScene();
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
@@ -1594,6 +1597,7 @@ export class NodeMesh {
         const [quaternion, facing] = [new Quaternion(), new Quaternion()];
         let seen = "";
         let drawn: Point2[] = [];
+        let drawnBack = 1;
         const observer = scene.onBeforeRenderObservable.add(() => {
             const camera = scene.activeCamera;
             if (camera === null || source.isDisposed()) {
@@ -1611,6 +1615,7 @@ export class NodeMesh {
             const box = mesh.getBoundingInfo().boundingBox;
             const perspective = camera.mode === Camera.PERSPECTIVE_CAMERA;
             const backZ = ahead > 0 ? box.maximum.z : box.minimum.z;
+            const frontZ = ahead > 0 ? box.minimum.z : box.maximum.z;
             if (perspective) {
                 const { radius } = source.getBoundingInfo().boundingSphere;
                 faceEachNode(mesh, view, ahead, { radius, back: backZ * ahead }, at, nearest.absoluteScaling.x, facing);
@@ -1626,19 +1631,24 @@ export class NodeMesh {
             turn.multiplyToRef(view, toView);
             toView.setTranslationFromFloats(0, 0, 0);
             let outline: Point2[];
+            let back = 1;
             if (perspective) {
                 // seen along the line to the nearest node's middle, the way its instance was turned to face
                 Matrix.FromQuaternionToRef(Quaternion.Inverse(facing), unturn);
                 toView.multiplyToRef(unturn, alongLine);
                 at.set(0, 0, (ahead * at.length()) / scale.x);
                 // looking into the ring, its inner wall is seen down to the face away from the camera, drawn smaller
-                // than the node's middle by as much: that face's inner edge is put on the solid's outline
-                const back = (at.z + backZ) / at.z;
-                outline = this.solidOutline(fill, alongLine, at, groups).map(([x, y]): Point2 => [x * back, y * back]);
+                // than the node's middle by as much: that face's inner edge is put on the solid's outline (a plate's
+                // outer edge shows at its face toward the camera, which is put there instead). The whole ring is drawn
+                // smaller with it, its width, padding and offset too, so they read true in the node's middle, where the
+                // outline was seen (issue #10505: a plate's padding read off by the ratio of the depths)
+                back = (at.z + (plate ? frontZ : backZ)) / at.z;
+                outline = this.solidOutline(fill, alongLine, at, groups);
             } else {
                 outline = this.solidOutline(fill, toView, undefined, groups);
             }
             const same =
+                Math.abs(back - drawnBack) < 1e-6 &&
                 outline.length === drawn.length &&
                 outline.every(([x, y], i) => Math.abs(x - drawn[i][0]) < 1e-6 && Math.abs(y - drawn[i][1]) < 1e-6);
             if (same) {
@@ -1646,14 +1656,15 @@ export class NodeMesh {
             }
 
             drawn = outline;
+            drawnBack = back;
             // kept at the depth it was placed at (behind the node, by z-index)
             const [ux, uy, uz] = unit ?? [1, 1, 1];
             const shift = box.minimum.z + depth / uz / 2;
             const data = ringVertexData(piecesOf(outline.map(([x, y]): Point2 => [x * ux, y * uy])), depth);
             const positions = data.positions ?? [];
             for (let i = 0; i + 2 < positions.length; i += 3) {
-                positions[i] /= ux;
-                positions[i + 1] /= uy;
+                positions[i] *= back / ux;
+                positions[i + 1] *= back / uy;
                 positions[i + 2] = positions[i + 2] / uz + shift;
             }
             data.applyToMesh(mesh, true);

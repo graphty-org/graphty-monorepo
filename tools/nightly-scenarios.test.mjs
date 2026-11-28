@@ -1069,7 +1069,8 @@ const FLAT_OK = {
 
 describe("the nightly path's static rules", () => {
     it("every workflow_run filter names a workflow's name, never a run-name, and no step reads workflow_run.name", () => {
-        const names = new Set(allWorkflows().map((f) => load(f).name));
+        // and CodeQL, GitHub's default code scanning setup, which has no file here (actions-caches.yml, #9090)
+        const names = new Set([...allWorkflows().map((f) => load(f).name), "CodeQL"]);
         for (const f of allWorkflows()) {
             for (const w of load(f).on?.workflow_run?.workflows ?? [])
                 assert.ok(names.has(w), `${f}: "${w}" is no workflow's name`);

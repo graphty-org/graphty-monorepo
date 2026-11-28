@@ -877,15 +877,22 @@ export class NodeMesh {
         const sized = this.extentsOf(createOptions.shape, size);
         const { inset } = this.borderFit(createOptions.shape, createOptions.border, sized);
         const mesh = creator(size, scene, createOptions.shape.detail);
-        if (this.isFitted(createOptions.shape)) {
+        const fitted = this.isFitted(createOptions.shape);
+        if (fitted) {
             fitNodeMesh(mesh, sized);
             if (createOptions.shape.sizeMode === "diameter" && !this.hasExplicitExtent(createOptions.shape)) {
                 NodeMesh.scaleToExtent(mesh, sized.across);
             }
-        } else if (options.is2D) {
-            // keeping its own proportions and seen only along z, the solid is drawn in to exactly the edge its ring
-            // starts from (#10438)
+        }
+        if (options.is2D) {
+            // seen only along z, the solid, fitted or at its own proportions, is drawn in to exactly the edge its ring
+            // starts from (#10438): shrinking a fitted one on each axis brought a wide cone's or tetrahedron's slanted
+            // sides in by less, under the ring. A fitted one is drawn in along z too, as it always was, unless the
+            // node names its depth.
             NodeMesh.insetFill(mesh, inset);
+            if (fitted && sized.z === undefined) {
+                NodeMesh.shrinkDepth(mesh, inset);
+            }
             return mesh;
         }
 
@@ -1986,6 +1993,22 @@ export class NodeMesh {
         }
         mesh.refreshBoundingInfo();
         this.plainOf.set(mesh, plain);
+    }
+
+    /**
+     * Draws a mesh in by `inset` at its front and its back, along z alone.
+     * @param mesh - The mesh.
+     * @param inset - How far in, at each end, in world units.
+     */
+    private static shrinkDepth(mesh: Mesh, inset: number): void {
+        mesh.refreshBoundingInfo();
+        const { minimum: min, maximum: max } = mesh.getBoundingInfo().boundingBox;
+        const depth = max.z - min.z;
+        if (inset <= 0 || depth <= 0) {
+            return;
+        }
+        mesh.bakeTransformIntoVertices(Matrix.Scaling(1, 1, Math.max(depth - 2 * inset, MIN_NODE_SIZE) / depth));
+        mesh.refreshBoundingInfo();
     }
 
     /**

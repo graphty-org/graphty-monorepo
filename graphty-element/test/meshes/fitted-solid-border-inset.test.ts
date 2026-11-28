@@ -106,19 +106,32 @@ describe("a border on a wide fitted solid keeps to the plain solid's outline (#1
                 assert.isBelow(Math.max(...off), 0.01, `${position}: ring's outer edge past it by ${String(off)}`);
                 assert.isAbove(Math.min(...off), -0.2, `${position}: ring's outer edge short of it by ${String(off)}`);
                 assert.isBelow(median(off.map(Math.abs)), 0.01, `${position}: ring's outer edge off by ${String(off)}`);
-                // the fill is drawn in by the inset across and up the view, and in depth, seen from the side in 3D
+                // the fill is drawn in by the inset in depth, seen from the side in 3D; across the view it is drawn in
+                // side by side (below), so a sharp tip retreats by more than the inset
                 const inset = position === "inside" ? width : width / 2;
                 assert.approximately(depths[0] - depths[1], 2 * inset, 0.01, `${position} fill in depth`);
-                for (const a of [0, Math.PI / 2]) {
-                    const across = (hull: Point2[]): number => reach(hull, a) + reach(hull, a + Math.PI);
-                    assert.approximately(
-                        across(plain) - across(fill),
-                        2 * inset,
-                        0.01,
-                        `${position} fill at ${String(a)}`,
-                    );
-                }
+                assert.isAtLeast(Math.min(...DIRECTIONS.map((a) => reach(plain, a) - reach(fill, a))), inset - 0.01);
             }
+        });
+    }
+});
+
+describe("an inside border's fill on a wide fitted solid in 2D is drawn in side by side", () => {
+    for (const type of ["capsule", "tetrahedron", "cone"] as const) {
+        test(`a wide ${type}'s fill comes in by the border's width square to each of its sides`, () => {
+            const width = WIDTH * NODE_EXTENT_PER_SIZE;
+            const { plain, fill } = drawn(type, "inside");
+            // square to each side of the plain outline, the fill's edge is the border's width in from it: shrinking
+            // the fill on each axis brought a slanted side (a wide cone's, a tetrahedron's) in by less, under the
+            // ring, whose inner edge is the outline drawn in side by side
+            const normals = plain
+                .map(([x, y], i): number => {
+                    const [nx, ny] = plain[(i + 1) % plain.length];
+                    return Math.atan2(-(nx - x), ny - y);
+                })
+                .filter((a, i, all) => all.findIndex((b) => Math.abs(b - a) < 1e-3) === i);
+            const short = normals.map((a) => reach(plain, a) - reach(fill, a) - width);
+            assert.isBelow(Math.max(...short.map(Math.abs)), 0.01, `fill off its drawn-in edge by ${String(short)}`);
         });
     }
 });

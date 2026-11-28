@@ -164,6 +164,9 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 await userEvent.keyboard("b");
                 await waitFor(() => {
                     assert.strictEqual(session.data.currentDraft()?.side, "before");
+                    // The chip redraws after the frame that shows the side: leave once it says so.
+                    const shown = within(modal).getByRole("radiogroup", { name: "Before / After" });
+                    assert.isTrue(within(shown).getByRole<HTMLInputElement>("radio", { name: "Before" }).checked);
                 });
 
                 const after = await reload(before, { lostSession });

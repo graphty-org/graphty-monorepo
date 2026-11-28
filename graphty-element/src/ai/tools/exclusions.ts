@@ -751,7 +751,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "GraphSession", members: ["snapshot", "fingerprint"], reason: "raw-data", kind: BY_DESIGN },
     { root: "GraphSession", members: ["run"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
     { root: "GraphSession", members: ["execute", "transaction", "plan"], reason: "mechanism", kind: BY_DESIGN },
-    { root: "GraphSession", members: ["on", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
+    { root: "GraphSession", members: ["on", "afterFrame", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
     { root: "ElementSession", members: ["paint"], reason: "internal-handle", kind: BY_DESIGN },
     { root: "ElementSession", members: SESSION_NAMESPACES, reason: "namespace", kind: BY_DESIGN },
     {
@@ -765,7 +765,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "ElementSession", members: ["edgeAges"], reason: "internal-handle", kind: BY_DESIGN },
     { root: "ElementSession", members: ["run"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
     { root: "ElementSession", members: ["execute", "transaction", "plan"], reason: "mechanism", kind: BY_DESIGN },
-    { root: "ElementSession", members: ["on", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
+    { root: "ElementSession", members: ["on", "afterFrame", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
     {
         root: "Run",
         members: ["distinguishedBy", "siblingsDifferBy", "determinate", "engine", "record", "journalId"],

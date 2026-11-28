@@ -239,6 +239,8 @@ describe("the inspector", () => {
                 .join("");
         };
         await screen.findByRole("button", { name: /Degree/ });
+        // The header redraws after the frame that shows the selection: read it once it heads the node.
+        await screen.findByRole("heading", { level: 2, name: "n0" });
         const node = marks();
         await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         await screen.findByRole("group", { name: "n0 and 3 connections" });

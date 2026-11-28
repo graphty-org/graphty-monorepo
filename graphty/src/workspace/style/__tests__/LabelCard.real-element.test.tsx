@@ -151,12 +151,14 @@ describe("a label drawn as a card on the real element", () => {
             assert.deepEqual(template(session), ["<bold>{data.name}</bold>", "{data.dept}"]);
         });
         settings = await screen.findByRole("dialog", { name: "Label settings" });
-        await userEvent.type(
-            page.elementLocator(settings).getByRole("textbox", { name: "Card row 2 words", exact: true }),
-            "Dept: {Enter}",
-        );
+        const words = page.elementLocator(settings).getByRole("textbox", { name: "Card row 2 words", exact: true });
+        const typedIn = await words.findElement();
+        await userEvent.type(words, "Dept: {Enter}");
         await waitFor(() => {
             assert.deepEqual(template(session), ["<bold>{data.name}</bold>", "Dept: {data.dept}"]);
+            // The row is drawn again with its new words after the frame that shows them (its key
+            // is its line): the menu below must be the drawn row's, not the one typed in.
+            assert.notStrictEqual(words.query(), typedIn, "the row is drawn with its new words");
         });
 
         // Move it up from the keyboard: focus its menu, open it, walk to Move up.

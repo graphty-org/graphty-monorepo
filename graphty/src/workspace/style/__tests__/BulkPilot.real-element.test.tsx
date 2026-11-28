@@ -256,7 +256,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         await session.styles.settled();
         // The key lists the run's groups once per property, not once per layer, once it has drawn
         // the write.
-        const legend = screen.getByRole("region", { name: "Legend" });
+        const legend = await screen.findByRole("region", { name: "Legend" });
         await waitFor(() => {
             assert.lengthOf(within(legend).getAllByRole("group", { name: "Color: Louvain" }), 1);
             assert.lengthOf(within(legend).getAllByRole("group", { name: "Shape: Louvain" }), 1);

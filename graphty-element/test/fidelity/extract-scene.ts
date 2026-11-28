@@ -577,6 +577,7 @@ export function sceneNode(
     const h = d.box.y1 - d.box.y0;
     // the node's size: its fill, out by as far as its border drew the fill in from its size
     const size = 2 * borderInset(d);
+    const sizeUp = 2 * (d.insetYPx ?? borderInset(d));
     const { ring } = d;
     // The highlight layer's stroke and the glow layer's bloom both draw over the rim of the mesh
     // as far as they reach; reaching across the whole node, they cover the fill.
@@ -585,7 +586,11 @@ export function sceneNode(
     const visible = d.visible && hiddenBy === null;
     // a table's words are its label, as the source program's scene records them
     const label = d.label ?? d.tableLabel ?? null;
-    const place = label ? labelPlace(label.box, d) : "other";
+    // inside the node's size, not only its fill: a polygon's fill drawn in from its outline is far smaller than its box
+    const across = size / 2;
+    const up = sizeUp / 2;
+    const sized = { ...d.box, x0: d.box.x0 - across, x1: d.box.x1 + across, y0: d.box.y0 - up, y1: d.box.y1 + up };
+    const place = label ? labelPlace(label.box, { ...d, box: sized }) : "other";
     const occluded =
         label !== null && place === "inside" && !label.onTop && (label.box.near + label.box.far) / 2 > d.box.near;
     // a label a reader could see, whether or not it is enabled now, at any size: how small it is drawn is `fontSize`'s
@@ -600,7 +605,7 @@ export function sceneNode(
         x: d.x,
         y: d.y,
         w: w + size,
-        h: h + size,
+        h: h + sizeUp,
         shape: drawnShapeClass(d),
         fill: visible && !covered && !subPixel && d.fillOpacity > 0 ? d.fillDrawn : null,
         fillOpacity: d.fillOpacity,

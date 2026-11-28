@@ -4090,6 +4090,7 @@ export interface LoadedSource extends DataSourceDescriptor {
         readonly edges: number;
     };
     readonly delimiter?: DraftTable["delimiter"];
+    readonly endNodes?: number;
     readonly features?: SourceFeatures;
     readonly issues?: readonly SourceSpaceOverlap[];
     readonly join?: JoinRecord;

@@ -192,17 +192,19 @@ function nearestDrawing(ring: Mesh, view: Matrix, ahead: number, at: Vector3): T
 
 /**
  * A convex outline drawn in by a distance on every side, point for point: each corner moved in along its bisector by
- * its full mitre, so every side moves in parallel to itself (a solid's outline, the hull of its vertices).
+ * its full mitre, so every side moves in parallel to itself (a solid's outline, the hull of its vertices). It is drawn
+ * in no further than just short of where its first side closes up (a cone's side view, a triangle whose inradius is
+ * under the inset): past that it turns inside out, and a ring built out from it would stick out past the outline.
  *
- * ponytail: a side shorter than the inset closes past its neighbors' meeting point; a straight skeleton if a solid's
- * outline ever has one (issue #10408 does it for flat shapes).
+ * ponytail: drawn in short of the inset, the ring is narrowed to keep its outer edge; a straight skeleton if a
+ * solid's inner edge ever needs to follow the inset past a closed side (issue #10408 does it for flat shapes).
  * @param outline - The outline, counter-clockwise.
  * @param distance - How far in.
- * @returns The drawn-in outline, with no point twice.
+ * @returns The drawn-in outline, with no point twice, and how far in it was drawn.
  */
-function insetConvex(outline: readonly Point2[], distance: number): Point2[] {
+function insetConvex(outline: readonly Point2[], distance: number): { points: Point2[]; distance: number } {
     if (distance <= 0) {
-        return [...outline];
+        return { points: [...outline], distance: 0 };
     }
 
     // a hull can hold one point twice, a hair apart (a cone's tip): a side that short has no direction to move in
@@ -216,14 +218,29 @@ function insetConvex(outline: readonly Point2[], distance: number): Point2[] {
         const length = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
         return [(b[1] - a[1]) / length, -(b[0] - a[0]) / length];
     };
-    return points.map(([x, y], i): Point2 => {
-        const a = normal(points[(i + count - 1) % count], points[i]);
-        const b = normal(points[i], points[(i + 1) % count]);
+    // how far each corner moves per unit inset: |a + b| = 2 cos(half the turn), so the mitre is 1 / cos(half the turn)
+    const mitres = points.map((point, i): Point2 => {
+        const a = normal(points[(i + count - 1) % count], point);
+        const b = normal(point, points[(i + 1) % count]);
         const [mx, my] = [a[0] + b[0], a[1] + b[1]];
-        // |a + b| = 2 cos(half the turn): the mitre is distance / cos(half the turn) along the bisector
         const along = mx * mx + my * my;
-        return along < 1e-12 ? [x, y] : [x - (2 * distance * mx) / along, y - (2 * distance * my) / along];
+        return along < 1e-12 ? [0, 0] : [(2 * mx) / along, (2 * my) / along];
     });
+    // each side shortens by its ends' mitres along it: it closes at its length over that rate
+    let room = distance;
+    points.forEach(([x, y], i) => {
+        const [nx, ny] = points[(i + 1) % count];
+        const length = Math.hypot(nx - x, ny - y);
+        const [m, n] = [mitres[i], mitres[(i + 1) % count]];
+        const rate = length > 0 ? ((n[0] - m[0]) * (nx - x) + (n[1] - m[1]) * (ny - y)) / length : 0;
+        if (rate > 0) {
+            room = Math.min(room, (0.999 * length) / rate);
+        }
+    });
+    return {
+        points: points.map(([x, y], i): Point2 => [x - room * mitres[i][0], y - room * mitres[i][1]]),
+        distance: room,
+    };
 }
 
 /**
@@ -1006,8 +1023,12 @@ export class NodeMesh {
             const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
             // a shrunk solid's outline is the plain solid's (solidOutline): its ring starts the inset in from it
             const from = !flat && this.fillScales.has(this.sourceOf(fill)) ? inset : 0;
-            const piecesOf = (round: Point2[]): RingPiece[] =>
-                borderRing(insetConvex(round, from), width, border?.style ?? "solid", wave, options.dashUnit);
+            const piecesOf = (round: Point2[]): RingPiece[] => {
+                const inner = insetConvex(round, from);
+                // drawn in short of the inset, the ring narrows by as much so its outer edge stays where it belongs
+                const ring = width - (from - inner.distance);
+                return borderRing(inner.points, ring, border?.style ?? "solid", wave, options.dashUnit);
+            };
             const color = border?.color ?? "#000000";
 
             const ring = { outline, depth, piecesOf, flat, color, opacity };

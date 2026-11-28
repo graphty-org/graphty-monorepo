@@ -68,11 +68,14 @@ const DIRECTIONS = Array.from({ length: 72 }, (_, i) => (i * Math.PI) / 36);
 function drawn(
     type: NonNullable<NodeStyleConfig["shape"]>["type"],
     position: "inside" | "center",
+    width = WIDTH,
+    is2D = true,
 ): { plain: Point2[]; fill: Point2[]; ring: Point2[] } {
     const shape = { type, size: 1 };
-    const border = { width: WIDTH, position, color: "#0000ff" };
-    const plain = NodeMesh.create(cache, { styleId: `${String(type)}-plain`, is2D: true, size: 1 }, { shape }, scene);
-    const options = { styleId: `${String(type)}-${position}`, is2D: true, size: 1 };
+    const border = { width, position, color: "#0000ff" };
+    const view = is2D ? "2d" : "3d";
+    const plain = NodeMesh.create(cache, { styleId: `${String(type)}-plain-${view}`, is2D, size: 1 }, { shape }, scene);
+    const options = { styleId: `${String(type)}-${position}-${String(width)}-${view}`, is2D, size: 1 };
     const fill = NodeMesh.create(cache, options, { shape, border }, scene);
     const ring = NodeMesh.createBorder(cache, options, { shape, border }, fill, scene);
     assert.exists(ring);
@@ -121,5 +124,22 @@ describe("a border on a solid keeps to the plain solid's outline (#10438)", () =
                 }
             }
         });
+    }
+});
+
+describe("a border wider than a solid's outline is deep still ends on its outline (#10438)", () => {
+    // a cone's side view is a triangle whose inradius is under half its width: a border this wide inset point for
+    // point turned the outline inside out, and the ring built out from it stuck out past the node
+    for (const type of ["cone", "pentagonal_pyramid", "hexagonal_prism"] as const) {
+        for (const is2D of [true, false]) {
+            test(`a wide inside border on a ${type} in ${is2D ? "2D" : "3D"} ends on its outline`, () => {
+                for (const width of [0.1, 0.25, 0.3]) {
+                    const { plain, ring } = drawn(type, "inside", width, is2D);
+                    const off = DIRECTIONS.map((a) => reach(ring, a) - reach(plain, a));
+                    assert.isBelow(Math.max(...off), 0.01, `width ${String(width)}: ring past it by ${String(off)}`);
+                    assert.isBelow(median(off.map(Math.abs)), 0.01, `width ${String(width)}: off by ${String(off)}`);
+                }
+            });
+        }
     }
 });

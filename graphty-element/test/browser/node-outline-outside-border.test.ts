@@ -9,6 +9,11 @@
  * WHAT IS MEASURED. Two identical unlit red nodes with a blue border and a green outer border; only
  * node "a" has a yellow outline. Walking out from each node's center on screen in four directions,
  * the blue and green pixels on node "a"'s walk must be as many as on node "b"'s (blending aside).
+ *
+ * AND AT A CORNER (#10437). The ring was an ellipse through the node's half-width and half-height,
+ * which passes inside a box's, a rectangle's and a diamond's corners: there it covered the border and
+ * outer border. The walks also go out along the four diagonals, through a box's corners, and the
+ * cornered cases put an outer border past the border.
  */
 
 import { Matrix, Vector3 } from "@babylonjs/core";
@@ -47,6 +52,20 @@ const CASES: { name: string; set: Record<string, unknown> }[] = [
             "node.outerBorderWidth": 0.2,
             "node.outerBorderColor": "#00ff00",
         },
+    },
+    ...(["box", "rectangle", "diamond"] as const).map((shape) => ({
+        name: `a ${shape} with an inside border and an outer border`,
+        set: {
+            "node.shape": shape,
+            "node.borderWidth": 0.2,
+            "node.borderPosition": "inside",
+            "node.outerBorderWidth": 0.2,
+            "node.outerBorderColor": "#00ff00",
+        },
+    })),
+    {
+        name: "a wide diamond with an outside border",
+        set: { "node.shape": "diamond", "node.width": 4, "node.height": 2, "node.borderWidth": 0.3 },
     },
 ];
 
@@ -160,7 +179,7 @@ describe("node.outline around a node with a border", () => {
             }
             return counted;
         };
-        return [walk(-1, 0), walk(1, 0), walk(0, -1), walk(0, 1)];
+        return [walk(-1, 0), walk(1, 0), walk(0, -1), walk(0, 1), walk(-1, -1), walk(1, -1), walk(-1, 1), walk(1, 1)];
     }
 
     for (const mode of ["2d", "3d"] as const) {
@@ -177,7 +196,11 @@ describe("node.outline around a node with a border", () => {
                             `walk ${String(i)} ${part}: outlined ${JSON.stringify(outlined)}, bare ${JSON.stringify(bare)}`,
                         );
                     }
-                    assert.isAbove(want.border, 0, `walk ${String(i)} crosses node b's border: ${JSON.stringify(bare)}`);
+                    assert.isAbove(
+                        want.border + want.outer,
+                        0,
+                        `walk ${String(i)} crosses node b's border: ${JSON.stringify(bare)}`,
+                    );
                 }
             });
         }

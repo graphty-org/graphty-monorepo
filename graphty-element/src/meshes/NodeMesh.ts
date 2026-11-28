@@ -36,7 +36,6 @@ import {
     ringVertexData,
     setLabelBox,
 } from "./NodeShapeGeometry";
-import { prepareOverlayShader } from "./overlayMaterial";
 import { ON_TOP_RENDERING_GROUP } from "./RichTextLabel";
 import {
     borderRing,
@@ -649,8 +648,6 @@ export class NodeMesh {
 
         const material = this.createMaterial(createOptions, options.is2D, scene);
         mesh.material = material;
-        // A node drawn now may be selected next: have its halo's shader ready before it is.
-        prepareOverlayShader(mesh.getScene());
         if (isNodeMaterial(material)) {
             outlineNodeMesh(mesh, sceneLighting(scene));
         }

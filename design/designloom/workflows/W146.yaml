@@ -1,0 +1,120 @@
+id: W146
+name: Gremlin, openCypher and SPARQL Exploration on Amazon Neptune
+category: exploration
+validated: false
+personas:
+    - graph-database-developer
+requires_capabilities:
+    - search
+    - neighborhood-expansion
+    - filtering
+    - degree-analysis
+    - details-on-demand
+    - node-selection
+    - view-bookmarks
+    - data-export
+    - live-data-source
+    - query-editor
+    - supernode-safeguards
+suggested_components:
+    - search-input
+    - search-panel
+    - search-result-item
+    - graph-canvas
+    - ego-network-dialog
+    - filter-panel
+    - data-table-panel
+    - node-details-panel
+    - data-export-dialog
+starting_state:
+    data_type: Amazon Neptune, any Gremlin Server, or a SPARQL endpoint (property graph or RDF triples)
+    node_count: "stored: any; on screen: what each search or expand returns, bounded by a per-connection neighbor limit"
+    edge_density: any
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Explore a graph held in Neptune or another Gremlin or SPARQL store, either in AWS Graph Explorer
+    (open source, no query needed) or in a Jupyter graph-notebook where the query shape decides what can be drawn.
+
+
+    **Mental Model**: "Same expand loop, three query languages." The store may be a property graph or RDF; the user
+    picks the language per connection and then searches and expands as in any database front end.
+
+
+    **Task Phases**:
+
+    1. **Connect** - To Neptune, any Gremlin Server or a SPARQL endpoint, choosing Gremlin, openCypher or SPARQL, with an
+    optional neighbor expansion limit
+
+    2. **Search** - By label and attribute with partial text match, or run any query; add one or all results to the
+    canvas
+
+    3. **Expand** - Double-click; the Expand panel filters by label, attribute and maximum count
+
+    4. **Filter** - By type, by table column, or with a "Neighbors" filter (at least N neighbors)
+
+    5. **Save** - A JSON graph file others on the same connection can reload; export tables as CSV or JSON
+
+    6. **Notebook variant** - In graph-notebook a Gremlin query must return a path() to be drawn, with -p hints (such as
+    v,oute,inv) and -g group-by; SPARQL draws only SELECT ?s ?p ?o results, with literals folded into node details
+    unless --expand-all
+
+
+    No source gives per-step timings.
+
+
+    **Decision Points**:
+
+    - Which query language fits the store and the question?
+
+    - How many neighbors to allow per expand?
+
+    - Does the notebook query return a shape that can be drawn at all?
+
+
+    **Information Needs**:
+
+    - Neighbor counts before expanding (the Neighbors filter is the only documented proxy)
+
+    - Whether an empty expand means "no neighbors" or "no neighbors matching the filter"
+
+    - For RDF, which literals were folded into a node and which became nodes
+
+
+    **Pain Points**:
+
+    - Graph Explorer shows a misleading "No more neighbors to expand" when filters match nothing (GitHub issue 2060)
+
+    - Few documented defaults for caps
+
+    - Notebook drawings depend on query shape: no path(), no drawing; non-triple SPARQL, no drawing
+
+
+    **Data Flow**:
+
+    - Input: Connection to a Gremlin, openCypher or SPARQL endpoint; search terms or queries
+
+    - Transformations: Search results and expansions merged on the canvas; filters; for notebooks, path or triple
+    results converted to a drawing with grouping hints
+
+    - Output: Reloadable JSON graph file, CSV or JSON tables
+success_criteria:
+    - metric: Language coverage
+      target: The same search and expand interactions work over Gremlin, openCypher and SPARQL sources
+    - metric: Honest empty states
+      target: An expand that returns nothing says whether filters or the data caused it
+sources:
+    - title: AWS Graph Explorer - graph view
+      url: https://aws.github.io/graph-explorer/features/graph-view/
+      summary: Search, add results, Expand panel, Neighbors filter, saved JSON graph, CSV or JSON export
+    - title: AWS Graph Explorer - connections
+      url: https://aws.github.io/graph-explorer/features/connections/
+      summary: Neptune, Gremlin Server or SPARQL endpoint; query language choice; neighbor expansion limit
+    - title: Neptune graph-notebook visualization
+      url: https://docs.aws.amazon.com/neptune/latest/userguide/notebooks-visualization.html
+      summary: Gremlin path() with -p and -g hints; SPARQL s-p-o drawing; --expand-all
+    - title: Graph Explorer issue 2060
+      url: https://goodfirstissue.org/aws/graph-explorer/issues/2060
+      summary: Misleading "No more neighbors to expand" toast when filters match nothing
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

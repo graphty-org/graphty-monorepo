@@ -1,0 +1,84 @@
+id: process-mining-consultant
+name: Process Mining Consultant
+roster_persona: process-mining-analyst
+tier: A
+scope: in-scope
+role: Operational Excellence Consultant / Process Mining Consultant
+quote: Give me the client's export on Monday and by Thursday I need the happy path, the bottleneck, the money, and an animation the executives understand.
+bio: >-
+    Thijs is a consultant at a partner firm with a Lean Six Sigma background. He runs value workshops that turn a process
+    map into a business case. On every engagement he receives whatever the client can export -- ticket histories, CRM
+    cases, ERP extracts -- usually as CSV, and opens it in Disco within the first hour to get a first map. For long
+    deployments he works in Celonis or Power Automate Process Mining with the client's data engineers. Projects run from
+    four weeks to six months. "Process mining consultant" is the single most common job title in process mining
+    postings (58 of 921 LinkedIn vacancies in May 2022, with 363 of those vacancies at consultancies). He reads process
+    maps fluently -- thickness, edge labels, self-loops, start and end -- but has never used centrality or community
+    detection; the only network views he touches are handover-of-work maps between roles or departments.
+characteristics:
+    expertise: advanced
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Show the client in days what their process really looks like, including the variants nobody admits to
+    - Find where time is lost and put a currency figure on it for the business case
+    - Find rework loops and handovers that can be removed or automated
+    - Convince executives with an animation and a simplified map they can read without training
+    - Leave behind filters and views the client can re-run after the engagement
+behaviors:
+    - Asks the process owner to sketch the 5 to 10 most important activities before touching the data
+    - Asks for at least three months of data, or four to five times the expected case duration
+    - Maps CSV columns to case, activity, timestamp and resource roles, and concatenates columns when no single one identifies a case
+    - Pulls the paths slider down first, then the activities slider, to get a readable map, then explains the simplification to stakeholders
+    - Switches the map to the performance view (mean or median durations) to locate waiting times on edges
+    - Filters slow cases into a named copy of the data set so the full data stays intact
+    - Re-imports with role or department as the node attribute to show handovers and ping-pong between teams
+    - Replays the log as an animation with synchronized case starts for workshops
+    - Validates the map by tracing 10 to 20 cases by hand in the source system and in a session with a domain expert
+frustrations:
+    - Stakeholders who cannot read a process map without coaching
+    - Process mining shows where the issues are but does not help solve them
+    - Simplified maps whose numbers no longer add up, which an alert client catches in the workshop
+    - Data extraction and preparation eating most of the project time
+    - Layouts that jump when one slider moves, so the client loses the picture they just learned
+    - Heavy setup in enterprise tools before a basic map appears
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W339
+    - W340
+    - W341
+    - W342
+    - W343
+    - W347
+    - W359
+    - W360
+sources:
+    - title: Fluxicon Process Mining in Practice - Run a project
+      url: https://fluxicon.com/book/read/project/
+      summary: Roles in a process mining project (analyst, domain expert, process owner, IT administrator, privacy officer)
+    - title: Fluxicon project guide part 2
+      url: https://fluxicon.com/blog/2023/11/project-guide-2/
+      summary: Projects take from 4 weeks up to 6 months
+    - title: Fluxicon Process Mining in Practice - Data extraction
+      url: https://fluxicon.com/book/read/dataext/
+      summary: Minimum data window (at least 3 months, or expected case duration times 4 to 5), sketching key activities, validating 10-20 cases by hand
+    - title: Fluxicon Process Mining in Practice - Tutorial
+      url: https://fluxicon.com/book/read/tutorial/
+      summary: Canonical Disco walk-through from CSV import to bottleneck, animation and handover view
+    - title: Maleki Shamasbi et al. 2022 - process mining job market
+      url: https://easychair.org/publications/preprint/3hPk
+      summary: 921 LinkedIn vacancies; 363 from consultancies; process mining consultant the most frequent title
+    - title: Built In job posting - Senior Consultant, Business Process Excellence
+      url: https://builtin.com/job/senior-consultant-business-process-excellence-ai/7046251
+      summary: Consultant role running value workshops to build business cases
+    - title: Zimmermann, Zerbato and Weber - process mining challenges interview study
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11646219/
+      summary: 41 practitioners; distrust of slider-simplified maps, ETL outside the tools, maps that locate but do not solve issues
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

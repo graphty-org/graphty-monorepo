@@ -1,0 +1,130 @@
+id: W317
+name: Narrated Systems Map and Bibliometric Map Links
+category: reporting
+validated: false
+personas:
+    - systems-change-strategist
+    - participatory-systems-mapping-facilitator
+    - research-impact-librarian
+    - bibliometric-analyst
+    - graph-deliverable-recipient
+requires_capabilities:
+    - view-bookmarks
+    - filtering
+    - annotation
+    - legend-display
+    - visual-encoding-nodes
+    - community-detection
+    - animated-transitions
+    - data-export
+    - report-generation
+    - guided-presentation
+suggested_components:
+    - graph-canvas
+    - bookmark-panel
+    - filter-panel
+    - annotation-toolbar
+    - legend-panel
+    - visual-encoding-panel
+    - share-dialog
+    - data-export-dialog
+starting_state:
+    data_type: systems or stakeholder map (factors, organizations, loops) or a bibliometric co-citation or co-occurrence map with clusters
+    node_count: 30-1,000
+    edge_density: moderate
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Publish a map as a guided story (a sequence of saved views with text) or as a shareable interactive
+    link that funders, boards, the public or journal readers can open in a browser, and keep it current as the map
+    changes.
+
+
+    **Who**: The systems-change strategist and the facilitator who digitizes the map build, publish and embed the
+    presentation; the research-impact librarian or the review author publishes the VOSviewer Online link and methods
+    note. Funders, boards, the public and journal readers only open the link (W1018).
+
+
+    **Mental Model**: "A guided tour or an open map." Either the author walks the reader through views step by step, or
+    the reader explores freely; a strictly linear story may fit a slideshow better than a map.
+
+
+    **Task Phases**:
+
+    1. **Choose guided or free** - Decide whether the reader follows a path or explores
+
+    2. **Build the presentation** - Title, map, text, image and embed slides; each map slide keeps its own view,
+    zoom, focus and filter so elements are revealed step by step
+
+    3. **Publish with a privacy choice** - Changing privacy creates a new URL; map edits require publishing
+    again; anyone with the share link or embed can view, even if the project is private
+
+    4. **Embed** - Iframe with autoplay interval and scroll-zoom off; updates may take up to an hour to appear
+
+    5. **Bibliometric variant** - Host the map JSON (often on a link-shared drive), share a VOSviewer Online URL
+    with parameters for the file, scale and curved links, use the simple interface when embedding, and add a methods
+    paragraph (data source, counting method, thresholds, clustering resolution)
+
+
+    **Decision Points**:
+
+    - Guided reveal or free exploration?
+
+    - Public, link-only or invite-only?
+
+    - Which views and how much text per step?
+
+    - Does the reader need the methods note next to the map?
+
+
+    **Information Needs**:
+
+    - Which data ships with a published link or embed
+
+    - The current URL after privacy changes
+
+    - Whether the embed shows the latest version
+
+    - Methods parameters for the bibliometric write-up
+
+
+    **Pain Points**:
+
+    - Privacy changes break links that were already shared
+
+    - Edits do not appear until republished, and embeds lag up to an hour
+
+    - Link holders can view maps from private projects
+
+    - Bibliometric maps depend on a JSON file hosted somewhere else that can disappear
+
+
+    **Data Flow**:
+
+    - Input: Map with styles and saved views; text per step; methods parameters
+
+    - Transformations: Ordered views with captions, publishing, embed configuration
+
+    - Output: Presentation URL, iframe embed, map link with parameters, methods note
+success_criteria:
+    - metric: Guided reading
+      target: A reader steps through the story on a phone without instructions
+    - metric: Link stability
+      target: Updating the map or its privacy does not break links already shared, or the author is warned first
+    - metric: Data disclosure awareness
+      target: The author sees what data a published link exposes before publishing
+sources:
+    - title: Kumu docs - Presentations
+      url: https://docs.kumu.io/guides/presentations
+      summary: Title, map, text, image and embed slides; each map slide keeps view, zoom, focus and filter
+    - title: Kumu docs - Embeds
+      url: https://docs.kumu.io/guides/embeds.html
+      summary: Iframe embeds, autoplay parameter, scroll-zoom off, update delay up to an hour, link holders see private maps
+    - title: RJI - Systems mapping for storytelling, tips for using Kumu
+      url: https://rjionline.org/news/systems-mapping-for-storytelling-tips-for-using-kumu/
+      summary: Guided path versus free exploration; linear stories may suit slideshows
+    - title: VOSviewer Online - Linking
+      url: https://app.vosviewer.com/docs/sharing/linking/
+      summary: Share by URL parameters pointing at hosted JSON; simple_ui for embedding
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

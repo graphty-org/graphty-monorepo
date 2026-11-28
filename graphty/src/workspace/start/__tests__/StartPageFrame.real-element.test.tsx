@@ -15,6 +15,7 @@ import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, onTestFailed } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { PROGRAM_SAMPLES } from "../../../data/sampleManifest";
 import { openBy } from "../../../test/open";
 import { swipeOver, wheelOver } from "../../../test/real-pointer";
 import { sampleTile } from "../../../test/samples-dialog";
@@ -78,7 +79,7 @@ async function showSamples(): Promise<HTMLElement> {
     };
     document.addEventListener("scrollend", onEnd);
     try {
-        await userEvent.click(screen.getByRole("button", { name: "Samples" }));
+        await userEvent.click(page.getByRole("button", { name: "Samples", exact: true }));
         await waitFor(() => {
             assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
             assert.isTrue(ended, "the page came to rest");
@@ -134,7 +135,7 @@ describe("the start page in the app's frame", () => {
         });
         assert.isUndefined(header?.dataset.scrolled, "a resize did not scroll the page");
 
-        await userEvent.click(screen.getByRole("button", { name: "Samples" }));
+        await userEvent.click(page.getByRole("button", { name: "Samples", exact: true }));
         await waitFor(() => {
             assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
             assert.equal(header?.dataset.scrolled, "true", "scrolled down, the header shows its lockup");
@@ -250,7 +251,7 @@ describe("the start page in the app's frame", () => {
         const before = land?.dataset.scheme;
         const next = before === "dark" ? "light" : "dark";
 
-        await userEvent.click(screen.getByRole("button", { name: `Switch to ${next} mode` }));
+        await userEvent.click(page.getByRole("button", { name: `Switch to ${next} mode`, exact: true }));
         await waitFor(() => {
             assert.equal(document.querySelector<HTMLElement>(".ws-land")?.dataset.scheme, next);
         });
@@ -266,8 +267,8 @@ describe("the start page in the app's frame", () => {
         const opens = DATASET_DESCRIPTORS.filter(
             (dataset) => dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn,
         );
-        // Plus the app's four timed samples, which have no graph-samples dataset.
-        assert.lengthOf(offered, opens.length + 4);
+        // Plus the app's four timed samples, which have no graph-samples dataset, and the files from other programs.
+        assert.lengthOf(offered, opens.length + 4 + PROGRAM_SAMPLES.length);
         for (const title of [
             "Doubtful Sound dolphins",
             "OpenFlights airline routes",
@@ -277,7 +278,7 @@ describe("the start page in the app's frame", () => {
         }
 
         const opened = await openBy(store, () =>
-            userEvent.click(screen.getByRole("button", { name: sampleTile("Doubtful Sound dolphins") })),
+            userEvent.click(page.getByRole("button", { name: sampleTile("Doubtful Sound dolphins"), exact: true })),
         );
         assert.equal(opened.data.statistics().nodeCount, 62);
         assert.equal(opened.data.statistics().edgeCount, 159);
@@ -292,7 +293,7 @@ describe("the start page in the app's frame", () => {
         const store = await startPage();
 
         const opened = await openBy(store, () =>
-            userEvent.click(screen.getByRole("button", { name: sampleTile("Campus contacts") })),
+            userEvent.click(page.getByRole("button", { name: sampleTile("Campus contacts"), exact: true })),
         );
         assert.equal(opened.data.statistics().nodeCount, 615);
         assert.equal(opened.data.statistics().edgeCount, 8142);
@@ -312,22 +313,22 @@ describe("the start page in the app's frame", () => {
         const large = screen.getByRole("button", { name: sampleTile("Gene Ontology (go-basic)") });
         assert.include(large.textContent, "48,340 nodes, 71,496 edges");
         assert.include(large.textContent, "Large: 1.4 MB, slower to open");
-        await userEvent.click(large);
+        await userEvent.click(page.getByRole("button", { name: sampleTile("Gene Ontology (go-basic)"), exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Gene Ontology (go-basic)" });
         assert.include(dialog.textContent, "48,340 nodes and 71,496 edges, a 1.4 MB download.");
         assert.include(dialog.textContent, "takes a while to open");
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
         });
         assert.isNull(store.get().project, "nothing opened");
 
         // The license is where the data comes from, said once, under the size; Open is always there.
-        await userEvent.click(large);
+        await userEvent.click(page.getByRole("button", { name: sampleTile("Gene Ontology (go-basic)"), exact: true }));
         const again = await screen.findByRole("dialog", { name: "Gene Ontology (go-basic)" });
         assert.include(again.textContent, "License: CC BY 4.0");
         assert.isNotNull(within(again).queryByRole("button", { name: "Open" }));
-        await userEvent.click(within(again).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(again).getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
         });
@@ -349,7 +350,10 @@ describe("the start page in the app's frame", () => {
         assert.lengthOf(generators, GENERATOR_DESCRIPTORS.length);
 
         const library = screen.getByRole("region", { name: "Sample library" });
-        await userEvent.type(within(library).getByRole("searchbox", { name: "Search samples" }), "small world");
+        await userEvent.type(
+            page.elementLocator(library).getByRole("searchbox", { name: "Search samples", exact: true }),
+            "small world",
+        );
         assert.deepEqual(
             within(library)
                 .getAllByRole("button", { name: /^Generate a graph: / })
@@ -357,14 +361,14 @@ describe("the start page in the app's frame", () => {
             ["Generate a graph: Newman-Watts", "Generate a graph: Watts-Strogatz"],
         );
 
-        await userEvent.click(screen.getByRole("button", { name: "Generate a graph: Watts-Strogatz" }));
+        await userEvent.click(page.getByRole("button", { name: "Generate a graph: Watts-Strogatz", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Watts-Strogatz" });
         const nodes = within(dialog).getByRole("textbox", { name: "Nodes" });
         assert.equal((nodes as HTMLInputElement).value, "60");
-        await userEvent.tripleClick(nodes);
+        await userEvent.tripleClick(page.elementLocator(dialog).getByRole("textbox", { name: "Nodes", exact: true }));
         await userEvent.keyboard("24");
         const opened = await openBy(store, () =>
-            userEvent.click(within(dialog).getByRole("button", { name: "Generate" })),
+            userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Generate", exact: true })),
         );
         assert.equal(opened.data.statistics().nodeCount, 24);
         // A ring of 24 with 4 neighbors each keeps 24 * 4 / 2 edges through the rewiring.

@@ -104,6 +104,8 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/label-texture-uploads-once.test.ts",
     "test/browser/branches-view-scaling.test.ts",
     "test/browser/edges-follow-running-layout.test.ts",
+    "test/browser/edges-follow-through-a-transition.test.ts",
+    "test/browser/edges-follow-steps-mid-layout.test.ts",
 ];
 
 /**
@@ -445,45 +447,49 @@ const MODIFIER_KEYS: readonly (readonly [bit: number, key: string])[] = [
     [8, "Shift"],
 ];
 
-/** Per page: the modifier keys the mouse command holds down, and the queue its events run in. */
-const mouseState = new WeakMap<object, { held: Set<string>; queue: Promise<void> }>();
+/** Per page: the modifier keys the mouse command holds down. */
+const mouseState = new WeakMap<object, { held: Set<string> }>();
 
 /**
  * The mouse in a browser with no DevTools protocol (WebKit, the iPad path): test/helpers/real-input.ts sends each
  * `Input.dispatchMouseEvent` here, and Playwright's own mouse and keyboard make it, so the browser's input pipeline
- * (hit testing, pointer events, the canvas's listeners) runs as it does for a person. Events run one after another in
- * the order they arrive, as the protocol delivers them, so a press and release sent together stay a click.
+ * (hit testing, pointer events, the canvas's listeners) runs as it does for a person.
+ *
+ * EACH EVENT IS SENT AS SOON AS IT ARRIVES, never after the one before it was handled. WebKit stamps a mouse event
+ * when Playwright's message reaches it, and the element tells a click from a long press by those stamps (300 ms,
+ * NodeBehavior.ts pointerEventTime). Waiting for the press, and the move before it, to be handled before sending the
+ * release put the page's handling time between the stamps: on a loaded machine a press and release sent together read
+ * 350 ms and more apart, and the click selected nothing (issue #10350). Every Playwright call is made synchronously in
+ * arrival order, so the messages still go out in that order, as the protocol delivers them.
  * @param ctx - the browser command context
  * @param event - the event, in the top page's CSS pixels
  * @returns once the event is made
  */
 const dispatchMouseEvent: BrowserCommand<[event: MouseEventParams]> = (ctx, event) => {
     const { page } = ctx;
-    const state = mouseState.get(page) ?? { held: new Set<string>(), queue: Promise.resolve() };
+    const state = mouseState.get(page) ?? { held: new Set<string>() };
     mouseState.set(page, state);
-    const run = async (): Promise<void> => {
-        const want = new Set(MODIFIER_KEYS.filter(([bit]) => (event.modifiers & bit) !== 0).map(([, key]) => key));
-        for (const key of [...state.held].filter((k) => !want.has(k))) {
-            await page.keyboard.up(key);
-            state.held.delete(key);
-        }
+    const sent: Promise<void>[] = [];
+    const want = new Set(MODIFIER_KEYS.filter(([bit]) => (event.modifiers & bit) !== 0).map(([, key]) => key));
+    for (const key of [...state.held].filter((k) => !want.has(k))) {
+        sent.push(page.keyboard.up(key));
+        state.held.delete(key);
+    }
 
-        for (const key of [...want].filter((k) => !state.held.has(k))) {
-            await page.keyboard.down(key);
-            state.held.add(key);
-        }
+    for (const key of [...want].filter((k) => !state.held.has(k))) {
+        sent.push(page.keyboard.down(key));
+        state.held.add(key);
+    }
 
-        await page.mouse.move(event.x, event.y);
-        const button = event.button === "none" ? "left" : event.button;
-        if (event.type === "mousePressed") {
-            await page.mouse.down({ button, clickCount: event.clickCount });
-        } else if (event.type === "mouseReleased") {
-            await page.mouse.up({ button, clickCount: event.clickCount });
-        }
-    };
-    const done = state.queue.then(run);
-    state.queue = done.catch(() => undefined);
-    return done;
+    sent.push(page.mouse.move(event.x, event.y));
+    const button = event.button === "none" ? "left" : event.button;
+    if (event.type === "mousePressed") {
+        sent.push(page.mouse.down({ button, clickCount: event.clickCount }));
+    } else if (event.type === "mouseReleased") {
+        sent.push(page.mouse.up({ button, clickCount: event.clickCount }));
+    }
+
+    return Promise.all(sent).then(() => undefined);
 };
 
 /**
@@ -1474,7 +1480,7 @@ const config = defineConfig({
             {
                 // Hover, click and edges in motion in WebKit's WebGL2 (the iPad path), on both render paths: batched
                 // picking reads a pixel back from an ID render target, and WebKit's readPixels formats, integer
-                // targets and antialias resolve differ from Chromium's. A subset of two Chromium files, by test name
+                // targets and antialias resolve differ from Chromium's. A subset of three Chromium files, by test name
                 // (package.json test:interactions-webkit): pick-parity's nodes and edges at rest with selection, and
                 // edges-follow's ngraph and glide cases.
                 // The mouse comes from Playwright (dispatchMouseEvent), as WebKit has no DevTools protocol. Full run
@@ -1496,6 +1502,7 @@ const config = defineConfig({
                     include: [
                         "test/interactions/pick-parity.test.ts",
                         "test/browser/edges-follow-running-layout.test.ts",
+                        "test/browser/edges-follow-through-a-transition.test.ts",
                     ],
                     fileParallelism: false,
                     browser: {

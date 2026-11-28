@@ -39,9 +39,10 @@ import { ID_NONE, ID_OBJECT, type IdDrawn, type IdPick, type NodeIdTarget } from
 
 /**
  * Picks that walk every mesh or every row, counted so a test can show a pointer move makes none:
- * `meshPicks` for Babylon's pick over `scene.meshes`, `rowScans` for a walk over the rows.
+ * `meshPicks` for Babylon's pick over `scene.meshes`, `rowScans` for a walk over the rows, and `pointerPicks` for
+ * Babylon's own pick of a pointer event testing the meshes along the ray ({@link filterPointerPicks}).
  */
-export const pickWork = { meshPicks: 0, rowScans: 0 };
+export const pickWork = { meshPicks: 0, rowScans: 0, pointerPicks: 0 };
 
 /**
  * How many edges the exact edge test measured: `measured` on screen, each with a `worldToScreen`
@@ -56,6 +57,11 @@ export const edgePickWork = { measured: 0, fromRows: 0, rowLines: 0 };
 export interface RowLinePicks {
     /** Visit each shown line, or only those of `only`. */
     forEachShown(visit: (row: number, source: number, target: number) => void, only?: readonly number[]): void;
+    /**
+     * Visit each shown curve, or only those of `only`, with its points in graph-root's space, four floats a point
+     * (`EdgeRowLines.forEachShownCurve`); `forEachShown` visits only straight lines.
+     */
+    forEachShownCurve?(visit: (row: number, points: Float32Array) => void, only?: readonly number[]): void;
     /** The id of the edge a line draws, or undefined when the row no longer draws one. */
     idOf(row: number): EdgeId | undefined;
 }
@@ -79,7 +85,7 @@ export function pickAsDrawn(scene: Scene, x: number, y: number): TransformNode |
     // While a layout transition moves the nodes, a click reads the layout's answer, not the
     // moving picture: what is selected is where the node is going.
     return pickAtLayout(scene, () => {
-        const scan = rowScans.get(scene);
+        const scan = rowScans.get(scene) ?? frozenRowScanOf(scene);
         return scan === undefined ? pickMeshes(scene, x, y, drawnPickable).info.pickedMesh : scan.pickPoint(x, y);
     });
 }
@@ -174,9 +180,15 @@ export function filterPointerPicks(scene: Scene): void {
             let test = base;
             return (mesh, thinInstanceIndex = -1) => {
                 if (thinInstanceIndex < 0 && mesh === scene.meshes[0]) {
-                    const pointer = scene.unTranslatedPointer;
-                    scene.createPickingRayToRef(pointer.x, pointer.y, null, ray, scene.cameraToUseForPointers);
-                    test = alongRay(scene, ray, base);
+                    const pressed = key === "pointerMovePredicate" ? undefined : pressAnswer(scene, key);
+                    if (pressed === undefined) {
+                        pickWork.pointerPicks++;
+                        const pointer = scene.unTranslatedPointer;
+                        scene.createPickingRayToRef(pointer.x, pointer.y, null, ray, scene.cameraToUseForPointers);
+                        test = withFrozenRows(scene, pointer.x, pointer.y, alongRay(scene, ray, base), base);
+                    } else {
+                        test = (candidate, index) => candidate === pressed && base(candidate, index);
+                    }
                 }
 
                 return test(mesh, thinInstanceIndex);
@@ -192,6 +204,66 @@ export function filterPointerPicks(scene: Scene): void {
             },
         });
     }
+}
+
+/** The last pick over `scene.meshes` ({@link pickMeshes}), for {@link pickPressedNodeId}. */
+let lastMeshPick: { readonly scene: Scene; readonly mesh: AbstractMesh | null; readonly onTop: boolean } | null = null;
+
+/** The press each scene's next pointer-down pick answers with; see {@link pickPressedNodeId}. */
+const pressAnswers = new WeakMap<
+    Scene,
+    { readonly x: number; readonly y: number; readonly mesh: AbstractMesh | null }
+>();
+
+/**
+ * {@link pickNodeId} for a press, whose answer also stands for the pick Babylon makes of the same press right after
+ * (for the node's actions and `pointerInfo.pickInfo`): each walks every mesh, about 45 ms at 99,000 nodes, so a click
+ * paid for two (issue #10116). Only an answer that is the nearest hit stands, the one Babylon's own pick gives: a mesh
+ * drawn on top is not (see {@link pickAsDrawn}), nor a row of the batched path.
+ * @param scene - The scene.
+ * @returns The id of the node pressed, or `undefined`.
+ */
+export function pickPressedNodeId(scene: Scene): NodeIdType | undefined {
+    const { pointerX: x, pointerY: y } = scene;
+    lastMeshPick = null;
+    const picked = pickAsDrawn(scene, x, y);
+    const id = (picked?.metadata as { nodeId?: NodeIdType } | null | undefined)?.nodeId;
+    const pick = meshPickMade();
+    // The frozen scan (objects path, no row table) answers a node with its own mesh, which is its anchor there: the
+    // answer Babylon's nearest-hit pick gives too. The batched path's rows have no mesh to answer with.
+    const frozen = !rowScans.has(scene) && frozenRowScanOf(scene) !== undefined;
+    if (pick !== null && pick.scene === scene && !pick.onTop && !rowScans.has(scene) && !transitionUnderWay(scene)) {
+        pressAnswers.set(scene, { x, y, mesh: frozen ? (picked as AbstractMesh | null) : pick.mesh });
+    } else {
+        pressAnswers.delete(scene);
+    }
+
+    return id;
+}
+
+/**
+ * The pick over `scene.meshes` made since {@link lastMeshPick} was cleared, read through a call so a caller's check is
+ * not narrowed away.
+ * @returns The pick, or null.
+ */
+function meshPickMade(): typeof lastMeshPick {
+    return lastMeshPick;
+}
+
+/**
+ * The mesh the press at the pointer found, for Babylon's pick of that press and of its release at the same point, or
+ * `undefined` when no press at this point left one. The release's pick takes it.
+ * @param scene - The scene.
+ * @param key - Which of Babylon's picks asks.
+ * @returns The mesh, null for none, or undefined.
+ */
+function pressAnswer(scene: Scene, key: (typeof POINTER_PICK_PREDICATES)[number]): AbstractMesh | null | undefined {
+    const answer = pressAnswers.get(scene);
+    if (key === "pointerUpPredicate") {
+        pressAnswers.delete(scene);
+    }
+
+    return answer?.x === scene.pointerX && answer.y === scene.pointerY ? answer.mesh : undefined;
 }
 
 /**
@@ -252,6 +324,60 @@ export interface DrawnHit {
 const drawnPickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isVisible && mesh.isEnabled();
 const rayPickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isEnabled();
 
+/** What a node mesh's metadata says of its file's draw order, for {@link drawnLaterOver}. */
+interface DrawnOrder {
+    readonly drawOrder?: number;
+}
+
+/**
+ * The file's draw order of the node a mesh draws (`shape.drawOrder`), or undefined for none.
+ * @param mesh - The mesh.
+ * @returns The order.
+ */
+function drawOrderOf(mesh: AbstractMesh | null): number | undefined {
+    return (mesh?.metadata as DrawnOrder | null | undefined)?.drawOrder;
+}
+
+/**
+ * The hit of a node a file draws later (a higher `shape.drawOrder`) inside the slab of the node the ray hit nearest,
+ * or the nearest hit itself.
+ *
+ * In 3D a flat node is a slab as deep as a fiftieth of its smaller side, and its draw order does not move it (it only
+ * orders 2D, `NodeMesh.placeByDrawOrder`). So where a file draws a box first and nodes over it in the same plane, the
+ * bigger box's front face is the nearer, and a click on a node inside it took the box: every gene of the NDEx CX2
+ * "Toll-like receptor pathway" sample selected its pathway box in 3D (issue #10116). Only when the nearest hit has a
+ * draw order is the ray walked again, for the other hits.
+ * @param scene - The scene.
+ * @param ray - The pick's world ray.
+ * @param admit - Which meshes may be picked.
+ * @param nearest - The nearest hit.
+ * @returns The hit to answer with.
+ */
+function drawnLaterOver(
+    scene: Scene,
+    ray: Ray,
+    admit: (mesh: AbstractMesh) => boolean,
+    nearest: PickingInfo,
+): PickingInfo {
+    const picked = nearest.pickedMesh;
+    let order = drawOrderOf(picked);
+    if (picked === null || order === undefined) {
+        return nearest;
+    }
+
+    const slab = 2 * picked.getBoundingInfo().boundingBox.extendSizeWorld.z;
+    let best = nearest;
+    for (const hit of scene.multiPickWithRay(ray, alongRay(scene, ray, admit)) ?? []) {
+        const hitOrder = drawOrderOf(hit.pickedMesh);
+        if (hitOrder !== undefined && hitOrder > order && hit.distance - nearest.distance <= slab) {
+            best = hit;
+            order = hitOrder;
+        }
+    }
+
+    return best;
+}
+
 /**
  * The on-top rule of {@link pickAsDrawn}: a mesh drawn on top that is hit wins, otherwise the
  * nearest hit does.
@@ -274,9 +400,14 @@ function pickMeshes(
         y,
         alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && admit(mesh)),
     );
-    return onTop.hit
+    const answer = onTop.hit
         ? { info: onTop, onTop: true }
-        : { info: babylonPick(scene)(x, y, alongRay(scene, ray, admit)), onTop: false };
+        : {
+              info: drawnLaterOver(scene, ray, admit, babylonPick(scene)(x, y, alongRay(scene, ray, admit))),
+              onTop: false,
+          };
+    lastMeshPick = { scene, mesh: answer.info.pickedMesh, onTop: answer.onTop };
+    return answer;
 }
 
 /**
@@ -510,6 +641,32 @@ export class RowScan {
                 found = row;
             }
         }, only);
+        lines.forEachShownCurve?.((row, points) => {
+            measured++;
+            let previous: { x: number; y: number } | null = null;
+            for (let at = 0; at < points.length; at += 4) {
+                const [x, y, z] = [points[at], points[at + 1], points[at + 2]];
+                if (x * view[2] + y * view[6] + z * view[10] + view[14] < minZ) {
+                    previous = null;
+                    continue;
+                }
+
+                const w = x * clip[3] + y * clip[7] + z * clip[11] + clip[15];
+                const point = {
+                    x: ((x * clip[0] + y * clip[4] + z * clip[8] + clip[12]) / w + 1) * halfWidth,
+                    y: (1 - (x * clip[1] + y * clip[5] + z * clip[9] + clip[13]) / w) * halfHeight,
+                };
+                if (previous !== null) {
+                    const distance = distanceToSegment(px, py, previous, point);
+                    if (distance <= nearest) {
+                        nearest = distance;
+                        found = row;
+                    }
+                }
+
+                previous = point;
+            }
+        }, only);
         edgePickWork.rowLines += measured;
         return found === -1 ? null : { row: found, distance: nearest };
     }
@@ -583,8 +740,9 @@ export class RowScan {
      * Whether the scan answers for a mesh, so Babylon's pick must leave it out.
      * @param mesh - The mesh.
      * @returns True for the own mesh of a row the table holds, unless its kind stays on Babylon.
+     * @internal
      */
-    private covers(mesh: AbstractMesh): boolean {
+    covers(mesh: AbstractMesh): boolean {
         const node = (mesh.metadata as { graphNode?: ScannedRow } | null | undefined)?.graphNode;
         return node?.drawnPickMesh === mesh && node.index < this.table.rows && node.drawnByRowScan;
     }
@@ -631,7 +789,8 @@ export class RowScan {
         direction.scaleInPlace(1 / stretch);
 
         let best: RowHit | null = null;
-        for (const { row, near } of this.candidates(origin, direction).sort((a, b) => a.near - b.near)) {
+        const sorted = this.candidates(origin, direction).sort((a, b) => a.near - b.near);
+        for (const { row, near } of sorted) {
             if (best !== null && near / stretch > best.distance + STOP_PAST_BEST * (1 + Math.abs(best.distance))) {
                 break;
             }
@@ -642,6 +801,55 @@ export class RowScan {
                 (best === null || hit.distance < best.distance || (hit.distance === best.distance && row < best.row))
             ) {
                 best = { row, distance: hit.distance, point: hit.pickedPoint };
+            }
+        }
+
+        return best === null ? null : this.drawnLaterRow(best, sorted, stretch, root, rayFor);
+    }
+
+    /**
+     * {@link drawnLaterOver} among the rows: the hit of a row a file draws later (a higher `shape.drawOrder`, read off
+     * its source mesh) inside the slab of the nearest row, or the nearest row itself. Only a nearest row with a draw
+     * order looks again.
+     * @param nearest - The nearest row hit.
+     * @param sorted - The rows the ray reaches, nearest bound first.
+     * @param stretch - How the rows' space stretches the ray.
+     * @param root - {@link RowScan.rootMatrix}.
+     * @param rayFor - The ray Babylon would test a mesh with this world matrix against.
+     * @returns The hit to answer with.
+     */
+    private drawnLaterRow(
+        nearest: RowHit,
+        sorted: readonly { row: number; near: number }[],
+        stretch: number,
+        root: Matrix,
+        rayFor: (world: Matrix) => Ray,
+    ): RowHit {
+        const shape = this.shapeAt(nearest.row);
+        let order = drawOrderOf(shape?.drawnSourceMesh ?? null);
+        if (shape === undefined || order === undefined) {
+            return nearest;
+        }
+
+        const { m } = this.rowWorld(nearest.row, root, shape);
+        const depth = Math.hypot(m[8], m[9], m[10]);
+        const slab = 2 * shape.drawnSourceMesh.getBoundingInfo().boundingBox.extendSize.z * depth;
+        let best = nearest;
+        for (const { row, near } of sorted) {
+            if (near / stretch > nearest.distance + slab) {
+                break;
+            }
+
+            const drawn = this.shapeAt(row);
+            const rowOrder = drawOrderOf(drawn?.drawnSourceMesh ?? null);
+            if (rowOrder === undefined || rowOrder <= order) {
+                continue;
+            }
+
+            const hit = this.narrow(row, root, rayFor, drawn);
+            if (hit?.hit === true && hit.distance - nearest.distance <= slab) {
+                best = { row, distance: hit.distance, point: hit.pickedPoint };
+                order = rowOrder;
             }
         }
 
@@ -817,6 +1025,123 @@ export function openRowScan(
  */
 export function rowScanOf(scene: Scene): RowScan | undefined {
     return rowScans.get(scene);
+}
+
+/**
+ * Where a graph on the `"objects"` path, which keeps no row table, tells the picks its nodes while nothing moves.
+ */
+export interface FrozenRows {
+    /**
+     * A number that stays the same while the scene draws the frozen list of what is drawn, so nothing moved, and
+     * changes when it thaws; or null while it is not frozen.
+     */
+    epoch(): number | null;
+    /** The built nodes. */
+    nodes(): Iterable<ScannedRow & { readonly drawnBoundingRadius: number }>;
+    /** What node meshes are placed inside. */
+    root(): TransformNode | null;
+}
+
+/** The table of a frozen graph's nodes: each row's place in graph-root's space and its radius, 0 when not drawn. */
+class FrozenRowTable implements ScannedTable {
+    readonly rowBounds: Float32Array;
+    readonly rows: number;
+    readonly byRow: (ScannedRow | undefined)[] = [];
+
+    constructor(nodes: Iterable<ScannedRow & { readonly drawnBoundingRadius: number }>) {
+        const listed: (ScannedRow & { readonly drawnBoundingRadius: number })[] = [];
+        let rows = 0;
+        for (const node of nodes) {
+            if (node.index !== INVALID_INDEX) {
+                listed.push(node);
+                rows = Math.max(rows, node.index + 1);
+            }
+        }
+
+        this.rows = rows;
+        this.rowBounds = new Float32Array(rows * 4);
+        for (const node of listed) {
+            const at = node.index * 4;
+            const { x, y, z } = node.drawnAnchor.position;
+            const mesh = node.drawnPickMesh;
+            this.rowBounds[at] = x;
+            this.rowBounds[at + 1] = y;
+            this.rowBounds[at + 2] = z;
+            // As the row table's bound: the drawn radius, or 0 for a node Babylon's pick would not find.
+            this.rowBounds[at + 3] = mesh !== null && drawnPickable(mesh) ? node.drawnBoundingRadius : 0;
+            this.byRow[node.index] = node;
+        }
+    }
+
+    centerOf(row: number): Vector3 {
+        const at = row * 4;
+        return new Vector3(this.rowBounds[at] ?? 0, this.rowBounds[at + 1] ?? 0, this.rowBounds[at + 2] ?? 0);
+    }
+}
+
+/** Each objects-path scene's nodes, and the scan of them made for the frozen list now drawn. */
+const frozenRows = new WeakMap<Scene, { readonly rows: FrozenRows; scan: RowScan | null; epoch: number | null }>();
+
+/**
+ * Let the picks of a scene with no row table answer its nodes from a table of them while its list of what is drawn
+ * is frozen: nothing moves then, so the table made at the first pick stands until the list thaws, and a pick tests
+ * the nodes a ray reaches instead of evaluating every node's mesh (issue #10128).
+ * @param scene - The scene.
+ * @param rows - Its nodes and its freeze, or null to stop.
+ */
+export function useFrozenRows(scene: Scene, rows: FrozenRows | null): void {
+    if (rows === null) {
+        frozenRows.delete(scene);
+    } else {
+        frozenRows.set(scene, { rows, scan: null, epoch: null });
+    }
+}
+
+/**
+ * The scan of a frozen scene's nodes, made once per freeze.
+ * @param scene - The scene.
+ * @returns The scan, or undefined while the scene is not frozen or keeps no such table.
+ */
+function frozenRowScanOf(scene: Scene): RowScan | undefined {
+    const held = frozenRows.get(scene);
+    const epoch = held?.rows.epoch() ?? null;
+    if (held === undefined || epoch === null) {
+        return undefined;
+    }
+
+    if (held.scan === null || held.epoch !== epoch) {
+        const table = new FrozenRowTable(held.rows.nodes());
+        held.scan = new RowScan(scene, table, (row) => table.byRow[row], held.rows.root());
+        held.epoch = epoch;
+    }
+
+    return held.scan;
+}
+
+/**
+ * A pointer pick's test with the nodes answered by the frozen scan: a node's mesh passes only when it is the node the
+ * scan finds nearest at the pointer, so Babylon evaluates no other node's mesh; every other mesh takes `test`.
+ * @param scene - The scene.
+ * @param x - The pointer's x.
+ * @param y - The pointer's y.
+ * @param test - The pick's test of every mesh.
+ * @param base - The pick's own predicate, which the nearest node must pass too.
+ * @returns The test.
+ */
+function withFrozenRows(scene: Scene, x: number, y: number, test: PickPredicate, base: PickPredicate): PickPredicate {
+    const camera = scene.cameraToUseForPointers;
+    const scan =
+        rowScans.has(scene) || (camera !== null && camera !== scene.activeCamera) ? undefined : frozenRowScanOf(scene);
+    if (scan === undefined) {
+        return test;
+    }
+
+    const hit = scan.shapeRayHit(x, y);
+    const nearest = hit === null ? null : (scan.nodeAt(hit.row)?.drawnPickMesh ?? null);
+    return (mesh, thinInstanceIndex = -1) =>
+        thinInstanceIndex < 0 && scan.covers(mesh)
+            ? mesh === nearest && base(mesh, thinInstanceIndex)
+            : test(mesh, thinInstanceIndex);
 }
 
 /**

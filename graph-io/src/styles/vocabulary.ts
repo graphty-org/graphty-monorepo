@@ -138,6 +138,7 @@ export const STYLE_PROPERTIES: {
         ["labelFont", "text"],
         ["labelWeight", "weight"],
         ["labelItalic", "boolean"],
+        ["labelUnderline", "boolean"],
         ["labelPosition", "position"],
         ["labelTextAlign", "textAlign"],
         ["labelRuns", "text"],
@@ -324,6 +325,7 @@ export const STYLE_PROPERTIES: {
         ["labelTextAlign", "textAlign"],
         ["labelRuns", "text"],
         ["labelItalic", "boolean"],
+        ["labelUnderline", "boolean"],
         ["labelWrapWidth", "number"],
         ["labelWrapEllipsis", "boolean"],
         ["labelWrapAnywhere", "boolean"],
@@ -438,7 +440,7 @@ const GENERIC_BORDER_STYLES = ["zigzag", "sinewave", ...STROKES] as const;
 /**
  * The arrow shapes beyond the basic ones that a file's own arrow is settled into: a half arrow drawn as one thin barb
  * on either side, a vee turned round, a half arrow on the line's other side, half circles and curves, compound and
- * crossed arrows, an open square and an open inverted triangle, a picture, the kite, the deltoid and the open vee, and
+ * crossed arrows, an open square and an open inverted triangle, a picture, the kite, the deltoid, the open vee and the hollow vee, and
  * the stem and slash pieces of an arrow drawn in several pieces.
  */
 const GENERIC_ARROWS = [
@@ -461,6 +463,7 @@ const GENERIC_ARROWS = [
     "kite",
     "deltoid",
     "open-vee",
+    "hollow-vee",
     "stem",
     "slash",
 ] as const;

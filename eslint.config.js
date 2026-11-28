@@ -11,6 +11,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
+import noElementToUserEvent from "./tools/eslint-rules/no-element-to-user-event.mjs";
 import noSourceProgram from "./tools/eslint-rules/no-source-program.mjs";
 import noTestTiming from "./tools/eslint-rules/no-test-timing.mjs";
 import sonarWay, { sonarWayTypedOff } from "./tools/eslint-rules/sonar-way.mjs";
@@ -536,8 +537,19 @@ export default tseslint.config(
             "graph-io/test/fidelity/generators/specimens/**",
             "graph-io/test/fidelity/references/*.mjs",
         ],
-        plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
-        rules: { "local/no-test-timing": "error" },
+        plugins: {
+            local: { rules: { "no-test-timing": noTestTiming, "no-element-to-user-event": noElementToUserEvent } },
+        },
+        rules: { "local/no-test-timing": "error", "local/no-element-to-user-event": "error" },
+    },
+    // vitest's userEvent gets a locator Playwright resolves when it acts, never an element it turns into a
+    // selector at once (#10194). The rule: tools/eslint-rules/no-element-to-user-event.mjs. compact-mantine's
+    // tests are left out: compact-mantine is locked to Figma and its tests change only with the owner's
+    // Figma-Approved trailer (owner, 2026-10-23). The graphty app turns it off in graphty/eslint.config.js until
+    // its call sites move (#10194).
+    {
+        files: ["compact-mantine/**"],
+        rules: { "local/no-element-to-user-event": "off" },
     },
     // Tests that still wait a counted number of animation frames, exempt from that one check until
     // each is rewritten to wait on what it needs (#2535): compact-mantine's Figma tests, which need the owner's

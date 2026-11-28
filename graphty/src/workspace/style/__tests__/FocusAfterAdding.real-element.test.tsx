@@ -3,7 +3,7 @@
  * clicks and keys, focus is where the next keystroke belongs: a new Color line's text box (not its
  * swatch), so a typed color and Enter repaint at once; a Width line added on a found selection's
  * Style tab in its box, written to the layer last opened; a new Shape line on its select, its value not drawn selected, and a typed
- * shape name opening its list on that shape; a new text card in its text box (not its match menu), so typing straight
+ * shape letter opening its list on a shape that starts with it; a new text card in its text box (not its match menu), so typing straight
  * after picking the column narrows the rule.
  */
 
@@ -56,11 +56,11 @@ async function openScene(): Promise<GraphSession> {
  */
 async function openStyle(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     await screen.findByTestId("style-tab");
 }
@@ -76,7 +76,7 @@ async function openStyle(name: string): Promise<void> {
  */
 async function addLine(kind: "node" | "edge", title: string, item: string, channel: Channel): Promise<HTMLElement> {
     const selector = `[data-testid="style-tab"] .ws-row[data-line="${channel}"]`;
-    await userEvent.click(await screen.findByRole("button", { name: `Add to ${kind} ${title}` }));
+    await userEvent.click(page.getByRole("button", { name: `Add to ${kind} ${title}`, exact: true }));
     const menu = await waitFor(() => {
         const found = screen.queryByRole("menuitem", { name: item });
         assert.isTrue(found !== null || document.querySelector(selector) !== null, "a menu or the line");
@@ -139,10 +139,21 @@ describe("focus after adding a line or a card", () => {
         assert.strictEqual(focused.getAttribute("role"), "combobox");
         assert.isTrue(focused.readOnly, "a select's box takes no typing");
         assert.strictEqual(focused.selectionStart, focused.selectionEnd, "so nothing in it is drawn selected");
-        // Typing a shape's name opens its list on that shape, and Enter picks it.
-        await userEvent.keyboard("Box{Enter}");
+        // A letter typed on the select opens its list on a shape that starts with it, and Enter
+        // picks that shape. One letter, not a whole name: a longer run splits wherever the test
+        // runner pauses past the type-ahead window between keys, as it does on a loaded machine
+        // (issue #10465), and the list then rightly starts a new search.
+        await userEvent.keyboard("b");
+        const shape = await waitFor(() => {
+            const id = focused.getAttribute("aria-activedescendant");
+            const label = (id === null ? null : document.getElementById(id))?.textContent?.trim() ?? "";
+            assert.match(label, /^b/i, "the list opens on a shape starting with the letter");
+            return label.toLowerCase();
+        });
+        await userEvent.keyboard("{Enter}");
         await waitFor(() => {
-            assert.include(written(session, "node.shape"), "box", "the typed shape is written");
+            const words = written(session, "node.shape").map((value) => String(value).replaceAll(/[-_]/g, " "));
+            assert.include(words, shape, "the typed shape is written");
         });
     });
 
@@ -151,7 +162,7 @@ describe("focus after adding a line or a card", () => {
         // Both is the row last opened, so the selection's Style tab edits it.
         await openStyle("Both");
         const layers = session.styles.list().length;
-        const find = await screen.findByRole("combobox", { name: "Find" });
+        const find = page.getByRole("combobox", { name: "Find", exact: true });
         await userEvent.click(find);
         await userEvent.keyboard("=shared_chapters >= `5`{Enter}");
         await waitFor(() => {
@@ -160,7 +171,7 @@ describe("focus after adding a line or a card", () => {
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         const style = await within(inspector).findByRole("tab", { name: "Style" });
         if (style.getAttribute("aria-selected") !== "true") {
-            await userEvent.click(style);
+            await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
         }
         // The tab edits the selected layer, which paints nodes and edges: show its Edge side.
         await showKind("edge");
@@ -192,10 +203,12 @@ describe("focus after adding a line or a card", () => {
         await openStyle("Names");
         // The cards of two selected layers: one alone opens the selection editor.
         await selectWithTwin(session, "Names");
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+        await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
+        await userEvent.click(
+            page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: /^name(,|$)/ }));
         const box = await within(region).findByRole("combobox", { name: "name: text to match" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, box, "focus is in the card's text box, not its match menu");

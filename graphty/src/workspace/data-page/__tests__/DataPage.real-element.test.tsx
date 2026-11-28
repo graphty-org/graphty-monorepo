@@ -101,8 +101,8 @@ async function elementSession(): Promise<GraphSession> {
  * @param option - the option's words.
  */
 async function pick(label: string, option: string): Promise<void> {
-    await userEvent.click(screen.getByRole("combobox", { name: label }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
+    await userEvent.click(page.getByRole("combobox", { name: label, exact: true }));
+    await userEvent.click(page.getByRole("option", { name: option, exact: true }));
 }
 
 /**
@@ -247,7 +247,9 @@ describe("the Data page on the real element", () => {
         const report = screen.getByRole("region", { name: "Match report" });
         assert.include(report.textContent, "1 edge row names a node missing from the node rows.");
 
-        await userEvent.click(within(report).getByRole("button", { name: "Show the 1 unmatched row" }));
+        await userEvent.click(
+            page.elementLocator(report).getByRole("button", { name: "Show the 1 unmatched row", exact: true }),
+        );
         const sentence = await screen.findByText("1 unmatched row: z has no node row");
         assert.equal(getComputedStyle(sentence).fontSize, "11px", "the unmatched sentence at the body size");
         const grid = screen.getByRole("grid", { name: "Rows of ties.csv" });
@@ -256,7 +258,7 @@ describe("the Data page on the real element", () => {
         assert.deepEqual(marked, ["z (no node row)"]);
         assert.isNotNull(within(grid).getByText("c"));
 
-        await userEvent.click(within(report).getByText("Add"));
+        await userEvent.click(page.elementLocator(report).getByText("Add", { exact: true }));
         await waitFor(() => {
             assert.equal(screen.getByTestId("model-strip").textContent, "people and ties: 4 nodes, 3 edges");
         });
@@ -294,15 +296,17 @@ describe("the Data page on the real element", () => {
             within(report).getByRole("radiogroup", { name: "Unmatched ends" }).getBoundingClientRect().left -
             report.getBoundingClientRect().left;
         const before = choice();
-        await userEvent.click(within(report).getByRole("button", { name: "Show the 1 unmatched row" }));
+        await userEvent.click(
+            page.elementLocator(report).getByRole("button", { name: "Show the 1 unmatched row", exact: true }),
+        );
         await screen.findByText("1 unmatched row: z has no node row");
         assert.isNull(within(report).queryByRole("button", { name: /Show the 1 unmatched row/ }));
         assert.equal(choice(), before, "Add | Leave out does not move when the link goes");
-        await userEvent.click(screen.getByRole("button", { name: "Show all rows" }));
+        await userEvent.click(page.getByRole("button", { name: "Show all rows", exact: true }));
         await within(report).findByRole("button", { name: "Show the 1 unmatched row" });
 
         // Added, nothing is left out: the check is green again.
-        await userEvent.click(within(report).getByText("Add"));
+        await userEvent.click(page.elementLocator(report).getByText("Add", { exact: true }));
         await waitFor(() => {
             assert.lengthOf(within(tables).getAllByLabelText("Ready"), 2);
         });
@@ -320,11 +324,11 @@ describe("the Data page on the real element", () => {
         ]) {
             const words = within(report).getByText(option);
             assert.equal(getComputedStyle(words).fontSize, "11px", `${option} at the body size`);
-            await userEvent.hover(words);
+            await userEvent.hover(page.elementLocator(report).getByText(option, { exact: true }));
             // The theme opens a tooltip after a one-second rest.
             const tip = await screen.findByText(hint, {});
             assert.isNotNull(tip.closest('[role="tooltip"]'));
-            await userEvent.unhover(words);
+            await userEvent.unhover(page.elementLocator(report).getByText(option, { exact: true }));
             await waitFor(() => {
                 assert.isNull(screen.queryByText(hint));
             });
@@ -393,7 +397,7 @@ describe("the Data page on the real element", () => {
         });
         await openFromEmptyApp();
         const field = screen.getByRole("textbox", { name: "URL" });
-        await userEvent.type(field, url);
+        await userEvent.type(page.getByRole("textbox", { name: "URL", exact: true }), url);
         await userEvent.tab();
 
         const bar = await screen.findByRole("progressbar");
@@ -429,12 +433,12 @@ describe("the Data page on the real element", () => {
         await openFromEmptyApp();
         await chooseFiles(new File([GML], "les-miserables.gml"));
         await screen.findByText("les-miserables: 3 nodes, 2 edges", {});
-        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "From a URL..." }));
+        await userEvent.click(page.getByRole("button", { name: "Add a table", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "From a URL...", exact: true }));
         const close = await screen.findByRole("button", { name: "Close From a URL" });
         const panel = close.closest<HTMLElement>("[role=dialog], section, div[data-popout]") ?? document.body;
         const field = within(panel).getByRole("textbox");
-        await userEvent.type(field, url);
+        await userEvent.type(page.elementLocator(panel).getByRole("textbox"), url);
         await userEvent.tab();
 
         const bar = await within(panel).findByRole("progressbar");
@@ -518,7 +522,7 @@ describe("the Data page on the real element", () => {
             assert.equal(screen.getByTestId("model-strip").textContent, "ties: 3 nodes, 2 edges");
         });
 
-        await userEvent.click(screen.getByRole("button", { name: /^File settings/ }));
+        await userEvent.click(page.getByRole("button", { name: /^File settings/ }));
         await pick("Separator", "Tab");
         // Read again with tabs, the file is one column.
         await screen.findByRole("combobox", { name: "Role of source;target" });
@@ -544,9 +548,9 @@ describe("the Data page on the real element", () => {
         });
         // The source's row opens it in the inspector, whose "..." holds Edit source....
         const row = await screen.findByRole("listitem", { name: "ties.csv" });
-        await userEvent.click(within(row).getAllByRole("button")[0]);
-        await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Edit source..." }));
+        await userEvent.click(page.elementLocator(row).getByRole("button").nth(0));
+        await userEvent.click(page.getByRole("button", { name: "Source actions", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Edit source...", exact: true }));
         await screen.findByRole("heading", { name: "Replace: ties.csv" });
         await waitFor(() => {
             assert.equal(
@@ -556,7 +560,7 @@ describe("the Data page on the real element", () => {
             );
         });
         // A replace says so on its button, as its title does.
-        await userEvent.click(screen.getByRole("button", { name: "Replace" }));
+        await userEvent.click(page.getByRole("button", { name: "Replace", exact: true }));
         await waitFor(() => {
             assert.equal(store.get().page, "panels");
         });
@@ -588,9 +592,9 @@ describe("the Data page on the real element", () => {
         assert.lengthOf(session.data.sources(), 2);
 
         const row = await screen.findByRole("listitem", { name: "ties.csv" });
-        await userEvent.click(within(row).getAllByRole("button")[0]);
-        await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Edit source..." }));
+        await userEvent.click(page.elementLocator(row).getByRole("button").nth(0));
+        await userEvent.click(page.getByRole("button", { name: "Source actions", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Edit source...", exact: true }));
         await screen.findByRole("heading", { name: "Replace: ties.csv" });
         await waitFor(() => {
             assert.equal(
@@ -599,7 +603,7 @@ describe("the Data page on the real element", () => {
                 "the role the load was read with comes back",
             );
         });
-        await userEvent.click(screen.getByRole("button", { name: "Replace" }));
+        await userEvent.click(page.getByRole("button", { name: "Replace", exact: true }));
         await waitFor(() => {
             assert.equal(store.get().page, "panels");
         });
@@ -646,7 +650,7 @@ describe("the Data page on the real element", () => {
             store.set({ place: "data" });
         });
         const row = await screen.findByRole("listitem", { name: /people/ });
-        await userEvent.click(within(row).getAllByRole("button")[0]);
+        await userEvent.click(page.elementLocator(row).getByRole("button").nth(0));
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         await within(inspector).findByText("1 edge row was left out: it names a node missing from the node rows.");
         // The row itself, kept by the element with the load: no file to reopen.
@@ -659,7 +663,7 @@ describe("the Data page on the real element", () => {
         );
 
         // The Graph place shows no source: switching to it closes the source's inspector.
-        await userEvent.click(screen.getByRole("button", { name: "Graph" }));
+        await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
         assert.isNull(store.get().inspected);
     });
 
@@ -667,7 +671,7 @@ describe("the Data page on the real element", () => {
         const { store } = await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "passes.csv"));
         const report = await screen.findByRole("region", { name: "Match report" });
-        await userEvent.click(await within(report).findByText("Add", {}));
+        await userEvent.click(page.elementLocator(report).getByText("Add", {}));
         await userEvent.click(loadButton());
         await waitFor(() => {
             assert.equal(store.get().page, "panels");
@@ -678,7 +682,7 @@ describe("the Data page on the real element", () => {
         });
         const row = await screen.findByRole("listitem", { name: /people/ });
         assert.notInclude(row.textContent, "left out");
-        await userEvent.click(within(row).getAllByRole("button")[0]);
+        await userEvent.click(page.elementLocator(row).getByRole("button").nth(0));
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         await within(inspector).findByText("Statistics");
         assert.notInclude(inspector.textContent, "left out");
@@ -696,7 +700,9 @@ describe("the Data page on the real element", () => {
         await chooseFiles(new File([TIES], "ties.csv"));
 
         const report = await screen.findByRole("region", { name: "Match report" });
-        await userEvent.click(await within(report).findByRole("button", { name: "Show the 1 unmatched row" }));
+        await userEvent.click(
+            page.elementLocator(report).getByRole("button", { name: "Show the 1 unmatched row", exact: true }),
+        );
         await screen.findByText("1 unmatched row: z has no node row");
         const grid = screen.getByRole("grid", { name: "Rows of ties.csv" });
         assert.deepEqual(
@@ -712,20 +718,20 @@ describe("the Data page on the real element", () => {
             openDataPage(store, { intent: "new" });
         });
         await screen.findByRole("heading", { name: "Add to Ring" });
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.getByRole("button", { name: "Cancel", exact: true }));
         assert.equal(store.get().project?.name, "Ring", "Cancel keeps the reader's project");
     });
 
     it("Cancel and Esc return to where the reader came from", async () => {
         const { store } = await openFromEmptyApp();
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.getByRole("button", { name: "Cancel", exact: true }));
         assert.isNull(store.get().project, "a new graph's Cancel returns to the start screen");
 
         act(() => {
             store.set({ project: { name: "Ring", id: 7 }, page: "panels" });
             openDataPage(store, { intent: "add" });
         });
-        const heading = await screen.findByRole("heading", { name: "Add to Ring" });
+        const heading = page.getByRole("heading", { name: "Add to Ring", exact: true });
         await userEvent.click(heading);
         await userEvent.keyboard("{Escape}");
         assert.equal(store.get().page, "panels");
@@ -736,12 +742,12 @@ describe("the Data page on the real element", () => {
         const { store } = await openFromEmptyApp();
         await chooseFiles(new File(["from,to,km\na,b,3\nb,c,6\n"], "trails.csv"));
         await screen.findByRole("region", { name: "Match report" });
-        await userEvent.click(screen.getByRole("heading", { name: "Open as a new graph" }));
+        await userEvent.click(page.getByRole("heading", { name: "Open as a new graph", exact: true }));
         await userEvent.keyboard("{Escape}");
         assert.equal(store.get().page, "data-page");
         assert.isNotNull(store.get().project, "the new graph is not dropped");
         assert.isNotNull(screen.getByRole("heading", { name: "Open as a new graph" }));
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.getByRole("button", { name: "Cancel", exact: true }));
         assert.isNull(store.get().project);
     });
 
@@ -759,13 +765,13 @@ describe("the Data page on the real element", () => {
                 .filter((radio) => radio.checked)
                 .map((radio) => radio.labels?.[0]?.textContent ?? "");
         assert.deepEqual(checked(), ["Not set"]);
-        await userEvent.click(within(higher).getByText("Closer"));
+        await userEvent.click(page.elementLocator(higher).getByText("Closer", { exact: true }));
         await screen.findByText("A higher weight means a closer tie, such as more emails between two people.");
         assert.deepEqual(checked(), ["Closer"]);
         // And back: Not set leaves the weight with no meaning again.
-        await userEvent.click(within(higher).getByText("Not set"));
+        await userEvent.click(page.elementLocator(higher).getByText("Not set", { exact: true }));
         assert.deepEqual(checked(), ["Not set"]);
-        await userEvent.click(within(higher).getByText("Closer"));
+        await userEvent.click(page.elementLocator(higher).getByText("Closer", { exact: true }));
 
         await userEvent.click(loadButton());
         await waitFor(() => {
@@ -857,20 +863,20 @@ describe("the Data page on the real element", () => {
         await chooseFiles(new File(["from,to,km\na,b,3\nb,c,6\n"], "trails.csv"));
         await screen.findByText("Weight: none (each edge counts 1)", {});
         // The column's name above its role box opens that box's list.
-        await userEvent.click(screen.getByText("km", { selector: "label" }));
+        await userEvent.click(page.getByCss("label").filter({ hasText: /^km$/ }));
         await screen.findByRole("option", { name: "Weight" });
         await userEvent.keyboard("{Escape}");
         await pick("Role of km", "Weight");
         await screen.findByText(UNSET_HINT, {});
         const higher = screen.getByRole("radiogroup", { name: "Higher means" });
-        await userEvent.click(within(higher).getByText("Farther"));
+        await userEvent.click(page.elementLocator(higher).getByText("Farther", { exact: true }));
         await screen.findByText(
             "A higher weight means farther apart, such as a longer distance or travel time; a path takes the smallest total.",
         );
         assert.isNotNull(screen.getByText("Weight: km (farther)"));
 
         // The reset beside a chosen role says what it does on hover, in compact-mantine's tooltip.
-        await userEvent.hover(screen.getByRole("button", { name: "Reset km to default" }));
+        await userEvent.hover(page.getByRole("button", { name: "Reset km to default", exact: true }));
         const tip = await screen.findByRole("tooltip", {});
         assert.equal(tip.textContent, "Reset km to default");
     });
@@ -887,8 +893,8 @@ describe("the Data page on the real element", () => {
         await chooseFiles(new File([PEOPLE], "people.csv"));
         await screen.findByRole("grid", { name: "Rows of people.csv" });
         await commands.chooseNextFile("ties.csv", "text/csv", TIES);
-        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "File..." }));
+        await userEvent.click(page.getByRole("button", { name: "Add a table", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "File...", exact: true }));
         await screen.findByRole("grid", { name: "Rows of ties.csv" });
         await waitFor(() => {
             assert.equal(screen.getByTestId("model-strip").textContent, "people and ties: 3 nodes, 2 edges");
@@ -898,14 +904,14 @@ describe("the Data page on the real element", () => {
     it("Tables + Paste reads the clipboard's table, and says so when the clipboard is empty", async () => {
         await openFromEmptyApp();
         await navigator.clipboard.writeText("  ");
-        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Paste" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a table", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Paste", exact: true }));
         await screen.findByText("Clipboard empty", {});
         assert.isNull(screen.queryByTestId("model-strip"), "nothing was read");
 
         await navigator.clipboard.writeText("source,target\na,b\nb,c\n");
-        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Paste" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a table", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Paste", exact: true }));
         await waitFor(() => {
             assert.include(screen.getByTestId("model-strip").textContent, "3 nodes, 2 edges");
         });
@@ -917,27 +923,30 @@ describe("the Data page on the real element", () => {
         if (suppliers === undefined) {
             throw new Error("no suppliers.csv fixture");
         }
-        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "From a URL..." }));
-        await userEvent.type(await screen.findByRole("textbox", { name: "Address" }), `${sampleUrl(suppliers)}{Enter}`);
+        await userEvent.click(page.getByRole("button", { name: "Add a table", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "From a URL...", exact: true }));
+        await userEvent.type(
+            page.getByRole("textbox", { name: "Address", exact: true }),
+            `${sampleUrl(suppliers)}{Enter}`,
+        );
         await waitFor(() => {
             assert.include(screen.getByTestId("model-strip").textContent, "40 nodes");
         });
         assert.isNull(screen.queryByRole("textbox", { name: "Address" }), "the URL panel closed");
 
-        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "From a URL..." }));
+        await userEvent.click(page.getByRole("button", { name: "Add a table", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "From a URL...", exact: true }));
         await screen.findByRole("textbox", { name: "Address" });
         await commands.chooseNextFile("ties.csv", "text/csv", TIES);
-        await userEvent.click(screen.getByRole("button", { name: "Choose file" }));
+        await userEvent.click(page.getByRole("button", { name: "Choose file", exact: true }));
         await screen.findByRole("grid", { name: "Rows of ties.csv" });
         assert.isNull(screen.queryByRole("textbox", { name: "Address" }), "the URL panel closed");
     });
 
     it("an address that cannot be fetched leaves focus on Load, where the reader finds the refusal", async () => {
         await openFromEmptyApp();
-        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "From a URL..." }));
+        await userEvent.click(page.getByRole("button", { name: "Add a table", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "From a URL...", exact: true }));
         const address = await screen.findByRole("textbox", { name: "Address" });
         // Load takes focus in the task that closes the field, so the workspace's focus guard, which
         // hands lost focus on a frame later, never finds it lost and sends it to "+" (#9005).
@@ -952,7 +961,10 @@ describe("the Data page on the real element", () => {
                 { once: true },
             );
         });
-        await userEvent.type(address, "https://example.invalid/no-such-file.csv{Enter}");
+        await userEvent.type(
+            page.getByRole("textbox", { name: "Address", exact: true }),
+            "https://example.invalid/no-such-file.csv{Enter}",
+        );
         assert.equal(await afterClose, loadButton(), "Load holds focus once the field closes");
         await screen.findByRole("alert");
         assert.equal(document.activeElement, loadButton(), "focus stays on Load after the refusal");
@@ -978,7 +990,7 @@ describe("the Data page on the real element", () => {
         await screen.findByText("Weight: none (each edge counts 1)", {});
         await pick("Role of km", "Weight");
         await screen.findByText("Weight: km", { exact: false });
-        await userEvent.click(screen.getByRole("button", { name: "Reset km to default" }));
+        await userEvent.click(page.getByRole("button", { name: "Reset km to default", exact: true }));
         await screen.findByText("Weight: none (each edge counts 1)", {});
         assert.isNull(screen.queryByRole("button", { name: "Reset km to default" }));
     });
@@ -989,20 +1001,20 @@ describe("the Data page's other controls on the real element", () => {
         await openFromEmptyApp();
         await chooseFiles(new File(["from,to,km\na,b,3\nb,c,6\n"], "trails.csv"));
         await screen.findByText("Weight: none (each edge counts 1)", {});
-        const strip = screen.getByTestId("model-strip");
+        const strip = await screen.findByTestId("model-strip", {});
         assert.equal(strip.textContent, "trails: 3 nodes, 2 edges");
 
-        await userEvent.click(screen.getByText("a node"));
+        await userEvent.click(page.getByText("a node", { exact: true }));
         await waitFor(() => {
             assert.equal(strip.textContent, "trails: 2 nodes");
         });
         assert.isNull(screen.queryByText("Weight: none (each edge counts 1)"), "a node table has no weight line");
         // After a kind change a role box offers Auto, as the element's own reading.
-        await userEvent.click(screen.getByRole("combobox", { name: "Role of km" }));
+        await userEvent.click(page.getByRole("combobox", { name: "Role of km", exact: true }));
         await screen.findByRole("option", { name: "Auto" });
         await userEvent.keyboard("{Escape}");
 
-        await userEvent.click(screen.getByText("an edge"));
+        await userEvent.click(page.getByText("an edge", { exact: true }));
         await screen.findByText("Weight: none (each edge counts 1)", {});
         await waitFor(() => {
             assert.equal(strip.textContent, "trails: 3 nodes, 2 edges");
@@ -1017,13 +1029,13 @@ describe("the Data page's other controls on the real element", () => {
             assert.equal(document.activeElement, loadButton());
         });
 
-        await userEvent.click(screen.getByRole("button", { name: /^File settings/ }));
+        await userEvent.click(page.getByRole("button", { name: /^File settings/ }));
         await pick("Format", "GML");
         const alert = await screen.findByRole("alert", {});
         assert.include(alert.textContent, "people.csv and ties.csv could not be");
         assert.equal(loadButton().getAttribute("aria-disabled"), "true");
         // The refused file's view holds its own File settings, closed.
-        await userEvent.click(screen.getByRole("button", { name: "File settings: GML" }));
+        await userEvent.click(page.getByRole("button", { name: "File settings: GML", exact: true }));
         await pick("Format", "Auto");
         await waitFor(() => {
             assert.equal(screen.getByTestId("model-strip").textContent, "people and ties: 3 nodes, 2 edges");
@@ -1042,7 +1054,7 @@ describe("the Data page's other controls on the real element", () => {
         // Opens File settings, unless it is open, and finds the box.
         const limit = async (): Promise<HTMLInputElement> => {
             if (screen.queryByRole("textbox", { name: "Error limit" }) === null) {
-                await userEvent.click(screen.getByRole("button", { name: /^File settings/ }));
+                await userEvent.click(page.getByRole("button", { name: /^File settings/ }));
             }
             return screen.findByRole<HTMLInputElement>("textbox", { name: "Error limit" });
         };
@@ -1074,8 +1086,8 @@ describe("the Data page's other controls on the real element", () => {
         await chooseFiles(new File(["from,to,year\na,b,1990\nb,c,2000\n"], "years.csv"));
         await screen.findByTestId("model-strip", {});
         assert.isNull(screen.queryByRole("combobox", { name: "Unit of year" }));
-        await userEvent.click(screen.getByRole("combobox", { name: "Role of year" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^Date or time/ }));
+        await userEvent.click(page.getByRole("combobox", { name: "Role of year", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: /^Date or time/ }));
         const unit = await screen.findByRole<HTMLInputElement>("combobox", { name: "Unit of year" });
         assert.equal(unit.value, "Epoch ms", "a number reads as epoch milliseconds until the reader says");
         await pick("Unit of year", "Year");
@@ -1091,11 +1103,11 @@ describe("the Data page's other controls on the real element", () => {
         await waitFor(() => {
             assert.include(report.textContent, "could not be read as an edge");
         });
-        await userEvent.click(within(report).getByRole("button", { name: "Show them" }));
+        await userEvent.click(page.elementLocator(report).getByRole("button", { name: "Show them", exact: true }));
         await screen.findByText("1 row that could not be read", { exact: false });
         assert.isNotNull(screen.getByRole("grid", { name: "Rows of ties.csv" }));
 
-        await userEvent.click(within(report).getByRole("button", { name: "3 node rows" }));
+        await userEvent.click(page.elementLocator(report).getByRole("button", { name: "3 node rows", exact: true }));
         await screen.findByRole("grid", { name: "Rows of people.csv" });
         assert.include(screen.getByRole("button", { current: true }).textContent, "Nodes: people.csv");
     });
@@ -1105,7 +1117,9 @@ describe("the Data page's other controls on the real element", () => {
         await chooseFiles(new File([""], "empty.csv"));
         const alert = await screen.findByRole("alert", {});
         await commands.chooseNextFile("people.csv", "text/csv", PEOPLE);
-        await userEvent.click(within(alert).getByRole("button", { name: "Choose another file..." }));
+        await userEvent.click(
+            page.elementLocator(alert).getByRole("button", { name: "Choose another file...", exact: true }),
+        );
         await waitFor(() => {
             assert.equal(screen.getByTestId("model-strip").textContent, "people: 3 nodes");
         });
@@ -1116,19 +1130,22 @@ describe("the Data page's other controls on the real element", () => {
         await openFromEmptyApp();
         const main = screen.getByRole("region", { name: "Table" });
         await commands.chooseNextFile("people.csv", "text/csv", PEOPLE);
-        await userEvent.click(within(main).getByRole("button", { name: "Choose file" }));
+        await userEvent.click(page.elementLocator(main).getByRole("button", { name: "Choose file", exact: true }));
         await waitFor(() => {
             assert.equal(screen.getByTestId("model-strip").textContent, "people: 3 nodes");
         });
 
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.getByRole("button", { name: "Cancel", exact: true }));
         await openFromEmptyApp();
         const suppliers = PROTOTYPE_SAMPLES.find((each) => sampleName(each) === "suppliers.csv");
         if (suppliers === undefined) {
             throw new Error("no suppliers.csv fixture");
         }
         const empty = screen.getByRole("region", { name: "Table" });
-        await userEvent.type(within(empty).getByRole("textbox", { name: "URL" }), `${sampleUrl(suppliers)}{Enter}`);
+        await userEvent.type(
+            page.elementLocator(empty).getByRole("textbox", { name: "URL", exact: true }),
+            `${sampleUrl(suppliers)}{Enter}`,
+        );
         await waitFor(() => {
             assert.include(screen.getByTestId("model-strip").textContent, "40 nodes");
         });

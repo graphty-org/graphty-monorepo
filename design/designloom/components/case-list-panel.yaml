@@ -1,0 +1,28 @@
+id: case-list-panel
+name: Case List Panel
+category: display
+description: Ranked list of cases from a saved pattern query or a seeded score, one row per target entity, sortable and
+    filterable by score, amount, age, status and assignee; a row opens the case subgraph, and the panel assigns,
+    comments on and confirms or dismisses a case, with its history. Replaces anomaly-panel for alert and case triage.
+status: planned
+implements_capabilities:
+    - case-list-triage
+used_in_workflows:
+    - W06
+dependencies:
+    - badge
+    - button
+    - select
+    - divider
+props:
+    cases: Case[] - Cases with target entity, score, status, assignee and history
+    sortBy: "string - Sort field: 'score' | 'amount' | 'age' | 'status'"
+    onCaseOpen: "(id: string) => void - Open the case subgraph"
+    onStatusChange: "(id: string, status: 'in-progress' | 'confirmed' | 'dismissed', note?: string) => void - Record a decision"
+sources:
+    - title: "Linkurious Enterprise user manual 4.2, investigating cases"
+      url: https://doc.linkurious.com/user-manual/4.2/alert-investigate/
+      summary: "Assign, comment and set In progress, Confirmed or Dismissed per case, with an activity history"
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

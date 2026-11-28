@@ -6,7 +6,7 @@
 
 import React, { useState } from "react";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../test/test-utils";
 import { useBoxSize } from "../useBoxSize";
@@ -34,7 +34,7 @@ function LateBox(): React.JSX.Element {
 describe("useBoxSize", () => {
     it("measures a box that appears after the first render", async () => {
         render(<LateBox />);
-        await userEvent.click(screen.getByRole("button", { name: "Show" }));
+        await userEvent.click(page.getByRole("button", { name: "Show", exact: true }));
         await waitFor(() => {
             assert.isNotNull(screen.queryByText("240 x 120"));
         });

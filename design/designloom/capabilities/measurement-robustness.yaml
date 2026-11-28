@@ -1,0 +1,30 @@
+id: measurement-robustness
+name: Measurement Robustness
+category: analysis
+description: Edge or node subsampling with rank correlation to the original, threshold and density sweeps, rerun spread,
+    alternative representations and nulls.
+status: planned
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R16 (Must)."
+algorithms: []
+used_by_workflows:
+    - W03
+    - W104
+    - W177
+    - W180
+    - W184
+    - W23
+    - W245
+    - W254
+    - W41
+    - W42
+implemented_by_components: []
+requirements:
+    - "Must: Measurement-robustness panel: edge or node subsampling with rank correlation, threshold sweep, rerun
+      spread"
+    - "Must: Test whether centrality rankings hold under random edge removal or addition, to allow for missing data."
+    - "Must: Subsample nodes or edges repeatedly (or remove a fraction) and show the spread and rank correlation of each centrality against the full network."
+    - "Must: Rebuild a network at several cutoffs, databases or clustering resolutions and show which hubs and clusters persist, including a clustering tree of members moving between clusters across resolutions."
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R16)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

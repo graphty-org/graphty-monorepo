@@ -1,0 +1,17 @@
+id: consensus-partition
+name: Consensus Partition
+category: analysis
+description: Co-assignment matrix over many runs, permutation-null subtraction, reclustering, and per-node uncertainty
+    shown visually.
+status: planned
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R5 (Should)."
+algorithms: []
+used_by_workflows:
+    - W38
+implemented_by_components: []
+requirements:
+    - "Should: Consensus partition with per-node uncertainty shown visually"
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R5)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

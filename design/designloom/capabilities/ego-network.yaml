@@ -1,8 +1,10 @@
 id: ego-network
 name: Ego Network Extraction
 category: analysis
-description: Extract the ego network (local neighborhood) of a selected node - the node plus all nodes within N hops and
-    edges between them. Essential for hub investigation, understanding local context, and reducing complexity.
+description: Extract the ego network (local neighborhood) of one or more selected nodes - the seeds plus all nodes
+    within N hops, by direction and edge type, and the edges among them - and compute the standard ego measures (size,
+    density, effective size, efficiency, constraint, hierarchy, composition). Used to show everything connected to an
+    entity, to investigate a hub without expanding it blindly, and to compute per-ego statistics in social research.
 status: planned
 algorithms:
     - BFS neighborhood extraction
@@ -10,28 +12,122 @@ used_by_workflows:
     - W06
     - W09
     - W17
+    - W101
+    - W110
+    - W115
+    - W118
+    - W127
+    - W128
+    - W130
+    - W133
+    - W138
+    - W156
+    - W157
+    - W16
+    - W161
+    - W185
+    - W190
+    - W191
+    - W194
+    - W198
+    - W205
+    - W206
+    - W211
+    - W228
+    - W249
+    - W257
+    - W267
+    - W268
+    - W269
+    - W272
+    - W274
+    - W29
+    - W300
+    - W318
+    - W324
+    - W325
+    - W327
+    - W328
+    - W329
+    - W331
+    - W332
+    - W333
+    - W336
+    - W363
+    - W366
+    - W369
+    - W380
+    - W386
+    - W399
+    - W409
+    - W41
+    - W414
+    - W437
+    - W55
+    - W59
+    - W66
+    - W74
+    - W76
+    - W89
+    - W1013
+    - W252
+    - W1157
+    - W1159
+    - W2006
 implemented_by_components:
     - context-menu
     - ego-network-dialog
 requirements:
-    - Extract 1-hop neighborhood including ego node and all direct neighbors
-    - Extract N-hop neighborhood with configurable depth from 1 to 5 (default 1)
-    - Include all edges among extracted nodes (alter-alter ties) by default
-    - Provide option to include only edges connecting to ego (star pattern)
-    - Calculate ego network size (node count excluding ego)
-    - Calculate ego network density with 4 decimal places
-    - Calculate ego network constraint (Burt's structural holes measure)
-    - Support filtering extracted network by edge type attribute
-    - Support filtering extracted network by node type attribute
-    - Display ego network in separate view or highlight within main view
-    - Provide 'Expand' button to increase depth by 1 hop
-    - Provide 'Contract' button to decrease depth by 1 hop
-    - Display depth indicator showing current hop distance
-    - Complete extraction within 500ms for ego networks up to 1,000 nodes
-    - Report 'Large ego network (N nodes)' warning when extraction exceeds 5,000 nodes
-    - Allow aborting extraction if it would exceed 10,000 nodes
-    - Store ego network as subgraph that can be analyzed independently
+    - "Must: Extract 1-hop neighborhood including ego node and all direct neighbors"
+    - "Must: Extract N-hop neighborhood with configurable depth from 1 to at least 5 (default 1)"
+    - "Must: Extract around one or many seed nodes at once"
+    - "Must: Follow edges by direction (in, out or both) and by edge type, chosen separately"
+    - "Must: Include all edges among extracted nodes (alter-alter ties) by default"
+    - "Library parity: Provide option to include only edges connecting to ego (star pattern)"
+    - "Must: State how direction is handled when computing ego measures (symmetrized or not), and record it with the result"
+    - "Must: Calculate ego network size (node count excluding ego)"
+    - "Must: Calculate ego network density among alters"
+    - "Must: Calculate effective size, efficiency, constraint and hierarchy (Burt's structural holes measures); report constraint together with size, since constraint mostly tracks inverse network size"
+    - "Must: Calculate alter composition and heterogeneity by a chosen attribute, and the E-I index"
+    - "Must: Support filtering extracted network by edge type attribute"
+    - "Must: Support filtering extracted network by node type attribute"
+    - "Must: Display ego network in separate view or highlight within main view, with hop distance available as a visual channel"
+    - "Must: Provide 'Expand' button to increase depth by 1 hop"
+    - "Library parity: Provide 'Contract' button to decrease depth by 1 hop"
+    - "Must: Display depth indicator showing current hop distance"
+    - "Must: Report the node and edge count of the next hop before drawing it, show hidden degree on hubs, and never expand a hub automatically; the warning threshold and an optional node cap (with its sampling rule stated) are consumer options with a neutral default"
+    - "Library parity: Allow aborting a long extraction, with progress shown"
+    - "Must: Store ego network as subgraph that can be analyzed independently"
+    - "Should: Hold many ego networks keyed by ego id as one collection, browsable singly and comparable"
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 3
-      url: https://graphty.app/docs/
-      summary: Hub Investigation pattern - examine ego network of high-degree nodes
+    - title: Perry, Pescosolido and Borgatti 2018, Egocentric Network Analysis
+      url: https://doi.org/10.1017/9781316443255
+      summary: Ego extraction and the standard ego measures
+    - title: Hoffmann, Introduction to SNA, structural holes
+      url: https://jfb-h.github.io/intro-to-sna/08-structural-holes.html
+      summary: Ego extraction from a whole network, symmetrize first, then size, effective size, efficiency, constraint
+          and hierarchy
+    - title: Academic social network research (section 5.4 and requirements table)
+      url: design/user-research/academic-social-network-research.md
+      summary: Ego extraction and measures beyond size, density and constraint (effective size, efficiency, hierarchy,
+          E-I, composition, heterogeneity) are must-have; a many-small-networks mode is should-have
+    - title: Burt's constraint mostly tracks network size (Strategy Science 2024)
+      url: https://pubsonline.informs.org/doi/10.1287/stsc.2024.0297
+      summary: Constraint largely reflects inverse network size, so it is read together with size
+    - title: Neo4j Bloom, scene interactions
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/bloom-scene-interactions/
+      summary: Advanced Expansion by relationship type, direction, neighbor category and limit
+    - title: Graph database query and expand exploration (use case 1, requirement 5)
+      url: design/user-research/graph-database-query-and-expand-exploration.md
+      summary: Everything connected to an entity is a many-times-a-day need; hidden-degree badges and never
+          auto-expanding a hub are Must
+    - title: Personal knowledge graphs and note networks (requirement 5)
+      url: design/user-research/personal-knowledge-graphs-and-note-networks.md
+      summary: Local n-hop neighborhood from depth 1 to at least 5, separately per direction and edge kind
+    - title: Code-first data scientists and graph ML (requirements table)
+      url: design/user-research/code-first-data-scientists-and-graph-ml.md
+      summary: k-hop neighborhood around one or many seeds, hop distance as a visual channel, a node cap with
+          documented sampling are Must
+    - title: Data preparation, import and first assessment (requirement 18)
+      url: design/user-research/data-preparation-and-import.md
+      summary: Many ego networks keyed by ego id as one collection is Should

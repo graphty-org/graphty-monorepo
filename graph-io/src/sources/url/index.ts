@@ -29,7 +29,9 @@ function column(value: string): string | number {
  * @returns the options
  */
 function csvOptions(params: UrlParams): Record<string, unknown> {
-    const out: Record<string, unknown> = {};
+    // A header that names nothing (symbol,log2FC) loads as nodes by its values, as a file opened in
+    // graphty does, rather than not at all.
+    const out: Record<string, unknown> = { unnamed: "nodes" };
     if (params.delimiter !== undefined) {
         out.delimiter = params.delimiter;
     }

@@ -82,6 +82,19 @@ export interface ArrangementEngine {
      * @param pinned - Whether it is pinned now.
      */
     pin(id: NodeId, pinned: boolean): void;
+    /**
+     * Hold some nodes where they are, or let them go: a source draft's preview (design 5.3). Absent
+     * on an engine that moves nothing on its own.
+     * @param ids - The nodes, or null.
+     * @param wake - Whether there are nodes to lay out round them, so a layout at rest steps again.
+     */
+    hold?(ids: ReadonlySet<NodeId> | null, wake: boolean): void;
+    /**
+     * Say where the next nodes of some ids start, instead of where a layout would drop them. A layout's
+     * own start, so it is recorded nowhere.
+     * @param places - The places by id; empty for nowhere in particular.
+     */
+    seed?(places: ReadonlyMap<NodeId, { readonly x: number; readonly y: number; readonly z: number }>): void;
 }
 
 /** Where a capture is sealed: the history's seal target. */

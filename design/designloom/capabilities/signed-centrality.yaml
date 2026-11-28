@@ -1,0 +1,22 @@
+id: signed-centrality
+name: Strength, expected influence and bridge centrality
+category: analysis
+description: Weighted strength, signed expected influence, in and out strength for directed networks, and bridge
+    strength and bridge expected influence given a community per node, reported as raw values.
+status: planned
+notes: "Research trace: psychometric-network-analysis.md section 10, requirement R6 (Must)."
+algorithms: []
+used_by_workflows:
+    - W370
+    - W371
+    - W374
+    - W376
+implemented_by_components: []
+requirements:
+    - "Must: Strength, signed expected influence and bridge variants as node metrics, raw by default"
+sources:
+    - title: "Psychological Network Analysts: Symptom, Attitude and Personality Networks Estimated from Survey Items
+          (section 10, requirement R6)"
+      url: design/user-research/psychometric-network-analysis.md
+      summary: "Must in the research. Covered by Designloom when researched: Partial: degree, betweenness, closeness
+          exist"

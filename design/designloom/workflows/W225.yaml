@@ -1,0 +1,116 @@
+id: W225
+name: Fiber OSP Trace, Circuit Assignment and Diversity Audit
+category: analysis
+validated: false
+scope: deferred
+personas:
+    - telecom-osp-planner
+requires_capabilities:
+    - data-import
+    - search
+    - shortest-path
+    - all-paths-finding
+    - path-highlighting
+    - node-selection
+    - filtering
+    - visual-encoding-edges
+    - details-on-demand
+    - comparison-view
+    - data-export
+    - export-image
+    - multilayer-networks
+    - geographic-layout
+    - shared-risk-diversity
+    - geospatial-file-io
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - search-panel
+    - path-finder-dialog
+    - filter-panel
+    - node-details-panel
+    - data-table-panel
+    - comparison-view
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: layered fiber plant (routes, conduits, poles, cables, buffer tubes, strands, splices, ports, circuits) with geometry
+    node_count: 1000-1000000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Trace a circuit end to end down to strands and splices, find a free strand path for a new circuit, and
+    prove that a primary and its backup share no conduit, pole line or crossing.
+
+
+    **Mental Model**: "A circuit rides strands, strands ride cables, cables ride conduits and poles." Diversity is a
+    question about the lowest physical layer.
+
+
+    **Task Phases**:
+
+    1. **Import or draw** - Routes, conduits, cables, splices and panels down to strand level
+
+    2. **Trace** - From a fiber, splice case or port through every strand, splice and connection
+
+    3. **Assign circuits** - Build a light path from a trace; produce splice reports with tube, strand, loss and circuit
+
+    4. **Check diversity** - Compare the physical paths of primary and backup; paths within about 10 meters are treated
+    as overlapping
+
+
+    **Decision Points**:
+
+    - Which free strands to use for the new circuit?
+
+    - Do two paths count as diverse if they share a bridge or right of way?
+
+    - What distance tolerance defines overlap?
+
+
+    **Information Needs**:
+
+    - Full trace from end to end with every splice
+
+    - Free strands along a route
+
+    - Shared conduits, poles or segments between two paths
+
+    - Mapping from logical circuit to physical strands
+
+
+    **Pain Points**:
+
+    - Overlaps found by auditing KMZ data by hand
+
+    - No built-in shared-risk group modeling found in IQGeo or VETRO
+
+    - Diverse path finding with shared-risk groups is NP-hard in general
+
+
+    **Data Flow**:
+
+    - Input: OSP database or KMZ, splice matrices, circuit inventory
+
+    - Transformations: Cross-layer trace, free-path search, shared-risk overlap check within a tolerance
+
+    - Output: Circuit trace, splice report, diversity audit result listing shared elements
+success_criteria:
+    - metric: Trace completeness
+      target: Circuit traced end to end with every splice listed
+    - metric: Diversity proof
+      target: Shared physical elements between two paths listed, or none
+sources:
+    - title: IQGeo Network Manager Telecom
+      url: https://www.iqgeo.com/product/network-manager-telecom/insight-edition
+      summary: Traces down to individual strands, splices and connections
+    - title: Microsoft patent US12366716 on shared risk link groups
+      url: https://patents.google.com/patent/US12366716
+      summary: Overlaps found by auditing KMZ data; 10 meter overlap tolerance
+    - title: Xu et al., SRLG-diverse routing
+      url: https://cse.unl.edu/~netgroup/publication/xu-srlg-diverse-2011
+      summary: SRLG-disjoint paths NP-hard in general
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

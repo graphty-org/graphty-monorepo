@@ -144,6 +144,12 @@ const B = {
             SYNC = true;
         }
     },
+    // The per-frame blocking readback on or off for what follows: the input latency runner turns it off, as a
+    // reader's page has none (it added 6 to 47 ms to every frame it timed). Returns the setting now.
+    frameReadback(on) {
+        SYNC = !!on;
+        return SYNC;
+    },
     async still(frames = 200) {
         await lib.settle();
         SYNC = false;
@@ -858,6 +864,34 @@ const MATRIX_STYLES = {
             encode: { "node.label": { by: "data.id", scale: "passthrough" } },
         }),
     "node-image": nodeSet({ "node.image": PICTURE }),
+    // the looks that give each node or edge its own texture, material or object
+    "edge-label": (el) =>
+        el.session.styles.add({
+            name: "matrix",
+            target: "edge",
+            selector: everything,
+            encode: { "edge.label": { by: "data.src", scale: "passthrough" } },
+        }),
+    "node-tooltip": (el) =>
+        el.session.styles.add({
+            name: "matrix",
+            target: "node",
+            selector: everything,
+            encode: { "node.tooltip": { by: "data.id", scale: "passthrough" } },
+        }),
+    "node-badge": (el) =>
+        el.session.styles.add({
+            name: "matrix",
+            target: "node",
+            selector: everything,
+            set: { "node.labelStyle": { badge: "label" } },
+            encode: { "node.label": { by: "data.id", scale: "passthrough" } },
+        }),
+    "node-glow": nodeSet({ "node.glow": "#ffcc00", "node.glowStrength": 1 }),
+    "node-halo": nodeSet({ "node.halo": true, "node.haloColor": "#ffcc00" }),
+    "node-outline": nodeSet({ "node.outline": "#202020", "node.outlineWidth": 0.1 }),
+    "node-underlay": nodeSet({ "node.underlayColor": "#76b7b2", "node.underlayOpacity": 0.5 }),
+    "node-overlay": nodeSet({ "node.overlayColor": "#76b7b2", "node.overlayOpacity": 0.5 }),
     "edge-color": edgeSet({ "edge.color": "#4e79a7" }),
     "edge-width": edgeSet({ "edge.width": 3 }),
     "edge-opacity": edgeSet({ "edge.opacity": 0.5 }),
@@ -999,7 +1033,7 @@ async function graphtyAdapter({
             set: { "edge.color": PROBE_EDGE, "edge.width": 3 * Math.sqrt(Math.max(1, G.n / 1000)) },
         });
     }
-    if (labels && (sampled || glyphs)) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
+    if (sampled || glyphs) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
     if (labels)
         await el.session.styles.add({
             name: "labels",

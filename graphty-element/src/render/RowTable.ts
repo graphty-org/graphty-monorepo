@@ -40,7 +40,7 @@ const POSITION_FLOATS = 4;
  * bounding radius; outline half extents and the row's reach outline in `rowOutline` (its first side
  * times 1024 plus its count of sides, 0 for none).
  */
-const EXTENT_FLOATS = 12;
+export const EXTENT_FLOATS = 12;
 const EXTENT_BOUNDING_RADIUS = 7;
 
 /** `rowOutline`: one side a texel, its start x and y and its end x and y. */
@@ -601,6 +601,22 @@ export class RowTable {
      */
     isHidden(row: number): boolean {
         return ((this.flags[row] ?? 0) & HIDDEN) !== 0;
+    }
+
+    /**
+     * One row's CPU copies as they stand, without catching up a publish the lane owes (which `rowPosition` does):
+     * for a test that records what a frame drew from, where catching up would change it.
+     * @param row - The row.
+     * @returns Its position (x, y, z, w), its extent, and whether it is hidden or held.
+     * @internal
+     */
+    rawRow(row: number): { position: number[]; extent: number[]; hidden: boolean; held: boolean } {
+        return {
+            position: Array.from(this.positions.floats.subarray(POSITION_FLOATS * row, POSITION_FLOATS * (row + 1))),
+            extent: Array.from(this.extents.floats.subarray(EXTENT_FLOATS * row, EXTENT_FLOATS * (row + 1))),
+            hidden: this.isHidden(row),
+            held: this.isHeld(row),
+        };
     }
 
     /**

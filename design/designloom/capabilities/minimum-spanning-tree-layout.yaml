@@ -1,0 +1,20 @@
+id: minimum-spanning-tree-layout
+name: Minimum Spanning Tree over Profiles
+category: visualization
+description: A minimum spanning tree layout over allele profile or distance data, with identical profiles collapsed into
+    one node sized by the number of members, nodes divided into sectors by a metadata field, distances labeled on
+    branches, and a readable rendering well above twenty thousand nodes.
+status: planned
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 10, table row 6 (Must)."
+algorithms: []
+used_by_workflows:
+    - W70
+implemented_by_components: []
+requirements:
+    - "Must: Import of allele profile tables and a minimum spanning tree layout, with nodes grouping identical profiles,
+      sized by isolate count, divided into pie or donut sectors by a metadata field, and allele differences labeled on
+      edges"
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 10, table row 6)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: "Must in the research. Covered by Designloom when researched: NOT covered"

@@ -1,0 +1,110 @@
+id: W288
+name: Testing an Embedded Graph View and Rendering It Headless
+category: reporting
+validated: false
+personas:
+    - graph-product-frontend-engineer
+    - plugin-author-frontend-developer
+    - plugin-author-graph-library-author
+    - observability-service-map-engineer
+requires_capabilities:
+    - graph-rendering
+    - layout-force-directed
+    - node-selection
+    - export-image
+    - data-export
+    - fixed-node-positions
+    - layout-lifecycle-events
+    - headless-image-rendering
+suggested_components:
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: fixture graphs in the product's own JSON shape
+    node_count: 10-1000
+    edge_density: sparse
+    user_expertise: expert developer
+goal: >-
+    **Intent**: Test the graph view in CI -- data mapping, interaction and appearance -- and render graph images on a
+    server for tests and reports.
+
+
+    **Mental Model**: "Test the graph, not the DOM." Assert on graph state through the API, drive real pointer input in
+    a real browser, and make layout deterministic so pictures can be compared.
+
+
+    **Task Phases**:
+
+    1. **Unit-test the data mapping in Node** - jsdom and happy-dom only support basic tests that do not involve
+    visualization; a headless mode runs graph logic without a renderer
+
+    2. **Query state through the API** - Test graph structure rather than the DOM; hit-test to find the node at a point
+
+    3. **Drive real input** - Playwright, Cypress, WebdriverIO or Vitest browser mode; send the full pointer sequence
+    (move, down, move, up)
+
+    4. **Make layout deterministic** - A seed or fixed positions; wait for the layout-complete event before asserting
+
+    5. **Visual snapshot** - Screenshot comparison with baselines generated in the same environment that compares them
+
+    6. **Server-side images** - Render PNG or JPG on the server through a headless browser, or return computed
+    positions as JSON, for tests and reports
+
+
+    **Decision Points**:
+
+    - Which assertions belong in Node and which need a browser?
+
+    - Seeded layout or fixed positions for snapshots?
+
+    - Generate report images in the browser or on the server?
+
+
+    **Information Needs**:
+
+    - A layout-complete event or promise
+
+    - Public API to read positions, selection and styles
+
+    - Screen-to-node hit testing
+
+
+    **Pain Points**:
+
+    - Test frameworks that do not replicate full pointer sequences
+
+    - Rendering varies by OS, version, settings and hardware, so baselines drift
+
+    - No way to know when layout has settled without polling
+
+
+    **Data Flow**:
+
+    - Input: Fixture graphs, seeds, scripted pointer input
+
+    - Transformations: Headless graph logic, browser interaction, deterministic layout, screenshot or server render
+
+    - Output: Passing CI tests, baseline images, server-rendered report images
+success_criteria:
+    - metric: Determinism
+      target: The same data and seed give identical positions on every run
+    - metric: Wait without timers
+      target: Tests wait on a layout-complete event, never on a fixed delay
+    - metric: Headless image
+      target: A PNG of a graph can be produced on a server without writing browser automation
+sources:
+    - title: yFiles - Testing
+      url: https://docs.yworks.com/yfiles-html/dguide/advanced/testing.html
+      summary: jsdom limits, test graph structure not DOM, hit testing, full pointer sequences
+    - title: Playwright - Visual comparisons
+      url: https://playwright.dev/docs/test-snapshots
+      summary: toHaveScreenshot; rendering varies by host OS, version, settings and hardware
+    - title: cytosnap
+      url: https://github.com/cytoscape/cytosnap
+      summary: Server-side Cytoscape.js images through Puppeteer, or positions as JSON
+    - title: Cytoscape.js documentation
+      url: https://js.cytoscape.org/
+      summary: headless mode and layoutstop event
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

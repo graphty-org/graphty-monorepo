@@ -1,0 +1,34 @@
+id: change-coupling
+name: Change Coupling from History
+category: analysis
+description: "Derive file-to-file (and component-to-component) edges from a version-control history: two files are
+    coupled when they change in the same commit, in commits by the same author within a chosen time window, or in
+    commits that name the same ticket ID. Weight edges by shared revisions and coupling percentage, with thresholds for
+    minimum revisions, minimum shared revisions, minimum coupling and maximum changeset size, so large sweeping commits
+    do not couple everything. Roll edges up to components through a path-to-component mapping, show the trend between
+    two periods, and overlay the result on the static import graph to mark coupling that no import explains."
+status: planned
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R38 (Must)."
+algorithms:
+    - Co-change counting over commits or logical changesets (same commit, same author within a window, same ticket)
+    - Coupling degree as shared revisions over average revisions
+used_by_workflows:
+    - W3079
+implemented_by_components: []
+requirements:
+    - "Must: Change-coupling edges from history with the grouping rule (commit, author time window, ticket ID) and
+      thresholds (minimum revisions, minimum shared revisions, minimum coupling, maximum changeset size) recorded on
+      the result; roll-up to components; trend between two periods; overlay on the import graph"
+sources:
+    - title: CodeScene - Change coupling
+      url: https://codescene.io/docs/guides/technical/change-coupling.html
+      summary: Coupled if modified in the same commit, by the same programmer within a specific period of time, or under
+          the same Ticket ID; hierarchical view; trend colors (stronger, weaker, stable); architectural component and
+          team overlays; Sum of Couplings table
+    - title: code-maat (Adam Tornhill)
+      url: https://github.com/adamtornhill/code-maat
+      summary: Coupling thresholds min-revs 5, min-shared-revs 5, min-coupling 30, max-coupling 100, max-changeset-size
+          30; temporal period merges a day's commits into one logical commit; regex mapping of files to components
+    - title: TNM - FileDependencyMatrixMiner
+      url: https://github.com/JetBrains-Research/tnm
+      summary: For each file pair, how many times the files were edited in the same commit

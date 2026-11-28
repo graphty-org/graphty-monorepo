@@ -137,11 +137,18 @@ export interface EdgeBundle {
  * @param nodes - The nodes `teardown` disposes.
  * @param edges - The edges `teardown` disposes.
  * @param teardown - Disposes them.
+ * @param keep - Meshes of those nodes that `teardown` keeps, losing only what hangs from them (a
+ *     2D/3D switch, `keepNodeMeshForDimension`): they stay in the scene lists where they were.
  * @returns What `teardown` returns.
  */
-export function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
+export function disposeReleased<T>(
+    nodes: Iterable<Node>,
+    edges: Iterable<Edge>,
+    teardown: () => T,
+    keep?: ReadonlySet<AbstractMesh>,
+): T {
     // The labels go together too, after the lists below are restored: see LabelBatch (issue #2804).
-    return disposeLabelsTogether(() => setAsideAndDispose(nodes, edges, teardown));
+    return disposeLabelsTogether(() => setAsideAndDispose(nodes, edges, teardown, keep));
 }
 
 /**
@@ -149,11 +156,20 @@ export function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>,
  * @param nodes - The nodes `teardown` disposes.
  * @param edges - The edges `teardown` disposes.
  * @param teardown - Disposes them.
+ * @param keep - The meshes it keeps.
  * @returns What `teardown` returns.
  */
-function setAsideAndDispose<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
+function setAsideAndDispose<T>(
+    nodes: Iterable<Node>,
+    edges: Iterable<Edge>,
+    teardown: () => T,
+    keep?: ReadonlySet<AbstractMesh>,
+): T {
     const doomed = new Set<AbstractMesh>();
     collectDoomed(nodes, edges, doomed);
+    for (const mesh of keep ?? []) {
+        doomed.delete(mesh);
+    }
 
     // Only the parents that are not going themselves: a label's node mesh is, and its child list
     // is a handful long anyway.
@@ -497,6 +513,8 @@ export const dataManagerInternals = {} as {
     edgesAtRow(manager: DataManager, row: number): { built: Iterable<Edge>; rows: number[] };
     /** The id of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
     unbuiltAt(manager: DataManager, index: number): NodeIdType | undefined;
+    /** How many rows are stored with no `Node` yet: 0 on the `"objects"` path, where every row has its `Node`. */
+    unbuiltCount(manager: DataManager): number;
     /** The record of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
     unbuiltRecord(manager: DataManager, index: number): Record<string | number, unknown> | undefined;
     /** Build the `Node` of a row stored with no `Node` yet, and hand it back. */
@@ -533,6 +551,11 @@ export const dataManagerInternals = {} as {
      * the row or none is stored there.
      */
     unbuiltEdgeEnds(manager: DataManager, row: number): readonly [number, number] | undefined;
+    /**
+     * How many edges join two node rows, in either direction, read from the store with no object built: a curve in a
+     * bundle of more than one fans (`Edge.fanOf`).
+     */
+    edgesJoining(manager: DataManager, u: number, v: number): number;
     /** The id of an edge stored with no `Edge`, building none; undefined when an `Edge` draws the row or none is stored there. */
     unbuiltEdgeId(manager: DataManager, row: number): EdgeId | undefined;
     /**
@@ -653,6 +676,29 @@ function pairKey(a: NodeIdType, b: NodeIdType): string {
     const x = `${typeof a}:${String(a)}`;
     const y = `${typeof b}:${String(b)}`;
     return x < y ? `${x}|${y}` : `${y}|${x}`;
+}
+
+/**
+ * The rows of every edge joining two node rows in either direction (a self-loop's when they are one), read from a
+ * snapshot's arcs.
+ * @param snapshot - The snapshot.
+ * @param u - One node's row.
+ * @param v - The other's.
+ * @returns The edge rows.
+ */
+function snapshotRowsBetween(snapshot: GraphSnapshot, u: number, v: number): Set<number> {
+    const rows = new Set<number>();
+    for (const [from, to] of [
+        [u, v],
+        [v, u],
+    ]) {
+        const [lo, hi] = snapshot.arcsBetween(from, to);
+        for (let arc = lo; arc < hi; arc++) {
+            rows.add(snapshot.arcToEdge[arc]);
+        }
+    }
+
+    return rows;
 }
 
 /**
@@ -932,6 +978,7 @@ export class DataManager implements Manager {
             return { built: manager.builtEdgesOf(id), rows };
         };
         dataManagerInternals.unbuiltAt = (manager, index) => manager.unbuilt.get(index)?.id;
+        dataManagerInternals.unbuiltCount = (manager) => manager.unbuilt.size;
         dataManagerInternals.unbuiltRecord = (manager, index) => {
             const row = manager.unbuilt.get(index);
             return row === undefined ? undefined : manager.recordOf(row.id, row.record);
@@ -958,6 +1005,7 @@ export class DataManager implements Manager {
         dataManagerInternals.storeEdgesUnbuilt = (manager, on) => {
             manager.edgesUnbuilt = on;
         };
+        dataManagerInternals.edgesJoining = (manager, u, v) => manager.edgesJoining(u, v);
         dataManagerInternals.unbuiltEdgeId = (manager, row) => {
             const counter = manager.unbuiltEdges.edgeIdAt(row);
             return counter === undefined ? undefined : edgeIdOf(counter);
@@ -1094,6 +1142,11 @@ export class DataManager implements Manager {
     nodeVersion = 0;
     /** See `dataManagerInternals.lateNodeVersions`. */
     private lateNodeVersions = 0;
+    /**
+     * The graph's nodes by id, as render objects. It also answers for nodes stored without one yet,
+     * building a node's object the first time it is read, so `get(id)` always finds a node the graph
+     * holds. Read it; add and remove nodes through the data API, never through this map.
+     */
     nodeCache: Map<NodeIdType, Node> = new LazyView<NodeIdType, Node>().lazy(this.unbuiltRows);
     /** See `dataManagerInternals.setLayoutRows`; no engine yet needs no hand-over. */
     private layoutRows: ((ids: readonly NodeIdType[]) => void) | null = noLayoutRows;
@@ -1192,7 +1245,10 @@ export class DataManager implements Manager {
         scope.graph(this.graph.slice.values)[GRAPH_RESULTS] = value;
     }
 
-    // Mesh cache for performance
+    /**
+     * The meshes shared between nodes and edges that look the same, keyed by their appearance, so
+     * a graph of many alike elements builds each geometry once. Emptied when the graph is cleared.
+     */
     meshCache: MeshCache;
 
     // GraphContext for creating nodes and edges
@@ -1699,7 +1755,16 @@ export class DataManager implements Manager {
      * @param cause - What moved the state, for the events.
      * @returns How many rows were built and torn down.
      */
-    reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): { added: number; removed: number } {
+    reconcile(
+        slice: GraphSlice,
+        dirty: ReadonlySet<string>,
+        cause: HistoryCause,
+    ): {
+        /** How many nodes and edges were built. */
+        added: number;
+        /** How many nodes and edges were torn down. */
+        removed: number;
+    } {
         const removedNodes: NodeIdType[] = [];
         const removedEdges: EdgeId[] = [];
         let addedNodes = 0;
@@ -3808,7 +3873,7 @@ export class DataManager implements Manager {
             return undefined;
         }
 
-        // A row line's paint is one an `Edge` pulls as a straight line, which needs no placement: the `Edge` takes it
+        // A row line's paint is one an `Edge` pulls (a straight line, or a lone curve placed below): the `Edge` takes it
         // now, so reading the edge map never shows its placeholder look until the frame loop paints it.
         const lined = queue && this.graphContext?.getEdgeRowLines?.()?.has(row) === true;
         // The layout keeps the row's place for the `Edge` (`adopt`), so it is not dropped here.
@@ -3832,6 +3897,12 @@ export class DataManager implements Manager {
         }
 
         this.graphContext?.getUpdateManager?.().adoptBuiltEdge(edge);
+        // ...but a row line drawn as a curve is placed from its rows (`EdgeRowLines.placeCurves`): its `Edge` is placed
+        // now too, so a read of its drawn curve finds it at once, as it found the curve of an `Edge` that drew it before
+        if (lined && !owed && paint?.style.line?.bezier === true) {
+            edge.update();
+        }
+
         return edge;
     }
 
@@ -3881,6 +3952,32 @@ export class DataManager implements Manager {
         // not arrived. The pending queue is empty in every load that supplies nodes before edges.
         const pending = this.pendingEdges.find((entry) => entry.edgeIndex === edgeIndex);
         return pending ? { edgeIndex, edge: null, pending } : null;
+    }
+
+    /**
+     * {@link dataManagerInternals.edgesJoining}: the builder's incidence lists, or the snapshot's arcs once the builder
+     * is let go, as {@link getEdgesBetween} reads them.
+     * @param u - One node's row.
+     * @param v - The other's.
+     * @returns The count.
+     */
+    private edgesJoining(u: number, v: number): number {
+        if (this.store.builderRelease.released) {
+            return snapshotRowsBetween(this.getSnapshot(), u, v).size;
+        }
+
+        const rows = new Set<number>();
+        const { builder } = this.store;
+        for (const [from, to] of [
+            [u, v],
+            [v, u],
+        ]) {
+            for (const e of builder.findEdges(from, to)) {
+                rows.add(e);
+            }
+        }
+
+        return rows.size;
     }
 
     /**
@@ -3994,7 +4091,7 @@ export class DataManager implements Manager {
     builtEdgesOfPairs(
         pairs: Iterable<readonly [NodeIdType, NodeIdType]>,
         freeze: boolean,
-    ): { readonly a: NodeIdType; readonly b: NodeIdType; readonly edges: Edge[] }[] | null {
+    ): { readonly a: NodeIdType; readonly b: NodeIdType; readonly edges: Edge[]; readonly rows: number[] }[] | null {
         if (!freeze && this.store.stale) {
             return null;
         }
@@ -4003,6 +4100,7 @@ export class DataManager implements Manager {
             a,
             b,
             edges: members.filter((each): each is Edge => typeof each !== "number"),
+            rows: members.filter((each): each is number => typeof each === "number"),
         }));
     }
 
@@ -4045,19 +4143,7 @@ export class DataManager implements Manager {
             return [];
         }
 
-        const rows = new Set<number>();
-        for (const [from, to] of u === v
-            ? [[u, v]]
-            : [
-                  [u, v],
-                  [v, u],
-              ]) {
-            const [lo, hi] = snapshot.arcsBetween(from, to);
-            for (let arc = lo; arc < hi; arc++) {
-                rows.add(snapshot.arcToEdge[arc]);
-            }
-        }
-
+        const rows = snapshotRowsBetween(snapshot, u, v);
         const built: Edge[] = [];
         const unbuilt: number[] = [];
         for (const row of rows) {
@@ -4199,7 +4285,12 @@ export class DataManager implements Manager {
      * counted, and so is an edge still waiting for an endpoint.
      * @returns the node and edge counts the graph holds
      */
-    heldCounts(): { nodes: number; edges: number } {
+    heldCounts(): {
+        /** How many nodes the graph holds. */
+        nodes: number;
+        /** How many edges the graph holds. */
+        edges: number;
+    } {
         return this.ingest.heldCounts();
     }
 
@@ -4439,8 +4530,11 @@ export class DataManager implements Manager {
      *     stats panel give -- and the cached mesh count
      */
     getStats(): {
+        /** How many nodes the graph holds. */
         nodeCount: number;
+        /** How many edges the graph holds. */
         edgeCount: number;
+        /** How many shared meshes the mesh cache holds. */
         cachedMeshes: number;
     } {
         const { nodes, edges } = this.heldCounts();

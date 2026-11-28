@@ -203,15 +203,15 @@ describe("the join screen on the real element", () => {
         });
         await toggle(join, "52 matched");
 
-        await userEvent.click(within(join).getByRole("checkbox", { name: "Ignore case +6" }));
+        await userEvent.click(page.elementLocator(join).getByRole("checkbox", { name: "Ignore case +6", exact: true }));
         await waitFor(() => {
             assert.include(chips(join), "58 matched");
         });
         assert.isTrue(within(join).getByRole("checkbox", { name: "Ignore case" }).matches(":checked"));
 
         // Leave tissue out: only log2fc and padj are joined.
-        await userEvent.click(within(join).getByRole("checkbox", { name: "Include tissue" }));
-        await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(join).getByRole("checkbox", { name: "Include tissue", exact: true }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: /^Join / }));
         });
@@ -219,12 +219,21 @@ describe("the join screen on the real element", () => {
         assert.isUndefined(session.data.node("TP53")?.tissue);
         const [joined] = session.data.joins();
         assert.strictEqual(joined.matched, 58);
-        // The Sources row names its join ratio with its unit (tier 4 R11).
-        await screen.findByText("58 nodes matched, 70 table rows");
+        // The sidebar says nothing of the join; the joined table's details name its match (tier 4 R11).
+        const entry = await screen.findByRole("listitem", { name: "tumor-expression.tsv" });
+        const header = entry.querySelector<HTMLElement>("[data-testid=control-section-toggle]");
+        assert.isNotNull(header);
+        if (header !== null) {
+            await userEvent.click(page.elementLocator(entry).getByCss("[data-testid=control-section-toggle]").first());
+        }
+        const details = await screen.findByRole("complementary", { name: "Inspector" });
+        assert.strictEqual((await within(details).findByText("Nodes matched")).nextElementSibling?.textContent, "58");
+        assert.strictEqual(within(details).getByText("Table rows").nextElementSibling?.textContent, "70");
+        assert.notMatch(entry.textContent, /matched|joined/);
 
         // The header's Undo names the step it undoes ("Undo joining ...").
         await userEvent.click(
-            within(screen.getByRole("banner", { name: "Project" })).getByRole("button", { name: /^Undo/ }),
+            page.getByRole("banner", { name: "Project", exact: true }).getByRole("button", { name: /^Undo/ }),
         );
         await waitFor(() => {
             assert.deepEqual(session.data.joins(), []);
@@ -235,20 +244,22 @@ describe("the join screen on the real element", () => {
     it("edits a join from its source row, counted against the graph without it", async () => {
         const { session } = await projectWith("tp53-interactions.tsv", 60);
         let join = await joinScreenFor("tumor-expression.tsv");
-        await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.data.joins(), 1);
         });
 
         const row = await screen.findByRole("listitem", { name: "tumor-expression.tsv" });
-        await userEvent.hover(row);
-        await userEvent.click(within(row).getByRole("button", { name: "tumor-expression.tsv menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Edit join" }));
+        await userEvent.hover(page.getByRole("listitem", { name: "tumor-expression.tsv", exact: true }));
+        await userEvent.click(
+            page.elementLocator(row).getByRole("button", { name: "tumor-expression.tsv menu", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Edit join", exact: true }));
         join = await screen.findByRole("region", { name: "Join tumor-expression.tsv" });
         assert.include(chips(join), "52 matched");
         assert.isNull(within(join).queryByRole("button", { name: "Join choices" }), "an edit only joins");
-        await userEvent.click(within(join).getByRole("checkbox", { name: "Ignore case +6" }));
-        await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(join).getByRole("checkbox", { name: "Ignore case +6", exact: true }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.data.joins()[0]?.matched, 58);
         });
@@ -278,10 +289,10 @@ describe("the join screen on the real element", () => {
             await screen.findByText("Join canceled", { selector: ".cm-toast-message" })
         ).closest<HTMLElement>('[role="group"]');
         assert.isNotNull(toast);
-        await userEvent.click(within(toast).getByRole("button", { name: "Undo" }));
+        await userEvent.click(page.elementLocator(toast).getByRole("button", { name: "Undo", exact: true }));
         const back = await screen.findByRole("region", { name: /^Join / });
         assert.include(chips(back), "52 matched");
-        await userEvent.click(within(back).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(back).getByRole("button", { name: "Join", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.data.joins(), 1);
         });
@@ -290,8 +301,8 @@ describe("the join screen on the real element", () => {
     it("keeps Ignore on the repeated key in the join, and Include in the header menu", async () => {
         const { session } = await projectWith("tp53-interactions.tsv", 60);
         const join = await joinScreenFor("tumor-expression.tsv");
-        await userEvent.click(within(join).getByRole("button", { name: "1 repeated key" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Ignore" }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "1 repeated key", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Ignore", exact: true }));
         await waitFor(() => {
             assert.notInclude(chips(join), "1 repeated key");
         });
@@ -302,12 +313,12 @@ describe("the join screen on the real element", () => {
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
         const include = await screen.findByRole("menuitem", { name: "Include" });
         assert.strictEqual(include.getAttribute("aria-checked"), "true");
-        await userEvent.click(include);
+        await userEvent.click(page.getByRole("menuitem", { name: "Include", exact: true }));
         await waitFor(() => {
             assert.isFalse(within(join).getByRole<HTMLInputElement>("checkbox", { name: "Include tissue" }).checked);
         });
 
-        await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.data.joins(), 1);
         });
@@ -320,38 +331,40 @@ describe("the join screen on the real element", () => {
         const join = await joinScreenFor("tumor-expression.tsv");
 
         // + adds a key pair on the first column no pair uses yet, matched against the node id.
-        await userEvent.click(within(join).getByRole("button", { name: "Add key pair" }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Add key pair", exact: true }));
         await waitFor(() => {
             assert.strictEqual(valueOf(join, "Match 2 column"), "log2fc");
         });
         assert.strictEqual(valueOf(join, "Match 2 graph value"), "Id");
-        await userEvent.click(within(join).getByRole("combobox", { name: "Match 2 column" }));
-        await userEvent.click(await screen.findByRole("option", { name: "tissue" }));
+        await userEvent.click(page.elementLocator(join).getByRole("combobox", { name: "Match 2 column", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "tissue", exact: true }));
         await waitFor(() => {
             assert.strictEqual(valueOf(join, "Match 2 column"), "tissue");
         });
-        await userEvent.click(within(join).getByRole("button", { name: "Remove Match 2" }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Remove Match 2", exact: true }));
         await waitFor(() => {
             assert.isNull(within(join).queryByLabelText("Match 2 column"));
         });
         assert.strictEqual(valueOf(join, "Match column"), "symbol");
 
-        await userEvent.click(within(join).getByRole("checkbox", { name: "Ignore spaces +1" }));
+        await userEvent.click(
+            page.elementLocator(join).getByRole("checkbox", { name: "Ignore spaces +1", exact: true }),
+        );
         await waitFor(() => {
             assert.isTrue(within(join).getByRole("checkbox", { name: "Ignore spaces" }).matches(":checked"));
         });
 
         // Edges take a Source and a Target pair, and no + for another pair.
-        await userEvent.click(within(join).getByRole("combobox", { name: "Rows are" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Edges" }));
+        await userEvent.click(page.elementLocator(join).getByRole("combobox", { name: "Rows are", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "Edges", exact: true }));
         await waitFor(() => {
             assert.isDefined(within(join).getByLabelText("Source column"));
         });
         assert.isDefined(within(join).getByLabelText("Target column"));
         assert.isNull(within(join).queryByRole("button", { name: "Add key pair" }));
 
-        await userEvent.click(within(join).getByRole("combobox", { name: "Rows are" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Node values" }));
+        await userEvent.click(page.elementLocator(join).getByRole("combobox", { name: "Rows are", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "Node values", exact: true }));
         await waitFor(() => {
             assert.isDefined(within(join).getByLabelText("Match column"));
         });
@@ -377,11 +390,11 @@ describe("the join screen on the real element", () => {
         assert.strictEqual(valueOf(join, "Rows are"), "Edges");
         assert.include(chips(join), "150 edges added");
         // Replace data names the source it replaces, picked from the Join button's menu.
-        await userEvent.click(within(join).getByRole("button", { name: "Join choices" }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join choices", exact: true }));
         assert.isDefined(await screen.findByRole("menuitem", { name: "Replace suppliers.csv" }));
         await userEvent.keyboard("{Escape}");
         assert.isNotNull(screen.queryByRole("region", { name: /^Join / }), "Esc in the menu closes only the menu");
-        await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.data.edges().length, 150);
         });
@@ -397,7 +410,7 @@ describe("the join screen on the real element", () => {
         try {
             await commands.chooseNextFile("flows.csv", "text/csv", FLOWS);
             await userEvent.keyboard("{Control>}k{/Control}");
-            await userEvent.click(await screen.findByRole("option", { name: /Add data\.\.\./ }));
+            await userEvent.click(page.getByRole("option", { name: /Add data\.\.\./ }));
             const join = await screen.findByRole("region", { name: "Join flows.csv" });
             assert.deepEqual(chips(join), [
                 "14 edges added",
@@ -406,7 +419,7 @@ describe("the join screen on the real element", () => {
                 "1 repeated key",
                 "1 unknown end",
             ]);
-            await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+            await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join", exact: true }));
             await waitFor(() => {
                 assert.strictEqual(session.data.edges().length, 14);
             });
@@ -433,20 +446,24 @@ describe("the join screen on the real element", () => {
         try {
             await commands.chooseNextFile("depths.csv", "text/csv", DEPTHS.join("\n"));
             await userEvent.keyboard("{Control>}k{/Control}");
-            await userEvent.click(await screen.findByRole("option", { name: /Add data\.\.\./ }));
+            await userEvent.click(page.getByRole("option", { name: /Add data\.\.\./ }));
             const join = await screen.findByRole("region", { name: "Join depths.csv" });
 
-            await userEvent.click(within(join).getByRole("combobox", { name: "Match column" }));
-            await userEvent.click(await screen.findByRole("option", { name: "gauge" }));
-            await userEvent.click(within(join).getByRole("combobox", { name: "Match graph value" }));
-            await userEvent.click(await screen.findByRole("option", { name: "Id" }));
+            await userEvent.click(
+                page.elementLocator(join).getByRole("combobox", { name: "Match column", exact: true }),
+            );
+            await userEvent.click(page.getByRole("option", { name: "gauge", exact: true }));
+            await userEvent.click(
+                page.elementLocator(join).getByRole("combobox", { name: "Match graph value", exact: true }),
+            );
+            await userEvent.click(page.getByRole("option", { name: "Id", exact: true }));
             await waitFor(() => {
                 assert.strictEqual(valueOf(join, "Match column"), "gauge");
                 assert.strictEqual(valueOf(join, "Match graph value"), "Id");
                 assert.includeMembers(chips(join), ["5 matched", "1 not in graph"]);
             });
 
-            await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+            await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join", exact: true }));
             await waitFor(() => {
                 assert.strictEqual(String(session.data.node("G03")?.depth), "3.5");
             });
@@ -491,13 +508,13 @@ describe("the join screen on the real element", () => {
         await toggle(join, "14 edges added");
 
         // Keep both: the repeated row is joined too.
-        await userEvent.click(within(join).getByRole("button", { name: "1 repeated key" }));
-        const both = await screen.findByRole("menuitem", { name: "Keep both" });
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "1 repeated key", exact: true }));
+        await screen.findByRole("menuitem", { name: "Keep both" });
         assert.strictEqual(
             (await screen.findByRole("menuitem", { name: "Keep first" })).getAttribute("aria-checked"),
             "true",
         );
-        await userEvent.click(both);
+        await userEvent.click(page.getByRole("menuitem", { name: "Keep both", exact: true }));
         await waitFor(() => {
             assert.strictEqual(tags()[10], "Edge G03 - G04");
         });
@@ -506,52 +523,32 @@ describe("the join screen on the real element", () => {
         });
 
         // The unknown end is decided here: leave its row out.
-        await userEvent.click(within(join).getByRole("button", { name: "1 unknown end" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Leave those rows out" }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "1 unknown end", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Leave those rows out", exact: true }));
         await waitFor(() => {
             assert.strictEqual(tags()[11], "Left out");
             assert.notInclude(chips(join), "1 new node");
         });
 
         // "Join", chosen from the Join choices menu, joins.
-        await userEvent.click(within(join).getByRole("button", { name: "Join choices" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Join" }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join choices", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Join", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.data.edges().length, 14);
         });
         assert.strictEqual(session.data.nodes().length, 11, "G12 was left out, not added");
     });
 
-    it("keeps a joined source row's ratio whole and its name readable", async () => {
+    it("keeps a joined source's name readable, with no join words in its entry", async () => {
         await projectWith(new File([GAUGES], "gauges.csv"), 11);
         drop(new File([FLOWS], "deliveries.csv"));
         const join = await screen.findByRole("region", { name: "Join deliveries.csv" });
-        await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join", exact: true }));
         const row = await screen.findByRole("listitem", { name: "deliveries.csv" });
-        await waitFor(() => {
-            const ratio = row.querySelector<HTMLElement>(".dp-source-label .dp-quiet");
-            const name = row.querySelector<HTMLElement>(".dp-source-name");
-            assert.isNotNull(ratio, "the ratio is drawn");
-            assert.isNotNull(name);
-            if (ratio === null || name === null) {
-                return;
-            }
-            assert.match(ratio.textContent, /^\d+\/15$/);
-            assert.isAtMost(ratio.scrollWidth, ratio.clientWidth, "the ratio is whole");
-            assert.isAbove(ratio.getBoundingClientRect().width, 0);
-            // At least "deliver" of the name shows (about seven characters at 12 px).
-            assert.isAtLeast(name.clientWidth, 45, "the name is readable");
-            // The kind icon and the name share one line; only the count chips may wrap below.
-            const icon = row.querySelector<HTMLElement>(".dp-source-icon");
-            assert.isNotNull(icon);
-            const middle = (each: HTMLElement): number => {
-                const box = each.getBoundingClientRect();
-                return box.top + box.height / 2;
-            };
-            if (icon !== null) {
-                assert.isAtMost(Math.abs(middle(icon) - middle(name)), 4, "the icon is on the name's line");
-            }
-        });
+        const name = row.querySelector<HTMLElement>("[data-testid=control-section-name]");
+        // At least "deliver" of the name shows (about seven characters at 12 px).
+        assert.isAtLeast(name?.clientWidth ?? 0, 45, "the name is readable");
+        assert.notMatch(row.textContent, /matched|joined/);
     });
 });
 
@@ -565,7 +562,7 @@ describe("every kind of joining, from the sample files", () => {
      * @param join - the join screen.
      */
     async function pressJoin(join: HTMLElement): Promise<void> {
-        await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: /^Join / }));
         });
@@ -591,15 +588,17 @@ describe("every kind of joining, from the sample files", () => {
         const { session } = await projectWith("suppliers.csv", 40);
         const join = await joinScreenFor("suppliers-erp.csv");
         assert.strictEqual(valueOf(join, "Rows are"), "Node values");
-        await userEvent.click(within(join).getByRole("button", { name: "Leave those rows out" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Add as new nodes" }));
+        await userEvent.click(
+            page.elementLocator(join).getByRole("button", { name: "Leave those rows out", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Add as new nodes", exact: true }));
         await pressJoin(join);
         await waitFor(() => {
             assert.strictEqual(session.data.nodes().length, 43);
         });
         assert.strictEqual(session.data.node("s41")?.rating !== undefined, true);
         await userEvent.click(
-            within(screen.getByRole("banner", { name: "Project" })).getByRole("button", { name: /^Undo/ }),
+            page.getByRole("banner", { name: "Project", exact: true }).getByRole("button", { name: /^Undo/ }),
         );
         await waitFor(() => {
             assert.strictEqual(session.data.nodes().length, 40);
@@ -613,7 +612,7 @@ describe("every kind of joining, from the sample files", () => {
         // The preview says nothing is left out: every row is added.
         await within(buildings).findByText("b1");
         assert.isNull(within(buildings).queryByText("Left out"));
-        await userEvent.click(within(buildings).getByRole("button", { name: "Add as rows" }));
+        await userEvent.click(page.elementLocator(buildings).getByRole("button", { name: "Add as rows", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.data.nodes().length, 30);
         });
@@ -636,10 +635,18 @@ describe("every kind of joining, from the sample files", () => {
             ["people.csv", "p01", "people"],
             ["buildings.csv", "b1", "buildings"],
         ] as const) {
-            await userEvent.click(within(within(place).getByRole("listitem", { name: row })).getAllByRole("button")[0]);
-            await userEvent.click(await within(place).findByRole("button", { name: "Add to node attributes" }));
+            // Every source's entry opens by itself: the button is this one's.
+            await userEvent.click(
+                page.elementLocator(place).getByRole("listitem", { name: row, exact: true }).getByRole("button").nth(0),
+            );
+            await userEvent.click(
+                page
+                    .elementLocator(place)
+                    .getByRole("listitem", { name: row, exact: true })
+                    .getByRole("button", { name: "Add to node attributes", exact: true }),
+            );
             // The file's name is the only kind offered: Kind of node is added with it.
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Kind of node" }));
+            await userEvent.click(page.getByRole("menuitem", { name: "Kind of node", exact: true }));
             await waitFor(() => {
                 assert.strictEqual(session.data.node(node)?.kind, kind);
             });
@@ -650,8 +657,8 @@ describe("every kind of joining, from the sample files", () => {
         const { session } = await projectWith("ships-to-2024-09.csv", 40);
         const october = await joinScreenFor("ships-to-2024-10.csv");
         within(october).getByRole("button", { name: "Replace ships-to-2024-09.csv" });
-        await userEvent.click(within(october).getByRole("button", { name: "Join choices" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Add as rows" }));
+        await userEvent.click(page.elementLocator(october).getByRole("button", { name: "Join choices", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Add as rows", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.data.edges().length, 309);
         });
@@ -660,7 +667,9 @@ describe("every kind of joining, from the sample files", () => {
     it("still replaces September with October from the same screen", async () => {
         const { session } = await projectWith("ships-to-2024-09.csv", 40);
         const october = await joinScreenFor("ships-to-2024-10.csv");
-        await userEvent.click(within(october).getByRole("button", { name: "Replace ships-to-2024-09.csv" }));
+        await userEvent.click(
+            page.elementLocator(october).getByRole("button", { name: "Replace ships-to-2024-09.csv", exact: true }),
+        );
         await waitFor(() => {
             assert.strictEqual(session.data.edges().length, 159);
         });

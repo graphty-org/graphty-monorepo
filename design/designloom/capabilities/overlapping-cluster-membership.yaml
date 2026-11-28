@@ -1,0 +1,27 @@
+id: overlapping-cluster-membership
+name: "Overlapping cluster membership"
+category: visualization
+description: "Let a node belong to more than one cluster and show that in both the node-link and the matrix view, listing every cluster a node belongs to and distinguishing the reasons (a close relative of the ego, a descendant of two ancestral couples, intermarried lines). Every matrix tool marks these as gray cells but gives nothing further, Ancestry lists such a match under one cluster only, and modularity in Gephi assigns exactly one community per node."
+status: planned
+notes: "Research trace: genetic-genealogy-dna-match-networks.md section 10, requirement 'Overlapping cluster membership' (Must)."
+algorithms: []
+used_by_workflows:
+    - W2096
+    - W2097
+    - W2098
+    - W2099
+implemented_by_components: []
+requirements:
+    - "Must: Let a node belong to more than one cluster, listing every cluster it belongs to"
+    - "Must: Show multi-cluster members as such in both the node-link and the matrix view"
+    - "Should: Record the reason a node sits in several clusters (a close relative, a descendant of two ancestral couples, intermarried lines) as a value"
+sources:
+    - title: "DNA Explained - AutoClustering by Genetic Affairs"
+      url: "https://dna-explained.com/2018/12/04/autoclustering-by-genetic-affairs/"
+      summary: "Matches in more than one cluster appear as gray cells in the cluster matrix"
+    - title: "Shared Clustering wiki - versus other clustering tools"
+      url: "https://github-wiki-see.page/m/jonathanbrecher/sharedclustering/wiki/Shared-Clustering-versus-other-clustering-tools"
+      summary: "How match clustering tools treat matches that belong to several clusters"
+    - title: "Genetic genealogy research, section 10"
+      url: "design/user-research/genetic-genealogy-dna-match-networks.md"
+      summary: "Overlapping cluster membership shown in both views with the reason distinguished, Must"

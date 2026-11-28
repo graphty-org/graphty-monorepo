@@ -136,6 +136,8 @@ export type StyleArrowShape =
     | "kite"
     | "deltoid"
     | "open-vee"
+    /** The vee's outline, its inside empty. */
+    | "hollow-vee"
     /** A short piece of line, the end cap of an arrow drawn in several pieces. */
     | "stem"
     /** A slanted bar across the line. */
@@ -543,6 +545,8 @@ export interface NodeStyleValues {
     readonly labelWeight: StyleLabelWeight;
     /** Whether the label is italic. */
     readonly labelItalic: boolean;
+    /** Whether a line is drawn under the label's words (yEd's `underlinedText`). */
+    readonly labelUnderline: boolean;
     /** Where the label sits relative to the node. */
     readonly labelPosition: StyleLabelPosition;
     /** How the label's lines line up with one another: `left`, `center` (the default) or `right`. */
@@ -1162,6 +1166,8 @@ export interface EdgeStyleValues {
     readonly labelTextAlign: StyleLabelTextAlign;
     /** Whether the label is italic. */
     readonly labelItalic: boolean;
+    /** Whether a line is drawn under the label's words; see the node's. */
+    readonly labelUnderline: boolean;
     /** The width the label's lines wrap at (a length); see the node's. */
     readonly labelWrapWidth: number;
     /** Whether a line wider than `labelWrapWidth` is cut with an ellipsis; see the node's. */
@@ -1810,6 +1816,12 @@ export interface StyleLengths {
     readonly units: "scene" | "file";
     /** How far apart the nodes of a file that stores no positions are laid out, in the file's lengths. */
     readonly spacing?: number;
+    /**
+     * The clear gap, in the file's lengths, the program's own layout keeps between the circles round any two nodes of
+     * a file that stores no positions (OGDF's energy layout: 20), so no two nodes are drawn over each other. Absent for
+     * a program whose layout lets nodes overlap.
+     */
+    readonly gap?: number;
 }
 
 /**

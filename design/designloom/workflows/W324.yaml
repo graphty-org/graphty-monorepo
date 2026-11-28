@@ -1,0 +1,140 @@
+id: W324
+name: Local Graph Docked Beside the Note Being Written
+category: exploration
+validated: false
+personas:
+    - personal-knowledge-gardener
+    - zettelkasten-writer
+    - academic-literature-note-researcher
+requires_capabilities:
+    - ego-network
+    - neighborhood-expansion
+    - filtering
+    - hover-highlight
+    - tooltip-display
+    - details-on-demand
+    - visual-encoding-nodes
+    - degree-analysis
+    - layout-force-directed
+    - zoom-pan
+    - manual-layout-preservation
+    - typed-edge-filtering
+    - host-link-index-adapter
+    - active-item-sync
+    - filter-then-expand
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - toggle-switch
+    - slider
+    - node-tooltip
+    - zoom-controls
+starting_state:
+    data_type: live note link graph from a note app (wikilinks, property links, tags, attachments, unresolved links)
+    node_count: 10-300 visible (vault of 1,000-20,000 notes)
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Keep a small graph of the current note's neighborhood docked beside the editor while writing, so related
+    notes are one hover away. Forum regulars call the local graph "an absolute treasure" while dismissing the global
+    graph; it is the most-used graph view in this population.
+
+
+    **Mental Model**: "What is near what I am writing?" The graph is a peripheral-vision aid, not an analysis tool. It
+    must follow the active note without being asked.
+
+
+    **Task Phases**:
+
+    1. **Open and dock** (once) - Run "Open local graph", drag the pane to the right sidebar and leave it there;
+    it follows the active note from then on
+
+    2. **Set depth** - Slider opens at depth 1; experienced users recommend 2 or 3; the built-in maximum is 5,
+    and users with sparse graphs ask for 7 to 9
+
+    3. **Choose directions** - Toggle incoming, outgoing and neighbor links; in Obsidian tags count as outgoing
+    links, so turning outgoing off also hides tags
+
+    4. **Choose node kinds** - Toggle Tags, Attachments, "Existing files only" (hides unresolved placeholder
+    links) and Orphans
+
+    5. **Cope with property links** (ongoing) - Quoted links in frontmatter properties pull unrelated notes of the same
+    type in above depth 1; there is no switch to exclude them
+
+    6. **Read and act** (continuous) - Hover to preview, click to open; node size is link count; the current
+    note is colored. Decide whether to open a neighbor, add a link, or ignore
+
+
+    **Decision Points**:
+
+    - Depth 1, 2 or 3 -- enough context without dragging in hubs and daily notes?
+
+    - Show tags and attachments, or only notes?
+
+    - Should placeholder (unresolved) links show, as a to-write list?
+
+    - Is this neighbor worth a link from the current note?
+
+
+    **Information Needs**:
+
+    - Which node is the current note, marked distinctly
+
+    - Neighbor titles readable at sidebar width
+
+    - Link direction (backlink vs outgoing) and edge kind (inline link, property link, tag, embed)
+
+    - A preview of a neighbor's content on hover without leaving the editor
+
+
+    **Pain Points**:
+
+    - Depth capped at 5
+
+    - Tag nodes stop traversal, so notes sharing a tag never appear at any depth
+
+    - Property links cannot be excluded and clutter depth 2 and beyond
+
+    - Layout re-runs on every note switch, so spatial memory is lost
+
+    - Hubs (daily notes, Maps of Content) dominate any depth above 1
+
+
+    **Data Flow**:
+
+    - Input: Host app's resolved link index (source note to target notes with link counts), unresolved links, tags,
+    active-note change events
+
+    - Transformations: n-hop neighborhood around the active note per direction and edge kind, node-kind filters, size by
+    link count
+
+    - Output: No file; the output is the user's next action in the editor (open a note, add a link)
+success_criteria:
+    - metric: Follow latency
+      target: Graph re-centers on the newly active note without a manual refresh
+    - metric: Neighborhood control
+      target: User can set depth 1 to at least 5 and exclude property links or tags independently
+    - metric: Open-in-host
+      target: Clicking a node opens that note in the host editor pane
+sources:
+    - title: Obsidian Help - Graph view
+      url: https://obsidian.md/help/plugins/graph
+      summary: Local graph, depth slider, Tags, Attachments, Existing files only and Orphans toggles
+    - title: Obsidian forum - You all say the graph is useless, let me show you how to use it
+      url: https://forum.obsidian.md/t/you-all-say-the-graph-is-useless-let-me-show-you-how-to-use-it/116738
+      summary: Local graph docked bottom-right while writing; depth 2 or 3 recommended
+    - title: Local Graph Depth plugin
+      url: https://community.obsidian.md/plugins/local-graph-depth
+      summary: Local graph opens at depth 1
+    - title: Obsidian forum - Increase the depth of the local graph
+      url: https://forum.obsidian.md/t/increase-the-depth-of-the-local-graph/32146
+      summary: Depth capped at 5; requests for 7 to 9
+    - title: Obsidian forum - Option to disable frontmatter links in graph view
+      url: https://forum.obsidian.md/t/an-option-to-disable-frontmatter-links-to-show-up-in-graph-view/114940
+      summary: Property links pull unrelated notes in above depth 1; no workaround
+    - title: Local Graph Tag Links plugin
+      url: https://community.obsidian.md/plugins/local-graph-tag-links
+      summary: Tag nodes stop traversal in the core local graph
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,30 @@
+id: multilayer-networks
+name: Multilayer Networks
+category: analysis
+description: Layers and interlayer links as a data model; multilayer modularity sweeping coupling with resolution;
+    per-layer communities with persistence; stacked-layer and edge-colored-by-layer views.
+status: planned
+notes: "Research trace: data-preparation-and-import.md section 9, requirement 25 (Should)."
+algorithms: []
+used_by_workflows:
+    - W09
+    - W104
+    - W217
+    - W221
+    - W225
+    - W230
+    - W303
+    - W413
+    - W46
+    - W1090
+implemented_by_components: []
+requirements:
+    - "Should: Treat each link type as a layer, compute measures per layer and on chosen overlays with per-type weights, and compare them side by side."
+    - "Must: Model layers over one entity set (BOM over site, strand under circuit, trade and ownership edge families, facility on another sector's provider) and propagate impact across layers."
+    - "Should: Import layers from per-layer files, a layer column or an extended edge list; keep layers distinct with optional weighted interlayer links; compute per-layer and cross-layer metrics (overlap, overlapping degree, participation, versatility); show stacked, side-by-side, edge-colored and flattened views."
+    - "Must: Assign layers from a node attribute and arrange them side by side, stacked, star or cube; per-layer and cross-layer layouts; separate styling and filtering of inter-layer edges; multiple edge channels."
+sources:
+    - title: Data Preparation, Import and First Assessment Across All Graph Users (section 9, requirement 25)
+      url: design/user-research/data-preparation-and-import.md
+      summary: "Should in the research. Covered by Designloom when researched: Partial: multilayer-networks holds the
+          model, file formats planned in multilayer-format-import"

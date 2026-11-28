@@ -120,7 +120,9 @@ export interface StepReading {
     /**
      * How the values a step's own computation (a `measure` computed on So far) gave are spread over
      * its input, once it has finished; null for any other step, and while it computes. A step
-     * reading a session run has `run` instead, whose values `scope.histogram` reads.
+     * reading a session run has `run` instead, whose values `scope.histogram` reads. Under the
+     * source-steps experiment, in a selection of one staged source's rows (its `sources`), every step
+     * that tests a value has them, which no `scope.histogram` reads while the source waits.
      * Experimental: may change or be removed in a minor release.
      * @beta
      */
@@ -833,8 +835,31 @@ export type ScopeStepsApi = Pick<
     "watchSteps" | "asUnion" | "checkStep" | "setOptions" | "options" | "allowRun" | "cancelRun"
 >;
 
+/** How a selection of a staged source's rows is read. */
+export interface WaitingSteps {
+    /**
+     * Read it now.
+     * @returns The raw reading.
+     */
+    read(): UnionRead;
+    /**
+     * How the values a step tests are spread over its input.
+     * @param step - The step.
+     * @param input - Its input.
+     * @returns The histogram, or null for a step that tests no value.
+     */
+    valuesOf(step: UnionStep, input: Bytes): ValueHistogram | null;
+}
+
 /** What {@link createScopeSteps} reads. */
 export interface ScopeStepsSources {
+    /**
+     * Under the source-steps experiment, a selection of one staged source's rows; absent or undefined, a
+     * selection is of the graph.
+     * @param leaf - The leaf.
+     * @returns How it is read, or undefined.
+     */
+    readonly waiting?: (leaf: UnionLeaf) => WaitingSteps | undefined;
     /**
      * Read a canonical leaf now.
      * @param leaf - The leaf.
@@ -1002,58 +1027,71 @@ export function createScopeSteps(sources: ScopeStepsSources): ScopeStepsApi {
         sources.assertRule(leaf);
         return canonicalUnion(leaf, options.branchPalette ?? DEFAULT_BRANCH_PALETTE);
     };
-    const readingNow = (leaf: UnionLeaf, read: UnionRead): StepsReading =>
-        stepsReadingOf(
-            leaf,
-            read,
-            {
-                ...sources.reading,
-                runOf: (step) => sources.stepRuns?.()?.runOf(step, leaf.within) ?? null,
-                valuesOf: (step, input) => {
-                    const measure = step.rule;
-                    if (
-                        measure.kind !== "measure" ||
-                        (step.computedOn !== "so-far" && step.links === undefined) ||
-                        sources.histogramOf === undefined
-                    ) {
-                        return null;
-                    }
+    const readLeaf = (leaf: UnionLeaf): UnionRead => sources.waiting?.(leaf)?.read() ?? sources.read(leaf);
+    const readingNow = (leaf: UnionLeaf, read: UnionRead): StepsReading => {
+        const waiting = sources.waiting?.(leaf);
+        const none: Bytes = new Uint8Array(0);
+        const given: ReadingSources =
+            waiting === undefined
+                ? graphReading(leaf)
+                : {
+                      scopeOf: (side) => sources.reading.scopeOf(side, none),
+                      indexOf: () => -1,
+                      runOf: () => null,
+                      shownOn: () => () => false,
+                      // An Add step takes from the whole base, not from what its group holds so far.
+                      valuesOf: (step, input) =>
+                          waiting.valuesOf(step, step.op === "add" ? new Uint8Array(input.length).fill(1) : input),
+                  };
+        return stepsReadingOf(leaf, read, given, options.branchPalette ?? DEFAULT_BRANCH_PALETTE);
+    };
+    const graphReading = (leaf: UnionLeaf): ReadingSources => ({
+        ...sources.reading,
+        runOf: (step) => sources.stepRuns?.()?.runOf(step, leaf.within) ?? null,
+        valuesOf: (step, input) => {
+            const measure = step.rule;
+            if (
+                measure.kind !== "measure" ||
+                (step.computedOn !== "so-far" && step.links === undefined) ||
+                sources.histogramOf === undefined
+            ) {
+                return null;
+            }
 
-                    const result = sources.stepRuns?.()?.ownResult?.(step, leaf.within, input);
-                    if (result === undefined) {
-                        return null;
-                    }
+            const result = sources.stepRuns?.()?.ownResult?.(step, leaf.within, input);
+            if (result === undefined) {
+                return null;
+            }
 
-                    const read =
-                        leaf.side === "nodes"
-                            ? (index: number): unknown => result.nodeValue(index, measure.field)
-                            : (index: number): unknown => result.edgeValue(index, measure.field);
-                    const field = result.fields.find((each) => each.name === measure.field) as
-                        { readonly measurement?: string } | undefined;
-                    // An Add step takes from the whole base, not from what its group holds so far.
-                    return sources.histogramOf(
-                        leaf.side,
-                        read,
-                        step.op === "add" ? new Uint8Array(input.length).fill(1) : input,
-                        field?.measurement === "categorical" ? "categorical" : undefined,
-                    );
-                },
-            },
-            options.branchPalette ?? DEFAULT_BRANCH_PALETTE,
-        );
+            const read =
+                leaf.side === "nodes"
+                    ? (index: number): unknown => result.nodeValue(index, measure.field)
+                    : (index: number): unknown => result.edgeValue(index, measure.field);
+            const field = result.fields.find((each) => each.name === measure.field) as
+                { readonly measurement?: string } | undefined;
+            // An Add step takes from the whole base, not from what its group holds so far.
+            return sources.histogramOf(
+                leaf.side,
+                read,
+                step.op === "add" ? new Uint8Array(input.length).fill(1) : input,
+                field?.measurement === "categorical" ? "categorical" : undefined,
+            );
+        },
+    });
 
     return {
         watchSteps(rule, onChange, given = {}) {
             const leaf = canonical(rule, given);
-            const first = sources.read(leaf);
+            const first = readLeaf(leaf);
             let current = readingNow(leaf, first);
             let last = digestOf(current, first);
             let ended = false;
             let queued = false;
             const stop =
                 sources.subscribe?.({
-                    signature: () => sources.signature(leaf),
-                    resolve: () => sources.read(leaf),
+                    // A staged source's rows are read anew: changing what they are moves no graph.
+                    signature: () => (sources.waiting?.(leaf) === undefined ? sources.signature(leaf) : null),
+                    resolve: () => readLeaf(leaf),
                     ready: (resolution) => {
                         const raw = resolution as UnionRead;
                         current = readingNow(leaf, raw);

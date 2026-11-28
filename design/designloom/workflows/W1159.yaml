@@ -1,0 +1,127 @@
+id: W1159
+name: Reduce and Compare Large or Metagenome Assembly Graphs
+category: analysis
+validated: false
+personas:
+    - assembly-method-developer
+    - bacterial-assembly-finisher
+requires_capabilities:
+    - data-import
+    - large-graph-rendering
+    - progressive-loading
+    - basic-statistics
+    - filtering
+    - metric-histograms
+    - neighborhood-expansion
+    - ego-network
+    - structural-checks
+    - comparison-view
+    - graph-diff
+    - data-export
+    - headless-image-rendering
+    - export-image
+    - gfa-sequence-graph-import
+    - bidirected-edge-model
+    - sequence-length-node-geometry
+    - dead-end-detection
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - progressive-loader
+    - statistics-panel
+    - histogram
+    - range-slider
+    - filter-panel
+    - ego-network-dialog
+    - graph-canvas
+    - comparison-view
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: Two or more GFA or FASTG assembly graphs of the same reads (different tools or k-mer sizes), or one metagenome graph
+    node_count: 10^3-10^6 segments
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Keep a large assembly graph workable by cutting it to the region that matters, and compare the same
+    region across two assemblies to see which one resolved it.
+
+
+    **Mental Model**: "Zoom the scope, not the camera." The whole metagenome graph is never read at once; the analyst
+    asks for the nodes near these nodes, or the nodes in this depth band, and works there.
+
+
+    **Task Phases**:
+
+    1. **Summarize each graph** - Segment count, link count, total length, dead ends and N50 per graph before
+    drawing
+
+    2. **Cut scope** - Keep nodes within N steps of named segments, or within a depth range read off the depth
+    histogram
+
+    3. **Draw cheaply** - Shorter nodes, no labels and fewer layout iterations for the large view
+
+    4. **Compare** - Draw the same scoped region from two graphs side by side and compare dead ends, segment
+    counts and contiguity
+
+    5. **Save** - Save the reduced subgraph as GFA and render images in batch
+
+
+    **Decision Points**:
+
+    - What depth band isolates the high-copy elements or a plasmid?
+
+    - How many steps out from the seed segments to keep?
+
+    - Which assembly resolved the region better by dead ends and contiguity?
+
+
+    **Information Needs**:
+
+    - Graph statistics per graph, side by side
+
+    - Depth histogram to set the range
+
+    - Count of nodes kept by the current scope before drawing
+
+
+    **Pain Points**:
+
+    - A layout of about 1.15 million nodes took 14.5 minutes with iterations at the minimum
+
+    - No side-by-side view of two graphs
+
+    - Large graphs need hand-tuned drawing settings
+
+
+    **Data Flow**:
+
+    - Input: GFA or FASTG graphs
+
+    - Transformations: statistics, depth filter, neighborhood scope, subgraph export, paired comparison
+
+    - Output: reduced GFA, comparison table, batch images
+success_criteria:
+    - metric: Scope before draw
+      target: User sees how many nodes a scope keeps before the layout runs
+    - metric: Large graph responsiveness
+      target: A scoped region of a million-node graph is drawn in under 1 minute (design goal; no source measures it)
+sources:
+    - title: Bandage wiki - Working with very large graphs
+      url: https://github.com/rrwick/Bandage/wiki/Working-with-very-large-graphs
+      summary: 1.15 million nodes laid out in 14.5 minutes; reduce scope, node length, labels and antialiasing
+    - title: Bandage wiki - Graph scope
+      url: https://github.com/rrwick/Bandage/wiki/Graph-scope
+      summary: Around nodes with a distance in nodes; depth range
+    - title: Bandage wiki - Command line
+      url: https://github.com/rrwick/Bandage/wiki/Command-line
+      summary: Bandage reduce saves a scoped subgraph as GFA; Bandage image renders in batch
+    - title: Unicycler paper (Wick et al. 2017)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5481147
+      summary: k-mer graphs compared by contig count and dead ends
+    - title: Bandage paper (Wick et al. 2015)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4595904
+      summary: Metagenome graphs of 100 Mb or more take minutes and gigabytes of RAM
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,43 +1,53 @@
 id: knowledge-engineer
 name: Knowledge Graph Engineer
-role: Knowledge Engineer / Ontologist / Data Architect
-quote: If it's not in the knowledge graph, the organization doesn't really know it - and if it's not connected, it might
-    as well not exist.
-bio: Dr. Kim spent years in academic ontology research before joining an enterprise to build their corporate knowledge
-    graph. She designs entity schemas, writes SPARQL queries, and integrates data from dozens of source systems into a
-    unified graph that powers search, analytics, and AI applications. Her challenge is balancing ontological rigor with
-    the messy realities of enterprise data - perfect schemas mean nothing if the data can't be mapped to them.
+roster_persona: knowledge-engineer
+tier: B
+scope: in-scope
+role: Ontologist / Semantic Engineer (RDF, OWL, SKOS, SHACL)
+quote: Show me where the inferred hierarchy moved in this release, and which one class explains five thousand SHACL
+    violations - not another list of axioms.
+bio: >-
+    Dr. Mara Okafor is the lead ontologist in a pharma data office. She owns the enterprise ontology (about 1,500
+    classes reusing BFO and public OBO ontologies), its SHACL shapes and its mappings to public ontologies. She edits in
+    Protege and classifies with HermiT, keeps the ontology in an Ontology Development Kit (ODK) repository on GitHub
+    where CI runs ROBOT checks and posts a ROBOT diff on every pull request, loads instance data (tens of millions of
+    triples) into GraphDB, validates it with pySHACL, and keeps cross-ontology mappings in SSSOM tables. Her daily
+    working view is the indented class tree, not a node-link diagram; she opens graph views to check the inferred
+    hierarchy, to read a release diff, to explain the model to data providers, and to find the single modeling gap
+    behind a flood of validation errors. Property-graph engineers, GraphRAG developers and taxonomists are separate
+    personas (enterprise-kg-engineer, graphrag-developer, taxonomist).
 characteristics:
     expertise: expert
     time_pressure: low
     graph_literacy: advanced
     domain_knowledge: advanced
 motivations:
-    - Create a unified view of organizational knowledge that breaks down data silos
-    - Enable semantic search and discovery across enterprise data
-    - Build the foundation for AI and ML applications that need structured knowledge
-    - Establish data governance through well-defined entity types and relationships
-    - Make institutional knowledge discoverable and queryable
+    - Keep the inferred class hierarchy correct, with no unsatisfiable classes, in every release
+    - Review each release's changes and catch a subtree that moved or a class that gained a second parent
+    - Find the one modeling gap that explains many SHACL violations instead of fixing them one by one
+    - Explain the model to data providers and stakeholders who do not read OWL
+    - Keep mappings to public ontologies (SSSOM) consistent and reviewable
 behaviors:
-    - Designs ontologies and entity schemas for knowledge representation
-    - Writes ETL pipelines to extract entities and relationships from source systems
-    - Uses entity resolution techniques to merge duplicate entities
-    - Writes SPARQL or Cypher queries to explore and validate the knowledge graph
-    - Analyzes graph structure to identify gaps and inconsistencies in coverage
-    - Creates visualizations to communicate graph schema to stakeholders
-    - Integrates the knowledge graph with search engines and AI applications
+    - Edits the -edit.owl file in Protege on a branch tied to a ticket, keeps changes small, and reviews git diff before a pull request
+    - Runs the reasoner (HermiT) and switches the class tree from Asserted to Inferred, looking under owl:Nothing for unsatisfiable classes
+    - Reads ROBOT diff markdown posted on pull requests and the robot report QC table (ERROR, WARN, INFO) before approving a merge
+    - Uses OWLViz or OntoGraf for an is-a picture, and WebVOWL or draw.io diagrams for stakeholders
+    - Checks the ontology against loaded data in GraphDB Explore (class hierarchy sized by instance count, class relationships by link count)
+    - Validates instance data with pySHACL or Jena SHACL and queries the RDF validation report with SPARQL
+    - Writes competency questions as SPARQL tests
+    - Maintains SSSOM mapping files with skos:exactMatch and skos:broadMatch predicates and confidence values
 goals:
-    - Build and maintain enterprise knowledge graphs
     - Design ontologies that accurately represent domain knowledge
-    - Integrate data from multiple source systems into unified graphs
-    - Ensure data quality through entity resolution and validation
-    - Enable downstream applications (search, AI, analytics) to consume graph data
+    - Ship releases whose hierarchy changes are intended and reviewed
+    - Ensure instance data conforms to the shapes, with violations traced to causes
+    - Keep the model understandable to data providers and downstream consumers
 frustrations:
-    - Source data quality is often poor and inconsistent
-    - Stakeholders don't understand the value of ontological rigor
-    - Entity resolution at scale is computationally expensive
-    - Schema evolution is painful when downstream applications depend on structure
-    - Visualization tools don't handle RDF/OWL semantics well
+    - OWLViz cannot display large ontologies whole and OntoGraf has no image export
+    - WebVOWL duplicates nodes, overlaps labels and struggles past a few hundred classes
+    - A ROBOT diff is a text list of axioms, not a picture of how the hierarchy moved
+    - SHACL reports are too large to read and one faulty entry cascades into many violations
+    - Graph tools that hide literals, strip language tags and datatypes, or drop RDF-star statements
+    - Whole-graph views of large ontologies (FIBO about 1,750 classes, SNOMED CT 374,672 concepts) turn into hairballs
 context:
     frequency: daily
     devices:
@@ -46,13 +56,46 @@ context:
     voluntary: true
 workflows:
     - W13
+    - W134
+    - W135
+    - W137
+    - W138
+    - W420
+    - W130
 sources:
-    - title: Schema Engineering for Enterprise Knowledge Graphs
-      url: https://www.researchgate.net/publication/322584212_Schema_engineering_for_enterprise_knowledge_graphs_A_reflecting_survey_and_case_study
-      summary: Survey on ontology design and schema engineering practices for enterprise knowledge graphs
-    - title: Procedure Model for Building Knowledge Graphs for Industry Applications
-      url: https://arxiv.org/html/2409.13425v1
-      summary: Step-by-step methodology for building RDF knowledge graphs from heterogeneous enterprise data
-    - title: Ontology in Graph Models and Knowledge Graphs
-      url: https://graph.build/resources/ontology
-      summary: Explains role of ontologies in defining schemas and semantics for knowledge graphs
+    - title: Knowledge Graphs in Practice - interviews with 19 practitioners (Li et al. 2023)
+      url: https://arxiv.org/pdf/2304.01311
+      summary: 18 of 19 used node-link diagrams; builders use them as sanity checks; whole-graph views become hairballs
+    - title: ODK editors' workflow
+      url: https://obofoundry.org/COB/odk-workflows/EditorsWorkflow/
+      summary: Ticket, branch, edit the -edit.owl file, local QC, pull request with CI and a second reviewer
+    - title: ROBOT diff
+      url: https://robot.obolibrary.org/diff
+      summary: Axiom-level diff between two ontology versions in markdown, plain, pretty or html
+    - title: ROBOT report
+      url: https://robot.obolibrary.org/report
+      summary: QC report with ERROR, WARN and INFO levels; fails on ERROR by default
+    - title: Ontology visualization tool failures
+      url: https://arxiv.org/html/2507.13759v1
+      summary: OWLViz cannot show large ontologies whole; OntoGraf lacks image export
+    - title: VOWL - Visual Notation for OWL Ontologies
+      url: https://journals.sagepub.com/doi/full/10.3233/SW-150200
+      summary: WebVOWL notation, duplicated nodes for layout, suited to small and medium TBoxes
+    - title: SHACLens - visual root-cause analysis of SHACL violations
+      url: https://www.frontiersin.org/journals/bioinformatics/articles/10.3389/fbinf.2026.1756507/full
+      summary: 5,203 violating focus nodes in a pharma omics case; grouping by class and shape found a few root causes
+    - title: GraphDB 10.8 - Visualize and explore
+      url: https://graphdb.ontotext.com/documentation/10.8/visualize-and-explore.html
+      summary: Class hierarchy, class relationships and visual graph views over loaded RDF data
+    - title: SSSOM mapping standard
+      url: https://mapping-commons.github.io/sssom/dev/
+      summary: TSV mapping sets with a YAML header, mapping predicates, justification and confidence
+    - title: Ontologist job posting (tool pattern)
+      url: https://www.foundit.in/job/ontologist-wissen-technology-bengaluru-bangalore-55302898
+      summary: Protege, SPARQL, SHACL, OWL and GraphDB as the expected toolset
+    - title: Kellmann et al. 2025 - Graph2VR with life-science knowledge graphs (Database journal)
+      url: https://academic.oup.com/database/article/doi/10.1093/database/baaf008/8138548
+      summary: Domain experts with bioinformatics knowledge explored cohort, variant and drug graphs in VR; a malformed RDF export used one URI as class, individual and predicate
+version: 1.2.0
+created_at: 2026-01-16T16:42:38.371Z
+updated_at: 2026-11-25T00:00:00.000Z

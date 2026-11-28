@@ -1,0 +1,133 @@
+id: W394
+name: Bayesian Convergence, Summary and Dated Tree
+category: analysis
+validated: false
+personas:
+    - molecular-systematist-taxonomist
+    - phylogeographer-population-geneticist
+requires_capabilities:
+    - data-import
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - temporal-analysis
+    - legend-display
+    - metric-histograms
+    - export-image
+    - tree-import-and-axes
+    - geographic-layout
+    - node-glyph-charts
+    - phylogenetic-tree-layout
+    - tree-editing-operations
+    - tree-set-overlay
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - histogram
+    - legend-panel
+    - visual-encoding-panel
+    - image-export-dialog
+starting_state:
+    data_type: BEAST .log parameter trace and .trees file of thousands of sampled trees with [&key=value] annotations; optional location trait
+    node_count: 20-2,000 tips per tree; 1,000-20,000 trees per file
+    edge_density: tree
+    user_expertise: advanced
+goal: >-
+    **Intent**: Check that a Bayesian run converged, summarize thousands of sampled trees into one dated tree with
+    uncertainty bars, see the uncertainty directly by overlaying the posterior, and optionally show the spread of
+    lineages on a map.
+
+
+    **Mental Model**: "Thousands of plausible trees, one summary." The summary is only trustworthy if the chain mixed,
+    and the overlay shows what the summary hides.
+
+
+    **Task Phases**:
+
+    1. **Run BEAST** - Tip dates or fossil calibrations; a location trait for phylogeography
+
+    2. **Convergence in Tracer** - Import trace; burn-in at least 10% (up to 50%); ESS above 200, values below
+    100 shown red; run longer if many are red or yellow. Tracer checks parameters, not topologies
+
+    3. **Summarize in TreeAnnotator** - Burn-in 10%; posterior limit 0 or 0.5; maximum clade credibility or
+    MAP(CCD0) target tree; mean, median or common-ancestor node heights
+
+    4. **Overlay in DensiTree** - Load the .trees file directly; turn on consensus and central views; show
+    clade support; list every clade with its posterior
+
+    5. **Draw the dated tree in FigTree** - Order nodes decreasing; node labels = posterior; node bars =
+    height_95%_HPD; reversed time axis, offset to the most recent sample date
+
+    6. **Spatial view** - SpreaD3 animates BEAST output on a D3 map with Bayes-factor-supported rates or HPD
+    contours; without BEAST, phytools phylo.to.map links tips to map points
+
+    7. **Ancestral ranges** (optional) - BioGeoBEARS pies at nodes; unreadable with many states
+
+
+    **Decision Points**:
+
+    - How much burn-in, and is ESS high enough to stop?
+
+    - MCC or MAP(CCD0) summary, and which node heights?
+
+    - Show the summary tree, the overlay, or both?
+
+
+    **Information Needs**:
+
+    - ESS and trace per parameter
+
+    - Posterior and 95% HPD interval per node
+
+    - Clades with their posterior frequencies across the sample
+
+    - Time axis in calendar years or millions of years before present
+
+
+    **Pain Points**:
+
+    - Tracer, TreeAnnotator, DensiTree and FigTree are four separate programs
+
+    - DensiTree is desktop Java
+
+    - Node pies for ancestral ranges become unreadable
+
+    - The map view is a separate tool again
+
+
+    **Data Flow**:
+
+    - Input: BEAST .log and .trees files (NEXUS with TRANSLATE and [&...] comments)
+
+    - Transformations: Burn-in removal, clade frequency counting, MCC selection, height summaries, tree overlay,
+    time-axis placement, map projection
+
+    - Output: Dated summary tree with HPD bars, posterior overlay figure, optional animated map
+success_criteria:
+    - metric: Posterior overlay
+      target: A file of at least 1,000 trees overlays interactively on shared tips
+    - metric: Uncertainty display
+      target: Every internal node shows posterior and a 95% HPD bar on a calendar time axis
+sources:
+    - title: Taming the BEAST - Introduction to BEAST2
+      url: https://taming-the-beast.org/tutorials/Introduction-to-BEAST2/
+      summary: Burn-in, ESS thresholds, TreeAnnotator target trees and heights, DensiTree steps
+    - title: BEAST - Analysing BEAST output
+      url: https://beast.community/analysing_beast_output
+      summary: Tracer ESS guidance
+    - title: BEAST FigTree workshop
+      url: https://beast.community/workshop_figtree
+      summary: Node bars for height_95%_HPD, reversed time axis
+    - title: SpreaD3 (Bielejec et al. 2016)
+      url: https://escholarship.org/uc/item/52v350dc
+      summary: Animated D3 maps from BEAST phylogeography output
+    - title: phytools phylo.to.map
+      url: https://search.r-project.org/CRAN/refmans/phytools/html/phylo.to.map.html
+      summary: Tree linked to map points with node rotation to reduce crossings
+    - title: BioGeoBEARS group - obscured node pies
+      url: https://groups.google.com/g/biogeobears/c/0gkmjDG_Qnw
+      summary: Node pies unreadable when slices are small
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

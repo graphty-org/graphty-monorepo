@@ -130,6 +130,15 @@ export interface FileStyleOptions {
      * no location of its own, so only this can give one.
      */
     readonly imageBaseUrl?: string;
+    /**
+     * Whether the data columns the load writes to hold the file's per-element style values (each node's own fill,
+     * each edge's own arrow size) are hidden as `session.data.setHidden` hides a column: `"shown"` (the default)
+     * leaves them like any other column; `"hidden"` hides them, so `data.attributes()` marks them `hidden` and a
+     * consumer that leaves hidden columns out of its lists and legend leaves these out too. A column the file
+     * itself carries as data is never hidden. Showing one again is `setHidden(columns, false)`.
+     * @since 3.40.0
+     */
+    readonly valueColumns?: "shown" | "hidden";
 }
 
 /**
@@ -903,6 +912,7 @@ function channelPlans(
             ["labelTextAlign", [label("labelTextAlign")]],
             ["labelPosition", [location("node")]],
             ["labelItalic", [label("labelItalic")]],
+            ["labelUnderline", [label("labelUnderline")]],
             ...labelBox,
             ...labelBoxShape,
             // a picture in the label (yEd's label icon), sized and placed in the label's units as its padding is
@@ -1102,6 +1112,7 @@ function channelPlans(
         ["labelTextAlign", [label("labelTextAlign")]],
         ["labelPosition", [location("edge")]],
         ["labelItalic", [label("labelItalic")]],
+        ["labelUnderline", [label("labelUnderline")]],
         // in the scene's units, as a node label's wrap width is
         ["labelWrapWidth", [length("edge.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
         ["labelWrapEllipsis", [id("edge.labelWrapEllipsis")]],
@@ -1211,6 +1222,7 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     // a picture on a square, stretched to its own width and length
     ["image", 1],
     ["open-vee", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["hollow-vee", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
 ]);
 
 /**

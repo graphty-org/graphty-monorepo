@@ -17,6 +17,7 @@ import { aboutWords, type NoteSort, noteTimeWords, sortNotes, targetStateWords, 
  * @returns a number that changes with each change.
  */
 function useNotesVersion(session: GraphSession | null): number {
+    // on reload: fresh: derived: a redraw count, read again from the session's notes
     const [version, setVersion] = useState(0);
     useEffect(() => {
         if (session === null) {
@@ -145,6 +146,7 @@ function Editor({
     const { session, store } = useWorkspace();
     const draft = useWorkspaceState((state) => state.noteDraft);
     const warningClosed = useWorkspaceState((state) => state.authorWarningClosed);
+    // on reload: fresh: notice: why the last save was refused
     const [error, setError] = useState<string | null>(null);
     // Add note while a note is open (its text kept, or new targets) puts the cursor back in it:
     // notes.add writes a fresh `targets`, typing does not.
@@ -287,6 +289,7 @@ export function NoteList({
     onEmptied?: () => void;
 }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
+    // on reload: fresh: pointer: the note the arrow keys are on
     const [active, setActive] = useState(0);
     const items = useRef<(HTMLLIElement | null)[]>([]);
     const own = useRef<string | null>(null);
@@ -430,7 +433,7 @@ export function NoteList({
 }
 
 /** The Notes place's filter and order: every field "all" or null shows every note. */
-interface NoteView {
+export interface NoteView {
     readonly status: "all" | "open" | "done";
     readonly tag: string | null;
     readonly author: string | null;
@@ -529,11 +532,15 @@ function NoteFilters({
  * @returns The Notes place
  */
 export function NotesPlace(): React.JSX.Element {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     // Re-reads the notes on every change to them, or to what their targets point at.
     useNotesVersion(session);
     const editing = useWorkspaceState((state) => state.noteDraft !== null);
-    const [view, setView] = useState(ALL_NOTES);
+    // The reader's Status, Tag, Author and Sort live in the kept notesView, so a reload keeps them.
+    const view = useWorkspaceState((state) => state.notesView) ?? ALL_NOTES;
+    const setView = (next: NoteView): void => {
+        store.set({ notesView: next });
+    };
     const any = (session?.notes.counts().notes ?? 0) > 0;
     const tags = session?.notes.tags() ?? [];
     const authors = session?.notes.authors() ?? [];

@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import football from "../../../../public/samples/football.gml?raw";
 import { openColumnMenu } from "../../../test/column-header";
@@ -83,8 +83,8 @@ const fieldsGroup = (): HTMLElement => {
  * @param option - the option's text.
  */
 async function pick(label: string, option: string): Promise<void> {
-    await userEvent.click(within(fieldsGroup()).getByRole("combobox", { name: label }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
+    await userEvent.click(page.elementLocator(fieldsGroup()).getByRole("combobox", { name: label, exact: true }));
+    await userEvent.click(page.getByRole("option", { name: option, exact: true }));
 }
 
 /**
@@ -103,10 +103,12 @@ const shown = (label: string): string =>
  * @param column - the column.
  */
 async function addField(side: "node" | "edge", kind: string, column: string): Promise<void> {
-    await userEvent.click(within(fieldsGroup()).getByRole("button", { name: `Add to ${side} attributes` }));
+    await userEvent.click(
+        page.elementLocator(fieldsGroup()).getByRole("button", { name: `Add to ${side} attributes`, exact: true }),
+    );
     // No obvious column for these: the kind opens a submenu of its columns.
-    await userEvent.hover(await screen.findByRole("menuitem", { name: kind }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: column }));
+    await userEvent.hover(page.getByRole("menuitem", { name: kind, exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: column, exact: true }));
 }
 
 /**
@@ -132,14 +134,12 @@ describe("the Data place's sidebar on the real element", () => {
         await page.viewport(1366, 900);
     });
 
-    it("lists a source with its chips, its special fields, and no list of other fields", async () => {
+    it("lists a source with its counts, its special fields, and no list of other fields", async () => {
         const session = await openDataPlace();
         await loadLog(session);
 
         const row = await place().findByRole("listitem", { name: "auth-log.csv" });
         const [source] = session.data.sources();
-        assert.include(row.textContent, `Node ${String(source.counts.nodes)}`);
-        assert.include(row.textContent, `Edge ${String(source.counts.edges)}`);
         await waitFor(() => {
             assert.equal(shown("Source"), "user");
             assert.equal(shown("Target"), "host");
@@ -154,6 +154,18 @@ describe("the Data place's sidebar on the real element", () => {
         assert.isNull(fields.querySelector('[data-kind="node"]'));
         within(fields).getByRole("button", { name: "Add to edge attributes" });
         assert.isNull(within(fields).queryByRole("button", { name: "Add to node attributes" }));
+        // Closed, the entry names its counts with their units.
+        const header = row.querySelector<HTMLElement>("[aria-expanded=true]");
+        assert.isNotNull(header, "the picked source's entry is open");
+        if (header !== null) {
+            await userEvent.click(page.elementLocator(row).getByCss("[aria-expanded=true]").first());
+        }
+        await waitFor(() => {
+            assert.strictEqual(
+                row.querySelector("[data-testid=control-section-summary]")?.textContent,
+                `${String(source.counts.nodes)} nodes, ${String(source.counts.edges)} edges`,
+            );
+        });
     });
 
     it("labels a graph file's node and edge pills Nodes and Edges, with Edges there though its edges carry no columns", async () => {
@@ -241,8 +253,8 @@ describe("the Data place's sidebar on the real element", () => {
         if (cell === null || cell === undefined) {
             throw new Error("no header user");
         }
-        await userEvent.click(within(cell).getByRole("button", { name: "Options for user" }));
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+        await userEvent.click(page.elementLocator(cell).getByRole("button", { name: "Options for user", exact: true }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Role", exact: true }));
         await screen.findByRole("menuitemradio", { name: "None" });
         const radios = screen.getAllByRole("menuitemradio");
         const roles = radios.map((each) => each.textContent);
@@ -268,8 +280,8 @@ describe("the Data place's sidebar on the real element", () => {
             ["py", "Y"],
         ] as const) {
             await openColumnMenu("node", column);
-            await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
-            await userEvent.click(await screen.findByRole("menuitemradio", { name: role }));
+            await userEvent.hover(page.getByRole("menuitem", { name: "Role", exact: true }));
+            await userEvent.click(page.getByRole("menuitemradio", { name: role, exact: true }));
         }
         await waitFor(() => {
             const known = session.config.data.knownFields as Record<string, unknown>;
@@ -284,9 +296,11 @@ describe("the Data place's sidebar on the real element", () => {
     it("offers only number columns as the weight", async () => {
         const session = await openDataPlace();
         await loadLog(session);
-        await userEvent.click(within(fieldsGroup()).getByRole("button", { name: "Add to edge attributes" }));
+        await userEvent.click(
+            page.elementLocator(fieldsGroup()).getByRole("button", { name: "Add to edge attributes", exact: true }),
+        );
         // Two number columns: neither is obvious, so Weight opens a submenu, those first.
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Weight" }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Weight", exact: true }));
         await screen.findByRole("menuitem", { name: "bytes" });
         const options = screen.getAllByRole("menuitem").map((option) => option.textContent);
         assert.includeMembers(options, ["time", "bytes"]);
@@ -326,8 +340,8 @@ describe("the Data place's sidebar on the real element", () => {
 
         // The words on screen are the box's label: a click on them opens it, and its name holds them.
         within(fieldsGroup()).getByRole("combobox", { name: "Higher means, edge weight" });
-        await userEvent.click(within(fieldsGroup()).getByText("Higher means"));
-        await userEvent.click(await screen.findByRole("option", { name: "farther" }));
+        await userEvent.click(page.elementLocator(fieldsGroup()).getByText("Higher means", { exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "farther", exact: true }));
         await waitFor(() => {
             assert.equal(steps(), before + 2);
             assert.equal(session.config.data.knownFields.edgeWeightMeaning, "distance");
@@ -373,7 +387,7 @@ describe("the Data place's sidebar on the real element", () => {
         // The Filters section's "+" opens a card in the selection workspace; its Value field lists
         // the fields, and no Data source with one load.
         await userEvent.click(await place().findByRole("button", { name: "Add filter" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
+        await userEvent.click(page.getByRole("button", { name: "Value", exact: true }));
         await screen.findAllByRole("option");
         assert.isNull(screen.queryByRole("option", { name: "Data source" }));
         // Escape on a new card with no step leaves no card, and closes the workspace.
@@ -387,17 +401,17 @@ describe("the Data place's sidebar on the real element", () => {
         // With two loads, the first "+" is the one under Data sources, for the filters of every load.
         const [plus] = place().getAllByRole("button", { name: "Add filter" });
         await userEvent.click(plus);
-        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Data source" }));
+        await userEvent.click(page.getByRole("button", { name: "Value", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "Data source", exact: true }));
         const card = await screen.findByRole("group", { name: "Data source values" });
         const [first] = session.data.sources();
         await userEvent.click(
-            within(card).getByRole("checkbox", {
-                name: new RegExp(`^auth-log\\.csv, ${String(first.counts.nodes)} nodes$`),
-            }),
+            page
+                .elementLocator(card)
+                .getByRole("checkbox", { name: new RegExp(`^auth-log\\.csv, ${String(first.counts.nodes)} nodes$`) }),
         );
         // A card is a selection (tier 5): All, then a Keep step on the source, written on Done.
-        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await userEvent.click(page.getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             const rule = session.visibility.conditions[0]?.rule;
             assert.strictEqual(rule?.kind, "union");
@@ -412,15 +426,15 @@ describe("the Data place's sidebar on the real element", () => {
         const row = await place().findByRole("listitem", { name: "auth-log.csv" });
 
         await userEvent.hover(row);
-        await userEvent.click(within(row).getByRole("button", { name: "auth-log.csv menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Rename" }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "auth-log.csv menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Rename", exact: true }));
         // The field opens focused on the name.
         const input = await screen.findByRole("textbox", { name: "Source name" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, input);
         });
-        await userEvent.clear(input);
-        await userEvent.type(input, "logins{Enter}");
+        await userEvent.clear(page.getByRole("textbox", { name: "Source name", exact: true }));
+        await userEvent.type(page.getByRole("textbox", { name: "Source name", exact: true }), "logins{Enter}");
         await waitFor(() => {
             assert.equal(session.data.sources()[0]?.name, "logins");
         });
@@ -428,41 +442,47 @@ describe("the Data place's sidebar on the real element", () => {
         const renamed = await place().findByRole("listitem", { name: "logins" });
         renamed.querySelector("button")?.focus();
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Remove", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.data.sources(), 0);
         });
     });
 
-    it("draws no chip for a count of 0, keeps the name readable, and keeps the chips beside the actions on hover", async () => {
+    it("names a closed entry's counts in its summary, keeps the name readable, and shows the menu on hover", async () => {
         const session = await openDataPlace();
         const name = "a-node-table-with-a-rather-long-file-name-for-a-narrow-sidebar.csv";
         drop(new File([HOSTS_CSV], name));
         const row: HTMLElement = await place().findByRole("listitem", { name });
-        // A drop takes focus to the new row.
+        const header = (): HTMLElement | null => row.querySelector<HTMLElement>("[aria-expanded]");
+        // A drop takes focus to the new entry's header.
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, row.querySelector(".dp-source-main"));
+            assert.strictEqual(document.activeElement, header());
         });
-        assert.isNotNull(row.querySelector('[data-kind="node"]'));
-        assert.isNull(row.querySelector('[data-kind="edge"]'), "no edge chip for 0 edges");
-        const label = row.querySelector<HTMLElement>(".dp-source-name");
+        const label = row.querySelector<HTMLElement>("[data-testid=control-section-name]");
         assert.isAtLeast(label?.getBoundingClientRect().width ?? 0, 40);
-        // The chips are named with their units, once.
         const { nodes } = session.data.sources()[0].counts;
-        const main = within(row).getByRole("button", { pressed: true });
-        assert.include(main.textContent, `${String(nodes)} nodes`);
-        // The chip says "Node 2" to no one: the row's name carries the counts once, with their unit.
-        assert.strictEqual(within(row).getByRole("button", { name: `${name} ${String(nodes)} nodes` }), main);
+        // Closed, the entry names its counts, with their units, 0 edges among them.
+        const toggle = header();
+        assert.isNotNull(toggle);
+        if (toggle !== null) {
+            await userEvent.click(toggle);
+        }
+        await waitFor(() => {
+            assert.strictEqual(header()?.getAttribute("aria-expanded"), "false");
+        });
+        const summary = row.querySelector<HTMLElement>("[data-testid=control-section-summary]");
+        assert.strictEqual(summary?.textContent, `${String(nodes)} nodes, 0 edges`);
 
         await userEvent.hover(row);
-        const chips = row.querySelector<HTMLElement>(".dp-source-chips");
         const menu = within(row).getByRole("button", { name: `${name} menu` });
         await waitFor(() => {
-            assert.notEqual(chips === null ? "none" : getComputedStyle(chips).display, "none");
             assert.isAbove(menu.getBoundingClientRect().width, 0);
-            assert.isAtLeast(menu.getBoundingClientRect().left, chips?.getBoundingClientRect().right ?? Infinity);
+            assert.notEqual(getComputedStyle(menu).opacity, "0");
         });
-        // The cut name is one hover away in full.
+        // The cut name is one hover away in full. The press above shut its tooltip until the pointer
+        // comes back to the header, so the pointer leaves it first.
+        assert.isAbove(label?.scrollWidth ?? 0, label?.clientWidth ?? Infinity, "the name is cut");
+        await userEvent.hover(page.elementLocator(row).getByRole("button", { name: `${name} menu`, exact: true }));
         await userEvent.hover(label ?? row);
         await screen.findByRole("tooltip", { name });
     });
@@ -481,7 +501,11 @@ describe("the Data place's sidebar on the real element", () => {
         assert.isNull(within(group("auth-log.csv")).queryByRole("combobox", { name: "Source" }), "closed");
 
         const log: HTMLElement = place().getByRole("listitem", { name: "auth-log.csv" });
-        await userEvent.click(within(log).getByRole("button", { pressed: false }));
+        const closed = log.querySelector<HTMLElement>("[aria-expanded=false]");
+        assert.isNotNull(closed, "auth-log.csv's entry is closed");
+        if (closed !== null) {
+            await userEvent.click(page.elementLocator(log).getByCss("[aria-expanded=false]").first());
+        }
         await waitFor(() => {
             assert.equal(
                 within(group("auth-log.csv")).getByRole<HTMLInputElement>("combobox", { name: "Source" }).value,
@@ -492,7 +516,7 @@ describe("the Data place's sidebar on the real element", () => {
         await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
         await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
         const again: HTMLElement = await place().findByRole("listitem", { name: "auth-log.csv" });
-        assert.strictEqual(within(again).getByRole("button", { pressed: true }).closest(".dp-source"), again);
+        assert.isTrue(again.hasAttribute("data-selected"), "auth-log.csv is still the picked source");
         assert.equal(
             within(group("auth-log.csv")).getByRole<HTMLInputElement>("combobox", { name: "Source" }).value,
             "user",
@@ -507,15 +531,19 @@ describe("the Data place's sidebar on the real element", () => {
         const [, hosts] = session.data.sources();
 
         const log: HTMLElement = place().getByRole("listitem", { name: "auth-log.csv" });
-        await userEvent.click(within(log).getByRole("button", { pressed: false }));
+        const closed = log.querySelector<HTMLElement>("[aria-expanded=false]");
+        assert.isNotNull(closed, "auth-log.csv's entry is closed");
+        if (closed !== null) {
+            await userEvent.click(page.elementLocator(log).getByCss("[aria-expanded=false]").first());
+        }
         await waitFor(() => {
             assert.include(fieldsGroup().textContent, "auth-log.csv");
         });
         assert.lengthOf(session.selection.nodes, 0, "a press picks the row; it selects nothing");
 
         await userEvent.hover(row);
-        await userEvent.click(within(row).getByRole("button", { name: "hosts.csv menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Select nodes" }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "hosts.csv menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Select nodes", exact: true }));
         await waitFor(() => {
             assert.sameMembers([...session.selection.nodes], ["web1", "db1"]);
             assert.lengthOf(session.selection.nodes, hosts.counts.nodes);
@@ -550,7 +578,7 @@ describe("the Data place's sidebar on the real element", () => {
         assert.lengthOf(session.data.nodes(), 5);
 
         await userEvent.click(place().getByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Generator..." }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Generator...", exact: true }));
         const samples = await screen.findByRole("dialog", { name: "Samples" });
         // It opens on graph-samples' generators, and only them.
         assert.deepEqual(
@@ -559,13 +587,13 @@ describe("the Data place's sidebar on the real element", () => {
                 .map((section) => section.getAttribute("aria-label")),
             ["Generated"],
         );
-        await userEvent.click(within(samples).getByRole("button", { name: "Path" }));
+        await userEvent.click(page.elementLocator(samples).getByRole("button", { name: "Path", exact: true }));
 
         const path = await screen.findByRole("dialog", { name: "Path" });
-        const count = within(path).getByRole("textbox", { name: "Nodes" });
-        await userEvent.clear(count);
-        await userEvent.type(count, "7");
-        await userEvent.click(within(path).getByRole("button", { name: "Generate" }));
+        const count = (): Locator => page.elementLocator(path).getByRole("textbox", { name: "Nodes", exact: true });
+        await userEvent.clear(count());
+        await userEvent.type(count(), "7");
+        await userEvent.click(page.elementLocator(path).getByRole("button", { name: "Generate", exact: true }));
 
         // A second source beside the log, and its 7 nodes and 6 edges added to the log's 5 and 4.
         await waitFor(() => {
@@ -583,7 +611,7 @@ describe("the Data place's sidebar on the real element", () => {
         // The clipboard takes text only while the page has focus: the click on "+" gives it.
         await userEvent.click(await place().findByRole("button", { name: "Add source" }));
         await navigator.clipboard.writeText(`  ${address}\n`);
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Paste" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Paste", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.data.sources()[0]?.name, "football.gml");
             assert.lengthOf(session.data.nodes(), 115);
@@ -595,9 +623,9 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
         const row = await place().findByRole("listitem", { name: "auth-log.csv" });
-        const main = row.querySelector<HTMLElement>(".dp-source-main");
+        const main = row.querySelector<HTMLElement>("[aria-expanded]");
         assert.isNotNull(main);
-        await userEvent.dblClick(main);
+        await userEvent.dblClick(page.elementLocator(row).getByCss("[aria-expanded]").first());
         const input = await screen.findByRole("textbox", { name: "Source name" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, input);
@@ -607,9 +635,9 @@ describe("the Data place's sidebar on the real element", () => {
             assert.isNull(screen.queryByRole("textbox", { name: "Source name" }));
         });
 
-        place().getByRole("listitem", { name: "auth-log.csv" }).querySelector<HTMLElement>(".dp-source-main")?.focus();
+        place().getByRole("listitem", { name: "auth-log.csv" }).querySelector<HTMLElement>("[aria-expanded]")?.focus();
         await userEvent.keyboard("{F2}");
-        const again = await screen.findByRole("textbox", { name: "Source name" });
+        const again = page.getByRole("textbox", { name: "Source name", exact: true });
         await userEvent.clear(again);
         // Tab commits the name and moves on: the field is no keyboard trap.
         await userEvent.type(again, "logins{Tab}");
@@ -620,7 +648,7 @@ describe("the Data place's sidebar on the real element", () => {
 
         const renamed = place().getByRole("listitem", { name: "logins" });
         await userEvent.hover(renamed);
-        await userEvent.click(within(renamed).getByRole("button", { name: "logins menu" }));
+        await userEvent.click(page.elementLocator(renamed).getByRole("button", { name: "logins menu", exact: true }));
         const rename = await screen.findByRole("menuitem", { name: "Rename" });
         assert.equal(rename.getAttribute("aria-keyshortcuts"), "F2");
         assert.isNotNull(rename.querySelector("svg"), "Rename has a glyph");

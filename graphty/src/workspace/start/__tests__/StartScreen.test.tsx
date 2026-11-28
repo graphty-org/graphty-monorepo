@@ -4,8 +4,9 @@
  * and its sections, and the ways in, for a first visit and a returning reader. `StartScreen.real-element.test.tsx` opens the samples.
  */
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
+import { PROGRAM_SAMPLES } from "../../../data/sampleManifest";
 import { count, resetAnalyticsForTests, setPostHogClientForTests, SURVEYS_KEY } from "../../../lib/analytics";
 import { withFeatures, withPostHogSite } from "../../../test/features";
 import { sampleTile } from "../../../test/samples-dialog";
@@ -31,7 +32,7 @@ const OWNER_WORDS =
  */
 async function chipTooltip(): Promise<string> {
     renderStart({ project: { name: "Les Miserables", id: 1 } });
-    await userEvent.hover(screen.getByRole("button", { name: "Local only" }));
+    await userEvent.hover(page.getByRole("button", { name: "Local only", exact: true }));
     return (await screen.findByRole("tooltip", undefined)).textContent;
 }
 
@@ -94,7 +95,8 @@ describe("the start screen", () => {
             "Open the Marvel films sample",
             "Open the Paper citations sample",
         ]);
-        assert.lengthOf(names, 24);
+        // and last, one sample file from each other program, in its own section
+        assert.lengthOf(names, 24 + PROGRAM_SAMPLES.length);
         assert.include(names, "Open the Venice public transport sample");
         assert.include(names, "Open the Doubtful Sound dolphins sample");
         assert.equal(new Set(names).size, names.length, "no sample twice");
@@ -102,7 +104,11 @@ describe("the start screen", () => {
         // generator too, and the picture loads: no tile shows the plain stand-in.
         const pictures = samples.map((button) => button.querySelector<HTMLImageElement>("img.ws-land-sample-pic"));
         for (const [i, picture] of pictures.entries()) {
-            assert.match(picture?.src ?? "", /\/(data\/graph-samples\/v1|samples)\/[a-z0-9-]+\.webp$/, names[i] ?? "");
+            assert.match(
+                picture?.src ?? "",
+                /\/(data\/graph-samples\/v1|samples|samples\/programs)\/[a-z0-9-]+\.webp$/,
+                names[i] ?? "",
+            );
         }
         const generators = within(screen.getByRole("region", { name: "Sample library" })).getAllByRole("button", {
             name: /^Generate a graph: /,
@@ -132,7 +138,10 @@ describe("the start screen", () => {
         renderStart();
         const library = screen.getByRole("region", { name: "Sample library" });
 
-        await userEvent.type(within(library).getByRole("searchbox", { name: "Search samples" }), "dolphin");
+        await userEvent.type(
+            page.elementLocator(library).getByRole("searchbox", { name: "Search samples", exact: true }),
+            "dolphin",
+        );
 
         const names = within(library)
             .getAllByRole("button", { name: /^Open the .+ sample: / })
@@ -144,7 +153,7 @@ describe("the start screen", () => {
         renderStart();
         const library = screen.getByRole("region", { name: "Sample library" });
 
-        await userEvent.click(within(library).getByRole("button", { name: "Sports" }));
+        await userEvent.click(page.elementLocator(library).getByRole("button", { name: "Sports", exact: true }));
 
         const tiles = within(library).getAllByRole("button", { name: /^Open the .+ sample: / });
         assert.deepEqual(
@@ -153,8 +162,11 @@ describe("the start screen", () => {
         );
         assert.isNotNull(within(tiles[0]).getByText("Sports"));
         assert.isNotNull(within(tiles[0]).getByText("Conferences fall out of who played whom"));
-        await userEvent.click(within(library).getByRole("button", { name: "Any" }));
-        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample: / }), 24);
+        await userEvent.click(page.elementLocator(library).getByRole("button", { name: "Any", exact: true }));
+        assert.lengthOf(
+            within(library).getAllByRole("button", { name: /^Open the .+ sample: / }),
+            24 + PROGRAM_SAMPLES.length,
+        );
     });
 
     it("asks about usage data in the owner's words, pinned over the page, with What is collected behind a disclosure", async () => {
@@ -172,7 +184,7 @@ describe("the start screen", () => {
         assert.isNotNull(within(card).getByText(OWNER_WORDS));
         const collected = within(card).getByText("No file contents ever leave your computer.");
         assert.isFalse(collected.checkVisibility());
-        await userEvent.click(within(card).getByText("What is collected"));
+        await userEvent.click(page.elementLocator(card).getByText("What is collected", { exact: true }));
         assert.isTrue(collected.checkVisibility());
         assert.isNotNull(within(card).getByText("A feedback widget."));
         assert.isNull(within(card).queryByText(/PostHog/));
@@ -186,7 +198,7 @@ describe("the start screen", () => {
     it("turns usage data on with Share usage data, and says so", async () => {
         renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
+        await userEvent.click(page.getByRole("button", { name: "Share usage data", exact: true }));
 
         assert.isNull(screen.queryByRole("complementary", { name: "Usage data" }));
         assert.isNotNull(
@@ -198,11 +210,11 @@ describe("the start screen", () => {
     it("keeps usage data off with No thanks, and the answer line opens Settings > Privacy", async () => {
         renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: "No thanks" }));
+        await userEvent.click(page.getByRole("button", { name: "No thanks", exact: true }));
         assert.isNotNull(screen.getByText(/Usage data stays off\./, { selector: ".ws-start-answer" }));
         assert.equal(initSentry.mock.calls.length, 0);
 
-        await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
+        await userEvent.click(page.getByRole("button", { name: "Change this in Settings > Privacy", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isFalse(within(dialog).getByRole<HTMLInputElement>("switch", { name: "Share usage data" }).checked);
         assert.isNotNull(within(dialog).getByText("Usage data: off. Nothing is sent."));
@@ -213,7 +225,7 @@ describe("the start screen", () => {
         renderStart({ project: { name: "Les Miserables", id: 1 } });
 
         const card = screen.getByRole("complementary", { name: "Usage data" });
-        await userEvent.click(within(card).getByRole("button", { name: "No thanks" }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: "No thanks", exact: true }));
         assert.equal(initSentry.mock.calls.length, 0);
         assert.isNull(screen.queryByRole("complementary", { name: "Usage data" }));
 
@@ -223,13 +235,13 @@ describe("the start screen", () => {
         const close = within(notice).getByRole("button", { name: "Close" });
         // The pressed button went with the question; focus waits on the answer line's close.
         assert.equal(document.activeElement, close);
-        await userEvent.click(close);
+        await userEvent.click(page.elementLocator(notice).getByRole("button", { name: "Close", exact: true }));
         assert.isNull(screen.queryByText(/Usage data stays off/));
     });
 
     it("does not show the card again once it was answered", async () => {
         const first = render(<Workspace store={createWorkspaceStore()} />);
-        await userEvent.click(screen.getByRole("button", { name: "No thanks" }));
+        await userEvent.click(page.getByRole("button", { name: "No thanks", exact: true }));
         first.unmount();
 
         renderStart();
@@ -240,7 +252,7 @@ describe("the start screen", () => {
     it("opens a sample as a project named after it, before the card is answered", async () => {
         const store = renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: sampleTile("Florentine families") }));
+        await userEvent.click(page.getByRole("button", { name: sampleTile("Florentine families"), exact: true }));
 
         assert.equal(store.get().project?.name, "Florentine families");
         assert.equal(store.get().opening?.name, "Florentine families");
@@ -253,7 +265,7 @@ describe("the start screen", () => {
     it("opens an empty project for New project", async () => {
         const store = renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: "New project" }));
+        await userEvent.click(page.getByRole("button", { name: "New project", exact: true }));
 
         assert.equal(store.get().project?.name, "Untitled");
         assert.equal(store.get().page, "panels");
@@ -267,7 +279,7 @@ describe("the start screen", () => {
             scrolled = true;
         };
 
-        await userEvent.click(screen.getByRole("button", { name: "Samples" }));
+        await userEvent.click(page.getByRole("button", { name: "Samples", exact: true }));
 
         assert.isTrue(scrolled);
     });
@@ -275,7 +287,7 @@ describe("the start screen", () => {
     it("pops up the kinds of network, opening no project", async () => {
         const store = renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        await userEvent.click(page.getByRole("button", { name: "Open network data", exact: true }));
 
         await screen.findByRole("button", { name: /^Neo4j/ });
         const chooser = screen.getByRole("dialog", { name: "Open network data" });
@@ -342,7 +354,7 @@ describe("the start screen on a site with no PostHog ids", () => {
         const card = screen.getByRole("complementary", { name: "Usage data" });
         assert.isNotNull(within(card).getByText("Nothing is collected until you answer."));
         assert.isNull(screen.queryByRole("link", { name: "Privacy" }));
-        await userEvent.click(within(card).getByText("What is collected"));
+        await userEvent.click(page.elementLocator(card).getByText("What is collected", { exact: true }));
         assert.isNull(within(card).queryByText(/PostHog/));
     });
 
@@ -364,17 +376,17 @@ describe("the start screen on a site that sends PostHog", () => {
         assert.equal(getComputedStyle(corner).position, "fixed");
         assert.isNotNull(within(card).getByText(/^Until you share, anonymous counts are sent/));
         assert.equal(screen.getByRole("link", { name: "Privacy" }).getAttribute("href"), "/privacy.html");
-        await userEvent.click(within(card).getByText("What is collected"));
+        await userEvent.click(page.elementLocator(card).getByText("What is collected", { exact: true }));
         assert.isNotNull(within(card).getByText("PostHog keeps a random id in this browser while sharing is on."));
         assert.isNull(within(card).queryByText("A feedback widget."));
 
-        await userEvent.click(within(card).getByRole("button", { name: "No thanks" }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: "No thanks", exact: true }));
         assert.isNotNull(
             screen.getByText(/Usage data stays off\. Anonymous counts are still sent\./, {
                 selector: ".ws-start-answer",
             }),
         );
-        await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
+        await userEvent.click(page.getByRole("button", { name: "Change this in Settings > Privacy", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(
             within(dialog).getByText(`Usage data: off. Anonymous counts are still sent: ${ANONYMOUS_COUNTS}.`),
@@ -406,7 +418,9 @@ describe("the start screen on a site that sends PostHog", () => {
         try {
             renderStart({ project: { name: "Les Miserables", id: 1 } });
             const card = screen.getByRole("complementary", { name: "Usage data" });
-            await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+            await userEvent.click(
+                page.elementLocator(card).getByRole("button", { name: "Share usage data", exact: true }),
+            );
             const close = screen.getByRole("button", { name: "Close" });
             assert.equal(document.activeElement, close);
 
@@ -434,11 +448,11 @@ describe("Settings", () => {
     it("opens on General from the gear and from Mod+,", async () => {
         const store = renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: "Settings..." }));
+        await userEvent.click(page.getByRole("button", { name: "Settings...", exact: true }));
         let dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(within(dialog).getByRole("radiogroup", { name: "Theme" }));
         assert.isNotNull(within(dialog).getByRole("radiogroup", { name: "Number format" }));
-        await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Done", exact: true }));
         assert.isNull(store.get().dialog);
 
         await userEvent.keyboard("{Control>},{/Control}");
@@ -452,13 +466,17 @@ describe("Settings", () => {
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(within(dialog).getByText(new RegExp(OWNER_WORDS.slice(0, 40))));
 
-        await userEvent.click(within(dialog).getByRole("switch", { name: "Share usage data" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("switch", { name: "Share usage data", exact: true }),
+        );
         assert.equal(initSentry.mock.calls.length, 1);
         assert.isNotNull(
             within(dialog).getByText("Usage data: sent with content masked, only while Share usage data is on."),
         );
 
-        await userEvent.click(within(dialog).getByRole("switch", { name: "Share usage data" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("switch", { name: "Share usage data", exact: true }),
+        );
         assert.equal(stopSentry.mock.calls.length, 1);
     });
 
@@ -467,7 +485,7 @@ describe("Settings", () => {
         const first = render(<Workspace store={store} />);
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
 
-        await userEvent.click(within(dialog).getByRole("switch", { name: /^Single-key shortcuts/ }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("switch", { name: /^Single-key shortcuts/ }));
         assert.isFalse(store.get().singleKeyShortcuts);
         first.unmount();
 
@@ -481,7 +499,7 @@ describe("Settings", () => {
         render(<Workspace store={store} />);
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
 
-        await userEvent.click(within(dialog).getByText("Accessibility and input"));
+        await userEvent.click(page.elementLocator(dialog).getByText("Accessibility and input", { exact: true }));
         assert.equal(store.get().dialog, "settings:accessibility");
         assert.isNotNull(within(dialog).getByRole("switch", { name: /^Single-key shortcuts/ }));
     });

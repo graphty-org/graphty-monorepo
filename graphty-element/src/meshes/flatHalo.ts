@@ -13,6 +13,15 @@ import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 const FLAT_HALO_LIFT = 0.003;
 
 /**
+ * How far in front of the plane the edges lie on a 2D arrowhead is drawn, in scene units (issue
+ * #10126): past a flat halo's lift ({@link FLAT_HALO_LIFT}) by about two and a half times the
+ * depth buffer's resolution, so the arrowhead of an edge ending at a selected node is drawn over
+ * its halo's band, and still behind the front of a node of the default size (`NodeMesh`'s
+ * `drawOrder` step, 0.00625), so a node lying over an arrowhead still covers it.
+ */
+export const FLAT_CAP_LIFT = 1.5 * FLAT_HALO_LIFT;
+
+/**
  * Build a 2D halo's geometry from its node's shape: the shape's camera-facing triangles,
  * flattened onto one sheet.
  *
@@ -76,4 +85,37 @@ export function flatHaloLift(halo: AbstractMesh, depthScale: number): number {
  */
 function haloFrontOf(source: Mesh): number | undefined {
     return (source.metadata as { flatHaloFront?: number } | null)?.flatHaloFront;
+}
+
+/**
+ * How much a halo stretches its node's shape on each axis so its band is one width all round.
+ *
+ * Scaling the shape by `scale` on every axis moves each side out by `scale - 1` times that side's
+ * own half-extent, so an oval 2 to 1 got a band twice as wide at the sides as at the top and bottom
+ * (issue #10116). Here the band is `scale - 1` times the smallest half-extent across the face, and
+ * each axis grows by that one band: a sphere's halo is unchanged, a box's sides are offset evenly,
+ * and an oval's band matches at its four extremes. A depth too thin to measure (a flat shape) keeps
+ * the plain multiplier. A border drawn past the outline is stepped over first, so the band shows
+ * beyond it rather than under it: on a node with a wide border the whole band was hidden.
+ * @param extent - The halo geometry's half-extents, in its own units.
+ * @param extent.x - Across.
+ * @param extent.y - Up.
+ * @param extent.z - In depth.
+ * @param scale - The look's multiplier.
+ * @param border - How far the node's border reaches past its outline, in the geometry's units.
+ * @returns The scaling per axis.
+ */
+export function haloAxisScale(
+    extent: { x: number; y: number; z: number },
+    scale: number,
+    border = 0,
+): { x: number; y: number; z: number } {
+    const face = Math.min(extent.x, extent.y);
+    if (face <= 0 || Number.isNaN(face)) {
+        return { x: scale, y: scale, z: scale };
+    }
+    const band = (scale - 1) * face + border;
+    const grow = (half: number): number => 1 + band / half;
+    // ponytail: one band taken across x and y; a solid seen edge-on from the side keeps per-axis growth on z only.
+    return { x: grow(extent.x), y: grow(extent.y), z: extent.z > face / 4 ? grow(extent.z) : scale };
 }

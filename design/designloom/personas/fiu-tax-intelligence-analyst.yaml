@@ -1,0 +1,71 @@
+id: fiu-tax-intelligence-analyst
+name: FIU and Tax Intelligence Analyst
+roster_persona: aml-investigator
+tier: A
+scope: in-scope
+role: Intelligence Analyst, government financial intelligence unit or tax agency
+quote: Forty banks each filed about part of this network, each spelling the names their own way. My job is to see it as one network.
+bio: >-
+    Amina Diallo is an analyst at a government financial intelligence unit (FIU), the agency that receives suspicious
+    transaction reports, cash-threshold reports and cross-border reports from thousands of filers. Many FIUs run UNODC's
+    goAML system; others use a vendor graph tool or IBM i2, and at the UK tax agency the equivalent is HMRC's Connect, built
+    on NetReveal over billions of rows of tax and third-party records. No single filer's narrative covers the whole network,
+    so her first and hardest job is entity resolution: deciding which subjects named by different filers, in different
+    spellings, are the same people, companies and accounts. Where she cannot prove they are the same she keeps both records
+    and draws a tentative link. She then looks for clusters of subjects named in several reports, facilitators who sit
+    between groups, and paths across jurisdictions, runs strategic pivots by sector or geography, and turns a cluster into
+    a case proposal or dissemination to police, prosecutors, foreign FIUs or tax compliance teams, with a chart. Her FIU job
+    description names link analysis charts, network diagrams and timeline visualizations.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - See which reports from different filers describe the same people and network
+    - Turn a cluster of reports into a case proposal or dissemination that an agency will act on
+    - Find facilitators (accountants, company formation agents, money service businesses) that connect many networks
+    - Support strategic reviews of a sector, occupation or region
+behaviors:
+    - Ingests reports into one store of people, companies, accounts and transactions
+    - Unifies subjects across filers by rules, logged and reversible, without altering the original reports
+    - Creates tentative "possibly the same" links when identity cannot be confirmed
+    - Looks for subjects and accounts named in several reports and ranks facilitators by centrality
+    - Follows paths across jurisdictions and institutions
+    - Runs pivots by sector, occupation or geography
+    - Exports a chart with the case proposal or dissemination
+frustrations:
+    - Entity resolution across filers who spell names and addresses differently
+    - Records that may be the same person but cannot be proven so
+    - No single bank's narrative covers the network
+    - Graph views that hide which report each link came from
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W120
+    - W125
+sources:
+    - title: FinCEN core career descriptions - Intelligence research specialist
+      url: https://fincen.gov/careers/core-career-descriptions/intelligence-research-specialist
+      summary: Names i2 Analyst's Notebook and link analysis charts, network diagrams and timeline visualizations
+    - title: UNODC goAML services
+      url: https://goaml.unodc.org/goaml/en/services.html
+      summary: FIU report intake; subject unification without altering original data and tentative "Virtual Object" links (read through search summary)
+    - title: Linkurious - FIU intelligence and AML investigations with graph
+      url: https://linkurious.com/blog/fiu-intelligence-aml-investigations-graph/
+      summary: Vendor; report clusters, centrality to find facilitators, paths across jurisdictions
+    - title: European Labour Authority good-practice fiche - UK data mining tools (HMRC Connect)
+      url: https://www.ela.europa.eu/sites/default/files/2021-09/Good%20Practice%20Fiche%20-%20UK%20Data%20mining%20tools%20and%20methods%20to%20tackle%20the%20hidden%20economy%20in%20the%20UK.pdf
+      summary: Connect holds 22 billion lines of data and 500 million documents; up to 4,000 users, about 250 specialist analysts
+    - title: Connect (computer system) - Wikipedia
+      url: https://en.wikipedia.org/wiki/Connect_(computer_system)
+      summary: HMRC's Connect built by BAE Systems on NetReveal; plots undeclared work geographically
+    - title: NCA UKFIU annual report chapter 3 - DAMLs and DATFs
+      url: https://www.nationalcrimeagency.gov.uk/who-we-are/publications/776-ukfiu-chapter-3-understanding-damls-and-datfs/file
+      summary: The UK FIU received over 57,000 defence-against-money-laundering requests in 2023/24
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -53,6 +53,11 @@ export interface NodePaint {
      * may still pick the row, and then builds it a `Node` for the label.
      */
     readonly labelled?: boolean;
+    /**
+     * Set when a layer states where this node's label sits (`node.labelLocation`, or a location in
+     * `node.labelStyle`): label avoidance leaves such a label where it was put.
+     */
+    readonly labelPlaced?: true;
 }
 
 /**
@@ -753,10 +758,13 @@ function nodePaintOf(
         key.push(`g${hex}`);
     }
 
+    const labelStyle = resolved["node.labelStyle"] as { location?: unknown } | undefined;
+    const placed = resolved["node.labelLocation"] !== undefined || labelStyle?.location !== undefined;
     return {
         meshKey: key.join(""),
         style: resolveRelativeExtents(fillDefaults(bag, darkLabel(bag, dark) ? NODE_BASE_DARK : NODE_BASE)),
         color: filled ? null : color,
+        ...(placed ? { labelPlaced: true as const } : {}),
     };
 }
 
@@ -977,10 +985,32 @@ function sharedColorPaint(
     return made;
 }
 
+/** The selection halo's channels: content beside the node's mesh, but one look for every row that carries the same values. */
+const HALO_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
+    "node.halo",
+    "node.haloColor",
+    "node.haloScale",
+    "node.haloOpacity",
+]);
+
+/**
+ * One halo channel's value as it goes in a row's identity.
+ * @param value - The resolved value: a color, a number or a flag.
+ * @returns The value as text.
+ */
+function haloToken(value: unknown): string {
+    const color = asColorValue(value);
+    if (color !== null) {
+        return `${color.hex}/${String(color.a)}`;
+    }
+
+    return typeof value === "number" || typeof value === "boolean" ? String(value) : JSON.stringify(value);
+}
+
 /**
  * The look a node row shares with every row of the same mesh key, or null when its paint does not
- * follow from the key: every channel it carries keys its mesh, or is the color, the opacity or the
- * visible flag. The color's alpha (an opacity) and, under a gradient, its hex (the ramp's start)
+ * follow from the key: every channel it carries keys its mesh, or is the color, the opacity, the
+ * visible flag or the halo, whose values are in the identity. The color's alpha (an opacity) and, under a gradient, its hex (the ramp's start)
  * are folded into the mesh key by {@link nodePaintOf}, so they are in the identity too; the rest of
  * the color is only the instance's and is not.
  * @param resolved - Everything the stack painted this node.
@@ -989,10 +1019,16 @@ function sharedColorPaint(
  */
 function nodeIdentity(resolved: ResolvedStyle, meshKey: number): string | null {
     let gradient = false;
+    let halo = "";
     for (const name in resolved) {
         const channel = name as Channel;
         if (channelRole(channel) === "mesh") {
             gradient ||= channel.startsWith("node.gradient");
+        } else if (HALO_CHANNELS.has(channel)) {
+            // The halo's look is the same for every row that carries it, so it goes in the identity rather than
+            // making every halo row build its own style (issue #10048: a halo restyle on 50,000 batched rows took
+            // 3.6 s, a third of it building one style per row).
+            halo += `|${channel}=${haloToken(resolved[channel])}`;
         } else if (channel !== "node.color" && channel !== "node.opacity" && channel !== "node.visible") {
             return null;
         }
@@ -1001,7 +1037,7 @@ function nodeIdentity(resolved: ResolvedStyle, meshKey: number): string | null {
     const color = asColorValue(resolved["node.color"]);
     const alpha = color !== null && color.a < 1 ? String(color.a) : "";
     const hex = gradient ? (color?.hex ?? "") : "";
-    return `s${String(meshKey)}|${String(resolved["node.opacity"])}|${String(resolved["node.visible"])}|${alpha}|${hex}`;
+    return `s${String(meshKey)}|${String(resolved["node.opacity"])}|${String(resolved["node.visible"])}|${alpha}|${hex}${halo}`;
 }
 
 /**

@@ -288,13 +288,19 @@ export interface DataImportCommand {
     readonly mode?: "replace" | "merge";
     /**
      * `"recommended"` also chooses a layout for what was loaded, in the same step; `"placed"` draws
-     * it where its data placed every node (the fixed layout), else leaves the layout as it is.
+     * it where its data placed every node (the fixed layout), else with the layout the data asks for
+     * (a DOT file's Graphviz program), else leaves the layout as it is.
      */
     readonly layout?: "recommended" | "placed" | "keep";
     /** `"data"` also pins the nodes the file marks fixed, in the same step; `"keep"` (the default) pins nothing. */
     readonly pins?: "data" | "keep";
     /** Rows a draft already read: loaded in place of reading the source again, on redo too. */
     readonly held?: HeldRows;
+    /**
+     * The nodes the source marks fixed when no reader parses it (a sample dataset's `fixed`
+     * column); read from the reader when absent.
+     */
+    readonly fixed?: readonly NodeId[];
     /** An edge naming a node no node record holds: made (the default), or left out. */
     readonly unmatched?: "add" | "leave-out";
     /** A node record repeating an id an earlier one gave; see `LoadChoices.duplicateIds`. */
@@ -376,6 +382,15 @@ export interface HeldRows {
     readonly errorLimit: number;
     /** The expression a node record's id is read with; the configured one when absent. */
     readonly idPath?: string;
+    /** The node records named no id and were numbered under `idPath`, a column they did not hold. */
+    readonly numbered?: true;
+    /** The columns of a table whose header named neither an edge's ends nor an id, so its rows are nodes. */
+    readonly unnamed?: readonly string[];
+    /**
+     * The file's own column its node records' ids were read from, which the records carry beside the
+     * `idPath` the reader put them under.
+     */
+    readonly idColumn?: string;
     /** The expression an edge's source is read with; probed when absent. */
     readonly source?: string;
     /** The expression an edge's target is read with; probed when absent. */
@@ -1084,7 +1099,7 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
     lane: { kind: "queued", category: "data-add", coalesce: (command) => command.coalesce ?? null },
     // The options can carry a `File` and a whole file's text, and a draft's held rows a whole
     // file's records, an error tally and the graph a measured merge counts; none is copied.
-    byReference: ["config", "held", "measure"],
+    byReference: ["config", "held", "measure", "fixed"],
     closesBaseline: true,
     execute: async (command, ctx) => {
         // Refused before anything is read: drawing a file's styles is the file styles experiment.
@@ -1128,12 +1143,15 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         // The kind columns the file declares, in this same step.
         await designateDeclaredKinds(outcome?.reader, ctx);
         const reader = outcome?.reader;
-        fixed = pins === "data" && reader !== null && reader !== undefined ? declaredPinsOf(reader) : [];
+        const declared = reader === null || reader === undefined ? [] : declaredPinsOf(reader);
+        fixed = pins === "data" ? (command.fixed ?? declared) : [];
         if (choice === "keep") {
             await pinAll(fixed, ctx.inline);
         }
         // The file's styles, in this same step.
-        sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
+        const applied = await applyFileStyles(command, outcome ?? null, ctx);
+        ({ sceneScale } = applied);
+        requestLayout(applied.layout, ctx);
         if (earlier !== null) {
             await settleEarlierLayers(earlier, ctx);
         }
@@ -1145,6 +1163,17 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         }
     },
 };
+
+/**
+ * Records the layout the drawn styles ask for, unless the reader asked for its own.
+ * @param layout - The layout the file's styles ask for, or null.
+ * @param ctx - The import's context.
+ */
+function requestLayout(layout: Awaited<ReturnType<typeof applyFileStyles>>["layout"], ctx: UndoableContext): void {
+    if (layout !== null && !ctx.state.graph.values.has(REQUESTED_LAYOUT_VALUE)) {
+        ctx.services.data?.values?.({ [REQUESTED_LAYOUT_VALUE]: layout }, ctx.draft);
+    }
+}
 
 /** What a replacing load reads of the graph and stack before it loads. */
 interface Earlier {
@@ -1247,8 +1276,9 @@ async function repickEdges(picked: readonly PickedEdges[], ctx: UndoableContext)
  * @param ctx - The import's context.
  * @param sceneScale - The scene units one unit of the file's lengths was drawn as, read once the
  *     import is done: a fixed layout draws the file's stored positions in the same unit.
- * @param placedOnly - Apply only the fixed layout, which keeps where the data placed every node;
- *     any other advice leaves the layout as it is.
+ * @param placedOnly - Apply only the drawing the data gives: the fixed layout, which keeps where it placed every
+ *     node, or the layout it asks for ({@link REQUESTED_LAYOUT_VALUE}: a DOT file's Graphviz program); any other
+ *     advice leaves the layout as it is.
  * @param then - Work that waits for the layout: run once it is applied, or at once when none is.
  */
 function adviseLayout(
@@ -1260,7 +1290,8 @@ function adviseLayout(
     const advise = ctx.services.layoutAdvice;
     ctx.after("layout:recommended", (dispatch) => {
         const advice = advise?.();
-        if (advice === undefined || (placedOnly && advice.id !== "fixed")) {
+        const requested = ctx.state.graph.values.get(REQUESTED_LAYOUT_VALUE) as RequestedLayoutValue | undefined;
+        if (advice === undefined || (placedOnly && advice.id !== "fixed" && advice.id !== requested?.layout)) {
             void then(dispatch).catch(logUnapplied("none"));
             return;
         }

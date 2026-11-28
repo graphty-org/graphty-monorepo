@@ -1,0 +1,68 @@
+id: network-topology-engineer
+name: Network Topology Engineer
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
+role: Network Engineer (campus and data center)
+quote: The same twenty switches are three different graphs -- cables, VLANs and routes -- and during an outage I need the right one in front of me.
+bio: >-
+    Kai runs a campus network and two data centers. NetBox is his source of truth for devices, cables, sites, racks,
+    prefixes and VRFs, and he automates with Python, Netmiko and Nornir. He discovers topology from SNMP and CDP/LLDP
+    neighbor tables, infers cabling, and renders per-site diagrams with netbox-topology-views or NextBox UI, dragging
+    devices into place and saving the positions, then exports to draw.io or PNG for the documentation set. During an
+    outage he switches between the physical (Layer 1), switching (Layer 2 VLAN) and routing (Layer 3 subnet) views of
+    the same devices to find the fault domain, and uses an A-to-B path tool to see the path traffic actually takes,
+    comparing it with a known-good baseline. He is fluent in interfaces, VLANs and routing tables and expects edges to
+    carry ports.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Keep an accurate physical and logical picture of each site that regenerates from the source of truth
+    - During an outage, find the fault domain and the hosts behind a failed link or device
+    - Trace the actual path from A to B and compare it with the healthy baseline
+    - Deliver per-site, per-layer diagrams in the formats the organization expects
+behaviors:
+    - Polls devices by SNMP and collects neighbor, ARP, MAC forwarding, IP and VLAN tables
+    - Infers Layer 1 cabling from Layer 2 neighbor tables and populates NetBox with devices, cables and prefixes
+    - Filters diagrams by site, tag, name and device role, and orders devices in layers by role (core, distribution, access)
+    - Drags devices after a physics layout and saves the positions in named coordinate groups
+    - Switches between Layer 1, Layer 2 and Layer 3 views of the same devices
+    - Hands off the path and the failing hop to the device owner or carrier
+frustrations:
+    - The same devices need different edge sets per layer, and most tools show only one
+    - Neighbor protocols are less complete than SNMP, so discovered maps have gaps
+    - Interfaces with several LLDP neighbors break cable inference
+    - Diagrams drift from reality unless regenerated, and regenerating loses hand-placed positions
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W83
+sources:
+    - title: netbox-topology-views
+      url: https://github.com/netbox-community/netbox-topology-views
+      summary: Draws connections from NetBox cables, filters by site, tag and role, saves positions in coordinate groups, exports draw.io XML or PNG
+    - title: NextBox UI plugin
+      url: https://github.com/iDebugAll/nextbox-ui-plugin
+      summary: Orders device layers by role with layered or automatic layout
+    - title: NetDoc wiki
+      url: https://github.com/dainok/netdoc/wiki
+      summary: Uses LLDP/CDP neighbors to guess L1 cabling, populates NetBox, groups IPs into prefixes per VRF; multi-neighbor interfaces break inference
+    - title: Auvik support - Topology data sources
+      url: https://support.auvik.com/hc/en-us/articles/202956414
+      summary: Neighbor protocols are less complete than SNMP for building topology
+    - title: NetBrain - A/B path
+      url: https://www.netbraintech.com/docs/12ac1ue0to/help/HTML/a-b-path.html
+      summary: Emulates forwarding through routing tables and ACLs in Layer 2 or Layer 3 mode; compare live path with cached baseline
+    - title: SolarWinds Network Topology Mapper - Network mapping
+      url: https://www.solarwinds.com/network-topology-mapper/use-cases/network-mapping
+      summary: Automatic discovery and mapping from SNMP and neighbor protocols
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

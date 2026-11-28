@@ -41,7 +41,12 @@
  * slower on purpose would fail every full run until nightly, the reference, holds it, and nightly moves only on a
  * green run. The owner records it in benchmarks/load-time-accepted.json, an owner-only file:
  *   [{ "row": "app/graph settled", "commit": "<sha of the change or its merge>", "ratio": 1.3,
- *      "reason": "why the cost is worth it" }]
+ *      "reason": "why the cost is worth it",
+ *      "approval": "https://github.com/graphty-org/graphty-monorepo/issues/<N>#issuecomment-<id>" }]
+ * An entry counts only with its proof (issue #10077): `approval` is a comment on an issue or pull request of this
+ * repository, written by the owner (OWNER_LOGIN) and naming the row. The check reads each comment from the GitHub API
+ * (GH_TOKEN or GITHUB_TOKEN) on every run; an entry without one, or whose comment fails, is ignored with a message,
+ * and an API error fails the run. Agents post as graphty-agent, so they cannot accept their own slowdown.
  * A REGRESSION on that row is then "accepted" (and printed with the reason) while the candidate contains the commit
  * and the reference does not, and the candidate is within THRESHOLD (and FLOOR_MS) of the reference x ratio: a
  * further slowdown on top of the accepted one still fails. Once nightly holds the commit the entry stops applying by
@@ -62,6 +67,51 @@ export const OUT_DIR = join(REPO, "benchmarks/out");
 export const RESULTS_FILE = join(REPO, "benchmarks/results/load-time.json");
 /** The owner's accepted slowdowns (see the header); an owner-only file. */
 export const ACCEPTED_FILE = join(REPO, "benchmarks/load-time-accepted.json");
+
+/** The repository owner, the only login whose comment approves an accepted slowdown (as in .github/workflows/pr-title.yml). */
+export const OWNER_LOGIN = "apowers313";
+const APPROVAL_URL = /^https:\/\/github\.com\/graphty-org\/graphty-monorepo\/(?:issues|pull)\/\d+#issuecomment-(\d+)$/;
+
+/**
+ * The accepted entries the owner approved: each needs `approval`, the URL of a comment of this repository whose author
+ * is OWNER_LOGIN and whose body names the entry's row. The rest are dropped, each with the reason.
+ * @param entries - benchmarks/load-time-accepted.json
+ * @param fetchComment - async (id) => the comment as the GitHub API returns it (`{ user: { login }, body }`); throws
+ *   on an API error, which fails the run rather than accept or drop in silence
+ * @returns the approved entries and one message per dropped entry
+ */
+export async function approvedEntries(entries, fetchComment) {
+    const approved = [];
+    const rejected = [];
+    for (const e of entries) {
+        const why = (reason) => rejected.push(`ignored ${JSON.stringify(e.row)} (commit ${e.commit}): ${reason}`);
+        const id = APPROVAL_URL.exec(e.approval ?? "")?.[1];
+        if (!id) {
+            why("approval must be the URL of the owner's issue or pull request comment in this repository");
+            continue;
+        }
+        const comment = await fetchComment(id);
+        if (comment.user?.login !== OWNER_LOGIN) why(`${e.approval} is by ${comment.user?.login}, not ${OWNER_LOGIN}`);
+        else if (!comment.body?.includes(e.row)) why(`${e.approval} does not name the row ${JSON.stringify(e.row)}`);
+        else approved.push(e);
+    }
+    return { approved, rejected };
+}
+
+/**
+ * One issue comment from the GitHub API.
+ * @param id - the comment id
+ * @returns the comment
+ */
+export async function fetchIssueComment(id) {
+    const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
+    if (!token) throw new Error("GH_TOKEN or GITHUB_TOKEN is needed to check the accepted slowdowns' approvals");
+    const res = await fetch(`https://api.github.com/repos/graphty-org/graphty-monorepo/issues/comments/${id}`, {
+        headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" },
+    });
+    if (!res.ok) throw new Error(`GitHub API: comment ${id}: ${res.status} ${await res.text()}`);
+    return res.json();
+}
 
 /**
  * The factor a median and a minimum must both exceed. Measured on the i9-14900KF under the load of other sessions'
@@ -305,7 +355,22 @@ function contains(commit, rev) {
     throw new Error(`git cannot tell whether ${rev} contains ${commit} (fetch the history): ${r.stderr.trim()}`);
 }
 
-function main(argv) {
+/**
+ * The owner's approved, applying accepted slowdowns for this pair, each dropped entry reported.
+ * @param reference - the reference build's commit, if known
+ * @returns acceptedRows of the approved entries
+ */
+async function loadAccepted(reference) {
+    const listed = existsSync(ACCEPTED_FILE) ? JSON.parse(readFileSync(ACCEPTED_FILE, "utf8")) : [];
+    const { approved, rejected } = await approvedEntries(listed, fetchIssueComment);
+    for (const r of rejected) console.error(`${ACCEPTED_FILE}: ${r}`);
+    return acceptedRows(approved, {
+        candidate: (c) => contains(c, "HEAD"),
+        reference: (c) => (reference ? contains(c, reference) : false),
+    });
+}
+
+async function main(argv) {
     const option = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined);
     const pair = Object.fromEntries(
         Object.entries({ app: option("--pair-app"), element: option("--pair-element") }).filter(([, v]) => v),
@@ -315,11 +380,7 @@ function main(argv) {
         const rounds = Number(option("--rounds") ?? 4);
         // read before measuring, so a malformed entry or a missing history fails in seconds, not after the rounds
         const reference = option("--reference-commit");
-        const entries = existsSync(ACCEPTED_FILE) ? JSON.parse(readFileSync(ACCEPTED_FILE, "utf8")) : [];
-        const accepted = acceptedRows(entries, {
-            candidate: (c) => contains(c, "HEAD"),
-            reference: (c) => (reference ? contains(c, reference) : false),
-        });
+        const accepted = await loadAccepted(reference);
         const sides = measurePairs(pair, rounds);
         const session = (side, part) => ({ machine: machine(), results: pool(sides[side][part]) });
         const parts = Object.keys(pair);
@@ -365,11 +426,21 @@ function main(argv) {
     return 0;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+/**
+ * Run `main(argv)` when the module at `url` is the script node was started with: its result is the exit code, and a
+ * throw prints `<name>: <message>` and exits 1.
+ * @param url the caller's `import.meta.url`
+ * @param name the tool name its errors are printed under
+ * @param main the tool's entry point
+ */
+export async function runAsMain(url, name, main) {
+    if (process.argv[1] !== fileURLToPath(url)) return;
     try {
-        process.exitCode = main(process.argv.slice(2));
+        process.exitCode = await main(process.argv.slice(2));
     } catch (e) {
-        console.error(`load-time: ${e instanceof Error ? e.message : String(e)}`);
+        console.error(`${name}: ${e instanceof Error ? e.message : String(e)}`);
         process.exitCode = 1;
     }
 }
+
+await runAsMain(import.meta.url, "load-time", main);

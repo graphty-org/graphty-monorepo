@@ -16,6 +16,7 @@ import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
 import { addShader, moveShader, pickedShader, shaderEntries, writeWireframe } from "./shaderSlots";
 import { focusLineNext, headerBottom, useFocusOnRemoval } from "./useFocusLine";
+import { useShaderEditorOn } from "./useShaderEditorOn";
 import {
     channelWord,
     failureWords,
@@ -591,7 +592,7 @@ export function WireframeRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
 function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: SectionSpec }>): React.JSX.Element {
     const { store } = useWorkspace();
     const [gallery, setGallery] = useState(false);
-    const [code, setCode] = useState<PasteInit | null>(null);
+    const [code, setCode] = useShaderEditorOn(`${ctx.side}:${ctx.row.join(",")}`);
     const sectionBox = useRef<HTMLDivElement>(null);
     const tab = ctx.side;
     const entries = shaderEntries(ctx);

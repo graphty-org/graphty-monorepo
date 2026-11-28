@@ -86,9 +86,10 @@ export async function sampleData(
  * frame. Append it to the page, then call {@link importSample}.
  * @param width - CSS pixels
  * @param height - CSS pixels
+ * @param view - the view it opens in: 2D unless given (the graphty app opens in 3D)
  * @returns the element
  */
-export function createSampleElement(width: number, height: number): Graphty {
+export function createSampleElement(width: number, height: number, view: "2d" | "3d" = "2d"): Graphty {
     const element = document.createElement("graphty-element");
     element.style.cssText = `display:block;width:${String(width)}px;height:${String(height)}px`;
     // The samples are drawn with their file's styles, the file styles experiment.
@@ -96,7 +97,7 @@ export function createSampleElement(width: number, height: number): Graphty {
     // The working graph off: the programs a file came from lay out and draw every element, hidden
     // ones included, so the drawing is compared over the whole graph.
     element.workingGraph = false;
-    element.viewMode = "2d";
+    element.viewMode = view;
     element.layoutConfig = { seed: SEED };
     // Run the layout before the first frame, as the File Styles stories do: drawing every step
     // of a few hundred nodes in a software-rendered Chromium does not settle in
@@ -116,6 +117,7 @@ export function createSampleElement(width: number, height: number): Graphty {
  *     settings), when there are any
  * @param imageBaseUrl - where the sample file is served, which the pictures it names by relative paths are beside
  *     (`url` is a Blob's, which has no directory)
+ * @param layout - the load's layout choice: `"placed"` is how the graphty app opens a file from its start page
  * @returns how it was loaded and placed, for the scene's provenance
  */
 export async function importSample(
@@ -125,6 +127,7 @@ export async function importSample(
     graphName?: string,
     formatOptions: Readonly<Record<string, unknown>> = {},
     imageBaseUrl?: string,
+    layout: "recommended" | "placed" = "recommended",
 ): Promise<string> {
     await element.updateComplete;
     // session.data.import, which takes the format's own reader options (formatOptions) that
@@ -147,11 +150,8 @@ export async function importSample(
         ...(imageBaseUrl === undefined ? {} : { imageBaseUrl }),
     };
     const based = imageBaseUrl === undefined ? "" : ", imageBaseUrl";
-    const route = `session.data.import({ type: "${format}", config: { url${named} } }, { styles: "file", layout: "recommended", styleOptions: { framing: "file", lengths: "spacing"${based} } })`;
-    await element.session.data.import(
-        { type: format, config },
-        { styles: "file", layout: "recommended", styleOptions },
-    );
+    const route = `session.data.import({ type: "${format}", config: { url${named} } }, { styles: "file", layout: "${layout}", styleOptions: { framing: "file", lengths: "spacing"${based} } })`;
+    await element.session.data.import({ type: format, config }, { styles: "file", layout, styleOptions });
     await element.waitForSettled();
     await element.session.styles.settled();
     await element.waitForStableFrame();

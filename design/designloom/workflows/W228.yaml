@@ -1,0 +1,166 @@
+id: W228
+name: Venture Syndication Network Over Rolling Windows
+category: exploration
+validated: false
+personas:
+    - economic-network-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - bipartite-projection
+    - event-window-aggregation
+    - per-window-metrics
+    - computed-attributes
+    - degree-analysis
+    - centrality-degree
+    - centrality-eigenvector
+    - centrality-betweenness
+    - temporal-navigation
+    - filtering
+    - layout-force-directed
+    - ego-network
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - details-on-demand
+    - linked-views-selection
+    - export-image
+    - data-export
+    - role-directed-projection
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - node-merge-dialog
+    - computed-attributes-panel
+    - algorithm-panel
+    - temporal-controls
+    - filter-panel
+    - range-slider
+    - graph-canvas
+    - layout-panel
+    - ego-network-dialog
+    - ranked-node-table
+    - node-details-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: round-level investor-to-company records (investor, company, round, date, amount) from Venture Economics,
+        PitchBook or Crunchbase, plus an exit table (IPO or sale, with date)
+    node_count: 500-2000 firms per five-year window; 16,315 companies and 47,705 rounds in the standard sample
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Measure how central each venture capital firm is in the syndication network, year by year, separate
+    the firms that lead syndicates from the firms that are invited into them, and test whether better-connected firms
+    exit more of their portfolio companies through an IPO or a sale.
+
+
+    **Mental Model**: "A tie is a deal done together in the last five years, and it points from the lead to the
+    members it brought in." The network is not one picture but a series: one network per trailing five-year window,
+    built at the level of the management firm, not the fund. This is the method of Hochberg, Ljungqvist and Lu
+    (Journal of Finance 2007), which later venture finance research follows.
+
+
+    **Task Phases**:
+
+    1. **Pull and clean** - Load round-level records; merge duplicate firm names; roll funds up to their management
+    firm
+
+    2. **Define syndicates** - Undirected: every firm that invested in the same company, in any round. Directed: the
+    firms in one round, with the lead chosen as the largest investor in that round (ties broken by the largest
+    cumulative investment in the company)
+
+    3. **Build windows** - For each year, build the network of all syndicates in the five years before it; directed
+    edges run from the lead to each non-lead member, with no edge between two non-leads
+
+    4. **Score each window** - Degree, indegree (invited in by how many leads), outdegree (how many firms it invited
+    in), eigenvector and betweenness, each normalized by the maximum for that window's size so years compare; keep one
+    row per firm per window
+
+    5. **Join outcomes** - Attach each firm's exit rate (share of portfolio companies exited through an IPO or a sale)
+    and survival to a next round; plot centrality against exit rate
+
+    6. **Read and draw** - Step through windows; draw one window with arrows from lead to member and double arrows
+    where two firms have each led the other, dropping firms with no ties; open one firm's ego network and its ranked
+    co-investors
+
+
+    **Decision Points**:
+
+    - Same company in any round, or same round only? (The standard method uses both, one per measure.)
+
+    - How is the lead chosen when the amount is missing or tied?
+
+    - How long is the window, and is it trailing or centered on the year?
+
+    - Normalized or raw centralities?
+
+    - What minimum activity keeps a firm in a drawing (the informal practitioner version drops firms with fewer than
+    five investments)?
+
+
+    **Information Needs**:
+
+    - Per firm per window: degree, indegree, outdegree, eigenvector, betweenness
+
+    - Who leads whom, and which ties are reciprocal
+
+    - Exit rate beside centrality
+
+    - A firm's top co-investors with the deals done together
+
+
+    **Pain Points**:
+
+    - Drawn edges are more or less decorative in dense undirected co-investment maps
+
+    - Projections lose the multi-layered structure of rounds
+
+    - Lead investor is not recorded and must be inferred from amounts, which are often missing in Crunchbase
+
+    - Duplicate firm names and fund-versus-firm confusion
+
+    - Commercial tools (PitchBook, Crunchbase) show co-investors only as ranked lists, so every network is rebuilt by
+    hand in Python, Gephi or Neo4j
+
+
+    **Data Flow**:
+
+    - Input: Round-level investor-company records with amounts and dates; exit records
+
+    - Transformations: Duplicate merge, fund-to-firm roll-up, two projections (undirected by company, directed lead to
+    member by round), trailing five-year windows, five normalized centralities per window, outcome join
+
+    - Output: Firm-by-window centrality table, centrality-versus-exit scatter, one drawn window with directed ties,
+    ego networks and ranked co-investor tables
+success_criteria:
+    - metric: Projection transparency
+      target: Syndicate definition, lead rule, window length and normalization stated on every result
+    - metric: Temporal completeness
+      target: One centrality row per firm for every window, exportable for regression
+    - metric: Readability
+      target: A single window readable with lead-to-member direction and reciprocal ties visible
+sources:
+    - title: Hochberg, Ljungqvist and Lu, Whom You Know Matters (Journal of Finance 2007)
+      url: https://www.stat.berkeley.edu/~aldous/Networks/hochberg.pdf
+      summary: Trailing 5-year windows; lead is the largest investor in the round; degree, indegree, outdegree,
+          eigenvector, betweenness normalized; exit rate via IPO or M&A as the outcome; 3,469 funds, 1980-1999
+    - title: PitchBook venture capital investor data
+      url: https://try.pitchbook.com/venture-capital-investors
+      summary: Shows who a VC firm co-invests with most often and the deals done together, by series and industry
+    - title: CrunchBase Unleashes The Business Graph (TechCrunch, 2014)
+      url: https://techcrunch.com/?p=1039525
+      summary: Graph Insights on investor profiles reveal the investors they most often invest alongside
+    - title: Venture co-investment map (reactionwheel.net)
+      url: https://reactionwheel.net/2010/11/venture-coinvestment-map.html
+      summary: Informal practitioner version; Crunchbase rounds, same-round matching, drawn edges more or less decorative
+    - title: Evaluating investor performance using Neo4j, GraphXR and ML
+      url: https://neo4j.com/blog/evaluating-investor-performance-using-neo4j-graphxr-and-ml/
+      summary: Investor graph built in Neo4j and explored in GraphXR
+    - title: Carniel et al. 2023, venture network analysis
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9815571/
+      summary: Projections cannot capture multi-layered interactions
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

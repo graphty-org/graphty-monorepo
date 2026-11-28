@@ -74,13 +74,15 @@ describe("the layout form's Shown nodes only", () => {
 
     it("lays out only what the filter shows, and the whole graph once unticked", async () => {
         const { element, session } = await openRing();
+        // The app turns off hover under a camera drag (#10221).
+        assert.isFalse(element.layoutBehavior?.camera?.hoverWhileDragging);
 
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Circle(?!s)/ }));
         const shownOnly = await within(popover).findByRole("checkbox", { name: "Shown nodes only" });
         assert.isTrue((shownOnly as HTMLInputElement).checked, "on by default");
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.layout.id, "circular");
         });
@@ -93,10 +95,12 @@ describe("the layout form's Shown nodes only", () => {
         assert.notDeepEqual(placesOf(session, SHOWN), shownBefore, "the shown nodes are laid out again");
         assert.deepEqual(placesOf(session, HIDDEN), hiddenBefore, "the hidden nodes stay where they were");
 
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const again = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(again).getByRole("option", { name: /^Circle(?!s)/ }));
-        await userEvent.click(await within(again).findByRole("checkbox", { name: "Shown nodes only" }));
+        await userEvent.click(page.elementLocator(again).getByRole("option", { name: /^Circle(?!s)/ }));
+        await userEvent.click(
+            page.elementLocator(again).getByRole("checkbox", { name: "Shown nodes only", exact: true }),
+        );
         await waitFor(() => {
             assert.isFalse(element.layoutBehavior?.layout?.visibleOnly ?? false);
         });

@@ -1,0 +1,87 @@
+id: single-cell-computational-biologist
+name: Single-Cell Computational Biologist
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
+role: Postdoctoral Researcher, Immunology or Tumor Microenvironment (Single-Cell and Multiome)
+quote: I have twenty cell types and two hundred signaling pathways. I need to see who talks to whom, which regulators drive each type, and what changes in disease -- not two hundred separate circle plots.
+bio: >-
+    Dr. Adriana Ribeiro is an immunology postdoc working on the tumor microenvironment. Her data is 10x Genomics single-cell
+    RNA-seq, increasingly multiome (RNA plus chromatin accessibility) and spatial: 10,000 to 100,000 cells in 10 to 30
+    cell types. She works in Seurat or Scanpy and makes three kinds of graph without always calling them graphs. First,
+    the k-nearest-neighbor graph of cells that every clustering run builds, seen only as a UMAP scatter. Second,
+    cell-cell communication networks from CellChat, CellPhoneDB, NicheNet or LIANA, whose nodes are cell types and whose
+    directed weighted edges come in one layer per ligand-receptor pair or pathway. Third, gene regulatory networks:
+    pySCENIC regulons, SCENIC+ transcription factor-enhancer-gene networks, and CellOracle's one network per cell type
+    (24 in its tutorial). She relies on each package's own plots, codes fluently in R and Python, and is under pressure
+    to show mechanism, not just atlases.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Know which cell types exist and how confident the clustering is
+    - See which cell types communicate, through which pathways, and how that changes with disease or treatment
+    - Find the transcription factors that drive each cell type and predict what a knockout would do
+    - Compare regulatory networks across cell types without reading 24 separate score plots
+    - Make figures that reviewers in immunology recognize (circle, chord, hierarchy plots)
+behaviors:
+    - Runs Scanpy or Seurat neighbors, Leiden at several resolutions and UMAP with tutorial defaults (k = 15)
+    - Integrates samples with scVI, scANVI, Seurat CCA or BBKNN and builds the neighbor graph on the integrated representation
+    - Picks a clustering resolution by eye on the UMAP, sometimes checked with a clustering tree
+    - Names clusters from marker gene dot plots and rank_genes_groups, or by CellTypist or reference label transfer checked by hand
+    - Runs CellChat and draws netVisual_circle and netVisual_aggregate per pathway, keeping edge.weight.max global
+    - Compares two conditions with mergeCellChat and netVisual_diffInteraction (red increased, blue decreased)
+    - Runs pySCENIC or SCENIC+ and looks at regulon activity as heat maps and UMAPs rather than networks
+    - Builds per-cluster GRNs in CellOracle, filters to the top 2,000 edges and compares clusters by centrality scatter plots
+frustrations:
+    - The number of clusters depends on a resolution chosen by eye
+    - Integration is chosen from UMAPs colored by batch, although best practices says they do not show its quality
+    - Distances between clusters on a UMAP are not meaningful but are read anyway
+    - Each pathway is a separate plot; there is no way to step through layers on one fixed drawing
+    - Method and resource choice strongly changes communication predictions (LIANA)
+    - Per-cluster GRNs are compared one score plot at a time, and a gene with no edges in a cluster has no score rather than zero
+    - SCENIC+ exports to Cytoscape carry positions but no style, so every mapping is redone by hand
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W23
+    - W24
+    - W245
+    - W248
+    - W249
+    - W254
+    - W1060
+sources:
+    - title: Jin et al. 2021 - CellChat (Nature Communications)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7889871
+      summary: Communication inference, aggregate networks over 25 and 12 cell groups, circle, hierarchy and chord plots
+    - title: Dimitrov et al. 2022 - LIANA comparison (Nature Communications)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9184522
+      summary: Method and resource choice strongly influence predicted interactions; consensus ranking
+    - title: pySCENIC tutorial
+      url: https://pyscenic.readthedocs.io/en/latest/tutorial.html
+      summary: GRNBoost2, motif pruning to regulons, AUCell scoring
+    - title: SCENIC+ networks module
+      url: https://scenicplus.readthedocs.io/en/stable/_modules/scenicplus/networks.html
+      summary: TF2R, R2G and TF2G tables, concentric layout and Cytoscape export without style
+    - title: CellOracle network analysis tutorial
+      url: https://morris-lab.github.io/CellOracle.documentation/tutorials/networkanalysis.html
+      summary: One GRN per cluster, top 2,000 edges, centrality compared across clusters, missing scores for genes without edges
+    - title: Single-cell best practices - clustering
+      url: https://www.sc-best-practices.org/cellular-structure/clustering/
+      summary: Leiden on a kNN graph; do not interpret distances between clusters on UMAP
+    - title: Zappia and Oshlack 2018 - Clustering trees
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6057528
+      summary: Stability of clusters across resolutions
+    - title: Single-cell best practices - integration
+      url: https://www.sc-best-practices.org/cellular-structure/integration/
+      summary: Neighbors on the integrated representation; UMAPs alone do not show integration quality
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

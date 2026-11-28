@@ -73,3 +73,33 @@ describe("the modules loaded before a first 2D frame", () => {
         assert.deepEqual(problems, []);
     });
 });
+
+/**
+ * graphty-element's own modules that load only when called, never up front: the version 2 save code
+ * (projectFile.ts loads it through document2/onDemand.ts; issue #10135), the figure export and the
+ * live model preview. basics.ts and types.ts are the save code every session uses.
+ */
+const ON_DEMAND: readonly [RegExp, string][] = [
+    [/^src\/session\/document2\/(?!(?:basics|types)\.ts$)/, "the version 2 save code, loaded by document2/onDemand"],
+    [/^src\/screenshot\/figure(?:Pdf)?\.ts$/, "the figure export, loaded by exportFigure()"],
+    [/^src\/meshes\/ModelPreview\.ts$/, "the live model preview, loaded by modelPreview()"],
+];
+
+describe("the main entry's own modules", () => {
+    it("leave out the code that loads on demand", () => {
+        const { chunks } = JSON.parse(readFileSync(resolve(PACKAGE_ROOT, "build/chunks.json"), "utf8")) as {
+            chunks: Chunk[];
+        };
+        const byFile = new Map(chunks.map((c) => [c.fileName, c]));
+        const modules = [...upFront(["graphty.js"]).chunks].flatMap((file) => byFile.get(file)?.modules ?? []);
+        assert.ok(modules.includes("src/session/files/kindOf.ts"), "the walk reaches graphty-element's own modules");
+        assert.ok(
+            chunks.some((c) => c.modules.includes("src/session/document2/migration.ts")),
+            "a chunk holds the version 2 save code",
+        );
+        const problems = modules.flatMap((id) =>
+            ON_DEMAND.flatMap(([re, why]) => (re.test(id) ? [`${id} is loaded up front: ${why}`] : [])),
+        );
+        assert.deepEqual(problems, []);
+    });
+});

@@ -9,7 +9,7 @@ import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
-import { screen, waitFor, within } from "../../../test/test-utils";
+import { waitFor } from "../../../test/test-utils";
 import { addNodeLayer, mountElement, removeElement, renderPanel, section } from "./shaderHarness";
 
 // These tests drive the Style panel the app shows with file styles off; the panel by part of the
@@ -31,14 +31,19 @@ describe("Wireframe in Shape", () => {
         const set = (): Record<string, unknown> => ({ ...session.styles.get(layer)?.set });
         const steps = session.history.position;
 
-        await userEvent.click(within(section("node", "shape")).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Wireframe" }));
+        await userEvent.click(
+            page
+                .elementLocator(section("node", "shape"))
+                .getByRole("button", { name: "Add to node shape", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Wireframe", exact: true }));
         await waitFor(() => {
             assert.strictEqual(set()["node.wireframe"], true);
             assert.strictEqual(set()["node.meshDetail"], "low");
+            // The layer holds the write a render before the panel draws its row.
+            assert.isNotNull(section("node", "shape").querySelector('.ws-row[data-line="node.wireframe"]'));
         });
         assert.strictEqual(session.history.position, steps + 1, "one step");
-        assert.isNotNull(section("node", "shape").querySelector('.ws-row[data-line="node.wireframe"]'));
 
         await session.undo();
         await waitFor(() => {
@@ -59,14 +64,14 @@ describe("Wireframe in Shape", () => {
             return found;
         });
 
-        await userEvent.click(within(row).getByLabelText(/^Node wireframe/));
-        await userEvent.click(await screen.findByRole("option", { name: "Off" }));
+        await userEvent.click(page.elementLocator(row).getByLabelText(/^Node wireframe/));
+        await userEvent.click(page.getByRole("option", { name: "Off", exact: true }));
         await waitFor(() => {
             assert.strictEqual(set()["node.wireframe"], false);
             assert.notProperty(set(), "node.meshDetail");
         });
 
-        await userEvent.click(within(row).getByRole("button", { name: "Remove wireframe" }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "Remove wireframe", exact: true }));
         await waitFor(() => {
             assert.notProperty(set(), "node.wireframe");
         });

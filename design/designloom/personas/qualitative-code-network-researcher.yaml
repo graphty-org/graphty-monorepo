@@ -1,0 +1,83 @@
+id: qualitative-code-network-researcher
+name: Qualitative Code Network Researcher
+roster_persona: text-network-analyst
+tier: B
+scope: in-scope
+role: Health-Services Researcher / Qualitative Research Lead
+quote: The network is my theory. Every arrow has to point back to the quotations that justify it.
+bio: >-
+    Dr. Daniela Delgado leads four coders on a patient-experience and stigma study. Her team codes 20 to 60 interviews, or
+    several hundred open-ended survey answers, in ATLAS.ti or MAXQDA (Dedoose for team projects), with 30 to 150 codes in
+    code groups, memos and participant attributes. She uses graphs in two different ways. First she draws: categories as
+    nodes, linked by typed arrows such as "is cause of", "is part of" or "contradicts", each link explained in a comment
+    and backed by quotations, until the drawn network becomes the model figure in the paper. Second she computes: which
+    codes co-occur across quotations, by subgroup, and whether a cluster of codes forms a theme. When the built-in views
+    run out she exports a code matrix to Gephi for ForceAtlas2 and Louvain, and loses the quotations on the way.
+    Increasingly a model proposes codes and she accepts or rejects them segment by segment, so she also needs to know
+    who or what coded each segment.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: novice
+    domain_knowledge: expert
+motivations:
+    - Draw her emerging theory as a network of typed, directed relations with evidence behind every link
+    - See which themes travel together, overall and by participant subgroup
+    - Keep the quotations, memos and coder of every segment attached to the network
+    - Produce a clean model figure and a defensible methods paragraph
+    - Keep interview transcripts off third-party servers under her consent terms
+behaviors:
+    - Codes for weeks with comparison in mind, adding participant or demographic codes so groups can be compared later
+    - Creates one drawn network per category or code group and drags codes, quotations and memos onto it
+    - Links nodes with a relation from an editable list, writes a comment on why, reverses or changes relations as the theory moves
+    - Reviews every link in one list (a link manager) filtered by relation
+    - Arranges nodes by hand, using automatic circular or hierarchical layouts only as a start
+    - Runs a code co-occurrence table, clicks a cell to read its quotations, and distrusts coefficients with overlapping segments
+    - Exports a code-by-code matrix to Gephi when the built-in views are too slow or unreadable
+    - Accepts or discards model-suggested codes per segment and keeps the model's explanation as a comment
+    - Measures inter-coder agreement with Cohen's kappa
+frustrations:
+    - The drawn theory network and the computed co-occurrence view are separate and do not inform each other
+    - Co-occurrence matrices are slow or unreadable for large datasets
+    - The trip to Gephi loses every quotation behind the edges
+    - Web versions of QDA tools cannot export their network views, and some have no network editor at all
+    - Project exchange (QDPX) drops relationship types and complex concept maps, so a drawn theory cannot move between packages
+    - Drawing a hierarchical link silently rewrites the project's code tree
+    - Map links that are not written back to the project
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W405
+    - W406
+sources:
+    - title: Chen et al. 2024, stigma survey code network (Visual Analytics in Healthcare)
+      url: https://visualanalyticshealthcare.github.io/homepage/proceedings/2024/8.pdf
+      summary: 510 responses, four coders, Dedoose export to Gephi with ForceAtlas2 and Louvain; matrices slow or unreadable at scale
+    - title: Brailas et al. 2014, Networked Grounded Theory
+      url: https://nsuworks.nova.edu/tqr/vol19/iss8/3
+      summary: ATLAS.ti coding exported to Gephi for community detection as part of grounded theory
+    - title: ATLAS.ti manual, About Relations
+      url: https://doc.atlasti.com/ManualMac.v22/Networks/NetworksAboutRelations.html
+      summary: Preset code relations (is associated with, contradicts, is part of, is cause of, is a, is property of), properties, styling that propagates to all links
+    - title: ATLAS.ti help, How to create networks
+      url: https://atlastihelp.helpscoutdocs.com/article/727-how-to-create-networks-in-atlas-ti
+      summary: Create a network, add codes, quotations and memos, link, Link Manager, layouts, export; not available in ATLAS.ti Web
+    - title: ATLAS.ti manual, About Nodes and Links
+      url: https://manuals.atlasti.com/Mac/en/manual/Networks/NetworksAboutNodesAndLinks.html
+      summary: First- and second-class links, quotation hyperlinks, hierarchical links change the code tree
+    - title: MAXQDA help, AI Coding of segments
+      url: https://www.maxqda.com/help/ai-assist/ai-coding-segments
+      summary: AI Coding from code memos, approve or discard each suggestion, explanation saved as a segment comment
+    - title: NVivo help, REFI-QDA standard
+      url: https://help-nv.qsrinternational.com/14/win/Content/projects-teamwork/refi-qda%20standard.htm
+      summary: Relationship codes and relationship types are not transferred in QDPX exchange
+    - title: Woods et al. 2016, content analysis of 763 ATLAS.ti and NVivo articles
+      url: https://core.ac.uk/download/57709604.pdf
+      summary: Most studies used QDA software for data management and analysis, fewer to visually display methods
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

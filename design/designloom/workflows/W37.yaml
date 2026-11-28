@@ -1,0 +1,191 @@
+id: W37
+name: Characterizing a New Network Against Null Models
+category: analysis
+validated: false
+personas:
+    - expert-emma
+    - network-neuroscience-researcher
+    - interaction-network-ecologist
+requires_capabilities:
+    - data-import
+    - sample-datasets
+    - data-validation
+    - basic-statistics
+    - component-analysis
+    - degree-analysis
+    - clustering-coefficient
+    - metric-histograms
+    - statistics-panel
+    - computed-attributes
+    - analysis-history
+    - report-generation
+    - data-export
+    - null-model-ensembles
+    - degree-distribution-fit
+    - motif-census
+    - rich-club-and-assortativity
+    - representation-transparency
+    - analysis-provenance
+    - comparison-view
+suggested_components:
+    - data-import-dialog
+    - sample-data-dialog
+    - statistics-panel
+    - metric-card
+    - histogram
+    - algorithm-panel
+    - algorithm-card
+    - progress-bar
+    - analysis-history-panel
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: edge list or named dataset (Netzschleuder, ICON, SNAP, collaborator file)
+    node_count: 1000-10000000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Say what kind of network a new dataset is -- heavy-tailed or not, clustered or not, assortative or not,
+    with a rich club or motifs or not -- and back every claim with a comparison to the right randomized ensemble. This is
+    the first thing a network scientist does with any new dataset and the source of headline claims such as
+    "scale-free" and "small-world" that reviewers now challenge.
+
+
+    **Mental Model**: "Compared to what?" A statistic means nothing alone; it means something only against a null
+    ensemble that keeps everything except the structure under test (usually the degree sequence).
+
+
+    **Task Phases**:
+
+    1. **Acquire and record provenance** - Load by name from Netzschleuder or SNAP, or a collaborator's edge
+    list; record what an edge means, its type (directed, weighted, multi, bipartite, multilayer, temporal, group) and how
+    it was sampled
+
+    2. **Decide the representation** - Turn non-simple properties into one or more simple graphs by a stated
+    transformation (in- and out-degree separately, thresholded weights, one layer at a time, a projection); know that
+    Gephi merges parallel edges on import and adds their weights unless told otherwise
+
+    3. **Basic descriptives** - n, m, density, components, giant component; diameter and average path length on
+    the giant component only; global transitivity and average local clustering reported as two separate numbers
+
+    4. **Fit the degree distribution correctly** - Plot the complementary cumulative distribution on log-log
+    axes; choose k_min by minimizing the Kolmogorov-Smirnov distance; fit alpha by discrete maximum likelihood;
+    bootstrap a goodness-of-fit p (p >= 0.1 means only "plausible"); run likelihood-ratio tests against log-normal,
+    exponential and truncated power law
+
+    5. **Mixing** - Degree assortativity r and attribute assortativity, noting that r misleads when a few nodes
+    have very high degree
+
+    6. **Build the null ensemble** (minutes to hours) - 100 to 1000 degree-preserving randomizations by double-edge
+    swaps (in- and out-degree kept for directed graphs); choose vertex- or stub-labeled sampling for multigraphs and
+    self-loops and record it; record the seed and swap count
+
+    7. **Compare to the ensemble** - Clustering, path length, assortativity, modularity Q and the rich-club
+    coefficient normalized by the null (rho(k) = phi(k) / phi_rand(k)); only rho > 1 is evidence of a rich club
+
+    8. **Motifs** - Count 3- and 4-node subgraphs and compute z = (N_real - mean N_rand) / sd
+    N_rand against a null that preserves whatever is not the hypothesis (degree, space, layers)
+
+    9. **Hand off** - A table of observed value, null mean, null sd and z per statistic; the CCDF with fitted
+    alternatives; a figure; code, parameters and seeds for the paper's repository
+
+
+    **Decision Points**:
+
+    - Which representation of a non-simple graph answers the question, and is that choice written down?
+
+    - Report "scale-free" or only "heavy-tailed"? Only the strong criteria (plausible power law that beats the
+    alternatives) justify the first
+
+    - Which null preserves the structure that is not under test (degree only, degree plus space, degree per layer)?
+
+    - How many randomizations and swaps are enough for stable z-scores?
+
+    - Vertex- or stub-labeled sampling for a multigraph?
+
+
+    **Information Needs**:
+
+    - Representation summary: directedness, parallel edges merged or kept and how weights were combined, self-loops,
+    isolates
+
+    - Component sizes and which statistics were computed on the giant component
+
+    - Fitted k_min, alpha, bootstrap p and each likelihood-ratio result with its sign and p-value
+
+    - Observed vs null mean, sd and z for every statistic, with the null's definition, seed and sample count
+
+    - Normalized rich-club curve rho(k) with its null band
+
+    - Motif counts and z-scores with the null used
+
+
+    **Pain Points**:
+
+    - Least-squares lines on log-log histograms, still common, are biased and overclaim power laws
+
+    - Across 928 datasets only 4% met the strongest scale-free evidence and log-normal fit at least as well for 88%
+
+    - Path statistics that raise an error on a disconnected graph instead of using the giant component
+
+    - Unnormalized rich-club curves that rise even in random graphs
+
+    - Motif z-scores that change sign with the null; a spatial toy network produced the same "significant" motifs
+
+    - Different randomization methods can lead to divergent conclusions, and GUI tools hide which one ran
+
+
+    **Data Flow**:
+
+    - Input: Edge list or named dataset plus a description of what an edge means
+
+    - Transformations: Representation choice, descriptives, maximum-likelihood tail fit, degree-preserving ensemble,
+    per-statistic z, motif census
+
+    - Output: Null-comparison table, CCDF figure with fitted alternatives, motif profile, provenance record
+success_criteria:
+    - metric: Every headline statistic compared to a null
+      target: Observed value, null mean, null sd and z shown with the null's definition and seed
+    - metric: Degree-tail claim worded correctly
+      target: Result stated as plausible, not plausible, or alternative favored, never "scale-free" from a line fit
+    - metric: Representation recorded
+      target: User can state how parallel edges, direction, weights and isolates were handled
+    - metric: Reproducibility
+      target: Another person reruns the characterization from the exported record and gets the same table
+sources:
+    - title: Power-law distributions in empirical data (Clauset, Shalizi and Newman 2009)
+      url: https://arxiv.org/abs/0706.1062
+      summary: k_min by KS distance, discrete maximum likelihood, bootstrap p, likelihood-ratio tests; least squares on log-log plots is biased
+    - title: Scale-free networks are rare (Broido and Clauset 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6399239/
+      summary: 928 ICON datasets; 49% not scale free, 4% strongest evidence, log-normal at least as good for 88%; explicit simple-graph transformations
+    - title: powerlaw - a Python package for analysis of heavy-tailed distributions (Alstott et al. 2014)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/3906378/
+      summary: Fit(degrees, discrete=True) and distribution_compare against log-normal and other alternatives
+    - title: Assortative mixing in networks (Newman)
+      url: https://arxiv.org/pdf/cond-mat/0205405
+      summary: Degree assortativity coefficient r
+    - title: Configuring random graph models with fixed degree sequences (Fosdick et al. 2018)
+      url: https://arxiv.org/abs/1608.00607v3
+      summary: Vertex- vs stub-labeled sampling matters for multigraphs and self-loops
+    - title: Specificity and stability in topology of protein networks (Maslov and Sneppen 2002)
+      url: https://arxiv.org/abs/cond-mat/0205380
+      summary: Degree-preserving double-edge-swap randomization
+    - title: Detecting rich-club ordering in complex networks (Colizza et al. 2006)
+      url: https://arxiv.org/abs/physics/0602134
+      summary: Rich-club coefficient must be normalized by a degree-preserving null; unnormalized curves rise even in random graphs
+    - title: Comment on network motifs (Artzy-Randrup et al. 2004)
+      url: https://www.marcottelab.org/users/CH391L/Handouts/Networkmotifcomment1.pdf
+      summary: A spatial toy network yields the same "significant" motifs; the null must preserve non-hypothesis structure
+    - title: graph-tool motif_significance
+      url: https://graph-tool.skewed.de/static/docs/stable/autosummary/graph_tool.clustering.motif_significance.html
+      summary: Motif z-scores against rewired ensembles
+    - title: NetworkX small-world module
+      url: https://networkx.org/documentation/latest/reference/algorithms/smallworld.html
+      summary: random_reference, sigma and omega small-world tests
+    - title: Randomization methods can lead to divergent conclusions (De Clerck et al. 2024)
+      url: https://arxiv.org/abs/2405.05400
+      summary: Different null randomization methods change conclusions
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

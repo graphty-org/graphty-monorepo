@@ -1246,6 +1246,9 @@ function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf,
             put("labelItalic", known[1]);
         }
     }
+    if (treeAttr(label, "underlinedText") === "true") {
+        put("labelUnderline", true);
+    }
     readRotation(label, put, at);
     if (node) {
         const position = sizedLabelPosition(label, nodeLabelPosition(label, geometry, at));
@@ -2613,6 +2616,29 @@ export function yedArrowWidth(arrow: unknown): number | null {
 }
 
 /**
+ * Takes off the heads yEd loses on a polyline: yEd aims a head along the leg from the bend beside it to its port, and
+ * with that bend on the port the leg has no direction, so yEd draws the head somewhere else, not at its end
+ * (gml-synthetic-coverage 7 -> 8: its white_diamond lands on the tip of 2 -> 3's head, across the drawing).
+ * @param ends - the route's source and target ports
+ * @param bends - its bends, from the source
+ * @param put - receives the values
+ */
+export function putLostYedHeads(
+    ends: readonly [BendPoint, BendPoint],
+    bends: readonly BendPoint[],
+    put: (property: string, value: string) => void,
+): void {
+    const on = (bend: BendPoint | undefined, end: BendPoint): boolean =>
+        bend !== undefined && Math.hypot(bend[0] - end[0], bend[1] - end[1]) < 1e-6;
+    if (on(bends[0], ends[0])) {
+        put("sourceArrow", "none");
+    }
+    if (on(bends.at(-1), ends[1])) {
+        put("targetArrow", "none");
+    }
+}
+
+/**
  * Reads a framed edge (GenericEdge `com.yworks.edge.framed`) as yEd draws it: a closed outline 1 wide in the line's
  * color round a band as wide as the line, filled with `FramedEdgePainter.fillColor` (graphml-galaxy-lcms-workflow: a
  * band 3 wide stroked 1 wide over a #ffffff fill of the same outline). The fill is the line, 1 narrower than the band,
@@ -2627,11 +2653,7 @@ export function yedArrowWidth(arrow: unknown): number | null {
  */
 function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): string | null {
     const band = canonNumber(treeAttr(line, "width"), at("width")) ?? 1;
-    const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
-    const fill = treeAttr(
-        props.find((p) => treeAttr(p, "name") === "FramedEdgePainter.fillColor"),
-        "value",
-    );
+    const fill = framedFillColor(r);
     if (fill === undefined || band <= 1) {
         put("width", band + 1);
         return null;
@@ -2644,6 +2666,34 @@ function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): s
     put("width", band - 1);
     put("outlineWidth", 2);
     return fill;
+}
+
+/**
+ * A framed edge's `FramedEdgePainter.fillColor`.
+ * @param r - the realizer element
+ * @returns the color as the file writes it, or undefined where it has none
+ */
+function framedFillColor(r: unknown): string | undefined {
+    const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
+    return treeAttr(
+        props.find((p) => treeAttr(p, "name") === "FramedEdgePainter.fillColor"),
+        "value",
+    );
+}
+
+/**
+ * Reads the arrowheads of a framed edge with no fill color as yEd draws them: its outline runs round each head too, so
+ * a standard head is the vee's outline, its inside empty (graphml-stm32-func n2 -> n1: yEd's one closed path runs from
+ * the band round both notched heads, with fill="none").
+ * @param arrows - the edge's `y:Arrows`
+ * @param put - receives the values
+ */
+function readHollowHeads(arrows: unknown, put: PutValue): void {
+    for (const end of ["source", "target"] as const) {
+        if (treeAttr(arrows, end) === "standard") {
+            put(`${end}Arrow`, "other:hollow-vee");
+        }
+    }
 }
 
 /**
@@ -2678,11 +2728,12 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
     const { r } = real;
     const line = treeChild(r, "LineStyle");
     let framedFill: string | null = null;
+    const framed = real.type === "GenericEdge" && treeAttr(r, "configuration") === "com.yworks.edge.framed";
     if (line !== undefined) {
         readColor(treeAttr(line, "color"), "color", "opacity", put, at);
         put("width", yedDrawnWidth(canonNumber(treeAttr(line, "width"), at("width"))));
         put("lineStyle", canonEnum("lineStyle", treeAttr(line, "type"), "yed", at("lineStyle")));
-        if (real.type === "GenericEdge" && treeAttr(r, "configuration") === "com.yworks.edge.framed") {
+        if (framed) {
             framedFill = readFramedEdge(r, line, put, at);
         }
     }
@@ -2696,6 +2747,8 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         put("targetArrowWidth", yedArrowWidth(treeAttr(arrows, "target")));
         if (framedFill !== null) {
             readFramedHeads(arrows, framedFill, put, at);
+        } else if (framed && framedFillColor(r) === undefined) {
+            readHollowHeads(arrows, put);
         }
     }
     if (treeAttr(line, "hasColor") === "false") {
@@ -3504,6 +3557,7 @@ export const GRAPHML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze(
         "labelFont",
         "labelWeight",
         "labelItalic",
+        "labelUnderline",
         "labelPosition",
     ] as const),
     edge: Object.freeze([
@@ -3523,6 +3577,7 @@ export const GRAPHML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze(
         "labelFont",
         "labelWeight",
         "labelItalic",
+        "labelUnderline",
     ] as const),
     block: "attributes",
 });
@@ -3582,6 +3637,12 @@ export const YED_ARROWS: ReadonlyMap<string, string> = new Map([
     ["other:open-vee", "plain"],
 ]);
 
+/**
+ * The values the reader keeps as `other:` that are not yEd names, by the yEd name drawn nearest to them: a hollow vee
+ * (an unfilled framed edge's standard head) goes back as the standard head, filled.
+ */
+const YED_NEAREST: ReadonlyMap<string, string> = new Map([["other:hollow-vee", "standard"]]);
+
 /** yEd's internal label model positions by neutral position: the center, and against a side or in a corner inside. */
 const INTERNAL_MODEL_POSITIONS: ReadonlyMap<string, string> = new Map(
     [...INTERNAL_POSITIONS].map(([model, position]) => [position, model]),
@@ -3610,6 +3671,10 @@ export function yedValue(table: ReadonlyMap<string, string>, value: string, near
     const exact = table.get(value);
     if (exact !== undefined) {
         return { value: exact, exact: true };
+    }
+    const near = YED_NEAREST.get(value);
+    if (near !== undefined) {
+        return { value: near, exact: false };
     }
     // a value the reader kept as other:<raw> goes back as written
     return value.startsWith("other:") ? { value: value.slice(6), exact: true } : { value: nearest, exact: false };
@@ -3700,6 +3765,9 @@ function labelFontTree(get: GetValue): Tree {
     if (weight !== null || italic !== null) {
         const style = (isBoldWeight(weight) ? "bold" : "") + (italic === true ? "italic" : "");
         label["@_fontStyle"] = style.length === 0 ? "plain" : style;
+    }
+    if (get("labelUnderline") === true) {
+        label["@_underlinedText"] = "true";
     }
     return label;
 }

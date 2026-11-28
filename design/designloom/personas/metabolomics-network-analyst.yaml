@@ -1,0 +1,69 @@
+id: metabolomics-network-analyst
+name: Metabolomics Network Analyst
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
+role: Metabolomics Scientist (targeted and untargeted LC-MS, GC-MS or NMR studies)
+quote: I have forty significant metabolites and a concentration table from two hundred plasma samples. Show me how they connect to genes and diseases, and which ones move together, then give me a file Cytoscape opens.
+bio: >-
+    Dr. Amira Haddad is a metabolomics scientist in a clinical or nutrition research group. She is not a flux modeler and
+    does not build genome-scale models. Her studies end in two things: a list of significant metabolites (compound names,
+    HMDB or KEGG ids, often with fold changes) from a case-control comparison, and a samples-by-metabolites concentration
+    table, sometimes with unknown features. She uses MetaboAnalyst's Network Explorer, a web tool with no code, in two
+    ways. Knowledge-driven: she pastes the list (and, in multi-omics studies, a gene list), reviews how the names mapped to
+    HMDB and KEGG, picks a network (KEGG global metabolic network, gene-metabolite, metabolite-disease,
+    metabolite-metabolite or metabolite-gene-disease), sorts nodes by degree and betweenness, runs pathway enrichment on
+    the nodes she highlights and finds shortest paths. Data-driven: she uploads the concentration table, normalizes it,
+    and builds a debiased sparse partial correlation (DSPC) network, then filters edges by p-value and coefficient. She
+    downloads PNG or SVG images and SIF or GraphML files for Cytoscape. MetaboAnalyst served over three million jobs from
+    more than 100,000 users in the 12 months before its 5.0 paper; network use is a small share of that.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: basic
+    domain_knowledge: advanced
+motivations:
+    - Explain a metabolic phenotype by linking significant metabolites to genes, pathways and diseases
+    - See which metabolites move together across samples, including unknown features
+    - Get a network figure and a hub list for the paper
+    - Hand the network to Cytoscape or a collaborator as a file
+behaviors:
+    - Pastes compound names, HMDB or KEGG ids with optional fold changes and checks the name mapping table
+    - Chooses a knowledge network by its source (KEGG for metabolism, STITCH for gene and metabolite links, HMDB for diseases)
+    - Ranks nodes by degree and betweenness to name hubs, and extracts highlighted nodes as a new module
+    - Runs hypergeometric pathway enrichment on all, up, down or highlighted nodes
+    - Builds a DSPC network from a log-transformed, auto-scaled concentration table and keeps the default top edges
+    - Reads red edges as positive and blue edges as negative partial correlations
+frustrations:
+    - Too many nodes make the network too dense to read and the browser slow; the tool recommends 200 to 2000 nodes
+    - Node labels only appear when a node is enlarged
+    - Knowledge networks other than KEGG cover human studies only
+    - The default DSPC view keeps only the top edges by p-value, so the drawn network depends on a cut she did not choose
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W3102
+    - W3103
+sources:
+    - title: MetaboAnalyst Network Explorer Tutorial I (knowledge-driven, Chong and Xia 2018)
+      url: https://api2.xialab.ca/api/download/metaboanalyst/tutorial8.pdf
+      summary: Upload, name mapping, five network types, Node, Function and Path Explorers, 200-2000 node advice, PNG, SVG and GraphML export
+    - title: MetaboAnalyst Network Explorer Tutorial II (DSPC, Chang and Xia 2020)
+      url: https://api2.xialab.ca/api/download/metaboanalyst/tutorial9.pdf
+      summary: Concentration table, normalization, DSPC, subnetworks of three or more nodes, SIF download, top-edge default
+    - title: MetaboAnalyst 5.0 Network Explorer tutorial (2022)
+      url: https://api2.xialab.ca/api/download/metaboanalyst/6_Network_Explorer.pdf
+      summary: Knowledge-driven and data-driven routes; DSPC also in the Statistical Analysis module
+    - title: Pang et al. 2021 - MetaboAnalyst 5.0
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8265181
+      summary: Over three million jobs from more than 100,000 users in 12 months; DSPC networks added
+    - title: MetaboAnalyst tutorials index
+      url: https://metaboanalyst.ca/docs/Tutorials.xhtml
+      summary: Network Explorer Tutorials I and II and the 5.0 network tutorial
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,27 @@
+id: event-table-to-graph
+name: Event Table to Graph
+category: analysis
+description: Import timestamped event tables (time, sender, receiver, increment or replace) with a node table, and slice
+    or aggregate them by time window.
+status: planned
+notes: "Research trace: academic-social-network-research.md section 10, table row 21 (Must)."
+algorithms: []
+used_by_workflows:
+    - W07
+    - W112
+    - W113
+    - W293
+    - W33
+    - W36
+implemented_by_components: []
+requirements:
+    - "Must: Timestamped event streams (sender, receiver, time, weight): import, slice and aggregate by time window,
+      animate"
+    - "Must: Pick entity columns from an event table (CSV or SIEM result) to generate entity nodes and event links, a hypergraph projection."
+    - "Must: Aggregate raw events into host-to-host, account-to-host or subnet edges with counts, first and last seen and a minimum-weight threshold, and drill from an aggregated edge to its raw rows."
+    - "Must: Build a network from one-row-per-event tables: choose endpoint columns (including several recipient columns and pointer columns joined to another record), normalize identifiers, choose aggregation and weight rule or keep events as multi-edges with drill-down, or build a hypergraph."
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 21)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Must in the research. Covered by Designloom when researched: partly
+          (temporal-analysis and W19, planned, cover windows over timestamped edges; no event-table import)"

@@ -8,6 +8,36 @@ implements_capabilities:
 used_in_workflows:
     - W09
     - W11
+    - W104
+    - W106
+    - W109
+    - W114
+    - W166
+    - W169
+    - W173
+    - W178
+    - W181
+    - W192
+    - W206
+    - W215
+    - W216
+    - W218
+    - W219
+    - W220
+    - W221
+    - W223
+    - W227
+    - W320
+    - W360
+    - W389
+    - W408
+    - W429
+    - W434
+    - W45
+    - W77
+    - W83
+    - W1132
+    - W3049
 dependencies:
     - metric-card
     - histogram

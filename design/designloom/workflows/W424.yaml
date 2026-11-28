@@ -1,0 +1,121 @@
+id: W424
+name: Test a Causal DAG Against Data and Check Its Equivalence Class
+category: analysis
+validated: false
+personas:
+    - causal-dag-epidemiologist
+    - causal-discovery-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - path-highlighting
+    - node-selection
+    - details-on-demand
+    - comparison-view
+    - legend-display
+    - export-image
+    - causal-edge-marks
+    - causal-path-analysis
+    - implied-independence-testing
+    - causal-model-formats
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - data-table-panel
+    - ranked-node-table
+    - node-details-panel
+    - comparison-view
+    - legend-panel
+    - image-export-dialog
+starting_state:
+    data_type: a drawn DAG (DAGitty model code) plus a tabular dataset whose column names match the node names
+    node_count: 10-45
+    edge_density: moderate
+    user_expertise: expert
+goal: >-
+    **Intent**: Check whether the data contradict the DAG's testable implications, revise the DAG where they do, and
+    confirm that the chosen adjustment set holds across every DAG the data cannot tell apart. Rare in practice (none of
+    Tennant's 234 papers tested their DAG), but dagitty R and expert-in-the-loop refinement target it.
+
+
+    **Mental Model**: "Which of my missing arrows does the data disagree with?" Every pair of nodes the DAG says is
+    independent given some set is a test; a failed test points at a missing arrow, a wrong direction, a hidden cause or
+    measurement error.
+
+
+    **Task Phases**:
+
+    1. **Bring the DAG and data together** - Paste the model code into R; node names must match data columns
+
+    2. **Test implications** - localTests(dag, data, type = "cis") tests each implied conditional independence (also
+    loess and tetrad tests for latents); the paper's example had 64 implications; correct with Holm-Bonferroni
+
+    3. **Read the results** - plotLocalTestResults() shows estimates and intervals sorted by distance from zero
+
+    4. **Diagnose failures** - For a failed implication, choose among a misdirected arrow, a missing latent cause or
+    measurement error; expert-in-the-loop tools rank candidate missing edges by fit impact and the expert decides
+
+    5. **Check the equivalence class** - equivalentDAGs() and equivalenceClass(): arrows that vary across the class
+    lose their arrowheads (bilirubin example: 41 arrows, 40 equivalent DAGs, 30 fixed); confirm the adjustment set holds
+    across the class
+
+
+    **Decision Points**:
+
+    - Which failed implications matter after multiple-testing correction?
+
+    - Is the fix a new arrow, a reversed arrow, a latent node or nothing (measurement error)?
+
+    - Does the adjustment set survive every equivalent DAG?
+
+
+    **Information Needs**:
+
+    - Each implied independence with its estimate, interval and corrected p-value, linked to the node pair on the graph
+
+    - Which arrows are fixed and which are reversible across the equivalence class
+
+    - The fit impact of each candidate missing edge
+
+
+    **Pain Points**:
+
+    - Test results are a separate plot, not marked on the pair of nodes they concern
+
+    - The equivalence class is a list of DAGs, not one graph with reversible arrows drawn without heads
+
+    - Node names must match data columns exactly
+
+
+    **Data Flow**:
+
+    - Input: DAGitty model code and a CSV or data frame with matching column names
+
+    - Transformations: Enumerate implied conditional independencies, test with partial correlation, chi-square or
+    loess, Holm-Bonferroni correction, compute the Markov equivalence class (CPDAG)
+
+    - Output: Ranked failed implications, revised DAG, equivalence-class view, adjustment set checked across the class
+success_criteria:
+    - metric: Failed-implication visibility
+      target: Every failed implication can be located on the graph as a node pair in one click
+    - metric: Equivalence-class clarity
+      target: User can say which arrows are reversible without reading a list of DAGs
+sources:
+    - title: Textor et al. 2016 - robust causal inference using DAGs, the R package dagitty
+      url: https://eprints.whiterose.ac.uk/id/eprint/109517/7/ije-sap-final.pdf
+      summary: localTests with 64 implications, Holm-Bonferroni, equivalence class of the bilirubin example
+    - title: dagitty reference - plotLocalTestResults
+      url: https://search.r-project.org/CRAN/refmans/dagitty/html/plotLocalTestResults.html
+      summary: Estimates and intervals sorted by distance from zero
+    - title: Ankan and Textor - expert-in-the-loop DAG refinement (UAI 2025)
+      url: https://proceedings.mlr.press/v286/ankan25a.html
+      summary: Ranks candidate missing edges by fit impact for an expert to accept or reject
+    - title: Tennant et al. 2021 - review of 234 DAG articles
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8128477
+      summary: None of the reviewed papers tested their DAG against data
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

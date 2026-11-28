@@ -339,10 +339,13 @@ const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
 // saved view name, never words the element shows. TourRenameCommand.from and .to: the consumer's
 // own names for a saved tour, before and after.
 const PLAIN_STRING_MEMBERS = new Set([
-    // a CSS color the consumer passed to styles.showDraft, handed back by styles.shownDraft
+    // CSS colors the consumer passed to styles.showDraft, handed back by styles.shownDraft
+    "DraftView.removed",
     "DraftView.untouched",
     "JoinChoices.membership",
     "JoinLink.kind",
+    // the separator the consumer's cells hold several values by, as the consumer passed it
+    "SourceExtractOptions.split",
     "SourceHubValue.value",
     "SourceDraftPreview.draft",
     "SourceDraftPreviewIssue.filter",

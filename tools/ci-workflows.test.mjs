@@ -692,7 +692,7 @@ describe("ci.yml", () => {
         const test = job(ci, "test");
         assert.match(
             test,
-            /- name: Fetch the Git LFS files the shard reads\n\s+if: matrix\.lfs\n\s+run: git lfs pull --include "\$\{\{ matrix\.lfs \}\}"\n/,
+            /- name: Fetch the Git LFS files the shard reads\n\s+if: matrix\.lfs\n\s+run: tools\/lfs-pull-retry\.sh --include "\$\{\{ matrix\.lfs \}\}"\n/,
         );
         assert.ok(test.indexOf("Fetch the Git LFS files the shard reads") < test.indexOf("- name: Run tests"));
     });
@@ -3131,7 +3131,7 @@ describe("no outside download at run time (#6308, #6390)", () => {
         it(`${file}: a cache hit installs the T4 container's packages with dpkg and never runs apt`, () => {
             const r = bootstrap(file, { hit: "true", cached: ["a.deb", "b.deb"] });
             assert.equal(r.status, 0, r.stdout + r.stderr);
-            assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n$/);
+            assert.match(r.calls, /^dpkg -i --auto-deconfigure \S+\/a\.deb \S+\/b\.deb\n$/);
         });
 
         it(`${file}: a cache hit that installed too little fails the bootstrap`, () => {
@@ -3276,7 +3276,7 @@ describe("apt in the workflows", () => {
     it("mesa-lavapipe: a hit installs with dpkg alone and never runs apt", () => {
         const r = runLavapipe(2, { env: { HIT: "true", NEEDED: "true" }, cached: ["a.deb", "b.deb"] });
         assert.equal(r.status, 0, r.stdout + r.stderr);
-        assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n$/);
+        assert.match(r.calls, /^dpkg -i --auto-deconfigure \S+\/a\.deb \S+\/b\.deb\n$/);
     });
 
     it("mesa-lavapipe: a miss installs from the image's index, and updates the index only when that fails", () => {
@@ -3326,8 +3326,12 @@ describe("actions/cache in the workflows", () => {
             const script = JSON.parse(readFileSync(new URL(`../${project}/package.json`, import.meta.url), "utf8"))
                 .scripts.lint;
             // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file; eslint runs
-            // in the machine-wide lint slot so agents' eslints never stack up and get killed (#5904)
-            assert.match(script, /^node \.\.\/tools\/test-slots\.mjs --lint eslint [^&]*\$ESLINT_CACHE &&/);
+            // in the machine-wide lint slot so agents' eslints never stack up and get killed (#5904); a heap size
+            // may come first, since two type-aware workers outgrow Node's default 4 GB heap (#10232)
+            assert.match(
+                script,
+                /^(?:NODE_OPTIONS="[^"]*" )?node \.\.\/tools\/test-slots\.mjs --lint eslint [^&]*\$ESLINT_CACHE &&/,
+            );
             assert.deepEqual(target.outputs, ["{projectRoot}/node_modules/.cache/eslint"]);
             // never "--concurrency auto": it starts one type-aware worker (2.5 GB or more each) per two cores, 16 on
             // the 32-core dev machine, which drove the machine out of memory and got the lint killed with SIGTERM
@@ -3512,7 +3516,7 @@ echo "${aptSays}"`,
     it("on a hit installs exactly the cached files with dpkg and never runs apt", () => {
         const r = run({ hit: "true", cached: ["a.deb", "b.deb"] });
         assert.equal(r.status, 0, r.stdout + r.stderr);
-        assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n/m);
+        assert.match(r.calls, /^dpkg -i --auto-deconfigure \S+\/a\.deb \S+\/b\.deb\n/m);
         assert.doesNotMatch(r.calls, /install-deps chromium/);
         assert.match(r.stdout, /All 2 packages Chromium needs are installed/);
     });
@@ -3594,7 +3598,7 @@ describe("gpu.yml", () => {
         const t4 = job(gpu, "test-gpu");
         assert.match(
             t4,
-            /git lfs pull --include "visual-fonts\/\*\*,cytoscape-extensions\/test\/gpu-screenshots\/\*\*"/,
+            /tools\/lfs-pull-retry\.sh --include "visual-fonts\/\*\*,cytoscape-extensions\/test\/gpu-screenshots\/\*\*"/,
         );
         assert.match(
             t4,

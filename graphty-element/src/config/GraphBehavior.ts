@@ -79,7 +79,9 @@ const LabelBehaviorOpts = z
          * four corners) and draws it at the first one that covers no other label, node or edge;
          * failing that, at one that covers no label or node. When none of them is clear of other
          * labels and nodes, `declutter` hides the label; with `declutter` off it stays where its
-         * style puts it. Decided again whenever `declutter` is.
+         * style puts it. A label whose style puts it on its node (`location: "center"` or `"inside-*"`), or
+         * whose place a layer states (`node.labelLocation`, as a file's styles state a label below its node), is never
+         * moved from it; `declutter` may still hide it. Decided again whenever `declutter` is.
          */
         avoidNodesAndEdges: z.boolean().default(false),
         /**
@@ -206,6 +208,17 @@ const CameraBehaviorOpts = z
          * next load or layout hands framing back. Nothing happens with `autoFrame` off.
          */
         refitOnResize: z.boolean().default(false),
+        /**
+         * Whether nodes are hovered while the reader drags the camera (an orbit or a pan started on
+         * the canvas, by a mouse button or a touch).
+         *
+         * ON BY DEFAULT, so a drag hovers every node the pointer crosses, as it always has. Off, a
+         * camera drag hovers nothing: the hovered node stays as it was, no tooltip opens and no
+         * `node-hover` fires until the drag ends, and then the node under the pointer is hovered at
+         * once, without another move. Dragging a node is not a camera drag and is not affected. An
+         * edge is never hovered during any drag.
+         */
+        hoverWhileDragging: z.boolean().default(true),
     })
     .prefault({});
 

@@ -1,0 +1,29 @@
+id: target-set-activity-scoring
+name: Upstream activity scoring from target values
+category: analysis
+description: Score each source node of a directed two-mode graph from the measured values on its targets -- for example
+    a kinase from the log fold changes of its known substrate sites (KSEA) -- as a mean, a z-score against all measured
+    targets or a count of significant up minus down targets, with a p-value, Benjamini-Hochberg FDR, a minimum
+    measured-target count, and the score, FDR and target count written back to the source node.
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 56 (Must)."
+algorithms: []
+used_by_workflows:
+    - W3066
+implemented_by_components: []
+requirements:
+    - "Must: Upstream activity scoring from target values: mean, z-score and delta count, one-sided p with
+      Benjamini-Hochberg FDR, a minimum measured-target count"
+    - "Must: Record the source database and its version, the minimum count, the method and the cutoffs with the result."
+    - "Must: Accept a precomputed score table (KSEA App, PTM-SEA, RoKAI output) instead of computing it."
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 5.2 and
+          section 10, requirement 56)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: not covered"
+    - title: Wirbel, Cutillas and Saez-Rodriguez - KSEA protocol in kinact
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6126574
+      summary: Mean, significant-only mean and delta count methods; BH correction; p < 0.05 for significant sites
+    - title: KSEAapp KSEA.Complete reference
+      url: https://search.r-project.org/CRAN/refmans/KSEAapp/html/KSEA.Complete.html
+      summary: m.cutoff, p.cutoff and NetworKIN.cutoff arguments; writes the kinase-substrate links used

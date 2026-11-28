@@ -1,0 +1,148 @@
+id: W438
+name: Check a Network Pharmacology Result for Robustness and Provenance
+category: analysis
+validated: false
+personas:
+    - ethnopharmacology-reviewer
+    - herbal-formula-mechanism-lead
+    - network-pharmacology-graduate-student
+    - network-toxicology-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - saved-filters
+    - centrality-degree
+    - comparison-view
+    - computed-attributes
+    - visual-encoding-edges
+    - details-on-demand
+    - analysis-history
+    - report-generation
+    - data-export
+    - provenance-tracking
+    - threshold-sweep
+    - set-operations
+    - visual-encoding-nodes
+    - legend-display
+    - identifier-mapping
+suggested_components:
+    - data-import-dialog
+    - data-table-panel
+    - filter-panel
+    - filter-chip
+    - ranked-node-table
+    - comparison-view
+    - network-list-panel
+    - node-details-panel
+    - analysis-history-panel
+    - report-generator-dialog
+    - graph-canvas
+    - data-export-dialog
+    - network-merge-dialog
+    - algorithm-panel
+    - visual-encoding-panel
+    - legend-panel
+starting_state:
+    data_type: a finished study's networks and lists, ideally with the recorded thresholds, database versions and sources per node and edge
+    node_count: 70-750
+    edge_density: medium
+    user_expertise: expert
+goal: >-
+    **Intent**: Decide whether a network pharmacology result is trustworthy: whether its counts can be re-derived,
+    whether its hubs survive another cutoff, and whether its mechanism holds when predicted-only edges are removed.
+    Rarely done by authors; it is what reviewers and editors ask for, and the documented weakness of the field.
+
+
+    **Mental Model**: "Pull the threads." Change a threshold, drop a source, drop predicted evidence, and see what is
+    left standing; a mechanism that disappears was an artifact.
+
+
+    **Task Phases**:
+
+    1. **Compare sources** - Pull compounds and targets from two or more databases and record their overlap; prefer
+    targets predicted by two sources
+
+    2. **Flag frequent hitters** - Mark compounds and targets that recur across unrelated studies or are pan-assay
+    interference compounds
+
+    3. **Re-run hub ranking** - At several STRING cutoffs and with several centralities; report which hubs persist
+
+    4. **Check enrichment** - Use a ranked or topology-aware method and report the background gene set
+
+    5. **Check docking** - Known site, positive control, second program
+
+    6. **Record everything** - Database versions, access dates, thresholds, the count at each step and full lists
+
+
+    **Decision Points**:
+
+    - Which alternative cutoffs to test?
+
+    - Is a hub that appears in half the field's papers evidence or popularity?
+
+    - Does the mechanism survive when only measured or curated edges are kept?
+
+
+    **Information Needs**:
+
+    - Source, version, access date and evidence class on every node and edge
+
+    - The count after every filter, re-derivable from the inputs
+
+    - Hub lists at several cutoffs side by side with persistence counts
+
+    - Which threshold removed which nodes
+
+
+    **Pain Points**:
+
+    - Manuscripts supply images and spreadsheets, not networks with provenance
+
+    - Counts contradict each other between methods, figures and tables
+
+    - No reporting standard or risk-of-bias tool exists
+
+
+    **Data Flow**:
+
+    - Input: Study networks and lists, source tables per database, threshold settings
+
+    - Transformations: Source overlap, evidence-class exclusion, multi-cutoff re-ranking, persistence count
+
+    - Output: Robustness report: persistent hubs, surviving mechanism, provenance table, discrepancy list
+success_criteria:
+    - metric: Exclusion test
+      target: Reviewer removes all predicted edges in one action and sees what survives
+    - metric: Sensitivity
+      target: Hub lists at three STRING cutoffs compared side by side within 10 minutes (design goal; no source measures it)
+    - metric: Re-derivation
+      target: Every count in the methods can be traced to a recorded input and threshold
+sources:
+    - title: Diao et al. 2026 (Frontiers in Pharmacology)
+      url: https://www.frontiersin.org/journals/pharmacology/articles/10.3389/fphar.2026.1748478/full
+      summary: Homogeneous results and remedies -- exposure data, frequent-hitter screening, debiased prediction, GSEA with background, context-aware centrality
+    - title: Wang et al. 2024, TCM database disagreement (Frontiers in Pharmacology)
+      url: https://www.frontiersin.org/journals/pharmacology/articles/10.3389/fphar.2024.1303693/full
+      summary: Across nine TCM databases only 78 herbs are shared, and across eight only 295 ingredients
+    - title: Che and Zhang 2025, docking in network pharmacology
+      url: https://www.frontiersin.org/journals/pharmacology/articles/10.3389/fphar.2025.1566772/full
+      summary: No positive controls in 35 papers; Vina correlation falls from 0.604 at a defined site to 0.387 blind
+    - title: PAINS and unreachable concentrations among flavonoids (PMC10264668)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10264668
+      summary: Frequent-hitter and assay-interference concerns for common network pharmacology compounds
+    - title: Frontiers in Pharmacology Four Pillars of Best Practice
+      url: https://www.frontiersin.org/files/pdf/4_pillars_FULL_TEXT.pdf
+      summary: Network must be visualized so the mechanism and individual data points can be understood
+    - title: F1000Research review of 36 herbal network pharmacology studies
+      url: https://f1000research.com/articles/14-1384
+      summary: No formal risk-of-bias tool; Cytoscape version omitted in 11 of 36 studies
+    - title: Single-database dependence (PMC9143318)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9143318
+      summary: Studies depend on usually one single database
+    - title: Two-herb pair network pharmacology (PMC7838196)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7838196
+      summary: Dates every database source, a rare practice
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

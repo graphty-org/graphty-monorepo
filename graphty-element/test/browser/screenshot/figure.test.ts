@@ -253,13 +253,17 @@ function offLine(p: number[], a: number[], b: number[]): number {
     return Math.abs(cross) / Math.hypot(b[0] - a[0], b[1] - a[1]);
 }
 
-test("a curved edge is drawn along the curve the canvas draws", async () => {
+// with no head, on renderPath "batched" a curve is drawn with no `Edge`, from its rows (issue #10046)
+test.each([
+    ["with its head", {}],
+    ["with no head", { "edge.arrowHead": "none" }],
+] as const)("a curved edge %s is drawn along the curve the canvas draws", async (_, head) => {
     graph = await createTestGraphWithData();
     await graph.getSession().styles.add({
         name: "Curved",
         target: "edge",
         selector: { match: "everything" },
-        set: { "edge.curvature": true },
+        set: { "edge.curvature": true, ...head },
     });
     await graph.waitForStableFrame();
 

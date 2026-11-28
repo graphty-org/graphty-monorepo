@@ -4075,7 +4075,7 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.986,
+            "label.present": 1,
             "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
@@ -4146,7 +4146,7 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.986,
+            "label.present": 1,
             "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
@@ -17442,7 +17442,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.991,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -17464,12 +17464,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.86,
-            "raster.canvas": 0.97,
-            "raster.edge": 0.91,
-            "raster.label": 0.9,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.89,
+            "raster.arrowhead": 0.91,
+            "raster.canvas": 0.98,
+            "raster.edge": 0.96,
+            "raster.label": 0.93,
+            "raster.nodeBody": 0.96,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "dot-synth-nodes@matched": {
@@ -17506,7 +17506,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.982,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -27735,7 +27735,7 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.996,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -27811,7 +27811,7 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.996,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -39320,7 +39320,7 @@
             "raster.nodeOutline": 0.95,
             "raster.edge": 0.89,
             "raster.arrowhead": 0.95,
-            "raster.label": 0.92,
+            "raster.label": 0.93,
             "raster.canvas": 0.99
         },
         "yed-graphml-specimen-edge-labels@matched": {
@@ -56195,14 +56195,6 @@
                 "date": "2026-11-16"
             }
         },
-        "dot-synth-nodes": {
-            "node.position": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "2026-11-15: oracle redrawn by Graphviz 16.1.0 in WebAssembly with each fontname sized as graphty-element sizes it (#8195): at that oracle two elements miss by under two render px -- s_proteinstab's place (1.6 px against a 1.5 px floor of the tolerance) and one softmaint route at matched places; left to judge under #8194",
-                "date": "2026-11-16"
-            }
-        },
         "gexf-specimen-labels-p11": {
             "label.backgroundBox": {
                 "floor": 1,
@@ -56308,22 +56300,6 @@
                 "floor": 1,
                 "to": 0.889,
                 "reason": "2026-11-22 (#9726): the comparator now finds gml-synthetic-coverage's edge 49 -> 60 (node 60 is drawn by neither program; yEd stops its line at its crow's foot's back), so its no-box side_slider label e47 is judged: yEd draws it below its line, 7.5 px along, where it finds room; graph-io puts a no-box side_slider label above its line's start, as yEd draws e2, e11, e20, e29 and e74",
-                "date": "2026-11-23"
-            }
-        },
-        "graphml-stm32-func": {
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.98,
-                "reason": "2026-11-22 (#8189): the comparator now reads graphml-stm32-func's framed edge n2 -> n1 (yEd's outline started at the source arrowhead's wing), so its heads are judged: yEd draws a framed edge with no fill color as its outline alone, its standard heads hollow, where graphty-element fills them (it has no hollow vee arrow)",
-                "date": "2026-11-23"
-            }
-        },
-        "graphml-stm32-func@matched": {
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.98,
-                "reason": "2026-11-22 (#8189): the comparator now reads graphml-stm32-func's framed edge n2 -> n1 (yEd's outline started at the source arrowhead's wing), so its heads are judged: yEd draws a framed edge with no fill color as its outline alone, its standard heads hollow, where graphty-element fills them (it has no hollow vee arrow)",
                 "date": "2026-11-23"
             }
         },

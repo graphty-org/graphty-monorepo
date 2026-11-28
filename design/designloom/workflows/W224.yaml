@@ -1,0 +1,121 @@
+id: W224
+name: Supply Chain Network Design - Baseline, Optimized Baseline and What-If
+category: analysis
+validated: false
+personas:
+    - network-design-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - comparison-view
+    - view-bookmarks
+    - details-on-demand
+    - statistics-panel
+    - report-generation
+    - export-image
+    - data-export
+    - geographic-layout
+    - flow-capacity-analysis
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - graph-canvas
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - bookmark-panel
+    - statistics-panel
+    - report-generator-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: layered flow network of plants, distribution centers and customers with lanes, rates, demand and facility costs
+    node_count: 50-5000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Build a model that reproduces last year's network costs, then compare scenarios that open, close or
+    resize facilities, and present flows and costs to leadership.
+
+
+    **Mental Model**: "Baseline first, then what-ifs against it." Every scenario is the same network with facilities
+    switched on or off and flows re-solved.
+
+
+    **Task Phases**:
+
+    1. **Fill tables** - Locations, products, demand, lanes and rates, facility costs and capacities, sourcing rules
+
+    2. **Baseline** - Reproduce how the network performed last year and validate costs
+
+    3. **Optimized baseline** - Follow the rules that should have been in place; this becomes the new starting point
+
+    4. **Scenarios** - Each facility set to include, exclude or consider; greenfield proposes locations
+
+    5. **Compare** - The best solutions side by side on profit and cost; a map draws the routes
+
+    6. **Stress test** - Simulated disruptions on the chosen design
+
+
+    **Decision Points**:
+
+    - Does the baseline match actual costs closely enough to trust?
+
+    - Which facilities are fixed, excluded or open for the optimizer?
+
+    - Which scenario balances cost, service and risk?
+
+
+    **Information Needs**:
+
+    - Flow volume and cost per lane, per scenario
+
+    - Which facilities are open in each scenario
+
+    - Total cost and service differences between scenarios
+
+    - Missing cost data discovered while building the baseline
+
+
+    **Pain Points**:
+
+    - Cost data is the hardest to get and the gaps appear only after the baseline is built
+
+    - Scenario results end up in separate spreadsheets
+
+    - Location codes vary across systems
+
+
+    **Data Flow**:
+
+    - Input: Location, product, demand, lane, rate and facility tables; last year's shipments
+
+    - Transformations: Optimization (in the design tool), facility on/off per scenario, flow assignment
+
+    - Output: Flow maps with lane width by volume, scenario cost comparison table, recommendation deck
+success_criteria:
+    - metric: Baseline validation
+      target: Baseline cost difference from actuals stated explicitly
+    - metric: Scenario comparison
+      target: Several scenarios compared side by side with facility status and lane flows
+sources:
+    - title: Watson, network design baseline models (SCDigest)
+      url: https://www.scdigest.com/EXPERTS/DrWatson_14-07-08.php?cid=8252
+      summary: Baseline validates last year's costs; optimized baseline becomes the starting point
+    - title: anyLogistix network optimization tutorial
+      url: https://anylogistix.help/tutorial/tutorial-n-optimization.html
+      summary: Include, exclude or consider per DC; best solutions compared; routes on a map
+    - title: Watson, cost data in network design (SCDigest)
+      url: https://www.scdigest.com/experts/DrWatson_17-02-21.php?cid=11984
+      summary: Cost data hardest to get (read via search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

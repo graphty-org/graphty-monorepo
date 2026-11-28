@@ -1,0 +1,154 @@
+id: W91
+name: Reporter's Spreadsheet to a Network Without Code
+category: analysis
+validated: false
+personas:
+    - investigative-journalist
+    - newsroom-graphics-editor
+requires_capabilities:
+    - data-import
+    - data-preview
+    - data-validation
+    - layout-force-directed
+    - filtering
+    - centrality-betweenness
+    - degree-analysis
+    - community-detection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - tooltip-display
+    - details-on-demand
+    - export-image
+    - data-export
+    - guided-presentation
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - graph-canvas
+    - layout-panel
+    - filter-panel
+    - range-slider
+    - algorithm-panel
+    - visual-encoding-panel
+    - legend-panel
+    - node-tooltip
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: hand-built nodes sheet and connections sheet (CSV, XLSX or Google Sheet)
+    node_count: tens to a few hundred
+    edge_density: sparse to medium
+    user_expertise: novice
+goal: >-
+    **Intent**: Turn a spreadsheet a reporter typed by hand -- people, companies and the ties between them -- into a
+    network she can read for brokers and clusters, and into a chart a graphics editor can publish. This is the
+    workflow taught in journalism conference classes (Gephi at NICAR) and tutorials (Kumu, LittleSis Oligrapher,
+    Flourish).
+
+
+    **Mental Model**: "Two lists: who, and who is tied to whom." The reporter thinks in rows and relationship types,
+    not in graph theory; a measure is useful only if it can be said in one sentence ("sits between groups").
+
+
+    **Task Phases**:
+
+    1. **Define the relationship** (before collecting) - Board seat, shareholding, donation, family; one relationship
+    type per column value
+
+    2. **Build two sheets** - Nodes (id, label, type, attributes) and connections (source, target,
+    type, weight); a Gephi edge CSV needs Source and Target and an optional Type, and without Type every edge is
+    treated as directed, so check that direction matches the subject
+
+    3. **Import** - Gephi: import the edges table and copy Id to Label; Kumu: paste a shared Google Sheet link
+    that refreshes on reload (a publicly editable sheet would leak the investigation); Oligrapher: draw a small power
+    map by hand
+
+    4. **Lay out** - Fruchterman-Reingold or ForceAtlas2; an unfiltered network is a hairball
+
+    5. **Filter** - Range filter on edge weight (the class keeps Senate pairs that voted together at least 0.67
+    of the time); make sure tables and exports follow the filter ("visible graph only")
+
+    6. **Measure and encode** - Betweenness, average degree, modularity; size by betweenness, color by party
+    or community; remember that starting the collection from one person makes that person look central
+
+    7. **Export** - SVG or PDF for print, or JSON of the visible graph for a web page
+
+    8. **Or go straight to a reader chart** - Flourish Points sheet (id, group) and Links sheet (source,
+    target, value); arrows off for undirected data; reduce maximum link width when all weights are 1; title, source
+    footer and popups; embed
+
+
+    **Decision Points**:
+
+    - Are ties directed (donor to recipient) or undirected (co-board membership)?
+
+    - What weight threshold removes noise without removing the story?
+
+    - Is a central node central in the world, or only because collection started there?
+
+    - Is this an exploration picture or a publishable chart?
+
+
+    **Information Needs**:
+
+    - Import preview showing how columns were read (source, target, type, weight) and whether edges are directed
+
+    - Count of rows that became nodes and edges, and rows that failed
+
+    - Whether metrics and exports reflect the filtered or the full graph
+
+    - A one-sentence meaning for each measure
+
+
+    **Pain Points**:
+
+    - The directed-by-default CSV trap
+
+    - Statistics that change with the filter applied before them
+
+    - Hairballs from unfiltered data
+
+    - Free hosted tools that need a public sheet, leaking unpublished names
+
+
+    **Data Flow**:
+
+    - Input: Nodes CSV or XLSX (id, label, type, attributes) and connections CSV (source, target, type, weight), or a
+    Google Sheet
+
+    - Transformations: Spreadsheet import, layout, weight range filter, betweenness, degree, modularity, size and
+    color mappings
+
+    - Output: SVG or PDF figure, filtered node and edge tables, web-ready JSON or an embeddable chart
+success_criteria:
+    - metric: Sheet to readable network
+      target: Under 15 minutes from two sheets to a laid-out, filtered, colored network (design goal; no source measures it)
+    - metric: Direction correctness
+      target: User sees and can set whether imported edges are directed before analysis
+    - metric: Filter parity
+      target: Metrics, tables and exports state whether they use the visible or the full graph
+sources:
+    - title: Peter Aldhous - NICAR 2016 Gephi class
+      url: https://paldhous.github.io/NICAR/2016/gephi.html
+      summary: Spreadsheet import, directed-by-default warning, Fruchterman-Reingold, 0.67 weight range filter, betweenness, visible-only export
+    - title: Online Journalism Blog - A journalist's introduction to network analysis (2020)
+      url: https://onlinejournalismblog.com/2020/06/08/a-journalists-introduction-to-network-analysis/
+      summary: Define the relationship first; nodes and connections sheets; measures in one sentence
+    - title: First Draft - How to use network analysis to explore social media and disinformation
+      url: https://firstdraftnews.org/latest/how-to-use-network-analysis-to-explore-social-media-and-disinformation/
+      summary: Starting from one person makes that person look central; pictures are not conclusive charts
+    - title: Kumu - Import from Google Sheets
+      url: https://docs.kumu.io/guides/import/google-sheets
+      summary: Shared sheet link that refreshes on reload (read via search summary)
+    - title: LittleSis - Oligrapher for beginners
+      url: https://littlesis.org/news/littlesiss-oligrapher-for-beginners
+      summary: Hand-drawn power maps (read via search summary)
+    - title: Miriam Posner - Flourish network graph tutorial (2021)
+      url: https://miriamposner.com/classes/dh201w21/tutorials-guides/network-analysis/flourish-graph
+      summary: Points and Links sheets, arrows off, maximum width, popups, embed
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

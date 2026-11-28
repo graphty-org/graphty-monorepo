@@ -150,3 +150,37 @@ describe("styles.counts kept between reads", () => {
         session.dispose();
     });
 });
+
+describe("styles.counts across a click or a hover", () => {
+    it("recounts only the layers that follow the reader's state", async () => {
+        const session = await looks();
+        // Layers whose bindings read data, so each of their reads walks every element.
+        for (const field of ["w", "t"]) {
+            await session.styles.add({
+                name: `Size by ${field}`,
+                target: "node",
+                selector: { match: "everything" },
+                encode: { "node.size": { by: `data.${field}`, scale: "linear", range: [1, 3] } },
+            });
+        }
+        await session.styles.settled();
+        const layers = session.styles.list();
+        const followers = layers.filter((layer) => layer.selector.match === "state").map((layer) => layer.id);
+        const others = layers.map((layer) => layer.id).filter((id) => !followers.includes(id));
+        const before = countsOf(session, others);
+
+        await session.selection.apply({ ids: ["n30"] });
+        session.selection.hover("n31");
+        await session.styles.settled();
+        const start = countCounters.walks;
+        const after = countsOf(session, others);
+        const walked = countCounters.walks - start;
+
+        assert.deepEqual(after, before, "no layer that ignores the selection and the hover counts differently");
+        // Before, both data layers walked every node again on each click and hover: 2 x 60 walks.
+        assert.strictEqual(walked, 0, "and none of them walked the graph again");
+        const selected = layers.find((layer) => layer.name === "Selected" && layer.target === "node");
+        assert.strictEqual(session.styles.counts(selected?.id ?? "").matched, 1, "the Selected row recounted");
+        session.dispose();
+    });
+});

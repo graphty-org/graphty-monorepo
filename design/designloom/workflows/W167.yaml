@@ -1,0 +1,148 @@
+id: W167
+name: Drawing and Analyzing a Food Web by Trophic Level
+category: analysis
+validated: false
+personas:
+    - food-web-ecologist
+    - ecological-network-synthesis-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-hierarchical
+    - computed-attributes
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - degree-analysis
+    - basic-statistics
+    - statistics-panel
+    - node-merging
+    - filtering
+    - details-on-demand
+    - export-image
+    - data-export
+    - matrix-import
+    - trophic-level-layout
+suggested_components:
+    - data-import-dialog
+    - file-drop-zone
+    - column-mapper
+    - layout-panel
+    - layout-option
+    - graph-canvas
+    - computed-attributes-panel
+    - visual-encoding-panel
+    - legend-panel
+    - statistics-panel
+    - node-merge-dialog
+    - filter-panel
+    - node-details-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: resource-consumer link list plus a node table with body mass and abundance, or a square predator-by-prey matrix
+    node_count: 25-200 (metawebs up to about 1,100)
+    edge_density: moderate
+    user_expertise: expert
+goal: >-
+    **Intent**: Draw a directed food web with producers at the bottom and top predators at the top, place each species
+    at its (possibly fractional) trophic level, size it by body mass or abundance, and compute the classic food web
+    properties.
+
+
+    **Mental Model**: "Energy flows up." The vertical axis means trophic level; horizontal position only reduces
+    clutter. Cycles from cannibalism and omnivory are normal, not errors.
+
+
+    **Task Phases**:
+
+    1. **Assemble data** - Load a resource-consumer link table with a node table (body mass, abundance) or a
+    square 0/1 matrix; reject links to unknown nodes and duplicates
+
+    2. **Compute trophic level** - Prey-averaged, chain-averaged or fractional; tolerate cycles
+
+    3. **Plot by level** - Basal species at the bottom, level guide lines, staggered positions to reduce
+    overlap, node size by body mass, link width by strength if known
+
+    4. **Handle large webs** - For metawebs of hundreds of species, aggregate by group, use trophic level on
+    one axis and a similarity embedding on the other, and induce local webs from the metaweb by site occurrence
+
+    5. **Weighted flow webs** (optional) - Show flows as link width or as an animation of particles moving along links
+
+    6. **Analyze** - Connectance, chain length, omnivory, generality, vulnerability, body size against
+    trophic level
+
+    7. **Hand off** - Trophic-level figure, property table, community CSVs
+
+
+    **Decision Points**:
+
+    - Which trophic level definition (prey-averaged, chain-averaged, fractional)?
+
+    - Show individual species or aggregate into groups?
+
+    - Which local web to induce from the metaweb?
+
+    - Encode body mass, abundance or both?
+
+
+    **Information Needs**:
+
+    - Trophic level per node, shown on hover and as a column
+
+    - Basal, intermediate and top species counts
+
+    - Cycles present (cannibalism, omnivory loops)
+
+    - Connectance with the formula used
+
+
+    **Pain Points**:
+
+    - Layout algorithms designed for trophic networks are lacking; hierarchical layouts assume no cycles
+
+    - Fractional trophic levels are rarely supported
+
+    - No tool shows levels, abundances and link strength together
+
+    - Users hand-build layouts from distance to producers in igraph
+
+    - The best-known GUI handles three levels and runs only on Windows
+
+
+    **Data Flow**:
+
+    - Input: Link table plus node table, or square matrix; optional metaweb and site occurrence table
+
+    - Transformations: Validation, trophic level computation, trophic-level layout, aggregation, local web induction
+
+    - Output: Trophic-level drawing, property tables, exported community files
+success_criteria:
+    - metric: Layout correctness
+      target: Every node's vertical position matches its computed trophic level, including in webs with cycles
+    - metric: Readability
+      target: A 200-node web readable without manual node placement
+    - metric: Time to figure
+      target: Under 20 minutes from CSVs to an exported trophic-level figure (design goal; no source measures it)
+sources:
+    - title: cheddar package vignette - Plots and stats
+      url: https://packages.oit.ncsu.edu/cran/web/packages/cheddar/vignettes/PlotsAndStats.pdf
+      summary: Three-CSV community format, trophic level definitions and PlotWebByLevel
+    - title: metanetwork - representing and analyzing trophic metanetworks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10427773/
+      summary: Trophic level by t-SNE layout, aggregation of large webs and local webs induced from a metaweb
+    - title: Pawluczuk and Iskrzynski 2022 - Food web visualisation
+      url: https://doaj.org/article/f913913fd95242f086357d82b84f3566
+      summary: foodwebviz heat map, interactive graph by fractional trophic level and flow animation
+    - title: Food Web Designer
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4757606/
+      summary: Tripartite figures with bar and link widths; Windows only
+    - title: Food web plotting with igraph (Statistics Globe)
+      url: https://statisticsglobe.com/?p=34459
+      summary: Hand-built trophic layouts because built-in layouts were not satisfactory
+    - title: Interaction Web Database resources
+      url: https://iwdb.nceas.ucsb.edu/html/resources.html
+      summary: Food webs as square 0/1 matrices
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

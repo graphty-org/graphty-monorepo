@@ -2,11 +2,9 @@ import { KEYMAP_DESCRIPTORS, type KeymapAction } from "@graphty/graphty-element/
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import { defineRegistration } from "../commands/registry";
-import { sourceStepsOn } from "../features";
 import { selectionClearedWords } from "../inspector/words";
 import { unlessUnsaved } from "../project/actions";
-import { previewing } from "../source-steps/join";
-import { askIfDraftOpen, undoInCard } from "../source-steps/preview";
+import { askIfDraftOpen } from "../source-steps/preview";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { nothingDrawn } from "../toolbar/disabledReasons";
@@ -87,11 +85,6 @@ export const registration = defineRegistration({
             tooltip: ({ session }) => historyTip(session, true),
             run: async ({ session, workspace }) => {
                 if (session === null) {
-                    return;
-                }
-                // While the Join card previews, Undo takes back the draft's newest change.
-                if (sourceStepsOn(session) && previewing(workspace.get().sourceCard)) {
-                    undoInCard(workspace, session);
                     return;
                 }
                 // Undo names the step it took back (tier2-design.md section 1).

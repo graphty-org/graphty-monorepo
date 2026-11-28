@@ -1,0 +1,71 @@
+id: seo-site-architecture-analyst
+name: SEO Site Architecture Analyst
+roster_persona: seo-site-architecture-analyst
+tier: B
+scope: in-scope
+role: Technical SEO Consultant (agency)
+quote: Your best-selling category page is four clicks deep with two internal links. After the redesign it will be worse -- here are both graphs side by side.
+bio: >-
+    Noor is an agency technical SEO consultant who audits e-commerce and publisher sites. She crawls a site with
+    Screaming Frog SEO Spider or Sitebulb, reads crawl depth, inlink counts and Link Score in the crawler, then exports
+    the page-to-page link graph, cleans it (hyperlinks only, no nofollow, a decision about navigation and footer links),
+    and imports it into Gephi -- or NetworkX and Pandas when the export outgrows Gephi or Excel. She runs weighted,
+    directed PageRank and modularity, colors by site section, sizes by PageRank or in-degree, and joins Analytics
+    sessions and Search Console data onto the pages. Before a redesign or migration she crawls a staging copy, builds
+    both graphs identically and compares PageRank per page to flag high-traffic pages that will lose internal link
+    value. Her question is about how value flows through the whole graph and how it changes between two versions, not
+    about the closure of one node. She is comfortable in Excel and some Python, and learned graph vocabulary from
+    Gephi tutorials.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Find important pages that receive little internal link value, orphan pages and pages buried too deep
+    - Predict, before launch, which high-traffic pages a redesign or migration will weaken
+    - Deliver a client report with side-by-side graph images and a per-page table of PageRank and sessions
+    - Propose specific internal links from strong pages to weak ones and confirm the effect with a re-crawl
+behaviors:
+    - Crawls from the home page and sorts pages by Link Score and crawl depth in the crawler first
+    - Finds orphans by comparing crawled URLs with sitemap, Analytics and Search Console URLs
+    - Exports All Inlinks, drops non-hyperlinks and nofollow links, filters or down-weights navigation and footer links
+    - Imports the edge table into Gephi, merges parallel edges by sum, and filters to the giant component past about 50,000 URLs
+    - Runs weighted directed PageRank and modularity, tuning resolution until classes match the site's sections
+    - Lays out with ForceAtlas2 and Prevent Overlap, stopped by hand, colored by section and sized by PageRank
+    - Renames the staging host to the live domain so the two crawls share node ids before comparing
+frustrations:
+    - Built-in crawl diagrams stop at 10,000 URLs and do not scale
+    - Exports must be trimmed by hand before Gephi accepts them, and full inlink exports reach 1 to 20 GB
+    - A practical Gephi ceiling of about 100,000 nodes and a million edges
+    - Comparing two crawls means building two graphs by hand and joining scores in a spreadsheet
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W86
+sources:
+    - title: Onely - Plotting a website's structure in Gephi
+      url: https://www.onely.com/blog/plotting-websites-structure-gephi/
+      summary: Export cleanup, Gephi import, PageRank and modularity, ForceAtlas2, sitewide-link weight 0.4, ceiling of about 100,000 nodes
+    - title: Search Engine Land - Visualizing site structure in advance of a major change
+      url: https://searchengineland.com/visualizing-site-structure-advance-major-change-286510
+      summary: Crawl live and staging, build both graphs identically, compare PageRank per page before launch
+    - title: Screaming Frog - Link Score
+      url: https://www.screamingfrog.co.uk/link-score/
+      summary: 0-100 internal PageRank-like metric computed in Crawl Analysis
+    - title: Screaming Frog - Visualisations guide
+      url: https://www.screamingfrog.co.uk/guides/visualisations
+      summary: Crawl diagrams show up to 10k URLs at a time because they are memory intensive
+    - title: Sitebulb - Auditing internal linking
+      url: https://support.sitebulb.com/en/articles/12839707-auditing-internal-linking-with-sitebulb
+      summary: Orphan detection against sitemap, Analytics and Search Console; crawl maps colored by depth
+    - title: Briggsby - Internal link analysis with Python
+      url: https://www.briggsby.com/internal-link-analysis-with-python
+      summary: Inlink exports of 1 to 20 GB; NetworkX pagerank(alpha=0.85) and score histograms across scenarios
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

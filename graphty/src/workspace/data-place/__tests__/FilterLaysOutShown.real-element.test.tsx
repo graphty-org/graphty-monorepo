@@ -67,12 +67,17 @@ async function openGraph(): Promise<{ element: Element; session: GraphSession }>
  */
 async function chooseLayout(element: Element, name: RegExp): Promise<void> {
     await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
-    await userEvent.click(await screen.findByRole("button", { name: "Layout" }));
+    await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
     const popover = await screen.findByRole("dialog", { name: "Layout" });
-    await userEvent.click(within(popover).getByRole("option", { name }));
+    await userEvent.click(page.elementLocator(popover).getByRole("option", { name, exact: true }));
     // Flat, so the shown nodes' angles about their center read the arrangement.
-    await userEvent.click(within(within(popover).getByRole("radiogroup", { name: "Shape" })).getByText("2D"));
-    await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+    await userEvent.click(
+        page
+            .elementLocator(popover)
+            .getByRole("radiogroup", { name: "Shape", exact: true })
+            .getByText("2D", { exact: true }),
+    );
+    await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
     await userEvent.keyboard("{Escape}");
     await element.waitForSettled();
     await element.waitForStableFrame();
@@ -122,7 +127,7 @@ async function openFilters(): Promise<HTMLElement> {
  * @param modal - the workspace.
  */
 async function done(element: Element, modal: HTMLElement): Promise<void> {
-    await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
+    await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Done/ }));
     await waitFor(() => {
         assert.isNull(document.querySelector(".sel-ws"), "Done closes it");
     });
@@ -139,7 +144,7 @@ async function filterDegree(element: Element, value: string): Promise<void> {
     const modal = await openFilters();
     // The new card's Value opens its picker.
     if (screen.queryByRole("combobox", { name: "Find attributes, results" }) === null) {
-        await userEvent.click(within(modal).getByRole("button", { name: /^Value$/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Value$/ }));
     }
     await screen.findByRole("combobox", { name: "Find attributes, results" });
     await userEvent.keyboard("Degree");
@@ -247,7 +252,7 @@ describe("a filter lays out what it shows", () => {
             "no node the filter hides is drawn while it is edited",
         );
         // Cancel writes nothing, so nothing moves either.
-        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Cancel/ }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"), "Cancel closes it");
         });
@@ -273,11 +278,11 @@ describe("a filter lays out what it shows", () => {
     it("a Louvain-groups filter keeps showing its groups after Done (the owner's path)", async () => {
         const { element, session } = await openGraph();
         const modal = await openFilters();
-        await userEvent.click(within(modal).getByRole("button", { name: /^Value$/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Value$/ }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Louvain");
         await userEvent.keyboard("{Enter}");
-        await userEvent.click(await within(modal).findByRole("checkbox", { name: /^Group 1\b/u }));
+        await userEvent.click(page.elementLocator(modal).getByRole("checkbox", { name: /^Group 1\b/u }));
         const kept = await waitFor(() => {
             const shown = session.runs.list().find((run) => run.algorithm === "louvain");
             assert.strictEqual(shown?.status, "succeeded", "the card's Louvain run finished");
@@ -297,7 +302,7 @@ describe("a filter lays out what it shows", () => {
         await waitFor(() => {
             assert.deepEqual(shownAndHidden(session).shown, shown);
         });
-        await userEvent.click(within(second).getByRole("button", { name: /^Cancel/ }));
+        await userEvent.click(page.elementLocator(second).getByRole("button", { name: /^Cancel/ }));
     });
 
     it("a second filter's matches show each node's degree in the whole graph", async () => {
@@ -308,9 +313,9 @@ describe("a filter lays out what it shows", () => {
         assert.notStrictEqual(whole, among, "the first filter changes Valjean's degree among what is shown");
         // A new filter: the matches strip lists Valjean with the degree the filter tests.
         await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
         const modal = await ws();
-        await userEvent.click(within(modal).getByRole("button", { name: /^Value$/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Value$/ }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Degree");
         await userEvent.keyboard("{Enter}");
@@ -324,16 +329,16 @@ describe("a filter lays out what it shows", () => {
             return found;
         });
         assert.include(row.textContent ?? "", String(whole));
-        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Cancel/ }));
     });
 
     it("a second filter's editor says it counts the full graph, and how many of its matches are shown", async () => {
         const { element, session } = await openGraph();
         await filterDegree(element, "6");
         await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
         const modal = await ws();
-        await userEvent.click(within(modal).getByRole("button", { name: /^Value$/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Value$/ }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Degree");
         await userEvent.keyboard("{Enter}");
@@ -352,6 +357,6 @@ describe("a filter lays out what it shows", () => {
                 `${String(matches.length)} of 77 in full graph, ${String(seen)} shown`,
             );
         });
-        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Cancel/ }));
     });
 });

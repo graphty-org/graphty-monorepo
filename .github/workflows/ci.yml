@@ -1897,7 +1897,7 @@ jobs:
 
             - name: Fetch the style fidelity oracle pictures from Git LFS
               if: startsWith(matrix.shard, 'graphty-element-browser')
-              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+              run: tools/lfs-pull-retry.sh --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
 
             - name: Save the style fidelity oracle pictures
               if: startsWith(matrix.shard, 'graphty-element-browser') && steps.oracle-pictures.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
@@ -1920,7 +1920,7 @@ jobs:
 
             - name: Fetch the Git LFS files the shard reads
               if: matrix.lfs
-              run: git lfs pull --include "${{ matrix.lfs }}"
+              run: tools/lfs-pull-retry.sh --include "${{ matrix.lfs }}"
 
             - name: Save the Git LFS files the shard reads
               if: matrix.lfs && steps.shard-lfs.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
@@ -2608,10 +2608,12 @@ jobs:
             # the candidate and for nightly's build on this runner in 4 alternating (ABBA) rounds of 15 first visits.
             # Fails the job when the candidate's median and minimum both exceed the reference's by x1.2 and 33 ms;
             # runner speed moves both sides alike. A slowdown the owner accepted in benchmarks/load-time-accepted.json
-            # passes while nightly lacks its commit. The history file's per-CPU comparison is printed for trends only.
+            # (with his approval comment, read with GH_TOKEN) passes while nightly lacks its commit. The history file's per-CPU comparison is printed for trends only.
             - name: Compare the load times with nightly's, paired
               id: load-time
               if: ${{ !cancelled() }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
               run: $GITHUB_WORKSPACE/tools/before-deadline.sh node tools/load-time.mjs --pair-app "$RUNNER_TEMP/load-time-ref/app" --pair-element "$RUNNER_TEMP/load-time-ref/npm/package/dist/graphty.bundle.js" --reference-commit "$(jq -r .commit "$RUNNER_TEMP/load-time-ref/channel.json")"
 
             - name: Post the load times to the health dashboard

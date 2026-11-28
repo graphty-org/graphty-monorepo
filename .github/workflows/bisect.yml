@@ -162,13 +162,13 @@ jobs:
               with: { node-version: 22.x, cache: pnpm }
             - run: pnpm install --frozen-lockfile
               env: { HUSKY: "0" }
-            - run: git lfs pull --include "visual-fonts/**" # run-tests.sh draws browser shards with the runner's fonts
+            - run: $RUNNER_TEMP/bisect-tools/tools/lfs-pull-retry.sh --include "visual-fonts/**" # run-tests.sh draws browser shards with the runner's fonts
             # the oracle PNGs a graphty-element browser shard reads, as ci.yml's test job pulls them
             - name: Pull the oracle images the browser shards read
               run: |
                   samples=graphty-element/test/browser/oracle-scorecard-samples.json
                   if [ -f "$samples" ]; then
-                      git lfs pull --include "$(node -p "require('./$samples').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+                      $RUNNER_TEMP/bisect-tools/tools/lfs-pull-retry.sh --include "$(node -p "require('./$samples').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
                   fi
             - uses: ./.github/actions/drop-microsoft-apt-source
             - uses: ./.github/actions/playwright-system-deps

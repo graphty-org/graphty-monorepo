@@ -33,6 +33,11 @@ export interface GraphSceneMetadata {
     glowLayer?: NodeGlowLayer;
     /** Each glowing mesh's glow strength and alpha. */
     glowStrengths?: Map<Mesh, { strength: number; alpha: number }>;
+    /**
+     * Unfreeze the list of what is drawn, for a mesh whose geometry is rebuilt in place between the frame loop's
+     * changes: a frozen list still holds the mesh's old submesh, drawn over the new, shorter buffers.
+     */
+    thawActiveMeshes?: () => void;
 }
 
 /** What graphty-element keeps in a line or arrow mesh's `metadata`. */

@@ -111,6 +111,7 @@ function textOf(d: DrawnLabel): PText {
         family: d.family,
         weight: d.weight,
         style: d.style === "italic" || d.style === "oblique" ? d.style : "normal",
+        ...((d.underlines?.length ?? 0) > 0 ? { underline: true as const } : {}),
         anchor: "middle",
         rotation: d.rotation,
         color: d.color,
@@ -255,6 +256,7 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     deltoid: "triangle",
     // a vee's arms alone, read as the notch they leave
     "open-vee": "vee",
+    "hollow-vee": "vee",
 };
 
 /** Where along its edge each of graphty's caps sits. */
@@ -318,7 +320,8 @@ function drawnArrow(
 ): PArrow {
     const end = CAP_END[c.end];
     const open =
-        (c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
+        ((c.name.includes("open") || c.name.includes("hollow")) &&
+            !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
         STROKED_NAMES.some((n) => c.name.includes(n));
     // a cap part-way along is classed against the line's direction, source to target, as the oracle's is: a mid tail
     // points back along it

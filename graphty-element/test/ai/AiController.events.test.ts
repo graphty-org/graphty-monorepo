@@ -19,20 +19,20 @@ import type {
     AiStreamChunkEvent,
     AiStreamToolResultEvent,
 } from "../../src/events";
-import { createMessageGraph } from "../helpers/message-graph";
+import { createCommandGraph } from "../helpers/session-graph";
 
 describe("AiController Events", () => {
     let controller: AiController;
     let mockProvider: MockLlmProvider;
     let registry: CommandRegistry;
-    let mockGraph: CommandContext["graph"];
+    let sessionGraph: CommandContext["graph"];
     let emitEvent: Mock<AiEventEmitter>;
     let emittedEvents: AiEvent[];
 
-    beforeEach(() => {
+    beforeEach(async () => {
         mockProvider = new MockLlmProvider();
         registry = new CommandRegistry();
-        mockGraph = createMessageGraph();
+        sessionGraph = await createCommandGraph();
         emittedEvents = [];
         emitEvent = vi.fn((event: AiEvent) => {
             emittedEvents.push(event);
@@ -41,7 +41,7 @@ describe("AiController Events", () => {
         controller = new AiController({
             provider: mockProvider,
             commandRegistry: registry,
-            graph: mockGraph,
+            graph: sessionGraph,
             emitEvent,
         });
     });

@@ -168,6 +168,50 @@ describe("runs.painting", () => {
         session.dispose();
     });
 
+    it("is pending, with no layers present or missing, while the run is still computing", async () => {
+        let finish: () => void = () => undefined;
+        const gate = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
+        const session = await fixtureSession(undefined, async (_context, fake) => {
+            await gate;
+            return fake();
+        });
+
+        const run = session.runs.start("degree", {}, { as: "deg" });
+
+        assert.strictEqual(session.runs.painting("deg")?.state, "pending");
+        assert.deepStrictEqual(session.runs.layers("deg"), { present: [], missing: [] });
+        finish();
+        await run;
+        assert.strictEqual(session.runs.painting("deg")?.state, "decided");
+        session.dispose();
+    });
+
+    it("is pending for a batch member that has finished until its batch paints", async () => {
+        const session = await fixtureSession();
+        const atEnd: [string, string | undefined, number | undefined][] = [];
+        session.on("run:changed", (change) => {
+            if (change.phase === "end" && (change.run.id === "deg" || change.run.id === "pr")) {
+                const { id } = change.run;
+                atEnd.push([id, session.runs.painting(id)?.state, session.runs.layers(id)?.present.length]);
+            }
+        });
+
+        await session.runs.batch([
+            { algorithm: "degree", as: "deg" },
+            { algorithm: "pagerank", as: "pr" },
+        ]);
+
+        assert.deepStrictEqual(atEnd, [
+            ["deg", "pending", 0],
+            ["pr", "pending", 0],
+        ]);
+        assert.strictEqual(session.runs.painting("deg")?.state, "decided");
+        assert.strictEqual(session.runs.painting("pr")?.state, "decided");
+        session.dispose();
+    });
+
     it("is undefined for a run the session does not hold", async () => {
         const session = await fixtureSession();
 

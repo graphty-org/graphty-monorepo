@@ -260,10 +260,6 @@ export const DEPRECATED_LAYOUT_IDS = ["force-2d"] as const satisfies readonly (t
 /**
  * The built-in file formats.
  *
- * "sif" and "cx2" are deprecated: no data source reads them (see `UNSERVED_FORMAT_IDS`, and issues
- * #306 and #307). A load that names either fails with that reason. Both are removed at the next
- * major release unless a reader lands first.
- *
  * "graphty" is the project file (Graphty JSON): written by `exportGraph("graphty")` and read by
  * `session.project.open`, never by `session.data.import`.
  */
@@ -305,9 +301,6 @@ export const PROJECT_FILE = Object.freeze({
 
 /**
  * A format id: a built-in name, or a plugin's.
- *
- * The built-in name "sif" is deprecated and unserved (issue #306); it is removed at the next major
- * release unless a reader lands first.
  */
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
@@ -763,7 +756,7 @@ export interface OptionUnsupported {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapUnkerned`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelImage`, `labelImageWidth`, `labelImageHeight`, `labelImageOffsetX`, `labelImageOffsetY`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelUnderline`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapUnkerned`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelImage`, `labelImageWidth`, `labelImageHeight`, `labelImageOffsetX`, `labelImageOffsetY`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -786,6 +779,7 @@ export type Channel =
     | "node.labelFont"
     | "node.labelWeight"
     | "node.labelItalic"
+    | "node.labelUnderline"
     | "node.labelWrapWidth"
     | "node.labelWrapTrailingSpace"
     | "node.labelWrapSkipEndSpace"
@@ -854,6 +848,7 @@ export type Channel =
     | "node.planar"
     | "node.zIndex"
     | "node.drawOrder"
+    | "node.onTop"
     | "node.borderColor"
     | "node.borderWidth"
     | "node.borderScreenWidth"
@@ -1121,6 +1116,7 @@ export type Channel =
     | "edge.labelFont"
     | "edge.labelWeight"
     | "edge.labelItalic"
+    | "edge.labelUnderline"
     | "node.visible"
     | "node.tooltipSize"
     | "node.tooltipColor"
@@ -3064,7 +3060,8 @@ export interface UnionLeaf {
      * Narrows the base to the nodes and edges these loads supplied (`session.data.sources()`
      * keys, what `session.data.sourcesOf(id)` lists): a branch that starts with `"all"` starts
      * with theirs, a step adds only theirs, and a reading's totals count only theirs. Absent:
-     * every load's. A load that is gone supplies nothing.
+     * every load's. A load that is gone supplies nothing. Under the source-steps experiment, one
+     * staged source's rows are read as they will be once it is added, none of them shown yet.
      * @since 3.36.0
      */
     readonly sources?: readonly SourceKey[];

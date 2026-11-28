@@ -119,8 +119,13 @@ export function ElementHost({
             // A pick moves the camera; a filter card's Select or an undo does not. The inspector
             // opens beside the canvas and narrows it, before or after the first framing is final;
             // framing again on a resize draws the same picture either way (#5097). Camera > Follow
-            // selection turns the gliding off.
-            camera: { pivotOnSelection: followSelection, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
+            // selection turns the gliding off. A camera drag hovers no node it crosses (#10221).
+            camera: {
+                pivotOnSelection: followSelection,
+                pivotOnSelectionCauses: ["user", "api"],
+                refitOnResize: true,
+                hoverWhileDragging: false,
+            },
         }),
         [allLabelsShown, labelsAvoid, sizeSpace, layoutShownOnly, followSelection],
     );

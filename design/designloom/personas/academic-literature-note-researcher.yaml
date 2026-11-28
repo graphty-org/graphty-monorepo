@@ -1,0 +1,69 @@
+id: academic-literature-note-researcher
+name: Academic Literature-Note Researcher
+roster_persona: personal-knowledge-gardener
+tier: A
+scope: in-scope
+role: Fourth-year PhD Student keeping Zotero literature notes in Obsidian
+quote: Which of my 900 papers talk about the same concept, and where are the holes in my reading?
+bio: >-
+    Dr. Amara Osei (finishing her PhD in environmental science) follows her lab handbook's reading workflow. She
+    annotates PDFs in Zotero with Better BibTeX citekeys and color-coded highlights (important, follow-up, disagreement,
+    critique, question), then imports each paper into Obsidian with the Zotero Integration plugin and a Templater
+    template, producing one literature note per paper named by citekey. She writes her synthesis inside `persist` blocks
+    because re-imports overwrite everything else, and links papers to hand-written `[[concept]]` notes and to one Map of
+    Content per thesis chapter. Her vault holds 300 to 1,500 literature notes. Her main overview is a Dataview table, not
+    the graph; when she does open the graph it is to see which papers share a concept. The citation graph (who cites
+    whom) lives in a different plugin, so her two edge families -- concept links she wrote and citations -- never appear
+    together.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: novice
+    domain_knowledge: expert
+motivations:
+    - See which papers share a concept and which concepts have only one or two sources
+    - Find gaps in her reading before a committee meeting
+    - Build a chapter outline from linked claims and the papers that support or oppose them
+    - Keep her own synthesis safe when annotations are re-imported
+behaviors:
+    - Identifies every paper by its Better BibTeX citekey and links it as [[@citekey]]
+    - Re-imports a paper whenever she adds annotations in Zotero, trusting persist blocks to keep her edits
+    - Uses a Dataview table of papers as her main overview and opens the graph only per writing project
+    - Occasionally runs a citation-graph plugin that adds outside works as ghost nodes and lays papers out by year
+    - Hides hub concept notes when they swamp the view, then loses the paths through them
+frustrations:
+    - Note graph and citation graph are separate views with no way to see both edge families at once
+    - A handful of hub concepts dominate every layout
+    - Re-imported, machine-written content mixes with hand-written links with no way to tell them apart
+    - Most academic workflow guides never mention the graph, so she is unsure what it is for
+context:
+    frequency: weekly
+    devices:
+        - laptop
+    voluntary: true
+workflows:
+    - W324
+    - W327
+    - W331
+sources:
+    - title: USU Groundwater Lab - A Zotero to Obsidian workflow
+      url: https://groundwater.usu.edu/blog/2023/A-Zotero-to-Obsidian-Workflow/
+      summary: Better BibTeX citekeys, color-coded annotations, Zotero Integration template, persist blocks, Dataview table of papers
+    - title: USU Groundwater Lab handbook - Reading a paper
+      url: https://groundwater.usu.edu/group_handbook/part3/reading_paper.html
+      summary: Lab reading workflow and Zotero tag groups 0 to 4
+    - title: Obsidian forum - Research, PhD, academics
+      url: https://forum.obsidian.md/t/research-phd-academics/1446
+      summary: Graph used to see papers sharing keywords; citekeys need letter suffixes to stay unique
+    - title: Obsidian forum - Academic Zettelkasten with Obsidian and Zotero
+      url: https://forum.obsidian.md/t/academic-note-taking-and-making-system-with-the-zettelkasten-method-obsidian-zotero/64941/2
+      summary: Literature notes feed permanent notes collected in MOCs through an up-MOC property
+    - title: Literature Graph plugin
+      url: https://community.obsidian.md/plugins/literature-graph
+      summary: Citation graph from cite links, DOI or author-year-title matching and OpenAlex; ghost nodes; Chronological and Layers layouts
+    - title: Chan et al. - Synthesis infrastructure (discourse graphs), arXiv 2407.20666
+      url: https://arxiv.org/html/2407.20666v2
+      summary: 48 researchers over about three years; 14 of 23 surveyed users academics; 70 percent called the relation list core
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

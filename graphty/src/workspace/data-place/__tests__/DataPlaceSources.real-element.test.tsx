@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import football from "../../../../public/samples/football.gml?raw";
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
@@ -70,7 +70,7 @@ async function sectionOf(load: LoadedSource): Promise<HTMLElement> {
 async function opened(section: HTMLElement): Promise<void> {
     const toggle = within(section).queryByRole("button", { name: /^Expand / });
     if (toggle !== null) {
-        await userEvent.click(toggle);
+        await userEvent.click(page.elementLocator(section).getByRole("button", { name: /^Expand / }));
     }
 }
 
@@ -98,11 +98,16 @@ describe("the Sources tab with two loads", () => {
     it("draws the loads' sections in the Data sources list's order when a second is added", async () => {
         const session = await openFootball();
         const place = await screen.findByRole("region", { name: "Data place" });
-        await userEvent.click(within(place).getByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Samples/ }));
+        await userEvent.click(page.elementLocator(place).getByRole("button", { name: "Add source", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Samples/ }));
         const dialog = await screen.findByRole("dialog");
-        await userEvent.click(within(dialog).getByRole("button", { name: /^Les Miserables: / }));
-        await userEvent.click(await screen.findByRole("button", { name: "Add as rows" }));
+        await userEvent.click(
+            page
+                .elementLocator(dialog)
+                .getByRole("region", { name: "Samples", exact: true })
+                .getByRole("button", { name: /^Les Miserables: / }),
+        );
+        await userEvent.click(page.getByRole("button", { name: "Add as rows", exact: true }));
         const loads = await waitFor(() => {
             const found = session.data.sources();
             assert.lengthOf(found, 2);
@@ -139,14 +144,16 @@ describe("the Sources tab with two loads", () => {
         }
         // Les Miserables' Label offers its own columns, never College football's.
         const section = await sectionOf(lm);
-        await userEvent.click(within(section).getByRole("button", { name: "Add to node attributes" }));
+        await userEvent.click(
+            page.elementLocator(section).getByRole("button", { name: "Add to node attributes", exact: true }),
+        );
         // Its "name" column is the obvious label: Label is added with it.
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Label" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Label", exact: true }));
         const label = await within(section).findByRole("combobox", { name: "Node label" });
         await waitFor(() => {
             assert.strictEqual((label as HTMLInputElement).value, "name");
         });
-        await userEvent.click(label);
+        await userEvent.click(page.elementLocator(section).getByRole("combobox", { name: "Node label", exact: true }));
         const options = (await screen.findAllByRole("option")).map((each) => each.textContent ?? "");
         assert.isTrue(
             options.some((text) => text.startsWith("name")),
@@ -162,7 +169,7 @@ describe("the Sources tab with two loads", () => {
         const { session, football: cf, miserables: lm } = await openTwo();
         const section = await sectionOf(lm);
         await opened(section);
-        await userEvent.click(within(section).getByRole("button", { name: "Add filter" }));
+        await userEvent.click(page.elementLocator(section).getByRole("button", { name: "Add filter", exact: true }));
         const modal = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found, "the workspace is open");
@@ -180,15 +187,16 @@ describe("the Sources tab with two loads", () => {
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Degree");
         await userEvent.keyboard("{Enter}");
-        const from = await within(modal).findByRole("textbox", { name: "Degree from, number" });
-        await userEvent.clear(from);
-        await userEvent.type(from, "10{Enter}");
+        const from = (): Locator =>
+            page.elementLocator(modal).getByRole("textbox", { name: "Degree from, number", exact: true });
+        await userEvent.clear(from());
+        await userEvent.type(from(), "10{Enter}");
         // Les Miserables' count, not the whole graph's 192.
         await waitFor(() => {
             const head = modal.querySelector(".sel-ws-head")?.textContent ?? "";
             assert.match(head, new RegExp(`\\d of ${String(lm.counts.nodes)}(?!\\d)`, "u"), head);
         });
-        await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Done/ }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"), "Done closes it");
         });

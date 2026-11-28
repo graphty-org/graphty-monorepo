@@ -435,8 +435,8 @@ function stripTags(text: string): string {
 /**
  * Reads the font runs of an HTML-like label (`<B>`, `<I>`, `<FONT COLOR FACE POINT-SIZE>`) as Graphviz draws them:
  * one run in a font of its own sets the label's own font (color, size, family, weight, slant), several are
- * `labelRuns`, a `<SUB>` or `<SUP>` run lowered or raised (`shift`). Underline, overline and strike-through have no
- * neutral slot and draw plain.
+ * `labelRuns`, a `<SUB>` or `<SUP>` run lowered or raised (`shift`). A label underlined whole is `labelUnderline`;
+ * a part of one underlined, overline and strike-through have no neutral slot and draw plain.
  * @param raw - the label as the file gives it
  * @param html - the file's HTML strings
  * @param scheme - the element's color scheme
@@ -456,8 +456,14 @@ function readHtmlRuns(
         return;
     }
     const markup = html.has(raw) ? raw : `<${raw}>`;
+    const spans = htmlLabelSpans(markup);
+    // a label underlined whole draws its underline; a part of one has no run slot and draws plain
+    const shown = spans.filter((s) => s.text.trim() !== "");
+    if (shown.length > 0 && shown.every((s) => s.tags.some((t) => /^<u\b/i.test(t)))) {
+        put("labelUnderline", true);
+    }
     const runs: Record<string, StyleValue>[] = [];
-    for (const span of htmlLabelSpans(markup)) {
+    for (const span of spans) {
         const run = { text: span.text, ...htmlRunFont(span.tags, scheme, size, at("labelRuns")) };
         const last = runs.at(-1);
         if (last !== undefined && JSON.stringify({ ...last, text: "" }) === JSON.stringify({ ...run, text: "" })) {

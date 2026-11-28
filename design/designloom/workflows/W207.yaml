@@ -1,0 +1,188 @@
+id: W207
+name: Topic Network Map and Typology with NodeXL (the Pew Method)
+category: analysis
+validated: false
+personas:
+    - communication-network-scholar
+    - marketing-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - computed-attributes
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-closeness
+    - centrality-eigenvector
+    - centrality-pagerank
+    - clustering-coefficient
+    - community-detection
+    - community-profiling
+    - component-analysis
+    - basic-statistics
+    - statistics-panel
+    - comparison-view
+    - layout-force-directed
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - report-generation
+    - export-image
+    - data-export
+    - multiplex-relations
+    - cluster-labeling
+    - de-identified-display
+    - network-typology-report
+    - layout-group-in-a-box
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - data-preview-table
+    - data-table-panel
+    - algorithm-panel
+    - community-panel
+    - cluster-table
+    - statistics-panel
+    - comparison-view
+    - filter-panel
+    - range-slider
+    - visual-encoding-panel
+    - ranked-node-table
+    - legend-panel
+    - graph-canvas
+    - report-generator-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: keyword or hashtag collection as an edge sheet (reply, mention, follow, self-loop "tweet" rows) plus an account sheet
+    node_count: 1000-20000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Map who talks to whom around one keyword, hashtag or handle, split the conversation into clusters, name
+    each cluster from what it shares, rank the bridging accounts, and classify the whole conversation into one of six
+    structures (polarized crowd, tight crowd, brand clusters, community clusters, broadcast network, support network).
+    This is the Pew Research Center and Social Media Research Foundation method, and the most common published social
+    media network study.
+
+
+    **Mental Model**: "What shape is this conversation?" The spreadsheet of edges and accounts is the trusted data; the
+    picture and the metrics are a summary of it. Isolates are data (they define brand clusters), not noise.
+
+
+    **Task Phases**:
+
+    1. **Design and collect** - Write the query with ORed spelling variants ("haemophilia" OR
+    "hemophilia"); collect with edges for follows, replies and mentions plus account data; re-collect because the API
+    omits prolific posters at peak times. Historically up to 18,000 posts from the last 7-10 days per search
+
+    2. **Inspect the sheets** - Edge sheet: one row per relationship event with post ID, date, language and
+    counts; account sheet: followers, following, bio, join date. Keep duplicate edges unmerged and keep self-loops for
+    posts with no reply or mention (1,586 of 3,437 edges in Pew's example)
+
+    3. **Run the recipe** (1 click) - Import a saved settings file that computes all graph metrics (degree,
+    betweenness, closeness, eigenvector, PageRank, clustering coefficient), groups by cluster (Clauset-Newman-Moore by
+    default), lays out with Harel-Koren Fast Multiscale and Group-in-a-Box, and computes word counts, top items per group
+    and time series
+
+    4. **Map attributes to visuals** - Size by follower count, opacity inverse to followers so big profile
+    photos do not hide small ones, profile photo with screen name, edge width by weight
+
+    5. **Filter for the figure** - Hide isolates and low-degree accounts to show the connected core, while
+    keeping them in the statistics
+
+    6. **Read overall metrics** - Vertices, components, isolates, density, modularity (Pew's example: 2,814
+    vertices, 1,370 components of which 1,120 isolates, density 0.00022, modularity 0.62)
+
+    7. **Name clusters** - Read the per-group top URLs, domains, hashtags, words, word pairs and accounts;
+    label each group by its top hashtags and the domains it shares
+
+    8. **Classify and rank** - Place the network in the six-type typology using isolate share, modularity,
+    density and centralization; note hybrids; list the top five accounts by betweenness
+
+    9. **Publish** - Export a 4096 x 3072 px image, a report naming edge definitions, algorithms, metrics and
+    top items per group, and GEXF or GraphML for Gephi; compare a dozen networks side by side in a paper
+
+
+    **Decision Points**:
+
+    - Which spelling variants and operators make the query complete?
+
+    - Merge duplicate edges into weights, or keep each event?
+
+    - Keep isolates in the statistics but hide them in the figure?
+
+    - Which clustering algorithm and which cluster labels are defensible?
+
+    - Which of the six structures (or which hybrid) describes the network?
+
+    - Which handles of private individuals must be anonymized?
+
+
+    **Information Needs**:
+
+    - Edge counts per relation type (follow, reply, mention, self-loop)
+
+    - Network-level metrics in one table: vertices, edges, components, isolates, density, modularity, centralization
+
+    - Per-cluster top hashtags, URLs, domains, words, word pairs and accounts
+
+    - Accounts ranked by betweenness within each cluster
+
+    - The same metrics for several networks side by side
+
+
+    **Pain Points**:
+
+    - The recipe tool runs only on Windows Excel and runs out of memory near 80,000-100,000 edges on 16 GB
+
+    - Collection is tied to platform APIs that closed or became expensive in 2023
+
+    - 64-bit numeric account IDs are corrupted by spreadsheet and R importers
+
+    - Self-loops and duplicate edges are dropped or merged silently by other tools
+
+    - Typology cut-off values are not published, so classification is a judgment
+
+    - Hairballs and overlapping profile images in the figure
+
+
+    **Data Flow**:
+
+    - Input: NodeXL workbook (.xlsx) or a post table exported from a collector (CSV, JSON), or GEXF/GraphML
+
+    - Transformations: Typed edge list with duplicates and self-loops, centralities, clustering, per-group top items,
+    network-level statistics, isolate filter for display
+
+    - Output: Group-in-a-Box or force-directed figure with legend, cluster label table, typology classification,
+    method report, GEXF/GraphML
+success_criteria:
+    - metric: Recipe re-run
+      target: The same saved recipe produces comparable metrics and figures for a new topic collection in one action
+    - metric: Cluster naming evidence
+      target: Every cluster label is backed by a visible list of its top hashtags, domains and accounts
+    - metric: Typology inputs
+      target: Density, modularity, isolate share and centralization are reported with isolates included
+sources:
+    - title: Pew Research Center - How we analyzed Twitter social media networks with NodeXL
+      url: https://legacy.pewresearch.org/wp-content/uploads/sites/9/2014/02/How-we-analyzed-Twitter-social-media-networks.pdf
+      summary: Query design, four edge types, unmerged duplicates, 18,000-post limit, visual mappings, isolate filtering and the 2,814-vertex example
+    - title: Pew Research Center - Mapping Twitter Topic Networks
+      url: https://www.pewresearch.org/internet/2014/02/20/mapping-twitter-topic-networks-from-polarized-crowds-to-community-clusters/
+      summary: The six conversation structures and how polarized groups use different URLs, hashtags and words
+    - title: Ahmed, Meier and Smith - NodeXL, a guide to network insights
+      url: https://dspace.stir.ac.uk/retrieve/f1292af1-5cdb-400b-820a-bccae8f82e1f/NodeXL%20-%20a%20guide%20to%20network%20insights%20-%20Author%20Version.pdf
+      summary: Settings options file recipe, re-collection advice, top five by betweenness, Graph Gallery publication
+    - title: Group-in-a-Box layout (UMD HCIL)
+      url: https://lccd.umiacs.umd.edu/node/17181
+      summary: Each cluster drawn in its own treemap rectangle
+    - title: Himelboim et al. - Classifying Twitter Topic Networks Using Social Network Analysis
+      url: https://www.academia.edu/72459287/Classifying_Twitter_Topic_Networks_Using_Social_Network_Analysis
+      summary: Typology formalized with density, modularity, centralization and isolates over 60 networks
+    - title: NodeXL (Wikipedia)
+      url: https://en.wikipedia.org/wiki/NodeXL
+      summary: Current importers for X via the web JSON interface, Reddit, YouTube, Wikipedia and Flickr
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

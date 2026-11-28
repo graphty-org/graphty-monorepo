@@ -1,0 +1,74 @@
+id: legal-citation-network-scholar
+name: Legal Citation Network Scholar
+roster_persona: legal-citation-network-scholar
+tier: B
+scope: in-scope
+role: Empirical Legal Scholar or Political Scientist Studying Courts; Legal Informatics PhD Researcher
+quote: Citation counts tell me which cases are cited. I need to know which ones carried the doctrine, and when.
+bio: >-
+    Theda is a law faculty researcher who studies how a court uses its own precedents. She builds the citation network
+    of one court or one treaty provision from a court database -- CourtListener for US opinions, HUDOC metadata for the
+    European Court of Human Rights, the EUR-Lex CELLAR endpoint for the Court of Justice of the EU -- and works in
+    Python with NetworkX. Her networks run from a few hundred decisions on one doctrine to tens of thousands for a
+    whole court; the US federal network is over a million. She resolves citations to decisions and keeps a list of
+    the ones that do not resolve, joins court, date and subject, ranks precedents by in-degree, PageRank and hub and
+    authority scores, checks how the ranking looked at earlier dates, groups the cases on a provision with community
+    detection weighted by text similarity, and traces how a line of case law developed with main path analysis over
+    time slices. Every result is read back against the judgments; the network gives doctrinal study a complete,
+    reproducible starting list, not the conclusion.
+characteristics:
+    expertise: intermediate
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Identify the precedents that hold authority in a court's case law, and when they gained or lost it
+    - Find and group every decision on one provision or doctrine, not only the ones a keyword search returns
+    - Trace the line of reasoning from early to recent decisions
+    - Compare courts and court levels by how they cite
+    - Publish figures and tables that another scholar can reproduce
+behaviors:
+    - Pulls decisions and citation links from a court database export or API rather than a commercial citator
+    - Resolves citations to decision identifiers (ECLI, CELEX, application number, reporter citation) and counts the unresolved ones
+    - Keeps the largest connected part when the network is fragmented
+    - Computes in-degree, PageRank and hub and authority (Kleinberg HITS) scores on the directed citation graph and compares them with the court's own landmark list
+    - Recomputes rankings on the network as it stood at earlier dates
+    - Weights citations by topic similarity of the two decisions before running community detection
+    - Runs main path analysis per time slice and merges the paths into one overlay
+    - Reads the top-ranked and on-path decisions before writing anything
+frustrations:
+    - Citation extraction is incomplete; parallel citations and free-text references fail to resolve
+    - General graph tools ignore court level and decision date unless she builds the layout herself
+    - As-of-date rankings need custom code, and hub and authority scores on a large citation graph can stop short of convergence at a library's default iteration cap
+    - Main path results are hard to make comprehensive in large networks
+    - Pictures from a force layout mix court levels and periods and say little to a legal audience
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W56
+    - W2036
+    - W2037
+    - W2038
+sources:
+    - title: Petersen and Towfigh, Network Analysis and Legal Scholarship (German Law Journal, 2017)
+      url: https://www.cambridge.org/core/journals/german-law-journal/article/network-analysis-and-legal-scholarship/E8C3D0AB58A01DD35C4B5DAC4893ACDF
+      summary: Special section on the utility and limits of network analysis for legal scholarship; lists the strand's anchor works
+    - title: Mohammadi et al., topic modelling and citation network analysis of ECtHR Article 8 case law (2024)
+      url: https://arxiv.org/html/2401.16429v1
+      summary: 9,777 HUDOC cases and 39,582 links; LDA topics, Louvain, topic-similarity edge weights give the best grouping
+    - title: Jiang, Breskaya and van Dijck, Tracking the evolution of case law with main path analysis (2026)
+      url: https://eprints.whiterose.ac.uk/id/eprint/243421/
+      summary: 446 CJEU consumer cases, five time slices, top three key-route main paths merged
+    - title: Adusumilli et al., Structure and Dynamics of Modern US Federal Case Law (2022)
+      url: https://www.frontiersin.org/articles/10.3389/fphy.2021.695219
+      summary: 1,317,233 cases and 11,451,351 citations from CourtListener; centrality follows court level
+    - title: Soh, Simulating Subject Communities in Case Law Citation Networks (2021)
+      url: https://frontiersin.org/articles/10.3389/fphy.2021.665563/full
+      summary: Kleinberg hub and authority scores (300-iteration cap, last scores kept if not converged), time decay and subject-sensitive PageRank on US Supreme Court and Singapore networks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

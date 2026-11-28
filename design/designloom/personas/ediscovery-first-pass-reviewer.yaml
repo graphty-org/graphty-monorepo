@@ -1,0 +1,67 @@
+id: ediscovery-first-pass-reviewer
+name: eDiscovery First-Pass Reviewer
+roster_persona: litigation-support-analyst
+tier: B
+scope: in-scope
+role: Contract Attorney on a Staffed Document Review
+quote: Show me which emails in this thread I actually have to read, and let me code the whole branch at once.
+bio: >-
+    Casey is a contract attorney on a staffed document review, working a batch queue in a review platform such as
+    Relativity and coding each document for responsiveness, privilege and confidentiality. Casey never opens a graph
+    tool, but sees a graph on every threaded email: the Email Thread Visualization pane in the document viewer, a
+    left-to-right, time-ordered tree of the thread group with the open email outlined in orange. Black nodes are
+    inclusive emails that must be read, white nodes are non-inclusive emails whose content appears elsewhere, stacked
+    icons are duplicate spares, and question marks are missing messages. Casey turns on Highlight Field to color the
+    tree by a coding field, looks for the red exclamation point that marks a coding conflict between duplicates or
+    attachments, and shift-selects a branch to mass-edit it. Review is paid and measured by throughput, so anything that
+    makes a thread faster to clear is welcome and anything that slows the queue is resented. Graph literacy is basic:
+    the tree is read as a picture of who replied to whom, not as a network.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: basic
+    domain_knowledge: advanced
+motivations:
+    - Review only the inclusive emails and skip what is fully contained elsewhere
+    - Code a whole thread or branch consistently in one action
+    - Catch family and duplicate coding conflicts before quality control does
+    - Keep pace with the queue without missing a privileged recipient
+behaviors:
+    - Opens the thread pane from the viewer on every threaded email
+    - Reads node color and icon (inclusive, non-inclusive, duplicate spare, missing, reply, forward, attachment) before opening any message
+    - Hovers nodes for sender, sent date, attachments and duplicate spares
+    - Colors the tree by a coding field to spot inconsistent coding across a branch
+    - Shift-clicks the first and last email of a branch and opens the mass-edit form
+    - Codes non-inclusive families "unreviewed" in a review status field so deliberate skips are distinguishable from accidental ones
+    - Codes whole threads non-responsive to clear hundreds or thousands of emails quickly
+frustrations:
+    - Inclusive-email logic in some platforms ignores recipients, so the full recipient list of a variant is not seen, which matters for privilege
+    - Data irregularities make unique emails look like duplicates, so the promised reduction is much smaller
+    - Missing-email placeholders that turn out to be artifacts of a changed earlier segment or a secured email
+    - Coding a branch and then finding attachments or duplicate spares were coded differently
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W362
+sources:
+    - title: Relativity - Email thread visualization
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Analytics/Email_thread_visualization.htm
+      summary: Thread tree layout, node states, missing placeholders, Highlight Field, conflict marker, branch mass edit
+    - title: Relativity - Inclusive emails
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Analytics/Inclusive_emails.htm
+      summary: Definitions of inclusive, non-inclusive and duplicate spare emails
+    - title: Email Threading - One of the Most Overlooked Gems in eDiscovery (Above the Law, 2018)
+      url: https://abovethelaw.com/2018/06/email-threading-one-of-the-most-overlooked-gems-in-ediscovery/
+      summary: Practitioners report up to 50 percent fewer emails to review, unreviewed status for skipped families, and smaller reductions with irregular data
+    - title: Delaware State Bar Journal on thread-centered review (via Morris James, 2023)
+      url: https://www.morrisjames.com/?p=5989
+      summary: Threading as a touchstone for organizing review; one attorney reviewing an entire thread keeps coding consistent
+    - title: Threading carefully (Cooley UK litigation blog, 2023)
+      url: https://uklitigation.cooley.com/threading-carefully/
+      summary: Inclusive identification that ignores recipients can hide the full recipient list from reviewers
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

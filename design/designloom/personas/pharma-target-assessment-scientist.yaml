@@ -1,0 +1,85 @@
+id: pharma-target-assessment-scientist
+name: Pharma Target and Knowledge Graph Scientist
+roster_persona: biomedical-kg-analyst
+tier: B
+scope: in-scope
+role: Computational Biologist, Target Identification (pharma)
+quote: Don't show me the path, show me the abstracts behind every edge on it. The committee will ask.
+bio: >-
+    Dr. Mariana Marques is a computational biologist in a pharma target-identification group. She prepares evidence
+    dossiers on candidate targets for a target-assessment committee and answers biologists' "how are these connected?"
+    questions against the company knowledge graph. Graphs at this scale hold tens of millions of typed nodes: AstraZeneca's
+    BIKG reports 10.9 million nodes of 22 types and over 118 million edges of 59 types, and Novartis's Neo4j graph about
+    30 million nodes and 400 million relationships of 91 types. Edges carry a source, an association strength or an
+    uncertainty (Novartis stored text-mining co-occurrence lift as an inverse-strength distance) and links to PubMed
+    abstracts; internal screening results mark compounds active or inactive; licensed sources cannot leave the company.
+    She queries through Cypher, an internal search or dashboard front end or a recommendation service, and cross-checks
+    targets in Open Targets and ChEMBL. Her daily patterns are ranking compound-gene-disease triangles or paths by summed
+    edge uncertainty, opening the PubMed articles behind each edge, contrasting what is reachable from active versus
+    inactive compounds, and switching an evidence type off to see what it contributes. No public source shows her
+    click-by-click interface.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Produce ranked, explainable hypotheses ("this compound may act on this disease through this gene") where every edge traces to evidence
+    - Hand the target-assessment committee a short list of tractable, safe targets with an evidence profile each
+    - Avoid presenting results a biologist dismisses as "I knew that"
+    - Know how much each evidence source contributes before trusting a connection
+behaviors:
+    - Searches the internal graph for triangles and short paths between typed node sets (compound, gene, disease, phenotype) and sorts them by summed edge uncertainty
+    - Opens the PubMed abstracts behind each edge of each top result and has a biologist review the output
+    - Contrasts nodes reachable from active screening compounds with those reachable from inactive ones, then partitions the graph
+    - Removes one evidence type (for example text-mined edges) and compares the resulting connection
+    - Asks an embedding or recommendation service for the nearest gene nodes to a disease node and keeps evidence and context for each assertion
+    - Checks tractability and safety for candidate targets in the Open Targets prioritisation grid
+    - Reconciles internal compound and gene identifiers with public ones
+goals:
+    - Evidence dossier per candidate target
+    - Ranked hypothesis list with an evidence trail per edge
+    - Graph partition or path set that separates actives from inactives in a screen
+frustrations:
+    - Text-mined associations need an uncertainty threshold that is hard to set and still being refined
+    - Open Targets association scores reflect the amount of data available rather than its quality
+    - Internal and public identifiers disagree
+    - Graph browsers cap what they draw (Neo4j Browser shows 300 nodes at first) and need Cypher
+    - Reviewing evidence edge by edge is manual
+    - Licensed and confidential data cannot be shared outside the company
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W08
+    - W257
+    - W258
+    - W262
+sources:
+    - title: Novartis - Connecting the dots in early drug discovery (2016 talk, republished 2018)
+      url: https://neo4j.com/blog/connecting-dots-in-early-drug-discovery-at-novartis/
+      summary: About 30 million nodes and 400 million relationships; text-mined lift as edge uncertainty; triangle ranking; reachability contrast of actives versus inactives
+    - title: Neo4j case study - Novartis (2025)
+      url: https://neo4j.com/case-studies/novartis/
+      summary: Sorting compound-gene-disease triangles by summed uncertainty and reviewing PubMed evidence
+    - title: AstraZeneca BIKG via FAIR Cookbook
+      url: https://faircookbook.elixir-europe.org/content/recipes/introduction/public-kg-resource-integration.html
+      summary: 10.9 million nodes of 22 types and over 118 million edges of 59 types
+    - title: AstraZeneca BIKG preprint (2021)
+      url: https://www.biorxiv.org/content/10.1101/2021.10.28.466262v1.full.pdf
+      summary: Biological Insights Knowledge Graph construction and recommendation uses
+    - title: AstraZeneca talk - Building a knowledge graph with Spark and NLP
+      url: https://www.slideshare.net/slideshow/building-a-knowledge-graph-with-spark-and-nlp-how-we-recommend-novel-drugs-to-our-scientists/189027597
+      summary: Embedding-based nearest gene recommendations; rule to keep evidence and context for each assertion
+    - title: Open Targets association scores documentation
+      url: https://platform-docs.opentargets.org/associations
+      summary: Scores reflect the amount of data available rather than its quality
+    - title: Open Targets target prioritisation
+      url: https://platform-docs.opentargets.org/web-interface/target-prioritisation
+      summary: Tractability and safety grid used in target assessment (a table, not a network view)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

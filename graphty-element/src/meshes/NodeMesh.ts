@@ -1648,7 +1648,7 @@ export class NodeMesh {
                 outline = this.solidOutline(fill, toView, undefined, groups);
             }
             const same =
-                back === drawnBack &&
+                Math.abs(back - drawnBack) < 1e-6 &&
                 outline.length === drawn.length &&
                 outline.every(([x, y], i) => Math.abs(x - drawn[i][0]) < 1e-6 && Math.abs(y - drawn[i][1]) < 1e-6);
             if (same) {

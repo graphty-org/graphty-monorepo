@@ -2611,6 +2611,9 @@ export class Node implements ModelUser {
         if (this.#wholeScale !== whole) {
             this.#wholeScale = whole;
             this.context.getNodeBatches?.()?.rescale(this);
+            // a screen-pixel border is built in the mesh's units, which the view scale sets: with the camera still,
+            // nothing else rebuilds it (#10434)
+            this.refreshScreenBorder();
         }
     }
 
@@ -3825,6 +3828,10 @@ export class Node implements ModelUser {
         }
 
         const built = this.build(fit.meshKey, fit.style);
+        // the new mesh is drawn at scale 1 until the sizing pass scales it for its size space: a view scale left from
+        // the old mesh built a screen-pixel border for a size the node is no longer drawn at (#10434). Leaving a batch
+        // builds a mesh too, but moves the old scale onto it, so the view scale is kept there.
+        this.#wholeScale = 1;
 
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);
@@ -4826,7 +4833,7 @@ export class Node implements ModelUser {
             source = MeshBuilder.CreateSphere(name, { diameter: 1, segments: 8 }, scene);
         }
 
-        // Its shader was compiled with the scene's first node source (`prepareOverlayShader`).
+        // Its shader was compiled right after the scene's first frame of nodes (`prepareOverlayShader`).
         const material = createOverlayMaterial(`${name}-material`, color, alpha, scene);
         // A halo around a solid draws only its far side. The near side lies in front of the node
         // it surrounds, and blending it over the node tinted the whole node the halo's color (a

@@ -77,7 +77,7 @@ async function openWithGraph(): Promise<{ session: GraphSession; store: Workspac
  */
 async function focusFind(): Promise<HTMLInputElement> {
     const find = await screen.findByRole("combobox", { name: "Find" });
-    await userEvent.click(find);
+    await userEvent.click(page.getByRole("combobox", { name: "Find", exact: true }));
     return find as HTMLInputElement;
 }
 
@@ -187,7 +187,7 @@ describe("the find box says columns as the screen does", () => {
 
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
-        await userEvent.click(element, { position: { x: 5, y: 5 } });
+        await userEvent.click(page.getByCss("graphty-element").first(), { position: { x: 5, y: 5 } });
 
         await waitFor(() => {
             assert.isNull(screen.queryByRole("listbox", { name: "Find results" }));
@@ -243,8 +243,7 @@ describe("the find box says columns as the screen does", () => {
             assert.isNull(board.querySelector(".cm-result-picked"), "a row not picked has none");
         });
 
-        const element = document.querySelector("graphty-element");
-        await userEvent.click(element as Element, { position: { x: 5, y: 5 } });
+        await userEvent.click(page.getByCss("graphty-element").first(), { position: { x: 5, y: 5 } });
 
         await waitFor(() => {
             assert.strictEqual(find.value, "");

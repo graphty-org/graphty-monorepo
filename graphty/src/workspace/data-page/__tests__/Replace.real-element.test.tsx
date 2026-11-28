@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { act } from "react";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -87,12 +87,16 @@ describe("Replace with file...", () => {
             assert.include(row.textContent, "Data changed since this run", "the row says why it is out of date");
         });
 
-        await userEvent.click(row);
+        await userEvent.click(page.getByRole("treeitem", { name: /^Influence, / }));
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
         assert.isNotNull(await inspector.findByText("Data changed since this run"));
         assert.strictEqual(live.runs.get(run.id)?.status, "succeeded", "nothing reran by itself");
 
-        await userEvent.click(inspector.getByRole("button", { name: "Rerun" }));
+        await userEvent.click(
+            page
+                .getByRole("complementary", { name: "Inspector", exact: true })
+                .getByRole("button", { name: "Rerun", exact: true }),
+        );
         await waitFor(() => {
             assert.notInclude(row.textContent, "Data changed since this run");
             assert.isNull(inspector.queryByText("Data changed since this run"));

@@ -52,14 +52,14 @@ describe("Undo, Redo and Clear selection words", () => {
         await session.styles.update(layer.id, { set: { "node.color": "#ff0000", "node.size": 3 } });
 
         const undo = await screen.findByRole("button", { name: "Undo changing node size on Hubs" });
-        await userEvent.hover(undo);
+        await userEvent.hover(page.getByRole("button", { name: "Undo changing node size on Hubs", exact: true }));
         await screen.findByText("Undo changing node size on Hubs", undefined);
 
-        await userEvent.click(undo);
+        await userEvent.click(page.getByRole("button", { name: "Undo changing node size on Hubs", exact: true }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Undid changing node size on Hubs");
         });
-        await userEvent.click(await screen.findByRole("button", { name: "Redo changing node size on Hubs" }));
+        await userEvent.click(page.getByRole("button", { name: "Redo changing node size on Hubs", exact: true }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Redid changing node size on Hubs");
         });
@@ -74,7 +74,7 @@ describe("Undo, Redo and Clear selection words", () => {
         await session.transaction("Can the hubs be red?", (tx) =>
             tx.styles.add({ name: "Hubs", target: "node", selector: { match: "everything" }, set: { "node.size": 2 } }),
         );
-        await userEvent.click(await screen.findByRole("button", { name: "Undo Can the hubs be red?" }));
+        await userEvent.click(page.getByRole("button", { name: "Undo Can the hubs be red?", exact: true }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Undid Can the hubs be red?");
         });
@@ -94,7 +94,7 @@ describe("Undo, Redo and Clear selection words", () => {
         // Clicked once it names the step, as a reader would: the header re-renders a task after
         // the element reports the step.
         const undo = async (step: string): Promise<void> => {
-            await userEvent.click(await screen.findByRole("button", { name: `Undo ${step}` }));
+            await userEvent.click(page.getByRole("button", { name: `Undo ${step}`, exact: true }));
         };
 
         // Panel closed: the notice says it, with the step's own period read once.
@@ -105,7 +105,7 @@ describe("Undo, Redo and Clear selection words", () => {
         store.set({ notice: null });
 
         // Panel open: the turn reads Undone there, so only the status line speaks.
-        await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+        await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
         await waitFor(() => {
             assert.equal(store.get().place, "assistant");
         });
@@ -139,8 +139,8 @@ describe("Undo, Redo and Clear selection words", () => {
     it("takes the Selection cleared notice down when a new selection is made", async () => {
         const { session, store } = await openWithGraph();
         const find = await screen.findByRole("combobox", { name: "Find" });
-        await userEvent.click(find);
-        await userEvent.type(find, "=value > `0`");
+        await userEvent.click(page.getByRole("combobox", { name: "Find", exact: true }));
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "=value > `0`");
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.isAbove(session.selection.edges.length, 0);
@@ -159,7 +159,7 @@ describe("Undo, Redo and Clear selection words", () => {
         await screen.findByText(`Selection cleared: ${String(edges)} edges`, { selector: ".cm-toast-message" });
 
         // The rule is still in the find box, so Enter there selects the same edges again.
-        await userEvent.click(find);
+        await userEvent.click(page.getByRole("combobox", { name: "Find", exact: true }));
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.equal(session.selection.edges.length, edges);
@@ -176,7 +176,7 @@ describe("Undo, Redo and Clear selection words", () => {
         const edges = session.selection.edges.length;
         assert.isAbove(edges, 0);
 
-        await userEvent.click(await screen.findByRole("treeitem", { name: /^Selected, / }));
+        await userEvent.click(page.getByRole("treeitem", { name: /^Selected, / }));
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.equal(session.selection.size, 0);

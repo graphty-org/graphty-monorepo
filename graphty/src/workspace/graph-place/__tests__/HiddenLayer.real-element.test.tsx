@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -62,17 +62,17 @@ describe("a hidden layer under a later run", () => {
         });
 
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.hover(await within(tree).findByRole("treeitem", { name: /^Red, / }));
-        await userEvent.click(within(tree).getByRole("button", { name: "Hide Red" }));
+        await userEvent.hover(page.elementLocator(tree).getByRole("treeitem", { name: /^Red, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("button", { name: "Hide Red", exact: true }));
         await waitFor(() => {
             assert.notInclude(drawn(), RED, "the eye stops the layer painting");
         });
 
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
-        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Louvain");
-        await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
-        await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Analyze", exact: true }));
+        await userEvent.type(page.getByRole("combobox", { name: "Filter analyses", exact: true }), "Louvain");
+        await userEvent.click(page.getByRole("option", { name: /^Louvain/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Run\b/ }));
         await waitFor(() => {
             const run = session.runs.list().find((r) => r.algorithm === "louvain");
             assert.equal(run?.status, "succeeded");

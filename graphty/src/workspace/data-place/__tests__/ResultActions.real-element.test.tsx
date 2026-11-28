@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
@@ -52,7 +52,7 @@ async function withResult(
     await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
     const run = session.runs.start(algorithm, params);
     await run;
-    await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
+    await userEvent.click(page.getByRole("tab", { name: "Calculated", exact: true }));
     return { session, store, id: run.id };
 }
 
@@ -72,8 +72,8 @@ async function pick(id: string, item: string): Promise<void> {
         throw new Error("no row");
     }
     await userEvent.hover(row);
-    await userEvent.click(within(row).getByRole("button", { name: /^More for/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: new RegExp(`^${item}`) }));
+    await userEvent.click(page.elementLocator(row).getByRole("button", { name: /^More for/ }));
+    await userEvent.click(page.getByRole("menuitem", { name: new RegExp(`^${item}`) }));
 }
 
 /**
@@ -139,9 +139,9 @@ describe("the inspector's result view", () => {
         const result = session.runs.get(id)?.result;
         await openResult(id);
 
-        await userEvent.click(await screen.findByRole("button", { name: "Measure actions" }));
+        await userEvent.click(page.getByRole("button", { name: "Measure actions", exact: true }));
         await screen.findByRole("menuitem", { name: /^Run again with changes/ });
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Copy as TSV/ }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Copy as TSV/ }));
         await screen.findByText("Copied as TSV");
         assert.strictEqual(await navigator.clipboard.readText(), result?.toTsv());
     });
@@ -164,12 +164,12 @@ describe("a result row's Run again with changes...", () => {
         await pick(id, "Run again with changes");
         // It opens with the result's own settings (the button says it holds set values); unchanged
         // they are up to date, and a changed one runs.
-        await userEvent.click(await screen.findByRole("button", { name: /^Settings for Katz.+/ }));
-        const attenuation = await screen.findByRole("spinbutton", { name: /^Attenuation/ });
+        await userEvent.click(page.getByRole("button", { name: /^Settings for Katz.+/ }));
+        const attenuation = page.getByRole("spinbutton", { name: /^Attenuation/ });
         await userEvent.tripleClick(attenuation);
         await userEvent.keyboard("0.02{Tab}");
         // Named for the result it paints over: "Update Katz layer" while that layer shows.
-        await userEvent.click(await screen.findByRole("button", { name: /^Update Katz layer/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Update Katz layer/ }));
 
         await waitFor(() => {
             const katz = session.runs.list().filter((each) => each.algorithm === "katz");
@@ -192,16 +192,16 @@ describe("a result row's Combine into a score...", () => {
         const first = within(dialog).getByRole("combobox", { name: /^Metric 1/ });
         assert.strictEqual((first as HTMLInputElement).value, "PageRank");
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Add metric" }));
-        const weight = await within(dialog).findByRole("spinbutton", { name: /^Weight 2/ });
-        await userEvent.tripleClick(weight);
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Add metric", exact: true }));
+        const weight = (): Locator => page.elementLocator(dialog).getByRole("spinbutton", { name: /^Weight 2/ });
+        await userEvent.tripleClick(weight());
         await userEvent.keyboard("2{Tab}");
         // The rows being built live in the kept store, so a reload reopens the dialog on them.
         assert.deepEqual(
             store.get().scoreOn?.terms.map((term) => term.weight),
             [1, 2],
         );
-        await userEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Create", exact: true }));
 
         await waitFor(() => {
             const [column] = session.data.derivedColumns();
@@ -236,18 +236,28 @@ describe("a result row's Pin to report", () => {
         await screen.findByText("Pinned to report");
         // The inspector's header "..." for it now offers the way back.
         await openResult(id);
-        await userEvent.click(await screen.findByRole("button", { name: "Measure actions" }));
+        await userEvent.click(page.getByRole("button", { name: "Measure actions", exact: true }));
         await screen.findByRole("menuitem", { name: /^Unpin from report/ });
         await userEvent.keyboard("{Escape}");
 
         await userEvent.keyboard("{Control>}e{/Control}");
         const dialog = await screen.findByRole("dialog", { name: "Export" });
-        await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Report"));
+        await userEvent.click(
+            page
+                .elementLocator(dialog)
+                .getByRole("grid", { name: "What to export", exact: true })
+                .getByText("Report", { exact: true }),
+        );
         const sections = await within(dialog).findByRole("group", { name: "Sections" });
         assert.isNotNull(within(sections).getByRole("checkbox", { name: "Pinned items (1)" }));
         const pinned = within(dialog).getByRole("group", { name: "Pinned items" });
-        await userEvent.type(within(pinned).getByRole("textbox", { name: "PageRank" }), "Valjean leads");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Generate report" }));
+        await userEvent.type(
+            page.elementLocator(pinned).getByRole("textbox", { name: "PageRank", exact: true }),
+            "Valjean leads",
+        );
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Generate report", exact: true }),
+        );
         await screen.findByText("Exported untitled_report.md", { selector: ".cm-toast-message" });
 
         const report = (await files.at(-1)?.text()) ?? "";
@@ -260,8 +270,13 @@ describe("a result row's Pin to report", () => {
         // Unpinned in the Report, it leaves the Pinned items.
         await userEvent.keyboard("{Control>}e{/Control}");
         const again = await screen.findByRole("dialog", { name: "Export" });
-        await userEvent.click(within(within(again).getByRole("grid", { name: "What to export" })).getByText("Report"));
-        await userEvent.click(await within(again).findByRole("button", { name: "Unpin PageRank" }));
+        await userEvent.click(
+            page
+                .elementLocator(again)
+                .getByRole("grid", { name: "What to export", exact: true })
+                .getByText("Report", { exact: true }),
+        );
+        await userEvent.click(page.elementLocator(again).getByRole("button", { name: "Unpin PageRank", exact: true }));
         await within(again).findByRole("checkbox", { name: "Pinned items (0)" });
         assert.isNull(within(again).queryByRole("group", { name: "Pinned items" }));
     });

@@ -169,7 +169,9 @@ function editing(inspector: HTMLElement): HTMLElement {
 async function closeCards(inspector: HTMLElement): Promise<void> {
     const done = within(editing(inspector)).queryByRole("button", { name: "Done" });
     if (done !== null) {
-        await userEvent.click(done);
+        await userEvent.click(
+            page.elementLocator(editing(inspector)).getByRole("button", { name: "Done", exact: true }),
+        );
     }
     await waitFor(() => {
         assert.isNull(within(editing(inspector)).queryByRole("button", { name: "Done" }));
@@ -204,8 +206,8 @@ async function readKind(
     const button = which?.querySelector("button");
     if (which !== null && (button === null || button === undefined)) {
         controls.set(`${kind} which: no control`, false);
-    } else if (button !== null && button !== undefined) {
-        await userEvent.click(button);
+    } else if (which !== null && button !== null && button !== undefined) {
+        await userEvent.click(page.elementLocator(which).getByCss("button").first());
         const done = await waitFor(() => within(editing(inspector)).getByRole("button", { name: "Done" }));
         const changes = within(editing(inspector)).queryAllByRole("button", { name: CHANGES_SELECTION });
         controls.set(`${kind} which open: Done`, enabled(done));
@@ -241,9 +243,9 @@ function movesOf(rows: readonly StyleRow[], name: string): Readonly<Record<strin
  * @returns each control's name and whether it is enabled.
  */
 async function controlsOf(session: GraphSession, name: string): Promise<Map<string, boolean>> {
-    const row = await within(screen.getByRole("tree", { name: "Style layers" })).findByRole("treeitem", {
-        name: new RegExp(`^${name}, `),
-    });
+    const row = page
+        .getByRole("tree", { name: "Style layers", exact: true })
+        .getByRole("treeitem", { name: new RegExp(`^${name}, `) });
     await userEvent.click(row);
     const inspector = await screen.findByRole("complementary", { name: "Inspector" });
     await waitFor(() => {

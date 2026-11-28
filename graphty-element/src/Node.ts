@@ -4418,6 +4418,8 @@ export class Node implements ModelUser {
             // in the mesh's own units, as the border is built under the anchor: divided by the anchor's scale it
             // was counted twice, and a node drawn at its screen size got a halo far past its border (#10496)
             this.borderReach,
+            // measured from the node's outline, not from the fill that an inside or centered border drew in (#10435)
+            this.fillInset(),
         );
         halo.scaling.copyFromFloats(own.x * grow.x, own.y * grow.y, own.z * grow.z);
         this.haloLift = flatHaloLift(halo, own.z);

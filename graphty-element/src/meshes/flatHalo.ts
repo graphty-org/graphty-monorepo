@@ -97,25 +97,29 @@ function haloFrontOf(source: Mesh): number | undefined {
  * and an oval's band matches at its four extremes. A depth too thin to measure (a flat shape, a star
  * or a slab) keeps the node's own depth: grown, its side walls reached through the border's front
  * face and drew halo-colored lines across the band (issue #10494). A border drawn past the outline is stepped over first, so the band shows
- * beyond it rather than under it: on a node with a wide border the whole band was hidden.
+ * beyond it rather than under it: on a node with a wide border the whole band was hidden. A border
+ * centered on the outline or inside it draws the geometry in from the outline, so the band is measured
+ * from the outline, the geometry grown back out by that inset (issue #10435).
  * @param extent - The halo geometry's half-extents, in its own units.
  * @param extent.x - Across.
  * @param extent.y - Up.
  * @param extent.z - In depth.
  * @param scale - The look's multiplier.
- * @param border - How far the node's border reaches past its outline, in the geometry's units.
+ * @param border - How far the node's border reaches past its drawn geometry, in the geometry's units.
+ * @param inset - How far in from the node's outline its geometry is drawn, in the geometry's units.
  * @returns The scaling per axis.
  */
 export function haloAxisScale(
     extent: { x: number; y: number; z: number },
     scale: number,
     border = 0,
+    inset = 0,
 ): { x: number; y: number; z: number } {
     const face = Math.min(extent.x, extent.y);
     if (face <= 0 || Number.isNaN(face)) {
         return { x: scale, y: scale, z: scale };
     }
-    const band = (scale - 1) * face + border;
+    const band = (scale - 1) * (face + inset) + border;
     const grow = (half: number): number => 1 + band / half;
     return { x: grow(extent.x), y: grow(extent.y), z: extent.z > face / 4 ? grow(extent.z) : 1 };
 }

@@ -96,6 +96,71 @@ describe("a join's name", () => {
         session.dispose();
     });
 
+    it("refuses a name that is not text, with reason bad-name", async () => {
+        const { session, accounts, ids, join } = await opened();
+        const draft = session.data.draft();
+        draft.merge({ from: { source: ids, field: "account_id" }, into: { source: accounts }, join });
+        const refusal = (name: unknown): { code?: string; details?: { reason?: string } } | null => {
+            try {
+                draft.renameJoin("join-1", name as string);
+            } catch (error) {
+                return error as { code?: string; details?: { reason?: string } };
+            }
+            return null;
+        };
+        for (const bad of [5, {}, undefined, ["x"]]) {
+            const error = refusal(bad);
+            assert.strictEqual(error?.code, "E_BAD_COMMAND", JSON.stringify(bad) ?? "undefined");
+            assert.strictEqual(error?.details?.reason, "bad-name", JSON.stringify(bad) ?? "undefined");
+        }
+        assert.deepStrictEqual(names(draft.steps()), [undefined], "nothing was named");
+        session.dispose();
+    });
+
+    it("trims a name, and a name the join already has changes nothing", async () => {
+        const { session, accounts, ids, join } = await opened();
+        const reasons: string[] = [];
+        session.on("data:draft-changed", (change) => reasons.push(change.reason));
+        const draft = session.data.draft();
+        draft.merge({ from: { source: ids, field: "account_id" }, into: { source: accounts }, join });
+        draft.renameJoin("join-1", "  Risky accounts  ");
+        assert.deepStrictEqual(names(draft.steps()), ["Risky accounts"], "trimmed");
+        const told = reasons.length;
+        draft.renameJoin("join-1", "Risky accounts ");
+        assert.strictEqual(reasons.length, told, "the same name tells no change");
+        draft.undo();
+        assert.deepStrictEqual(names(draft.steps()), [undefined], "one undo reaches the unnamed join");
+        const untold = reasons.length;
+        draft.renameJoin("join-1", null);
+        draft.renameJoin("join-1", "   ");
+        assert.strictEqual(reasons.length, untold, "clearing an unnamed join tells no change");
+        draft.undo();
+        assert.isTrue(
+            draft.steps().every((row) => row.op === "join.add"),
+            "clearing an unnamed join added no undo step, so this undo took the merge back",
+        );
+        session.dispose();
+    });
+
+    it("keeps only the join keys a load reads, so what is saved opens again", async () => {
+        const { session, accounts, ids, join } = await opened();
+        const odd = { ...join, name: 5, extra: "x" } as unknown as SourceJoinTag;
+        const draft = session.data.draft();
+        draft.merge({ from: { source: ids, field: "account_id" }, into: { source: accounts }, join: odd });
+        const tag = draft.steps().find((row) => row.join !== undefined)?.join;
+        assert.deepStrictEqual(Object.keys(tag ?? {}).sort(), ["id", "matches"]);
+        await draft.commit();
+        const { text } = await session.project.save();
+        session.dispose();
+        const again = createGraphSession({ features: ["source-steps"] });
+        await again.project.open(text);
+        assert.isTrue(
+            again.data.steps().some((row) => row.join?.id === "join-1"),
+            "reopened with its join",
+        );
+        again.dispose();
+    });
+
     it("refuses a saved name that is not text", async () => {
         const { session, accounts, ids, join } = await opened();
         const draft = session.data.draft();

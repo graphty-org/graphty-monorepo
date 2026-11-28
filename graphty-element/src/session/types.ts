@@ -6756,8 +6756,10 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      * Name, or take the name off, one join: every step whose `join.id` is `id` gets the name, as one
      * undo step.
      * @param id - The join's id (`SourceJoinTag.id`).
-     * @param name - The name, or `null` (or a blank name) to take it off.
-     * @throws A `GraphtyError` with `E_BAD_COMMAND` when no step carries that join id.
+     * @param name - The name, trimmed, or `null` (or a blank name) to take it off. A name the join
+     *   already has changes nothing and adds no undo step.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`: reason `no-join` when no step carries that join
+     *   id, `bad-name` when `name` is neither text nor `null`.
      * @experimental source-steps
      */
     renameJoin(id: string, name: string | null): void;

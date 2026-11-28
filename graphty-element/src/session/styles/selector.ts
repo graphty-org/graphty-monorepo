@@ -46,6 +46,7 @@ import type {
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import { pathsRead } from "../sets/dependencies";
+import { TYPE_PATH } from "../sources/steps/paths";
 import {
     columnsFor,
     type CompiledSelector,
@@ -178,9 +179,6 @@ const KINDS_WITHOUT_TYPE = SELECTOR_KINDS.filter((kind) => kind !== "type");
 function kindsFor(sourceSteps: boolean): readonly string[] {
     return sourceSteps ? SELECTOR_KINDS : KINDS_WITHOUT_TYPE;
 }
-
-/** The readable path holding an element's one type under the source-steps experiment. */
-const TYPE_PATH = "graphty.type";
 
 /** What a `type` selector reads. */
 const TYPE_PATHS: readonly Path[] = Object.freeze([TYPE_PATH]);

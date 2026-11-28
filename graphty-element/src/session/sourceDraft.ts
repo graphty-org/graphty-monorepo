@@ -500,9 +500,25 @@ export class SourceDraftHandle implements SourceDraft {
 
     /** @inheritdoc */
     renameJoin(id: string, name: string | null): void {
+        // Checked at run time: a caller in plain JavaScript can pass anything.
+        const given: unknown = name;
+        if (given !== null && typeof given !== "string") {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "A join's name is text or null.",
+                source: "data",
+                details: { reason: "bad-name", id },
+            });
+        }
+        const trimmed = name?.trim() ?? "";
+        const { steps } = this.state.value;
+        const joined = steps.filter((step) => step.join?.id === id);
+        if (joined.length > 0 && joined.every((step) => (step.join?.name ?? "") === trimmed)) {
+            this.live("renameJoin");
+            return;
+        }
         this.act("renameJoin", (state) => {
-            const { steps } = state.value;
-            if (!steps.some((step) => step.join?.id === id)) {
+            if (joined.length === 0) {
                 throw new GraphtyError({
                     code: "E_BAD_COMMAND",
                     message: `No step carries the join ${JSON.stringify(id)}.`,
@@ -510,12 +526,12 @@ export class SourceDraftHandle implements SourceDraft {
                     details: { reason: "no-join", id },
                 });
             }
-            const named = steps.map((step) => {
+            const named = state.value.steps.map((step) => {
                 if (step.join?.id !== id) {
                     return step;
                 }
                 const { name: _old, ...rest } = step.join;
-                return { ...step, join: name === null || name.trim() === "" ? rest : { ...rest, name } };
+                return { ...step, join: trimmed === "" ? rest : { ...rest, name: trimmed } };
             });
             return draftApply(state, { kind: "set", value: { ...state.value, steps: named } });
         });

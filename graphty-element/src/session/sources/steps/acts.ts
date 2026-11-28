@@ -1009,7 +1009,12 @@ function withJoin(before: SourceSteps, after: SourceSteps, join: StepJoin | unde
     if (join === undefined) {
         return after;
     }
-    const kept: StepJoin = { ...join, matches: [...join.matches] };
+    // Only the keys a load reads back, so a caller cannot save what the same session refuses to open.
+    const kept: StepJoin = {
+        id: join.id,
+        matches: [...join.matches],
+        ...(typeof join.name === "string" ? { name: join.name } : {}),
+    };
     return {
         ...after,
         steps: after.steps.map((step, i) =>

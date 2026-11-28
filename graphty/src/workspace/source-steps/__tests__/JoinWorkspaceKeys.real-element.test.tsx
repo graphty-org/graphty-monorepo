@@ -18,6 +18,7 @@ import { WORKSPACE_WORDS } from "../words";
 import {
     addMatch,
     advanced,
+    cardCount,
     choose,
     done,
     draftOf,
@@ -300,7 +301,7 @@ describe("the join workspace's keys (source-steps)", () => {
                 ],
             );
         });
-        assert.strictEqual(within(modal).getByLabelText("Match count 2").textContent, "2 of 3 match");
+        assert.strictEqual(within(modal).getByLabelText("Match count 2").textContent, "2 of 3 rows matched");
     });
 
     it("draw a removed card again: Undo brings its step back, and once more its lines", async () => {
@@ -362,13 +363,13 @@ describe("a join card's matches and table (source-steps)", () => {
         await matchBoth(modal);
         await joinAs(modal, EDGE);
         await newest(session, (row) => row.act !== null, "joined");
-        assert.strictEqual(within(modal).getByLabelText("Match count 1").textContent, "2 of 3 match, 1 empty");
-        assert.strictEqual(within(modal).getByLabelText("Match count 2").textContent, "2 of 3 match");
+        assert.strictEqual(cardCount(modal), "2 of 3 rows matched, 1 empty");
+        assert.strictEqual(within(modal).getByLabelText("Match count 2").textContent, "2 of 3 rows matched");
         assert.isNotNull(within(modal).getByText("Every match ignores"), "the switches set every match of the card");
         await userEvent.click(within(modal).getByRole("switch", { name: "Ignore case" }));
         await userEvent.click(within(modal).getByRole("switch", { name: "Ignore spaces" }));
         await waitFor(() => {
-            assert.strictEqual(within(modal).getByLabelText("Match count 2").textContent, "3 of 3 match");
+            assert.strictEqual(within(modal).getByLabelText("Match count 2").textContent, "3 of 3 rows matched");
         });
         const lines = within(modal).getByRole("radiogroup", { name: "Match" });
         await userEvent.click(within(lines).getByText("door"));
@@ -446,7 +447,8 @@ describe("a join card's matches and table (source-steps)", () => {
         await userEvent.click(await within(modal).findByRole("button", { name: /new edges$/ }));
         await select(rowWith(await within(modal).findByRole("grid", { name: "Rows" }), "E1"));
         await within(modal).findByRole("button", { name: "Exclude" });
-        await userEvent.click(within(modal).getByRole("button", { name: /matched$/ }));
+        // Another count's list: the rows matched are counted in the card's header, which lists no step's rows.
+        await userEvent.click(within(modal).getByRole("button", { name: /^\d+ empty rows?$/ }));
         await waitFor(() => {
             assert.isNull(
                 within(modal).queryByRole("button", { name: "Exclude" }),

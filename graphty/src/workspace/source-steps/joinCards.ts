@@ -113,6 +113,11 @@ export interface ReaderCard extends Ignoring {
     readonly at: number | null;
     /** The reader removed its step: it is drawn again only once an undo brings the step back. */
     readonly deleted?: true;
+    /**
+     * Clear took it with the written cards beside it, by what their steps match and make: a card not written
+     * yet is drawn again once an undo brings any of them back.
+     */
+    readonly clearedWith?: readonly string[];
     /** The name the reader gave it before it wrote a step; its join carries it from then on. */
     readonly name?: string;
 }
@@ -1043,7 +1048,7 @@ function withJoin(act: SourceJoinAct, join: SourceJoinTag): SourceJoinAct {
  * @param steps - The steps the card is.
  * @param lines - Its lines.
  * @param outcome - The outcome it writes.
- * @param given - The name the reader gave the card before it wrote a step.
+ * @param given - The name the reader gave the card before it wrote a step, read only while it has none.
  * @returns The join.
  */
 export function joinOf(
@@ -1053,7 +1058,8 @@ export function joinOf(
     given?: string,
 ): SourceJoinTag {
     const matches = lines.flatMap((line) => matchOf(line) ?? []).filter((_, at) => outcome.uses.includes(at));
-    const name = steps.at(0)?.join?.name ?? given;
+    // Once a step is written its join alone holds the name: a name taken off it stays off.
+    const name = steps.length === 0 ? given : steps[0].join?.name;
     return { id: steps.at(0)?.join?.id ?? crypto.randomUUID(), matches, ...(name === undefined ? {} : { name }) };
 }
 

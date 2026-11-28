@@ -18,6 +18,7 @@ import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
 import {
     addMatch,
+    cardCount,
     done,
     emptyProject,
     joinAs,
@@ -179,7 +180,7 @@ describe("the doors into the join workspace (source-steps)", () => {
         const again = await screen.findByRole("dialog", { name: "Join" });
         const counts = (): string => again.querySelector(".jw-counts")?.textContent ?? "";
         await waitFor(() => {
-            assert.include(counts(), "matched", "its counts are drawn");
+            assert.include(cardCount(again) ?? "", "rows matched", "its count is drawn, in the card's header");
         });
         assert.notMatch(counts(), /new (node|edge)/, "left as it is, it adds nothing the graph lacks");
         await joinAs(again, "Node per entries row, linked to people and doors");
@@ -223,16 +224,16 @@ describe("the doors into the join workspace (source-steps)", () => {
         );
     });
 
-    it("its menu's Remove opens the workspace with the join taken out, and Done takes it out in one step", async () => {
+    it("its menu's Delete opens the workspace with the join taken out, and Done takes it out in one step", async () => {
         const { session } = await foundingProject();
         await joinEntries(session);
         assert.isAbove(session.data.edges().length, 0);
         const place = await screen.findByRole("region", { name: "Data place" });
         await userEvent.click(await within(place).findByRole("button", { name: "people + entries menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
         const modal = await screen.findByRole("dialog", { name: "Join" });
         assert.deepStrictEqual(joinLines(modal), []);
-        await within(modal.querySelector<HTMLElement>(".jw-key") ?? modal).findByLabelText("3 edges removed");
+        await within(modal.querySelector<HTMLElement>(".jw-key") ?? modal).findByLabelText("3 removed edges");
         assert.isTrue(
             session.data.steps().some((row) => row.op === "join.edges"),
             "nothing is committed before Done",

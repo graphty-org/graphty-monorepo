@@ -635,7 +635,7 @@ describe("a join card's ways to join (source-steps)", () => {
         for (const look of ["Card colors", "Styled"]) {
             await userEvent.click(within(modal).getByText(look));
             await waitFor(() => {
-                assert.strictEqual(keyCount(modal, "nodes merged"), 3, look);
+                assert.strictEqual(keyCount(modal, "merged nodes"), 3, look);
                 const wider = ["A1", "A2", "A3"].filter((id) => ring(id) > ring("A2"));
                 assert.deepStrictEqual(wider, ["A1"], `A1 alone rings wider (${look})`);
                 assert.strictEqual(keyCount(modal, "nodes every step merges"), wider.length, `its key row (${look})`);

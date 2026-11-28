@@ -281,7 +281,8 @@ function Line(
                     {at === 0 ? null : <span />}
                 </>
             ) : null}
-            {counts === null ? null : (
+            {/* The first match is counted in the card's header: a later one counts its own rows here. */}
+            {counts === null || at === 0 ? null : (
                 <Text
                     size="xs"
                     className="jw-line-count"

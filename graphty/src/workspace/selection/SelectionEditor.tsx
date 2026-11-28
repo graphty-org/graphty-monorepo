@@ -49,6 +49,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DrawnSwatches } from "../style/drawnSwatches";
 import { AddCondition } from "../style/WhichPicker";
 import { CARD_KEYS, runCardKey, tabWrap } from "./cardKeys";
+import { cardMenuItems } from "./cardMenu";
 import { MatchesStrip } from "./MatchesStrip";
 import {
     addBranch,
@@ -80,6 +81,7 @@ import {
     waitingSource,
 } from "./values";
 import {
+    CARD_MENU_WORDS,
     countWords,
     letterOf,
     NOUNS,
@@ -848,7 +850,8 @@ export function SelectionEditor({
             return;
         }
         onChange(moveBranch(rule, id, to));
-        say(`Moved to ${letterOf(to)}`);
+        const name = branchName(rule.branches[at]);
+        say(by < 0 ? CARD_MENU_WORDS.movedUp(name) : CARD_MENU_WORDS.movedDown(name));
         focusAfter.current = `[data-row="${CSS.escape(id)}"]`;
     };
     // After a delete no row is selected (a second Delete deletes nothing) and focus stays at the
@@ -868,7 +871,7 @@ export function SelectionEditor({
     const removeBranchOf = (branch: UnionBranch): void => {
         const place = placeOf(branch.id ?? "");
         onChange(removeBranch(rule, branch.id ?? ""));
-        say(`Removed ${branchName(branch)}`);
+        say(CARD_MENU_WORDS.removed(branchName(branch)));
         setSelected(null);
         focusAfter.current = place < 0 ? `[data-row="${TITLE}"]` : place;
     };
@@ -882,7 +885,7 @@ export function SelectionEditor({
     const toggle = (branch: UnionBranch): void => {
         const on = branch.on === false;
         onChange(editBranch(rule, branch.id ?? "", { on }));
-        say(`${branchName(branch)} ${on ? "on" : "off"}`);
+        say(on ? CARD_MENU_WORDS.on(branchName(branch)) : CARD_MENU_WORDS.off(branchName(branch)));
     };
     // Clear (spec 3.0): back to where a new layer or card starts -- All nodes, no step -- as one
     // undo step. A filter card keeps its name and on box.
@@ -1181,7 +1184,7 @@ export function SelectionEditor({
             return;
         }
         onChange(newSelection(rule.side, rule.within));
-        say(`Removed ${branchName(branch)}`);
+        say(CARD_MENU_WORDS.removed(branchName(branch)));
         setSelected(null);
         setAdding(null);
     };
@@ -1192,33 +1195,12 @@ export function SelectionEditor({
             return at < 0 ? undefined : cardItems(rule.branches[at], at);
         });
     };
-    // A card's "..." items.
+    // A card's "..." items: the shared ones, with Duplicate and Save as set of its own.
     const cardItems = (branch: UnionBranch, at: number): readonly SelectionMenuItem[] => {
         const branchId = branch.id ?? "";
         const letter = branchName(branch);
         const branchRead = branchReading(branch.id);
-        const on = branch.on !== false;
-        return [
-            {
-                id: "rename",
-                label: "Rename",
-                icon: "rename",
-                group: "edit",
-                key: CARD_KEYS.rename,
-                onRun: () => {
-                    setRenaming(branchId);
-                },
-            },
-            {
-                id: "hide",
-                label: on ? "Turn off" : "Turn on",
-                icon: on ? "hide" : "show",
-                group: "edit",
-                key: CARD_KEYS.off,
-                onRun: () => {
-                    toggle(branch);
-                },
-            },
+        const more: readonly SelectionMenuItem[] = [
             {
                 id: "duplicate",
                 label: "Duplicate",
@@ -1247,41 +1229,24 @@ export function SelectionEditor({
                     }
                 },
             },
+        ];
+        return cardMenuItems(
+            { at, count: rule.branches.length, on: branch.on !== false, renames: true, more },
             {
-                id: "up",
-                label: "Move up",
-                icon: "moveUp",
-                group: "edit",
-                key: CARD_KEYS.up,
-                reason: at === 0 ? "Already at the top" : null,
-                reasonDrawn: false,
-                onRun: () => {
-                    moveCardBy(branchId, -1);
+                rename: () => {
+                    setRenaming(branchId);
                 },
-            },
-            {
-                id: "down",
-                label: "Move down",
-                icon: "moveDown",
-                group: "edit",
-                key: CARD_KEYS.down,
-                reason: at === rule.branches.length - 1 ? "Already at the bottom" : null,
-                reasonDrawn: false,
-                onRun: () => {
-                    moveCardBy(branchId, 1);
+                turn: () => {
+                    toggle(branch);
                 },
-            },
-            {
-                id: "delete",
-                label: "Delete",
-                icon: "delete",
-                group: "remove",
-                key: CARD_KEYS.delete,
-                onRun: () => {
+                move: (by) => {
+                    moveCardBy(branchId, by);
+                },
+                remove: () => {
                     removeCard(branch);
                 },
             },
-        ];
+        );
     };
     // "+ Card": the value picked is the new card's value; the cards before it fold.
     const addCard = (stepRule: RuleTree): void => {
@@ -1471,7 +1436,12 @@ export function SelectionEditor({
             onRenamingChange={setRenaming}
             onRename={(branchId, typed) => {
                 const text = typed.trim();
+                const was = rule.branches.find((each) => each.id === branchId)?.name ?? "";
+                if (text === was) {
+                    return;
+                }
                 onChange(editBranch(rule, branchId, { name: text === "" ? undefined : text }));
+                say(text === "" ? CARD_MENU_WORDS.nameCleared : CARD_MENU_WORDS.renamed(text));
             }}
             onRemove={(branchId) => {
                 const branch = rule.branches.find((each) => each.id === branchId);

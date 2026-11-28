@@ -11,18 +11,20 @@ import { sourceStepsOn } from "../features";
 import { focusIsLost } from "../frame/focus";
 import { KeysInTooltips } from "../frame/keysInTooltips";
 import { GLYPHS } from "../glyphs";
-import { formatNumber } from "../inspector/words";
 import { ariaKey, formatKey, isTypingTarget, matchesKey } from "../keys/keys";
-import { CARD_KEYS, runCardKey, tabWrap } from "../selection/cardKeys";
+import { runCardKey, tabWrap } from "../selection/cardKeys";
+import { cardMenuItems } from "../selection/cardMenu";
 import { cardPalette } from "../selection/cardPalette";
 import { usePreviewCanvas } from "../selection/previewCanvas";
 import { RowMore, type SelectionMenuItem } from "../selection/SelectionMenu";
+import { CARD_MENU_WORDS } from "../selection/words";
 import { useSessionEvents } from "../sessionEvents";
 import type { JoinWorkspaceOpen } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { commitWorkspace } from "./actions";
 import {
     foldedSummary,
+    matchWords,
     nameOf,
     namingLines,
     rowNames,
@@ -45,7 +47,7 @@ import {
 } from "./keys";
 import { ReaderEdits } from "./ReaderEdits";
 import { StagedRows } from "./StagedFields";
-import { type FirstCards, type JoinCards, useJoinCards } from "./useJoinCards";
+import { canRename, type FirstCards, type JoinCards, useJoinCards } from "./useJoinCards";
 import { refusedWords, STEP_WORDS, WORKSPACE_WORDS } from "./words";
 import {
     addCardId,
@@ -435,27 +437,16 @@ function stateWords(card: JoinCardView): string | null {
     return card.step === null ? WORKSPACE_WORDS.notJoined : null;
 }
 
-/**
- * What a screen reader hears once a card is renamed: its new name, or that its name was taken off.
- * @param typed - the name as typed
- * @returns the words
- */
-function renamedWords(typed: string): string {
-    const name = typed.trim();
-    return name === "" ? WORKSPACE_WORDS.nameCleared : `${WORKSPACE_WORDS.renamed} ${name}`;
-}
-
 /** What a card's "..." items do. */
 interface CardActs {
     readonly rename: (id: string) => void;
-    readonly duplicate: (id: string) => void;
     readonly reorder: (id: string, to: number) => void;
     readonly remove: (id: string) => void;
     readonly say: (words: string) => void;
 }
 
 /**
- * A card's "..." items, as the selection workspace's cards have them, by the same keys.
+ * A card's "..." items, as the Filters workspace's cards have them, by the same keys and words.
  * @param id - the card
  * @param placed - every card, in step order
  * @param joins - the join cards
@@ -474,97 +465,31 @@ function joinCardItems(
         return undefined;
     }
     const card = joins.cards.find((each) => each.id === id);
+    // A source added as it is goes by its source's name, and is never off: a join alone is renamed and turned off.
     const written = card !== undefined && card.steps.length > 0;
-    const off = card !== undefined && isOff(card);
-    const offWords = off ? WORKSPACE_WORDS.turnOn : WORKSPACE_WORDS.turnOff;
-    const rename: readonly SelectionMenuItem[] =
-        card === undefined
-            ? []
-            : [
-                  {
-                      id: "rename",
-                      label: WORKSPACE_WORDS.rename,
-                      icon: "rename",
-                      group: "edit",
-                      key: CARD_KEYS.rename,
-                      onRun: () => {
-                          acts.rename(id);
-                      },
-                  },
-              ];
-    const turn: readonly SelectionMenuItem[] = written
-        ? [
-              {
-                  id: "hide",
-                  label: offWords,
-                  icon: off ? "show" : "hide",
-                  group: "edit",
-                  key: CARD_KEYS.off,
-                  onRun: () => {
-                      joins.setOff(id, !off);
-                      acts.say(`${offWords} ${item.title}`);
-                  },
-              },
-          ]
-        : [];
-    // A copy starts not joined, with the same matches and options: two cards writing one join would clash.
-    const duplicate: readonly SelectionMenuItem[] =
-        card === undefined
-            ? []
-            : [
-                  {
-                      id: "duplicate",
-                      label: WORKSPACE_WORDS.duplicate,
-                      icon: "duplicate",
-                      group: "edit",
-                      key: CARD_KEYS.duplicate,
-                      onRun: () => {
-                          acts.duplicate(id);
-                          acts.say(`${WORKSPACE_WORDS.duplicated} ${item.title}`);
-                      },
-                  },
-              ];
-    return [
-        // A source added as it is goes by its source's name: a join alone is renamed.
-        ...rename,
-        ...turn,
-        ...duplicate,
+    return cardMenuItems(
         {
-            id: "up",
-            label: WORKSPACE_WORDS.moveUp,
-            icon: "moveUp",
-            group: "edit",
-            key: CARD_KEYS.up,
-            reason: at === 0 ? WORKSPACE_WORDS.atTop : null,
-            reasonDrawn: false,
-            onRun: () => {
-                acts.reorder(id, at - 1);
-            },
+            at,
+            count: placed.length,
+            on: written ? !isOff(card) : null,
+            renames: card !== undefined && canRename(card),
         },
         {
-            id: "down",
-            label: WORKSPACE_WORDS.moveDown,
-            icon: "moveDown",
-            group: "edit",
-            key: CARD_KEYS.down,
-            reason: at === placed.length - 1 ? WORKSPACE_WORDS.atBottom : null,
-            reasonDrawn: false,
-            onRun: () => {
-                acts.reorder(id, at + 1);
+            rename: () => {
+                acts.rename(id);
             },
-        },
-        {
-            id: "delete",
-            label: WORKSPACE_WORDS.delete,
-            icon: "delete",
-            group: "remove",
-            key: CARD_KEYS.delete,
-            onRun: () => {
+            turn: (on) => {
+                joins.setOff(id, !on);
+                acts.say(on ? CARD_MENU_WORDS.on(item.title) : CARD_MENU_WORDS.off(item.title));
+            },
+            move: (by) => {
+                acts.reorder(id, at + by);
+            },
+            remove: () => {
                 acts.remove(id);
-                acts.say(`${WORKSPACE_WORDS.delete} ${item.title}`);
             },
         },
-    ];
+    );
 }
 
 /**
@@ -589,17 +514,17 @@ function moveTo(
         return;
     }
     moveCard(draft, moving, target, to > from);
-    say(`${to > from ? WORKSPACE_WORDS.moveDown : WORKSPACE_WORDS.moveUp} ${placed[from].title}`);
+    const { title } = placed[from];
+    say(to > from ? CARD_MENU_WORDS.movedDown(title) : CARD_MENU_WORDS.movedUp(title));
 }
 
 /**
- * The workspace's "..." items, as the selection workspace's are: Undo and Redo, then what the preview shows,
- * then Delete (the open card) and Clear (every card).
+ * The workspace's "..." items, as the Filters workspace's are: Undo and Redo, then what the preview shows,
+ * then Clear (every card), last. A card is deleted by its own x and its own menu.
  * @param draft - the open draft
  * @param state - what the workspace shows
  * @param state.table - whether the open card has a table to show
  * @param state.shown - whether it is shown
- * @param state.open - whether a card is open
  * @param state.cards - whether there is a card
  * @param acts - what the items do
  * @param acts.undo - takes back the newest change
@@ -607,20 +532,18 @@ function moveTo(
  * @param acts.frame - frames the matches
  * @param acts.table - hides or shows the open card's table
  * @param acts.edits - opens or closes the Reader edits list
- * @param acts.remove - deletes the open card
  * @param acts.clear - deletes every card
  * @returns the items
  */
 function headItems(
     draft: SourceDraft,
-    state: Readonly<{ table: boolean; shown: boolean; open: boolean; cards: boolean }>,
+    state: Readonly<{ table: boolean; shown: boolean; cards: boolean }>,
     acts: Readonly<{
         undo: () => void;
         redo: () => void;
         frame: () => void;
         table: () => void;
         edits: () => void;
-        remove: () => void;
         clear: () => void;
     }>,
 ): readonly SelectionMenuItem[] {
@@ -666,19 +589,9 @@ function headItems(
             onRun: acts.edits,
         },
         {
-            id: "delete",
-            label: WORKSPACE_WORDS.delete,
-            icon: "delete",
-            group: "remove",
-            key: DELETE_KEY,
-            reason: state.open ? null : WORKSPACE_WORDS.noCardOpen,
-            reasonDrawn: false,
-            onRun: acts.remove,
-        },
-        {
             id: "clear",
             label: WORKSPACE_WORDS.clear,
-            icon: "delete",
+            icon: "clear",
             group: "remove",
             reason: state.cards ? null : WORKSPACE_WORDS.noCards,
             reasonDrawn: false,
@@ -790,10 +703,8 @@ function WorkspaceBody({
     const [colors, setColors] = useState(true);
     // on reload: fresh: pointer: the card whose name's box is open, or null
     const [renaming, setRenaming] = useState<string | null>(null);
-    // on reload: fresh: pointer: the header's box for the open card's name is open
-    const [renamingHead, setRenamingHead] = useState(false);
-    // on reload: fresh: pointer: the reader hid the open card's table for a look
-    const [tableHidden, setTableHidden] = useState(false);
+    // on reload: fresh: pointer: the open card whose table the reader hid for a look, until another card opens
+    const [tableHiddenOf, setTableHiddenOf] = useState<string | null>(null);
     const unfinishedEnds = useWorkspaceState((state) => state.stagedEnds)?.source;
     const joins = useJoinCards(session, draft, first, version, () => {
         // Another card's rows are not this one's.
@@ -801,6 +712,10 @@ function WorkspaceBody({
         setPickedRows(null);
     });
     const { openCard } = joins;
+    // Another card opened: the table shows again, as it shows for every card opened.
+    if (tableHiddenOf !== null && tableHiddenOf !== joins.open) {
+        setTableHiddenOf(null);
+    }
     const names = sourceNames(session);
     // The selection workspace's palette, in its order: the first card is the same color in both workspaces.
     const palette = session.scope.options.branchPalette ?? cardPalette(session.catalog.palettes());
@@ -814,7 +729,7 @@ function WorkspaceBody({
     const { marks, sources } = draft.preview();
     const listed = openCard !== undefined && shows?.step === openCard.step?.index ? shows : null;
     const hasTable = openCard !== undefined && hasPane(openCard, listed);
-    const pane = hasTable && !tableHidden;
+    const pane = hasTable && (joins.open === null || tableHiddenOf !== joins.open);
 
     const steps = draft.steps();
     const namings = joins.cards.map((card) => namingLines(session, steps, card));
@@ -826,7 +741,6 @@ function WorkspaceBody({
         // Read when a menu is drawn or a key pressed: the acts are defined further down.
         joinCardItems(id, placed, joins, {
             rename: setRenaming,
-            duplicate: joins.duplicate,
             reorder: (card, to) => {
                 reorder(card, to);
             },
@@ -848,32 +762,19 @@ function WorkspaceBody({
         onShows: setShows,
         onLine: (line: number) => {
             setShows(null);
-            setView({ card: openCard?.id ?? "", line, only: view.only });
+            // A filter picked on another card is not this one's.
+            setView({ card: openCard?.id ?? "", line, only: view.card === openCard?.id ? view.only : "all" });
         },
         onPicked: () => {
             setPickedRows(null);
         },
     };
-    // The open card's first whole match, counted in its header as a selection card counts what it holds.
+    // The open card's first whole match, counted once, in its header; nothing while the card is off, which joins nothing.
     const firstMatch = openCard === undefined ? undefined : wholeLines(openCard.lines).at(0);
     const headCounts =
-        openCard === undefined || firstMatch === undefined
+        openCard === undefined || firstMatch === undefined || isOff(openCard)
             ? null
             : countsOf(draft, firstMatch, openCard, openCard.step?.index);
-    // The nodes a merge folds its matched rows into, so "222 of 308 rows" reads beside the 57 nodes they became.
-    const mergedNodes =
-        openCard === undefined
-            ? 0
-            : openCard.steps.reduce(
-                  (sum, step) => sum + draft.preview().ids({ step: step.index, bucket: "merged" }).nodes.length,
-                  0,
-              );
-    const headWords =
-        headCounts === null
-            ? ""
-            : `${formatNumber(headCounts.matchedRows)} of ${formatNumber(headCounts.rows)} ${WORKSPACE_WORDS.rowsWord}${
-                  mergedNodes > 0 ? `, ${formatNumber(mergedNodes)} ${WORKSPACE_WORDS.nodesWord}` : ""
-              }`;
     const placed: readonly PlacedCard[] = [
         ...joins.addSteps.map((step): PlacedCard => {
             const id = addCardId(step.index);
@@ -921,13 +822,12 @@ function WorkspaceBody({
                             size="compact-xs"
                             variant="subtle"
                             className="sel-count"
-                            aria-label={`${WORKSPACE_WORDS.matched} ${formatNumber(headCounts.matchedRows)} of ${formatNumber(headCounts.rows)}`}
                             onClick={() => {
                                 setShows(null);
                                 setView({ card: card.id, line: 0, only: "matched" });
                             }}
                         >
-                            {headWords}
+                            {matchWords(headCounts)}
                         </Button>
                     ) : undefined,
                 children: open ? <CardEditor key={card.id} {...editorProps} card={openCard} /> : null,
@@ -946,8 +846,11 @@ function WorkspaceBody({
         }
     };
     const rename = (id: string, typed: string): void => {
-        joins.rename(id, typed);
-        say(renamedWords(typed));
+        // Said only when the name changed: Enter on the name as it was renames nothing.
+        if (joins.rename(id, typed)) {
+            const name = typed.trim();
+            say(name === "" ? CARD_MENU_WORDS.nameCleared : CARD_MENU_WORDS.renamed(name));
+        }
     };
     const clear = (): void => {
         joins.clear();
@@ -958,7 +861,11 @@ function WorkspaceBody({
         setEditsOpen((now) => !now);
     };
     const removeCard = (id: string): void => {
+        const title = items.find((each) => each.id === id)?.title;
         joins.remove(id);
+        if (title !== undefined) {
+            say(CARD_MENU_WORDS.removed(title));
+        }
         // The pressed button goes with its card: keys stay in the workspace.
         box.current?.focus();
     };
@@ -1061,17 +968,6 @@ function WorkspaceBody({
                     }}
                     onCancel={cancel}
                     onDone={done}
-                    name={
-                        openCard === undefined
-                            ? null
-                            : (named[joins.cards.findIndex((card) => card.id === openCard.id)] ?? null)
-                    }
-                    renaming={renamingHead}
-                    count={headWords}
-                    onRenaming={setRenamingHead}
-                    onRename={(name) => {
-                        rename(openCard?.id ?? "", name ?? "");
-                    }}
                     menu={
                         <RowMore
                             name={WORKSPACE_WORDS.title}
@@ -1080,7 +976,6 @@ function WorkspaceBody({
                                 {
                                     table: hasTable,
                                     shown: pane,
-                                    open: joins.open !== null,
                                     cards: items.length > 0,
                                 },
                                 {
@@ -1088,10 +983,9 @@ function WorkspaceBody({
                                     redo,
                                     frame: frameMarked,
                                     table: () => {
-                                        setTableHidden((now) => !now);
+                                        setTableHiddenOf(pane ? joins.open : null);
                                     },
                                     edits: toggleEdits,
-                                    remove,
                                     clear,
                                 },
                             )}

@@ -229,7 +229,8 @@ export function namingLines(
     steps: readonly SourceStepRow[],
     card: { readonly lines: readonly CardLine[] | null; readonly step: SourceStepRow | null; readonly name?: string },
 ): CardNaming {
-    const name = card.step?.join?.name ?? card.name;
+    // A written card is named by its join alone; the reader's own name is read only before that.
+    const name = card.step === null ? card.name : card.step.join?.name;
     const named = name === undefined ? {} : { name };
     if (card.lines !== null) {
         return { lines: card.lines, ...named };
@@ -423,11 +424,11 @@ export function profileWords(field: SourceSideField, from: string | null): strin
 /**
  * A match's live count, of the rows it reads.
  * @param counts - the element's counts
- * @returns such as "283 of 308 match", or "205 of 308 match, 69 empty"
+ * @returns such as "283 of 308 rows matched", or "205 of 308 rows matched, 69 empty"
  */
 export function matchWords(counts: Pick<SourceMatchCounts, "matchedRows" | "rows" | "emptyRows">): string {
     const empty = counts.emptyRows === 0 ? "" : `, ${formatNumber(counts.emptyRows)} ${WORKSPACE_WORDS.empty}`;
-    return `${formatNumber(counts.matchedRows)} of ${formatNumber(counts.rows)} match${empty}`;
+    return `${formatNumber(counts.matchedRows)} of ${formatNumber(counts.rows)} ${WORKSPACE_WORDS.rowsMatched}${empty}`;
 }
 
 /**

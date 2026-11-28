@@ -20,6 +20,7 @@ import { WORKSPACE_WORDS } from "../words";
 import {
     addMatch,
     advanced,
+    cardCount,
     checkedWay,
     choose,
     done,
@@ -166,7 +167,7 @@ describe("a join card's choices (source-steps)", () => {
         await userEvent.keyboard("{Escape}");
         assert.deepStrictEqual(waysToJoin(modal), [], "how to join waits for the fields");
         await pickFields(modal, "badge", "badge");
-        assert.strictEqual(within(modal).getByLabelText("Match count 1").textContent, "4 of 5 match");
+        assert.strictEqual(cardCount(modal), "4 of 5 rows matched");
         assert.deepStrictEqual(waysToJoin(modal), [FIELDS, NODE]);
         assert.strictEqual(checkedWay(modal), NODE, "the type that adds edges is picked at once");
         assert.isAbove(draftOf(session).steps().length, steps, "and applied");
@@ -368,7 +369,7 @@ describe("a join card's choices (source-steps)", () => {
         assert.strictEqual(brought.textContent, "device devices, repeats, 1 empty");
         await userEvent.click(brought);
         await pickField(modal, "Field 2", "value");
-        assert.strictEqual(within(modal).getByLabelText("Match count 1").textContent, "1 of 1 match");
+        assert.strictEqual(cardCount(modal), "1 of 1 rows matched");
         await joinAs(modal, "Fields of watch on people");
         const flagged = await newest(
             session,

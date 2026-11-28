@@ -15,6 +15,8 @@ export interface JoinListRow {
     readonly name: string;
     /** Its color in the preview, while each card has one. */
     readonly color?: string;
+    /** Its state, after its name: "Off" for a join that builds nothing. */
+    readonly state?: string;
     readonly menu?: PageListItem["menu"];
 }
 
@@ -26,6 +28,9 @@ export interface JoinListRow {
  * @param props.current - the selected one, or null
  * @param props.onSelect - selects one
  * @param props.onAdd - adds one
+ * @param props.renaming - the row whose name's box is open, or null
+ * @param props.onRenamingChange - opens or closes it
+ * @param props.onRename - takes a row's typed name
  * @returns the section
  */
 export function JoinList({
@@ -33,11 +38,17 @@ export function JoinList({
     current,
     onSelect,
     onAdd,
+    renaming,
+    onRenamingChange,
+    onRename,
 }: Readonly<{
     rows: readonly JoinListRow[];
     current: string | null;
     onSelect: (id: string) => void;
     onAdd: () => void;
+    renaming: string | null;
+    onRenamingChange: (id: string | null) => void;
+    onRename: (id: string, typed: string) => void;
 }>): React.JSX.Element {
     return (
         <ControlSection
@@ -63,15 +74,19 @@ export function JoinList({
             {rows.length === 0 ? null : (
                 <PageList
                     label={WORKSPACE_WORDS.joins}
-                    items={rows.map(({ id, name, color, menu }) => ({
+                    items={rows.map(({ id, name, color, state, menu }) => ({
                         id,
                         menu,
                         // The whole name, cut by an ellipsis only where it does not fit.
                         name,
-                        value: color === undefined ? undefined : <ColorSwatch size={10} color={color} />,
+                        value: color === undefined ? state : <ColorSwatch size={10} color={color} />,
                     }))}
                     current={current}
                     onCurrentChange={onSelect}
+                    renameLabel={WORKSPACE_WORDS.joinName}
+                    renaming={renaming}
+                    onRenamingChange={onRenamingChange}
+                    onRename={onRename}
                 />
             )}
         </ControlSection>

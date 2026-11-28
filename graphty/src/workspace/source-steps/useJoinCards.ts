@@ -66,12 +66,13 @@ export interface JoinCards {
     readonly select: (id: string | null) => void;
     readonly add: () => void;
     readonly remove: (id: string) => void;
-    /** Adds a card with another's matches and options, not joined yet, and selects it. */
-    readonly duplicate: (id: string) => void;
     /** Takes out every card, as one undo step. */
     readonly clear: () => void;
-    /** Names a card as typed, or takes its name off when nothing is: a written card's join carries it. */
-    readonly rename: (id: string, typed: string) => void;
+    /**
+     * Names a card as typed, or takes its name off when nothing is: a written card's join carries it.
+     * @returns whether its name changed
+     */
+    readonly rename: (id: string, typed: string) => boolean;
     /** Turns every step of a written card off or on, as one undo step. */
     readonly setOff: (id: string, off: boolean) => void;
     readonly setLines: (lines: readonly CardLine[], resided: boolean) => void;
@@ -111,13 +112,20 @@ function afterMove(
     before: readonly JoinCardView[],
     live: ReadonlySet<string>,
 ): readonly ReaderCard[] {
-    return mine.map(({ deleted, ...card }) => {
-        const back = card.written.some(({ sigs }) => live.has(JSON.stringify(sigs)));
+    return mine.map(({ deleted, clearedWith, ...card }) => {
+        const back =
+            card.written.some(({ sigs }) => live.has(JSON.stringify(sigs))) ||
+            (clearedWith?.some((key) => live.has(key)) ?? false);
         if (back) {
             return card;
         }
         const was = before.find((other) => other.id === card.id && other.step !== null)?.lines ?? card.lines;
-        return { ...card, lines: was, ...(deleted === true ? { deleted } : {}) };
+        return {
+            ...card,
+            lines: was,
+            ...(deleted === true ? { deleted } : {}),
+            ...(clearedWith === undefined ? {} : { clearedWith }),
+        };
     });
 }
 
@@ -134,6 +142,27 @@ function afterRemoval(mine: readonly ReaderCard[], id: string, written: boolean)
         return mine.filter((each) => each.id !== id);
     }
     return mine.map((each) => (each.id === id ? { ...each, deleted: true } : each));
+}
+
+/**
+ * Whether a card can be named: one not written yet keeps the name, and a written one's join carries it. A step
+ * written without a join tag has nowhere to keep one.
+ * @param card - the card
+ * @returns true when it can
+ */
+export function canRename(card: JoinCardView): boolean {
+    return card.step === null || card.step.join !== undefined;
+}
+
+/**
+ * A reader's card with the name its join holds, or none.
+ * @param card - the card
+ * @param name - the name
+ * @returns the card
+ */
+function named(card: ReaderCard, name: string | undefined): ReaderCard {
+    const { name: _was, ...rest } = card;
+    return name === undefined ? rest : { ...rest, name };
 }
 
 /** The join types that add edges, picked first when a match is complete: they show the change most plainly. */
@@ -241,21 +270,16 @@ export function useJoinCards(
         calm(card.id);
         calm(next.id);
         try {
-            const rows = writeOutcome(
-                draft,
-                card.steps,
-                outcome,
-                result,
-                next,
-                joinOf(card.steps, next.lines, outcome, next.name),
-            );
+            const join = joinOf(card.steps, next.lines, outcome, next.name);
+            const rows = writeOutcome(draft, card.steps, outcome, result, next, join);
             // An outcome of some of the lines leaves the others out.
             const whole = wholeLines(next.lines);
             const lines = next.lines.filter(
                 (line) => matchOf(line) === null || outcome.uses.includes(whole.indexOf(line)),
             );
             const sigs = rows.map((row) => sigOf(row));
-            save({ ...next, lines, at: rows.at(0)?.index ?? null, written: [...next.written, { sigs, lines }] });
+            const written = { ...named(next, join.name), lines, at: rows.at(0)?.index ?? null };
+            save({ ...written, written: [...next.written, { sigs, lines }] });
         } catch (error) {
             // What was picked stays on the card, beside why it was refused.
             save(next);
@@ -271,7 +295,8 @@ export function useJoinCards(
             draft.batch(() => {
                 removeSteps(draft, card.steps);
             });
-            save({ ...next, at: null });
+            // Its join's name stays the card's while it waits to be written again.
+            save({ ...named(next, card.step?.join?.name), at: null });
         } catch (error) {
             refuse(card.id)(error);
         }
@@ -381,56 +406,61 @@ export function useJoinCards(
             select(card.id);
         },
         remove,
-        duplicate: (id) => {
-            const card = cards.find((each) => each.id === id);
-            if (card === undefined) {
-                return;
-            }
-            const lines = card.lines ?? (card.step === null ? undefined : linesOfStep(session, draft, card.step));
-            const copy = { ...newCard(freshId(), lines), ...ignoringOf(card), chosen: card.chosen };
-            setMine((now) => [...now, copy]);
-            select(copy.id);
-        },
         clear: () => {
-            // Every card's steps, the last first, so each earlier place still holds.
-            const places = [...new Set([...cards.flatMap((card) => card.steps), ...addSteps].map((s) => s.index))];
+            // Every card's steps go as one undo step, each as Delete takes one card's: with the sources its join
+            // added. The newest goes first, and a step a removal already took along is not looked for again.
+            const targets = new Set([...cards.flatMap((card) => card.steps), ...addSteps].map((row) => sigOf(row)));
             try {
                 draft.batch(() => {
-                    for (const index of places.toSorted((x, y) => y - x)) {
-                        draft.removeStep(index);
+                    for (let left = targets.size; left > 0; left--) {
+                        const row = draft.steps().findLast((each) => targets.has(sigOf(each)));
+                        if (row === undefined) {
+                            break;
+                        }
+                        targets.delete(sigOf(row));
+                        draft.removeStep(row.index, { adds: "remove" });
                     }
                 });
             } catch (error) {
                 refuse("")(error);
                 return;
             }
+            // A written card waits behind its steps; one not written yet waits behind theirs, so one Undo
+            // brings every card back.
+            const clearedWith = cards.flatMap((card) => (card.steps.length === 0 ? [] : [keyOfSteps(card.steps)]));
             setMine((now) =>
-                now.flatMap((each) => (each.written.length > 0 ? [{ ...each, deleted: true as const }] : [])),
+                now.flatMap((each): readonly ReaderCard[] => {
+                    if (cards.some((card) => card.id === each.id && card.steps.length > 0)) {
+                        return [{ ...each, deleted: true }];
+                    }
+                    // With nothing written to undo, a card not written yet goes, as Delete takes one.
+                    return clearedWith.length === 0 ? [] : [{ ...each, deleted: true, clearedWith }];
+                }),
             );
             select(null);
         },
         rename: (id, typed) => {
             const name = typed.trim() === "" ? undefined : typed.trim();
             const card = cards.find((each) => each.id === id);
-            const joinId = card?.step?.join?.id;
+            if (card === undefined || !canRename(card)) {
+                return false;
+            }
+            const was = card.step === null ? card.name : card.step.join?.name;
+            if (was === name) {
+                return false;
+            }
             try {
-                if (joinId === undefined) {
+                if (card.step === null) {
                     // Not written yet: the card keeps the name, and its first step's join takes it.
-                    setMine((now) =>
-                        now.map((each) => {
-                            if (each.id !== id) {
-                                return each;
-                            }
-                            const { name: _was, ...rest } = each;
-                            return name === undefined ? rest : { ...rest, name };
-                        }),
-                    );
-                } else {
-                    draft.renameJoin(joinId, name ?? null);
+                    setMine((now) => now.map((each) => (each.id === id ? named(each, name) : each)));
+                } else if (card.step.join !== undefined) {
+                    draft.renameJoin(card.step.join.id, name ?? null);
                 }
             } catch (error) {
                 refuse(id)(error);
+                return false;
             }
+            return true;
         },
         setOff: (id, off) => {
             const steps = cards.find((each) => each.id === id)?.steps ?? [];

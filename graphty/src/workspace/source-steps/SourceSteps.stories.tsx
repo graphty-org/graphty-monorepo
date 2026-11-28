@@ -252,14 +252,15 @@ export const JoinWorkspace: Story = {
     },
 };
 
-/** A join renamed from the header's title (#10394): the card and the header read the reader's name. */
+/** A join renamed from its card's menu (#10394): the card reads the reader's name, the header stays Join. */
 export const JoinWorkspaceRenamed: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         const session = await staged(context, "entries.csv", ENTRIES);
         const modal = await pickBadge(context, "entries");
         await joinAs(modal, ENTRY_NODES);
-        await userEvent.click(await within(modal).findByRole("button", { name: "people + entries, rename" }));
+        await userEvent.click(await within(modal).findByRole("button", { name: "More for people + entries" }));
+        await userEvent.click(await within(document.body).findByRole("menuitem", { name: /^Rename/ }));
         const box = await within(modal).findByRole("textbox", { name: "Rename people + entries" });
         await userEvent.clear(box);
         await userEvent.type(box, "Badge entries{Enter}");

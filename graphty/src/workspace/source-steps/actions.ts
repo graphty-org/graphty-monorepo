@@ -119,3 +119,41 @@ export async function commitWorkspace(
     }
     return true;
 }
+
+/**
+ * Rename or Turn off in the Data panel's Join list: one change to committed joins, made in a draft of its own
+ * and committed at once, so it is one undo step whatever number of steps the join wrote.
+ * @param workspace - The workspace store.
+ * @param session - The element's session.
+ * @param edit - The change, made on the draft.
+ * @returns true once committed; false when refused, which a notice says.
+ */
+export async function editJoins(
+    workspace: WorkspaceStore,
+    session: GraphSession,
+    edit: (draft: SourceDraft) => void,
+): Promise<boolean> {
+    let draft: SourceDraft;
+    try {
+        draft = session.data.draft();
+    } catch (error) {
+        if (!askIfDraftOpen(workspace, error, () => editJoins(workspace, session, edit))) {
+            workspace.set({ notice: { message: refusedWords(error), error: true } });
+        }
+        return false;
+    }
+    try {
+        draft.batch(() => {
+            edit(draft);
+        });
+    } catch (error) {
+        draft.dispose();
+        workspace.set({ notice: { message: refusedWords(error), error: true } });
+        return false;
+    }
+    const committed = await commitWorkspace(workspace, session, draft);
+    if (!committed && draft.open) {
+        draft.dispose();
+    }
+    return committed;
+}

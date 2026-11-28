@@ -215,6 +215,12 @@ dialog.jw-modal {
     min-width: 0;
 }
 
+/* A choice fills its row, as a field does. */
+.jw-row-controls > .mantine-SegmentedControl-root {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
 /* A line of a card: its two sources with a field of each under them, and "=" between, out to the card's
    edge; a further line's remove sits after them. */
 .jw-line {

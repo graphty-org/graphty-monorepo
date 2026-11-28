@@ -5,7 +5,6 @@ import React from "react";
 
 import { formatNumber } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
-import { TitleName } from "../selection/SelectionEditor";
 import { SIDE_KEY } from "./keys";
 import { PREVIEW_WORDS, WORKSPACE_WORDS } from "./words";
 import { MERGED_COLOR, NEW_COLOR, REMOVED_COLOR } from "./workspaceCards";
@@ -58,8 +57,8 @@ function keyOf(marks: SourceDraftMarkCounts, rings: readonly DraftRing[], colors
 }
 
 /**
- * The workspace's header: its title (the open card's name, which a click renames), the preview's look and
- * side, its "..." menu, and how it closes. Keys are said on hover, never drawn.
+ * The workspace's header: its title, the preview's look and side, its "..." menu, and how it closes. Cards are
+ * renamed on the card, as the Filters workspace's are. Keys are said on hover, never drawn.
  * @param props - Component props
  * @param props.titleId - the id the dialog is named by
  * @param props.draft - the open draft
@@ -69,11 +68,6 @@ function keyOf(marks: SourceDraftMarkCounts, rings: readonly DraftRing[], colors
  * @param props.onSide - shows Before or After
  * @param props.onCancel - throws the draft away
  * @param props.onDone - commits it
- * @param props.name - the open card's name, after the workspace's as the selection workspace's title reads
- * @param props.renaming - whether the name's box is open
- * @param props.onRenaming - opens or closes it
- * @param props.onRename - takes the typed name, or undefined for none
- * @param props.count - what the open card matches, as the selection workspace's title counts what it selects; "" for none
  * @param props.menu - the workspace's "..." menu
  * @returns the header
  */
@@ -86,11 +80,6 @@ export function JoinHead({
     onSide,
     onCancel,
     onDone,
-    name,
-    renaming,
-    onRenaming,
-    onRename,
-    count,
     menu,
 }: Readonly<{
     titleId: string;
@@ -101,41 +90,13 @@ export function JoinHead({
     onSide: (side: "before" | "after") => void;
     onCancel: () => void;
     onDone: () => void;
-    name: string | null;
-    renaming: boolean;
-    onRenaming: (on: boolean) => void;
-    onRename: (name: string | undefined) => void;
-    count: string;
     menu: React.ReactNode;
 }>): React.JSX.Element {
     return (
         <header className="sel-ws-head">
-            {/* The dialog is named by the workspace's word alone; the card's name follows it. */}
-            <Group gap={4} wrap="nowrap" className="sel-ws-title">
-                <Text size="sm" fw={600} id={titleId} style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
-                    {WORKSPACE_WORDS.title}
-                </Text>
-                {name === null ? null : (
-                    <Text size="sm" fw={600} aria-hidden style={{ flexShrink: 0 }}>
-                        /
-                    </Text>
-                )}
-                {name === null ? null : (
-                    <TitleName
-                        id={`${titleId}-name`}
-                        owner={undefined}
-                        name={name}
-                        renaming={renaming}
-                        onRenaming={onRenaming}
-                        onRename={onRename}
-                    />
-                )}
-            </Group>
-            {count === "" ? null : (
-                <Text size="sm" className="sel-count" style={{ whiteSpace: "nowrap" }}>
-                    {count}
-                </Text>
-            )}
+            <Text size="sm" fw={600} id={titleId} className="sel-ws-title" style={{ whiteSpace: "nowrap" }}>
+                {WORKSPACE_WORDS.title}
+            </Text>
             {drawing ? (
                 <Group gap={4} wrap="nowrap" data-drawing="">
                     <Loader size={12} aria-hidden />

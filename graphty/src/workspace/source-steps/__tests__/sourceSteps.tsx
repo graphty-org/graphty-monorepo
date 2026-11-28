@@ -237,6 +237,15 @@ export async function advanced(modal: HTMLElement): Promise<void> {
 }
 
 /**
+ * The open card's one count of its rows matched, in its header, as a reader reads it.
+ * @param modal - the workspace.
+ * @returns its words, or null while it shows none.
+ */
+export function cardCount(modal: HTMLElement): string | null {
+    return modal.querySelector("[data-card-id]:not([data-folded]) .cm-card-head .sel-count")?.textContent ?? null;
+}
+
+/**
  * The joins listed: the workspace's cards by their titles, or the sidebar's lines under Join +.
  * @param where - the workspace, or the Data place.
  * @returns their titles or lines.

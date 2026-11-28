@@ -51,6 +51,17 @@ function reach(hull: readonly Point2[], angle: number): number {
 const WIDTH = 0.1;
 
 /**
+ * @param outline - An outline.
+ * @returns Twice its signed area: above 0 when it runs counter-clockwise.
+ */
+function turnOf(outline: readonly Point2[]): number {
+    return outline.reduce((sum, [x, y], i) => {
+        const [nx, ny] = outline[(i + 1) % outline.length];
+        return sum + x * ny - nx * y;
+    }, 0);
+}
+
+/**
  * @param values - Some numbers.
  * @returns Their median.
  */
@@ -84,6 +95,7 @@ function drawn(
 }
 
 const SOLIDS = [
+    "icosahedron",
     "cone",
     "capsule",
     "cylinder",
@@ -107,21 +119,23 @@ describe("a border on a solid keeps to the plain solid's outline (#10438)", () =
                 const edge = past > 0 ? mitredEdges(plain, [past])[0] : plain;
                 const off = DIRECTIONS.map((a) => reach(ring, a) - reach(edge, a));
                 // never past it; short of it only at a tip too sharp to mitre in full (a cone's), which every ring cuts
-                // square three widths out
+                // square three widths out, and a band's outer edge, offset point for point, to a point three widths
+                // out: short of the square cut by up to twice its reach
                 assert.isBelow(Math.max(...off), 0.01, `${position}: ring's outer edge past it by ${String(off)}`);
-                assert.isAbove(Math.min(...off), -0.1, `${position}: ring's outer edge short of it by ${String(off)}`);
+                const short = Math.min(-0.1, -2 * past - 0.01);
+                assert.isAbove(Math.min(...off), short, `${position}: ring's outer edge short of it by ${String(off)}`);
                 assert.isBelow(median(off.map(Math.abs)), 0.01, `${position}: ring's outer edge off by ${String(off)}`);
-                // the fill is drawn in by the inset across and up the view, the short side as well as the long
+                // the fill is drawn in by the inset on each side of the outline in 2D, the short and slanted sides as
+                // well as the long: at least that far on every side, and that far on most (a side too short to keep
+                // closes up on the way)
                 const inset = position === "inside" ? width : width / 2;
-                for (const a of [0, Math.PI / 2]) {
-                    const across = (hull: Point2[]): number => reach(hull, a) + reach(hull, a + Math.PI);
-                    assert.approximately(
-                        across(plain) - across(fill),
-                        2 * inset,
-                        0.01,
-                        `${position} fill at ${String(a)}`,
-                    );
-                }
+                const inBy = plain.map(([x, y], i) => {
+                    const [nx, ny] = plain[(i + 1) % plain.length];
+                    const a = Math.atan2(-(nx - x), ny - y) + (turnOf(plain) > 0 ? 0 : Math.PI);
+                    return reach(plain, a) - reach(fill, a);
+                });
+                assert.isAbove(Math.min(...inBy), inset - 0.01, `${position} fill drawn in by ${String(inBy)}`);
+                assert.approximately(median(inBy), inset, 0.01, `${position} fill drawn in by ${String(inBy)}`);
             }
         });
     }

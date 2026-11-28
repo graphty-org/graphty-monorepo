@@ -957,6 +957,11 @@ export class DataManager implements Manager {
     nodeVersion = 0;
     /** See `dataManagerInternals.lateNodeVersions`. */
     private lateNodeVersions = 0;
+    /**
+     * The graph's nodes by id, as render objects. It also answers for nodes stored without one yet,
+     * building a node's object the first time it is read, so `get(id)` always finds a node the graph
+     * holds. Read it; add and remove nodes through the data API, never through this map.
+     */
     nodeCache: Map<NodeIdType, Node> = new LazyView<NodeIdType, Node>().lazy(this.unbuiltRows);
     /** See `dataManagerInternals.setLayoutRows`; no engine yet needs no hand-over. */
     private layoutRows: ((ids: readonly NodeIdType[]) => void) | null = noLayoutRows;
@@ -1055,7 +1060,10 @@ export class DataManager implements Manager {
         scope.graph(this.graph.slice.values)[GRAPH_RESULTS] = value;
     }
 
-    // Mesh cache for performance
+    /**
+     * The meshes shared between nodes and edges that look the same, keyed by their appearance, so
+     * a graph of many alike elements builds each geometry once. Emptied when the graph is cleared.
+     */
     meshCache: MeshCache;
 
     // GraphContext for creating nodes and edges
@@ -1562,7 +1570,16 @@ export class DataManager implements Manager {
      * @param cause - What moved the state, for the events.
      * @returns How many rows were built and torn down.
      */
-    reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): { added: number; removed: number } {
+    reconcile(
+        slice: GraphSlice,
+        dirty: ReadonlySet<string>,
+        cause: HistoryCause,
+    ): {
+        /** How many nodes and edges were built. */
+        added: number;
+        /** How many nodes and edges were torn down. */
+        removed: number;
+    } {
         const removedNodes: NodeIdType[] = [];
         const removedEdges: EdgeId[] = [];
         let addedNodes = 0;
@@ -3685,7 +3702,12 @@ export class DataManager implements Manager {
      * counted, and so is an edge still waiting for an endpoint.
      * @returns the node and edge counts the graph holds
      */
-    heldCounts(): { nodes: number; edges: number } {
+    heldCounts(): {
+        /** How many nodes the graph holds. */
+        nodes: number;
+        /** How many edges the graph holds. */
+        edges: number;
+    } {
         return this.ingest.heldCounts();
     }
 
@@ -3925,8 +3947,11 @@ export class DataManager implements Manager {
      *     stats panel give -- and the cached mesh count
      */
     getStats(): {
+        /** How many nodes the graph holds. */
         nodeCount: number;
+        /** How many edges the graph holds. */
         edgeCount: number;
+        /** How many shared meshes the mesh cache holds. */
         cachedMeshes: number;
     } {
         const { nodes, edges } = this.heldCounts();

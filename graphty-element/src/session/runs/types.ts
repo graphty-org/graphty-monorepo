@@ -203,7 +203,9 @@ export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
 export interface RunWindow {
     /** The attribute the window read. */
     readonly attribute: string;
+    /** Where the window starts, inclusive: epoch milliseconds, or an ordinal value. */
     readonly from: number;
+    /** Where the window ends, exclusive, in the same units as `from`. */
     readonly to: number;
     /** How many nodes were visible when the run resolved its scope. */
     readonly nodes: number;
@@ -581,7 +583,13 @@ export interface RunLayers {
 export type RunStyle =
     | boolean
     | {
+          /**
+           * Also size by the run's value: `true` for the default range (node size 1 to 3, or edge
+           * width 1 to 2 times the default), `[min, max]` for a range of your own in the channel's units,
+           * `false` or left off for no size. Applies to node and edge measurements only.
+           */
           readonly size?: boolean | readonly [min: number, max: number];
+          /** What to call the layers the run adds, in place of the run's label. */
           readonly name?: string;
           /**
            * `"layers"`: a run that partitions the nodes (shape `"community"`: Louvain, Leiden, label
@@ -1032,11 +1040,13 @@ export type RunReader =
     | {
           /** A style layer whose selector reads the run. */
           readonly kind: "layer";
+          /** The layer's id; look it up live with `styles.get(id)`. */
           readonly id: LayerId;
       }
     | {
           /** A visibility filter condition whose rule reads the run. */
           readonly kind: "filter";
+          /** The filter condition's id, as the visibility API lists it. */
           readonly id: string;
       };
 
@@ -1051,6 +1061,7 @@ export type SuggestionOutcome =
     | {
           /** The suggestion was added to the style stack. */
           readonly outcome: "added";
+          /** The style suggestion the run made, as its algorithm declared it. */
           readonly suggestion: StyleSuggestion;
           /** The layers it added: one for an encoding, one per half for a mark or a highlight. */
           readonly layerIds: readonly LayerId[];
@@ -1063,6 +1074,7 @@ export type SuggestionOutcome =
     | {
           /** Not added: a hand-written layer already drives this channel on every element. */
           readonly outcome: "suppressed";
+          /** The style suggestion the run made, as its algorithm declared it. */
           readonly suggestion: StyleSuggestion;
           /** That layer. */
           readonly byLayerId: LayerId;
@@ -1070,6 +1082,7 @@ export type SuggestionOutcome =
     | {
           /** Not added: a later member of the same batch suggested the same channel. */
           readonly outcome: "superseded";
+          /** The style suggestion the run made, as its algorithm declared it. */
           readonly suggestion: StyleSuggestion;
           /** The batch member whose suggestion for this channel was used instead. */
           readonly byRunId: RunId;
@@ -1077,6 +1090,7 @@ export type SuggestionOutcome =
     | {
           /** Not added: the style stack refused it. The same error went to `style:problem`. */
           readonly outcome: "refused";
+          /** The style suggestion the run made, as its algorithm declared it. */
           readonly suggestion: StyleSuggestion;
           /** The code of that error. */
           readonly code: GraphtyErrorCode;

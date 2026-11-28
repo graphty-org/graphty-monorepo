@@ -6218,10 +6218,8 @@ export type RunStyle = boolean | {
 export interface RunWindow {
     readonly attribute: string;
     readonly edges: number;
-    // (undocumented)
     readonly from: number;
     readonly nodes: number;
-    // (undocumented)
     readonly to: number;
 }
 

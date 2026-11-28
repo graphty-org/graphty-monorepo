@@ -339,6 +339,7 @@ function listed(
             state: sourceState(value, src.id),
             ...sameNameOf(value, src),
             named: own?.named ?? 0,
+            endNodes: own?.endNodes ?? 0,
             rowsLeftOut: Object.freeze({ ...own?.leftOut }),
             ...(src.issues === undefined ? {} : { issues: src.issues }),
             ...(join === undefined ? {} : { join, ...(join.onto === null ? {} : { joinedOnto: join.onto }) }),

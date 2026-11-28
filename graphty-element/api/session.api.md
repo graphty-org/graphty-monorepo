@@ -1826,6 +1826,7 @@ export interface GraphKinds {
 // @public
 export interface GraphSession {
     acceleration: AccelerationPolicy;
+    afterFrame(): Promise<void>;
     readonly annotations: SessionAnnotations;
     readonly assets: AssetsApi;
     calibrate(options?: Pick<RunOptions, "signal">): Promise<Readonly<DefaultableLimits>>;
@@ -1852,7 +1853,7 @@ export interface GraphSession {
     readonly layout: SessionLayout;
     readonly network: NetworkApi;
     readonly notes: NotesApi;
-    on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
+    on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void, options?: SessionListenOptions): () => void;
     plan(command: SessionCommand): Promise<Plan>;
     readonly positions: SessionPositions;
     readonly project: ProjectApi;
@@ -7241,6 +7242,11 @@ export interface SessionLayout {
     settle(): Promise<boolean>;
     readonly step: number;
     tick(count?: number): void;
+}
+
+// @public
+export interface SessionListenOptions {
+    readonly afterFrame?: boolean;
 }
 
 // @public

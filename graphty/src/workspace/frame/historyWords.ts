@@ -447,5 +447,7 @@ export function historyNotice(session: GraphSession, undo: boolean, store: Works
 export async function undoOrRedo(session: GraphSession, undo: boolean, store: WorkspaceStore): Promise<string | null> {
     const say = historyNotice(session, undo, store);
     await (undo ? session.undo() : session.redo());
+    // Said once the step is on the screen, so the words' re-render never holds back that frame.
+    await session.afterFrame();
     return say();
 }

@@ -2165,14 +2165,15 @@ export class RenderManager implements Manager {
 
     /**
      * Whether the loop can still draw: a tick that cannot says so by the end of the tick.
+     * @param throughHold - Count a draw the data holds (`drawHeld`) as a frame still coming.
      * @returns False when the next ticks draw nothing, or none will come.
      */
-    private frameComing(): boolean {
+    private frameComing(throughHold = false): boolean {
         return (
             this.renderLoopActive &&
             !this.contextLost &&
             this.frameHolds === 0 &&
-            this.drawHeld?.() !== true &&
+            (throughHold || this.drawHeld?.() !== true) &&
             !document.hidden
         );
     }
@@ -2182,11 +2183,14 @@ export class RenderManager implements Manager {
      * draw, a hidden page, a lost context, a stopped loop or a frame that threw. A loop resting on a finished picture
      * draws for it: a new frame observer is a frame someone waits for. It listens
      * only while someone waits.
+     * @param throughHold - Wait out a draw the data holds until its paint is applied (`drawHeld`)
+     *     instead of settling at once: the next tick's update applies that paint and then draws, so
+     *     a frame is coming. For a wait on that very paint.
      * @returns Settles as above; never rejects.
      * @internal
      */
-    frameDrawn(): Promise<void> {
-        if (!this.frameComing()) {
+    frameDrawn(throughHold = false): Promise<void> {
+        if (!this.frameComing(throughHold)) {
             return Promise.resolve();
         }
 
@@ -2202,7 +2206,7 @@ export class RenderManager implements Manager {
             };
             const drawn = scene.onAfterRenderObservable.add(end);
             const ticked = engine.onEndFrameObservable.add(() => {
-                if (!this.frameComing()) {
+                if (!this.frameComing(throughHold)) {
                     end();
                 }
             });

@@ -103,6 +103,8 @@ describe("the inspector", () => {
             await on.visibility.setSteps([
                 { id: "s1", on: true, rule: { kind: "range", attribute: "data.shared", min: 5, nodes: "ends" } },
             ]);
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         const { visibleNodes, visibleEdges } = on.status.counts;
         assert.isBelow(visibleNodes, 12);
@@ -125,6 +127,8 @@ describe("the inspector", () => {
         // Off again: back to the plain Overview.
         await act(async () => {
             await on.visibility.setSteps([]);
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await waitFor(() => {
             assert.isNull(screen.queryByRole("group", { name: "Nodes showing" }));
@@ -139,6 +143,8 @@ describe("the inspector", () => {
             await on.visibility.setSteps([
                 { id: "s1", on: true, rule: { kind: "range", attribute: "data.shared", min: 5, nodes: "ends" } },
             ]);
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         const { visibleNodes } = on.status.counts;
         assert.isBelow(visibleNodes, 12);
@@ -154,6 +160,8 @@ describe("the inspector", () => {
             await on.visibility.setSteps([
                 { id: "s1", on: true, rule: { kind: "range", attribute: "data.shared", min: 5, nodes: "ends" } },
             ]);
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         const fullGraph = await screen.findByRole("group", { name: "Full graph" });
         // The degree section reads the working graph, so it says so, and is not under Full graph.
@@ -170,6 +178,8 @@ describe("the inspector", () => {
 
         await act(async () => {
             await on.selection.apply({ nodes: ["n1"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await waitFor(() => {
             assert.equal(screen.getByRole("tab", { name: "Values" }).getAttribute("aria-selected"), "true");
@@ -178,6 +188,8 @@ describe("the inspector", () => {
         await userEvent.click(page.getByRole("tab", { name: "Style", exact: true }));
         await act(async () => {
             await on.selection.apply({ nodes: ["n2"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await waitFor(() => {
             assert.equal(screen.getByRole("tab", { name: "Values" }).getAttribute("aria-selected"), "true");
@@ -196,6 +208,8 @@ describe("the inspector", () => {
         const { session: on } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
 
         const degree = await screen.findByRole("button", { name: /Degree/ });
@@ -229,6 +243,8 @@ describe("the inspector", () => {
         const { session: on } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         // The header line's marks: the glyph and the color swatch before the name.
         const marks = (): string => {
@@ -239,6 +255,8 @@ describe("the inspector", () => {
                 .join("");
         };
         await screen.findByRole("button", { name: /Degree/ });
+        // The header redraws after the frame that shows the selection: read it once it heads the node.
+        await screen.findByRole("heading", { level: 2, name: "n0" });
         const node = marks();
         await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         await screen.findByRole("group", { name: "n0 and 3 connections" });
@@ -249,6 +267,8 @@ describe("the inspector", () => {
         const { session: on } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         await screen.findByRole("group", { name: "n0 and 3 connections" });
@@ -282,6 +302,8 @@ describe("the inspector", () => {
         const { session: on, store } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         await screen.findByRole("group", { name: "n0 and 3 connections" });
@@ -308,6 +330,8 @@ describe("the inspector", () => {
         const { session: on } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         const command = await screen.findByRole("button", { name: "Filter to neighbors" });
@@ -341,6 +365,8 @@ describe("the inspector", () => {
             on.visibility.conditions.map((c) => [c.on, c.rule.kind === "neighborhood" ? c.rule.depth : 0]);
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         await typeHops(2);
@@ -353,6 +379,8 @@ describe("the inspector", () => {
         // Turned off from its checkbox, then pressed at one hop: the same card, on, one hop out.
         await act(async () => {
             await on.visibility.updateCondition(on.visibility.conditions[0].id, { on: false });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await typeHops(1);
         await screen.findByRole("group", { name: "n0 and 3 connections" });
@@ -387,12 +415,16 @@ describe("the inspector", () => {
         const { session: on, store } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         await screen.findByRole("group", { name: "n0 and 3 connections" });
 
         await act(async () => {
             await on.selection.apply({ nodes: [...on.selection.nodes, "n3"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await waitFor(() => {
             assert.isNull(store.get().inspected);
@@ -404,6 +436,8 @@ describe("the inspector", () => {
         const { session: on } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0", "n1", "n2"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
 
         const among = await screen.findByRole("group", { name: "Edges joining these nodes" });
@@ -420,6 +454,8 @@ describe("the inspector", () => {
             .map((edge) => edge.id);
         await act(async () => {
             await on.selection.apply({ edges });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
 
         assert.include((await screen.findByRole("group", { name: "Edges" })).textContent, "3");
@@ -432,6 +468,8 @@ describe("the inspector", () => {
         const { session: on } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0", "n6"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
 
         const joining = await screen.findByRole("group", { name: "Edges joining these nodes" });
@@ -449,6 +487,8 @@ describe("the inspector", () => {
                 { source: "looped", target: "looped" },
                 { source: "n1", target: "n2" },
             ]);
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         const statistics = on.data.statistics();
 
@@ -527,6 +567,8 @@ describe("the inspector", () => {
         const { session: on, store } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0", "n1", "n2"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         act(() => {
             store.set({ inspected: { kind: "selection-row" } });
@@ -550,6 +592,8 @@ describe("the inspector", () => {
         on.notes.add({ text: "About the whole graph", targets: [{ graph: true }] });
         await act(async () => {
             await on.selection.apply({ edges: [bridge?.id ?? ""] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
 
         // The edge has a note: a Notes tab beside Style and Values, listing that note alone.
@@ -566,6 +610,8 @@ describe("the inspector", () => {
         // Another edge with no notes: no Notes tab, so it opens on Values, not on the Notes it remembers.
         await act(async () => {
             await on.selection.apply({ edges: [other?.id ?? ""] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await waitFor(() => {
             assert.equal(screen.getByRole("tab", { name: "Values" }).getAttribute("aria-selected"), "true");
@@ -575,6 +621,8 @@ describe("the inspector", () => {
         // Back on the bridge, it opens on Notes again; deleting its one note takes the tab away.
         await act(async () => {
             await on.selection.apply({ edges: [bridge?.id ?? ""] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await waitFor(() => {
             assert.equal(screen.getByRole("tab", { name: "Notes" }).getAttribute("aria-selected"), "true");
@@ -594,6 +642,8 @@ describe("the inspector", () => {
         await act(async () => {
             await on.config.set({ data: { directed: false } });
             await on.selection.apply({ edges: [bridge?.id ?? ""] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         assert.isNotNull(await screen.findByText("n0 -- n6"));
 
@@ -614,6 +664,8 @@ describe("the inspector", () => {
         await act(async () => {
             await on.config.set({ data: { directed: true } });
             await on.selection.apply({ edges: [bridge?.id ?? ""] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         assert.isNotNull(await screen.findByText("n0 -> n6"));
     });
@@ -634,6 +686,8 @@ describe("the inspector", () => {
         const edge = made.data.edges().find((each) => each.source === "Station");
         await act(async () => {
             await made.selection.apply({ edges: [edge?.id ?? ""] });
+            // The Inspector redraws after the frame that shows the change.
+            await made.afterFrame();
         });
         await screen.findByRole("group", { name: "minutes" });
         assert.include(screen.getByRole("button", { name: /^From/ }).textContent, "Station");
@@ -651,6 +705,7 @@ describe("the inspector", () => {
         ]) {
             await act(async () => {
                 await select();
+                await on.afterFrame();
             });
             const names = controlNames();
             assert.deepEqual(names, [...new Set(names)]);
@@ -661,6 +716,8 @@ describe("the inspector", () => {
         const { session: on, store } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n2"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         for (const gone of [
             { kind: "run-row", id: "no-such-run" },
@@ -704,6 +761,8 @@ describe("the inspector", () => {
 
         await act(async () => {
             await on.data.import({ config: { file: new File(["from,to\nx,y\n"], "extra.csv") } });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await userEvent.click(page.getByRole("button", { name: "From extra.csv", exact: true }));
         assert.deepInclude(store.get(), { page: "panels", place: "data" });
@@ -713,6 +772,8 @@ describe("the inspector", () => {
         const { session: on, store } = await renderInspector();
         await act(async () => {
             await on.data.import({ config: { file: new File(["from,to\nx,y\n"], "extra.csv") } });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         const load = on.data.sources().find((each) => each.name === "extra.csv");
         assert.isDefined(load);
@@ -735,6 +796,8 @@ describe("the inspector", () => {
         on.notes.add({ text: "Still the start", targets: [{ node: "n3" }] });
         await act(async () => {
             await on.selection.apply({ nodes: ["n3"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await userEvent.click(page.getByRole("button", { name: "2 notes", exact: true }));
         assert.deepInclude(store.get(), { page: "panels", place: "notes" });
@@ -757,6 +820,8 @@ describe("the inspector", () => {
         const { session: on } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n1"] });
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         await screen.findByRole("heading", { level: 2, name: "n1" });
         assert.isNull(screen.queryByText("Node, hidden by a filter"));
@@ -764,6 +829,8 @@ describe("the inspector", () => {
             await on.visibility.setSteps([
                 { id: "s1", on: true, rule: { kind: "range", attribute: "data.shared", min: 5, nodes: "ends" } },
             ]);
+            // The Inspector redraws after the frame that shows the change.
+            await on.afterFrame();
         });
         assert.isFalse(on.visibility.isVisible("n1"));
         assert.deepEqual([...on.selection.nodes], ["n1"]);

@@ -239,7 +239,7 @@ import {
     STRUCTURE_PATHS,
     STRUCTURE_VALUES,
 } from "./styles/sources";
-import { paintingOf, repaintFailure } from "./styles/StylesApi";
+import { editsPainted, paintingOf, repaintFailure } from "./styles/StylesApi";
 import { drawsOutsideWindow } from "./styles/tree";
 import type { EdgeAgeFade } from "./time/ageFade";
 import { numericBound } from "./time/parse";
@@ -280,6 +280,7 @@ import type {
     SessionHidden,
     SessionHistory,
     SessionLayout,
+    SessionListenOptions,
     SessionPositions,
     SessionRecordSource,
     SessionRunsOptions,
@@ -530,6 +531,8 @@ interface SessionParts {
     readonly dispatcher: Dispatcher;
     /** Saved results waiting for the runs a project open starts; the executor answers from it. */
     readonly canned: CannedOutcomes;
+    /** Settles once a frame has drawn the style paint queued, or at once when none is coming; absent with no renderer. */
+    readonly paintDrawn?: () => Promise<void>;
 }
 
 /**
@@ -544,6 +547,8 @@ interface SessionInternals {
     readonly baselineWindow?: boolean;
     /** Settles on the next drawn frame, or at once when no frame is coming; absent with no renderer. */
     readonly renderedFrame?: () => Promise<void>;
+    /** Settles once a frame has drawn all the style paint queued, or none is coming; absent with no renderer. */
+    readonly paintDrawn?: () => Promise<void>;
     /** Whether the element draws on the `"batched"` render path, which allows the repaint's uniform mesh-key fill. */
     readonly batched?: () => boolean;
     /** The renderer's graph-wide node size space (`layoutBehavior.node.sizeSpace`); absent with no renderer. */
@@ -663,6 +668,10 @@ class Session implements ElementSession {
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
+    /** See {@link SessionParts.paintDrawn}. */
+    private readonly paintDrawn: () => Promise<void>;
+    /** The after-frame listeners' waits still to deliver; `afterFrame()` settles only once they have. */
+    private readonly afterFrameWaits = new Set<Promise<void>>();
     /** The layout's motion: the renderer's, or the runner's in a session that draws nothing. */
     private motion: LayoutMotion = "settled";
     /** Runs the layout when no renderer has handed the dispatcher its own. */
@@ -709,6 +718,7 @@ class Session implements ElementSession {
      */
     constructor(parts: SessionParts) {
         this.store = parts.store;
+        this.paintDrawn = parts.paintDrawn ?? (() => Promise.resolve());
         this.ownedStore = parts.ownedStore;
         this.unfollowStore = parts.unfollowStore;
         this.sessionData = parts.data;
@@ -1688,12 +1698,48 @@ class Session implements ElementSession {
     }
 
     /**
+     * See {@link GraphSession.afterFrame}.
+     * @returns Settles in the task after the frame that draws every style change made so far, once
+     *     every `{ afterFrame: true }` listener has heard the events told before the call.
+     */
+    async afterFrame(): Promise<void> {
+        await this.frameSettled();
+        // A listener's wait that started earlier may deliver a round later than this frame: a caller
+        // that awaits this reads what those listeners did, so it waits them out too.
+        while (this.afterFrameWaits.size > 0) {
+            await Promise.all(this.afterFrameWaits);
+        }
+        await nextTask();
+    }
+
+    /**
+     * Settles in the task after the frame that draws every style change made so far.
+     * @returns Settles as above; never rejects.
+     */
+    private async frameSettled(): Promise<void> {
+        // Not `styles.settled()`: that waits for every queued run too, and a run still going
+        // would hold every after-frame listener (and `afterFrame()`) until it ends.
+        await editsPainted(this.styles).catch(() => undefined);
+        await this.paintDrawn();
+        await nextTask();
+    }
+
+    /**
      * Watch the session.
      * @param event - Which event.
      * @param handler - Called with the event's detail.
+     * @param options - See {@link SessionListenOptions}.
      * @returns A function that stops the subscription.
      */
-    on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void {
+    on<K extends keyof SessionEventMap>(
+        event: K,
+        handler: (detail: SessionEventMap[K]) => void,
+        options?: SessionListenOptions,
+    ): () => void {
+        if (options?.afterFrame === true && !this.disposed) {
+            return this.onAfterFrame(event, handler);
+        }
+
         if (this.disposed) {
             // Nothing fires again; a host that asks too late to hear about the disposal still does.
             // Canceled by the returned function, so an effect cleanup that runs first is not told.
@@ -1724,6 +1770,62 @@ class Session implements ElementSession {
 
         return () => {
             held.delete(handler);
+        };
+    }
+
+    /**
+     * Subscribe a handler that hears each detail as `afterFrame()` does: once every repaint asked
+     * for has run and a frame has drawn its paint, then in a task of its own: a frame waits for every task in front of it, so a handler run straight after the
+     * draw, still inside it, would hold that frame off the screen as surely as one run before it.
+     * @param event - Which event.
+     * @param handler - Called with each detail, in order.
+     * @returns A function that stops the subscription; a detail still held is dropped.
+     */
+    private onAfterFrame<K extends keyof SessionEventMap>(
+        event: K,
+        handler: (detail: SessionEventMap[K]) => void,
+    ): () => void {
+        let live = true;
+        let waiting = false;
+        const held: Array<SessionEventMap[K]> = [];
+        const start = (): void => {
+            const round = wait();
+            this.afterFrameWaits.add(round);
+            void round.finally(() => this.afterFrameWaits.delete(round));
+        };
+        const wait = async (): Promise<void> => {
+            waiting = true;
+            // After the dispatch that published the first detail has queued its repaint (an
+            // edit's `history:changed` fires before it), so any event waits for that repaint.
+            await Promise.resolve();
+            // A detail told while this wait runs may have a repaint of its own: it waits again.
+            const count = held.length;
+            await this.frameSettled();
+            waiting = false;
+            const due = held.splice(0, count);
+            if (!live || this.disposed) {
+                held.length = 0;
+                return;
+            }
+
+            for (const detail of due) {
+                publish(new Map([[event, new Set([handler])]]), event, detail);
+            }
+
+            if (held.length > 0) {
+                start();
+            }
+        };
+        const stop = this.on(event, (detail) => {
+            held.push(detail);
+            if (!waiting) {
+                start();
+            }
+        });
+
+        return () => {
+            live = false;
+            stop();
         };
     }
 
@@ -6122,6 +6224,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         watchers,
         dispatcher,
         canned,
+        ...(internals.paintDrawn === undefined ? {} : { paintDrawn: internals.paintDrawn }),
     });
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);
@@ -6743,4 +6846,14 @@ function heldBySetsAndRuns(state: Pick<ProjectState, "sets" | "runs">, nodes: No
             }
         }
     }
+}
+
+/**
+ * Settles in a task of its own, after every task already queued.
+ * @returns Settles as above.
+ */
+function nextTask(): Promise<void> {
+    return new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+    });
 }

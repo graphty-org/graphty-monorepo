@@ -119,6 +119,12 @@ describe("a number binding's popover on the real element", () => {
         await userEvent.click(page.elementLocator(popover).getByRole("button", { name: /^Reset Steps/ }));
         await waitFor(() => {
             assert.isUndefined(bindingOf(session, layer, "node.color").bins, "the reset clears the bins");
+            // The list redraws after the frame that shows the reset: its rows are read only then.
+            assert.notEqual(
+                within(within(popover).getByRole("list", { name: "Steps" })).getAllByRole("listitem").length,
+                4,
+                "the list no longer shows the four steps",
+            );
         });
 
         // Select these: the step's nodes become the selection.

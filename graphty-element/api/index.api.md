@@ -8565,7 +8565,7 @@ export class RenderManager implements Manager {
     // @internal
     fencedFrames(): number;
     // @internal
-    frameDrawn(): Promise<void>;
+    frameDrawn(throughHold?: boolean): Promise<void>;
     getRenderStats(): {
         fps: number;
         activeMeshes: number;

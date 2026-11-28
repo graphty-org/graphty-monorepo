@@ -111,7 +111,7 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
         };
         read();
         const offs = [
-            ...REDRAW_EVENTS.map((event) => session.on(event, read)),
+            ...REDRAW_EVENTS.map((event) => session.on(event, read, { afterFrame: true })),
             session.on("selection:changed", () => {
                 const { nodes, edges } = session.selection;
                 // While a selection editor is open its own count is what is said, never this one.

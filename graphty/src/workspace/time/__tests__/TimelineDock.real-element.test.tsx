@@ -115,6 +115,13 @@ async function windowOn(session: GraphSession, from: number, to: number): Promis
     await act(async () => {
         await session.time.window({ from, to });
     });
+    // The dock redraws after the frame that shows the window: input aimed at its thumbs waits for it.
+    await waitFor(() => {
+        const body = screen.getByRole("slider", { name: "Window" });
+        const min = Number(body.getAttribute("aria-valuemin"));
+        const max = Number(body.getAttribute("aria-valuemax"));
+        assert.equal(Number(body.getAttribute("aria-valuenow")), Math.min(max, Math.max(min, from)));
+    });
 }
 
 /**

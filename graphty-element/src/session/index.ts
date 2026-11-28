@@ -205,6 +205,7 @@ export type {
     SessionHidden,
     SessionHistory,
     SessionLayout,
+    SessionListenOptions,
     SessionPositions,
     SessionRunsOptions,
     SessionStatus,

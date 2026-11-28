@@ -7754,6 +7754,26 @@ export interface HoverDrawn {
 }
 
 /**
+ * How a listener hears a session event; see {@link ElementSession.on}.
+ * @since 3.62.0
+ */
+export interface SessionListenOptions {
+    /**
+     * Hear the event once a frame has drawn the repaint queued, rather than as it fires. A listener
+     * that re-reads the picture -- `styles.legend()`, `styles.counts()` -- on `style:batch-changed`
+     * or `project:derived` runs in the same task as the repaint it announces, so its work holds
+     * back the frame that shows that repaint. With this set, the frames that apply it are drawn
+     * first (a long repaint is applied over several) and the listener runs right after. Any event
+     * may be heard this way: one that fires before its repaint has run (`history:changed` at an
+     * edit) waits for that repaint too, as `afterFrame()` does. Details are delivered in order, each once; with no frame
+     * coming (a hidden page, a stopped render loop, a session that draws nothing) they are
+     * delivered in the next task.
+     * @defaultValue false
+     */
+    readonly afterFrame?: boolean;
+}
+
+/**
  * What a session publishes to whoever is watching it.
  *
  * A map rather than a bare handler, so that the events arriving with the layout, the camera and
@@ -9963,9 +9983,31 @@ export interface GraphSession {
      * Watch the session.
      * @param event - Which event.
      * @param handler - Called with the event's detail.
+     * @param options - How the handler hears it: `{ afterFrame: true }` holds each detail until a
+     *     frame has drawn the repaint, so the handler's work never delays the frame showing what it announces.
      * @returns A function that stops the subscription. There is no `off` to learn.
      */
-    on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
+    on<K extends keyof SessionEventMap>(
+        event: K,
+        handler: (detail: SessionEventMap[K]) => void,
+        options?: SessionListenOptions,
+    ): () => void;
+    /**
+     * Wait until every style change made so far is on the screen: settles in a task of its own,
+     * right after the frame that draws the last of it. Work that follows a write -- reading
+     * `styles.counts()` for a receipt, re-rendering a panel -- awaits this so it never holds back
+     * the frame that shows the change. With no frame coming (a hidden page, a stopped render loop,
+     * a session that draws nothing) it settles in the next task. Every `{ afterFrame: true }`
+     * listener has heard the events told before the call by the time it settles. Never rejects.
+     * @example
+     * ```ts
+     * await session.styles.update(id, { set: { "node.color": "red" } });
+     * await session.afterFrame();
+     * status.textContent = "Node color now red";
+     * ```
+     * @returns Settles as above.
+     */
+    afterFrame(): Promise<void>;
     /**
      * Release what this session owns: the accelerator it attached, the store it built, and every
      * run still in flight.

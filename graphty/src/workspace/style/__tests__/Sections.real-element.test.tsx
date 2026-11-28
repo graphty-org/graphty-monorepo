@@ -323,16 +323,19 @@ describe("the Style tab's sections", () => {
             );
             return found;
         });
-        assert.match(store.get().announcement, /^Undid /, "the Undo is announced");
-        assert.isAbove(store.get().announced, spoken);
+        // Said after the frame that draws the step (useCommandKeys).
+        await waitFor(() => {
+            assert.match(store.get().announcement, /^Undid /, "the Undo is announced");
+            assert.isAbove(store.get().announced, spoken);
+        });
         within(back).getByRole("button", { name: "Remove node size" }).focus();
         const again = store.get().announced;
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
             assert.isTrue(isEmpty(section("node", "shape")), "Undo takes the add back");
             assert.equal(document.activeElement?.getAttribute("aria-label"), "Add to node shape", "focus on its '+'");
+            assert.isAbove(store.get().announced, again, "this Undo is announced too");
         });
-        assert.isAbove(store.get().announced, again, "this Undo is announced too");
     });
 
     it("says arrowheads are not available on an undirected graph, with '+' disabled and a set one removable", async () => {

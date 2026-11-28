@@ -148,7 +148,9 @@ describe("a shader row's settings", () => {
             assert.notProperty(paramsOn(mounted, layer) ?? {}, "outline", "Outline is back to its default");
         });
         assert.strictEqual(paramsOn(mounted, layer)?.finish, "shiny", "the other values stay");
-        assert.isNull(paramRow(popout, "outline").getAttribute("data-set"), "the row no longer reads as set");
+        await waitFor(() => {
+            assert.isNull(paramRow(popout, "outline").getAttribute("data-set"), "the row no longer reads as set");
+        });
     });
 
     it("dragging Foil strength's name scrubs it and writes once on release, inside its range", async () => {

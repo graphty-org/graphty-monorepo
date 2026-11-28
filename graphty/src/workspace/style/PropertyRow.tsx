@@ -476,8 +476,11 @@ function fieldWrite(ctx: RowContext, channel: Channel, store: Store): (next: Fie
     const fail = failureOf(store, channel);
     return (next, words) => {
         writeIn(ctx, channel, next)
-            .then((id) => {
+            .then(async (id) => {
                 if (words !== undefined && ctx.many === undefined) {
+                    // Said once the change is on the screen: counting it and re-rendering for the
+                    // words would otherwise hold back the frame that draws it.
+                    await ctx.session.afterFrame();
                     store.set({ announcement: reachWords(ctx.session, id, channel, ctx.side, words) });
                 }
             })

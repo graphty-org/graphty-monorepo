@@ -87,6 +87,8 @@ async function openWithDates(place: "data" | "graph", timed = true): Promise<Gra
     if (timed) {
         await session.time.setField({ nodes: { start: "installed" } });
     }
+    // The panels hear these edits after the frame that draws them: let them catch up before a click.
+    await session.afterFrame();
     return session;
 }
 

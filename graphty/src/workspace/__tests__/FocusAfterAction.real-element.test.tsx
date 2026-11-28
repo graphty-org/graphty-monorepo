@@ -231,7 +231,7 @@ describe("focus after a command that moves the reader", () => {
     it("Enter on the Graph place's title, with the graph already inspected, puts focus on the inspector's heading", async () => {
         await openScene(createWorkspaceStore({ project: { name: "Untitled", id: 1 }, inspected: { kind: "graph" } }));
         const place = await screen.findByRole("region", { name: "Graph place" });
-        const title = within(place).getByRole("button", { name: /^Graph les-miserables/ });
+        const title = await within(place).findByRole("button", { name: /^Graph les-miserables/ });
         await waitFor(() => {
             assert.isNotNull(document.querySelector(`[data-inspected="graph"] #${INSPECTOR_TITLE_ID}`));
         });

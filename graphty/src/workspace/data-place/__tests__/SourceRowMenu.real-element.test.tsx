@@ -48,7 +48,7 @@ async function openWorkspace(): Promise<GraphSession> {
 async function rowVerb(load: LoadedSource, item: string): Promise<void> {
     const name = sourceName(load);
     const place = await screen.findByRole("region", { name: "Data place" });
-    const list = within(place).getByRole("list", { name: "Data sources" });
+    const list = await within(place).findByRole("list", { name: "Data sources" });
     const row = await within(list).findByRole("listitem", { name });
     await userEvent.click(page.elementLocator(row).getByRole("button", { name: `${name} menu`, exact: true }));
     await userEvent.click(page.getByRole("menuitem", { name: item, exact: true }));

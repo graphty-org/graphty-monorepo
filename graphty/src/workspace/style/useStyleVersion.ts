@@ -44,7 +44,7 @@ function useBumpedVersion(
  * @returns the unsubscribes.
  */
 const listenAll = (session: GraphSession, bump: () => void): (() => void)[] =>
-    EVENTS.map((event) => session.on(event, bump));
+    EVENTS.map((event) => session.on(event, bump, { afterFrame: true }));
 
 /**
  * Re-renders the caller whenever the element reports a change to its styles, runs or data, or to
@@ -74,12 +74,16 @@ function listenData(session: GraphSession, bump: () => void): (() => void)[] {
                 bump();
             }
         }),
-        session.on("project:derived", () => {
-            if (derivedPending) {
-                derivedPending = false;
-                bump();
-            }
-        }),
+        session.on(
+            "project:derived",
+            () => {
+                if (derivedPending) {
+                    derivedPending = false;
+                    bump();
+                }
+            },
+            { afterFrame: true },
+        ),
     ];
 }
 

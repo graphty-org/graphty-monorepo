@@ -136,7 +136,8 @@ export function useSessionEvents(
                         }),
                     ];
                 }
-                return [session.on(event, bump)];
+                // Heard once the frame showing the repaint is drawn, so a re-render never holds it back.
+                return [session.on(event, bump, { afterFrame: true })];
             }),
         ];
         return () => {

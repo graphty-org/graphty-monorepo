@@ -872,23 +872,31 @@ describe("naming and picking groups", () => {
         const row = (): HTMLElement => gridRows(popover)[0];
         const key = row().querySelector("[data-group-row]")?.getAttribute("data-group-row") ?? "";
         const name = nameCell(row()).firstChild?.textContent ?? "";
-        const menu = async (item: RegExp): Promise<void> => {
-            await userEvent.click(page.elementLocator(row()).getByRole("button", { name: / actions$/ }));
+        // Found by the row's name as each click lands: the row redraws after the frame that shows an
+        // edit, and a locator made from the row as it was would wait for its old words.
+        const actions = (named: string): Locator =>
+            page
+                .elementLocator(popover)
+                .getByRole("button", {
+                    name: new RegExp(` ${named.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")} actions$`),
+                });
+        const menu = async (item: RegExp, named = "Bishop's circle"): Promise<void> => {
+            await userEvent.click(actions(named));
             await userEvent.click(page.elementLocator(popover).getByRole("menuitem", { name: item, exact: true }));
         };
         const group = (): ValueGroup | undefined =>
             session.styles.groups(layer.id, path).find((g) => String(g.value) === key);
 
         // Rename: the row's name becomes a box; the name typed labels the value.
-        await menu(/^Rename/);
+        await menu(/^Rename/, name);
         const box = await within(popover).findByRole("textbox", { name: new RegExp(`^Name of .* ${name}$`) });
         await renameTo(session, box, path, key);
 
         // The menu offers Clear only once the group has its own color.
-        await userEvent.click(page.elementLocator(row()).getByRole("button", { name: / actions$/ }));
+        await userEvent.click(actions("Bishop's circle"));
         await within(popover).findByRole("menuitem", { name: /^Rename/ });
         assert.isNull(within(popover).queryByRole("menuitem", { name: /^Clear color/ }));
-        await userEvent.click(page.elementLocator(row()).getByRole("button", { name: / actions$/ }));
+        await userEvent.click(actions("Bishop's circle"));
         await session.styles.setValueEntries(layer.id, path, [
             { channel: "node.color", value: group()?.value as number, entry: "#00aa00" },
         ]);

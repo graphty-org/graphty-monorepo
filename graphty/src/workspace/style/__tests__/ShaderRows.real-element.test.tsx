@@ -113,6 +113,8 @@ describe("the Shaders section", () => {
         const layer = await addNodeLayer(mounted.session, { "node.shaders": [{ shader: aura }, { shader: reticle }] });
         const store = renderPanel(mounted, [layer]);
         const order = (): string[] => usesOn(mounted.session, layer).map((use) => use.shader);
+        // The rows as drawn: the Style tab redraws after the frame that shows a write.
+        const drawn = (): Array<string | undefined> => shaderRows().map((row) => row.dataset.shader);
 
         const [first, second] = await waitFor(() => {
             const rows = shaderRows();
@@ -124,6 +126,7 @@ describe("the Shaders section", () => {
         await dragTo(handle, { x: top.left + top.width / 2, y: top.top + 2 });
         await waitFor(() => {
             assert.deepEqual(order(), [reticle, aura]);
+            assert.deepEqual(drawn(), [reticle, aura]);
         });
 
         const now = shaderRows()[1];
@@ -133,6 +136,7 @@ describe("the Shaders section", () => {
         await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
         await waitFor(() => {
             assert.deepEqual(order(), [aura, reticle]);
+            assert.deepEqual(drawn(), [aura, reticle]);
         });
         assert.strictEqual(store.get().announcement, "Aura moved to 1 of 2", "a move says where the row went");
         await waitFor(() => {

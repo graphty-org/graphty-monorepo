@@ -6,7 +6,7 @@ import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
 import type { Ray } from "@babylonjs/core/Culling/ray.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { Color4 } from "@babylonjs/core/Maths/math.color.js";
-import { type Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
@@ -44,16 +44,18 @@ import {
     type NodePaint,
     type NodeSizeSpace,
     shaderPartOf,
+    withoutHalo,
 } from "./managers/StylePainter";
 import { convexRayHit } from "./meshes/convexHit";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
-import { applyFlatHalo, flatHaloLift, haloAxisScale } from "./meshes/flatHalo";
+import { applyFlatHalo, flatHaloLift, haloAxisScale, haloLookOf, sourceHaloLift } from "./meshes/flatHalo";
 import { disposeLater } from "./meshes/handOverTogether";
 import { drawInRowOrder } from "./meshes/instanceRowOrder";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { imageAspectExtent, labelFitExtent, tableShrink } from "./meshes/labelFit";
 import { type LabelTable, layoutLabelTable, readLabelTable, roundedBoxOutline } from "./meshes/labelTable";
+import type { MeshCache } from "./meshes/MeshCache";
 import { moveInstance } from "./meshes/moveInstance";
 import type { PieceBox } from "./meshes/nodeDecoration";
 import {
@@ -135,23 +137,6 @@ export const SELECTION_HALO_MESH = "graphty-selection-halo";
 
 /** Each scene's hidden halo instances no node draws, by their source's cache key; see `Node.takeSpareHalo`. */
 const spareHalos = new WeakMap<Scene, Map<string, AbstractMesh[]>>();
-
-/**
- * A style less its halo. A built `Node` draws its halo as an overlay of its own, hung from its anchor, whatever
- * draws its body -- as it does for a selection drawn without the starting rows -- so a halo keeps its body on
- * the batch. Counted as unbatchable, one selected node put every row of its look back on an instance mesh,
- * and each such row needed a `Node` built for it (issue #9164).
- * @param style - The style.
- * @returns It, without `effect.halo`.
- */
-function withoutHalo(style: NodeStyleConfig): NodeStyleConfig {
-    if (style.effect?.halo === undefined) {
-        return style;
-    }
-
-    const { halo: _halo, ...effect } = style.effect;
-    return { ...style, effect };
-}
 
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
@@ -391,6 +376,14 @@ let writeRecord: (node: Node, record: AdHocData<string | number>) => void;
 export function adoptNodeRecord(node: Node, record: AdHocData<string | number>): void {
     writeRecord(node, record);
 }
+
+/** The last two styles a node compared (`Node.compareDrawn`), and what the comparison found. */
+let lastCompared: {
+    style: NodeStyleConfig;
+    drawn: NodeStyleConfig | null;
+    equal: boolean;
+    equalButFill: boolean;
+} | null = null;
 
 /** Reads whether a paint rebuilds a node's mesh; see {@link nodeRebuildsFor}. */
 let rebuildsFor: (node: Node, paint: NodePaint) => boolean;
@@ -656,7 +649,7 @@ export class Node implements ModelUser {
             decorations: node.decorations,
         });
         rebuildsFor = (node, paint) => {
-            if (node.disposed) {
+            if (node.disposed || node.hidesOverDrawn(paint.style)) {
                 return false;
             }
 
@@ -3483,11 +3476,21 @@ export class Node implements ModelUser {
             return kept;
         }
 
+        // Nodes of one look share their drawn style and are handed one style, so the last pair compared answers the
+        // next node too: showing a layer over 10,000 nodes compared the same two styles deeply 20,000 times
+        // (issue #10323). A paint's style is never written after it is built, so the answer holds.
+        const shared = lastCompared;
+        if (shared?.style === o && shared.drawn === drawn) {
+            this.comparedDrawn = shared;
+            return shared;
+        }
+
         // The painter shares one style per look, so an unchanged node is handed the style it drew.
         const same = drawn === o;
         const equalButFill = same || (drawn !== null && isEqual(withoutFill(o), withoutFill(drawn)));
         const equal = same || (equalButFill && isEqual(o.texture, drawn?.texture));
         this.comparedDrawn = { style: o, drawn, equal, equalButFill };
+        lastCompared = this.comparedDrawn;
         return this.comparedDrawn;
     }
 
@@ -3679,6 +3682,53 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether a paint that hides this node can leave the mesh it draws as it is, hidden, rather than build the
+     * paint's own: a hidden node draws nothing, so the mesh it would be built from is never seen. Hiding a layer
+     * over 10,000 nodes built every node's mesh again for the look under it, and showing the layer built them back
+     * (issue #10323); kept, showing it finds the mesh it had (`keepsMeshFor`). Only a plain node drawn as it is:
+     * a filter's context point, a group's region, a model and a shader drawing are painted in full, and so is a
+     * hidden look of another shape, border or label: its edges stop at the outline it is painted with, as they do on the
+     * batched path.
+     * @param o - The paint's style.
+     * @returns True when the paint only hides the node.
+     */
+    private hidesOverDrawn(o: NodeStyleConfig): boolean {
+        return (
+            o.visible === false &&
+            this.drawnStyle !== null &&
+            // the hidden node's edges still stop at the outline it is painted with (`Edge.bareEnd`)
+            isEqual(o.shape, this.drawnStyle.shape) &&
+            isEqual(o.border, this.drawnStyle.border) &&
+            isEqual(o.label, this.drawnStyle.label) &&
+            this.drawnStyle.visible !== false &&
+            this.renderState === "visible" &&
+            !this.drawnAsGroup &&
+            this.shaderPath === null &&
+            this.drawnModel === null &&
+            this.#kept === null &&
+            this.#mesh !== null &&
+            !this.#anchor.isDisposed()
+        );
+    }
+
+    /** Hide this node over the mesh it draws: see {@link Node.hidesOverDrawn}. */
+    private hideOverDrawn(): void {
+        this.hiddenOverDrawn = true;
+        if (!this.styleHidden) {
+            this.styleHidden = true;
+            this.applyRenderState();
+            // an edge pulled from the row table onto this node's row draws nothing to a hidden row: its edges look again
+            this.context.getUpdateManager?.()?.noteEndsChanged(this.index);
+        }
+    }
+
+    /**
+     * Whether this node is hidden over a mesh drawn for an earlier paint ({@link Node.hidesOverDrawn}), so a mask
+     * that draws it in context paints it in full first.
+     */
+    private hiddenOverDrawn = false;
+
+    /**
      * Draw a paint as it is, with its shader path taken into account: see `paintFrom` and
      * `shadedPaint`.
      * @param paintKey - Which source mesh the paint draws from.
@@ -3702,6 +3752,12 @@ export class Node implements ModelUser {
      * @param color - The per-instance color.
      */
     private drawShadedPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
+        if (this.hidesOverDrawn(paintStyle)) {
+            this.hideOverDrawn();
+            return;
+        }
+
+        this.hiddenOverDrawn = false;
         const shaded = this.shadedPaint(paintKey, paintStyle);
         const { meshKey, style: o } = shaded;
         this.shaderPath = shaded.path;
@@ -4021,6 +4077,13 @@ export class Node implements ModelUser {
         }
 
         this.renderState = state;
+        const paint = this.sessionPaint;
+        if (this.hiddenOverDrawn && state === "context" && paint !== null) {
+            // drawn in context from its own paint, as it was before it kept the mesh it was shown with
+            this.paintFrom(paint.meshKey, paint.style, paint.color);
+            this.measureRow();
+        }
+
         this.applyRenderState();
 
         return true;
@@ -4136,22 +4199,8 @@ export class Node implements ModelUser {
      * @returns The color, scale and opacity, or null.
      */
     private haloLook(): GraphSelectionStyleConfig | null {
-        const layer = this.drawnStyle?.effect?.halo;
-        const color = layer?.color;
-        const scale = layer?.scale !== undefined && layer.scale > 0 ? layer.scale : undefined;
-        const opacity = layer?.opacity;
-        const lookSet = color !== undefined || scale !== undefined || opacity !== undefined;
         const selectionDraws = this.selected && this.context.getStyles().config.graph.startingRows !== true;
-
-        if (!(layer?.enabled ?? (lookSet || selectionDraws))) {
-            return null;
-        }
-
-        const base = this.selectionStyle();
-
-        return lookSet
-            ? { ...base, color: color ?? base.color, scale: scale ?? base.scale, opacity: opacity ?? base.opacity }
-            : base;
+        return haloLookOf(this.drawnStyle?.effect?.halo, this.selectionStyle(), selectionDraws);
     }
 
     /**
@@ -4867,13 +4916,88 @@ export class Node implements ModelUser {
      * @returns The key.
      */
     private haloSourceKey(look: GraphSelectionStyleConfig): string {
-        const key = `${SELECTION_HALO_MESH}:${this.#anchor.name}${this.context.is2D() ? ":2d" : ""}`;
-        const selection = this.selectionStyle();
+        return Node.haloSourceName(this.#anchor.name, look, this.selectionStyle(), this.context.is2D());
+    }
+
+    /**
+     * The cache key of the halo source around a node source in a look ({@link Node.haloSourceKey}).
+     * @param shapeName - The node source's name, which its instances and anchors carry too.
+     * @param look - The halo's look.
+     * @param selection - The selection style.
+     * @param is2D - Whether the view is 2D.
+     * @returns The key.
+     */
+    private static haloSourceName(
+        shapeName: string,
+        look: GraphSelectionStyleConfig,
+        selection: GraphSelectionStyleConfig,
+        is2D: boolean,
+    ): string {
+        const key = `${SELECTION_HALO_MESH}:${shapeName}${is2D ? ":2d" : ""}`;
         // ponytail: one cached source per halo color and opacity ever drawn; evict unused
         // ones if a continuous halo color encoding ever shows up in a profile.
         return look.color === selection.color && look.opacity === selection.opacity
             ? key
             : `${key}:${look.color}:${String(look.opacity)}`;
+    }
+
+    /**
+     * The source mesh every halo of a look around a node source is drawn from, painted in that look: the one a
+     * `Node`'s halo is an instance of, and that a node batch draws the halos of its rows with no `Node` from.
+     * @param cache - The mesh cache.
+     * @param shape - The node source mesh.
+     * @param look - The halo's look.
+     * @param selection - The selection style.
+     * @param is2D - Whether the view is 2D.
+     * @returns The halo source.
+     * @internal
+     */
+    static haloSource(
+        cache: MeshCache,
+        shape: Mesh,
+        look: GraphSelectionStyleConfig,
+        selection: GraphSelectionStyleConfig,
+        is2D: boolean,
+    ): Mesh {
+        const name = Node.haloSourceName(shape.name, look, selection, is2D);
+        const source = cache.sourceFor(name, () =>
+            Node.createOverlaySource(name, look.color, look.opacity, shape.getScene(), shape, is2D),
+        );
+        Node.paintHalo(source, look);
+        return source;
+    }
+
+    /**
+     * The halo a row drawn with no `Node` carries, as a `Node` painted the same would draw it ({@link Node.showOverlay}):
+     * its source, and its matrix against the row's place -- the shape stretched to an even band, and a 2D halo
+     * lifted in front of the edges. Such a row has no border, sits at its source's own size, and is never selected
+     * itself: the selection draws on it only through a layer.
+     * @param cache - The mesh cache.
+     * @param shape - The row's source mesh.
+     * @param layer - The halo its paint carries.
+     * @param selection - The selection style.
+     * @param is2D - Whether the view is 2D.
+     * @returns The two, or null when the row draws no halo.
+     * @internal
+     */
+    static rowHalo(
+        cache: MeshCache,
+        shape: Mesh,
+        layer: NonNullable<NodeStyleConfig["effect"]>["halo"] | undefined,
+        selection: GraphSelectionStyleConfig,
+        is2D: boolean,
+    ): { source: Mesh; matrix: ArrayLike<number> } | null {
+        const look = haloLookOf(layer, selection, false);
+        if (look === null || look.opacity === 0) {
+            return null;
+        }
+
+        const source = Node.haloSource(cache, shape, look, selection, is2D);
+        const grow = haloAxisScale(source.getBoundingInfo().boundingBox.extendSize, look.scale);
+        const matrix = Matrix.Scaling(grow.x, grow.y, grow.z);
+        // the 2D camera looks along +z, so toward it is down z (`syncOverlayPositions`)
+        matrix.setTranslationFromFloats(0, 0, -sourceHaloLift(source, 1));
+        return { source, matrix: matrix.m };
     }
 
     /**

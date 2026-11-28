@@ -289,6 +289,7 @@ import type {
 import {
     AdHocData,
     type ColorScheme,
+    DEFAULT_SELECTION_STYLE,
     defaultXRConfig,
     FetchEdgesFn,
     FetchNeighborEdgesFn,
@@ -1879,6 +1880,15 @@ export class Graph implements GraphContext {
                 for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
                     node.refreshSelectionOverlay();
                 }
+
+                // a row with no `Node` takes its halo's look from the selection style (`NodeBatches.syncHalo`)
+                this.#nodeBatches?.refreshHalos();
+            }
+
+            // Without the starting rows the selection draws its own halo, which only a `Node` does: the selected rows
+            // with none are given one (`UpdateManager.selectionBuildsNodes`).
+            if (changed("startingRows")) {
+                this.updateManager.invalidateViewMasks();
             }
 
             // A selected edge's halo is drawn from the selection style: redraw it.
@@ -5981,6 +5991,14 @@ export class Graph implements GraphContext {
                     edgeEndsChanged: (row) => {
                         this.updateManager.placeEdgesOfRow(row);
                     },
+                    haloOf: (row) =>
+                        Node.rowHalo(
+                            this.dataManager.meshCache,
+                            row.paintedSourceMesh,
+                            row.paint.style.effect?.halo,
+                            this.styles.config.graph.selection ?? DEFAULT_SELECTION_STYLE,
+                            this.getViewMode() === "2d",
+                        ),
                 },
                 this.scene,
             );
@@ -11123,7 +11141,8 @@ export class Graph implements GraphContext {
     /**
      * The `Node` of every row stored with no `Node` that no batch draws yet (its paint has not been
      * applied): only its `Node` knows where it is and how big, so it gets one, as every row did
-     * before #8204.
+     * before #8204. A row its style hides is painted, and draws nothing to measure: a box read while a
+     * layer was hidden (the app's autosave) built a `Node` for every row it hid (issue #10323).
      * @returns The `Node`s.
      */
     #unpaintedNodes(): Node[] {
@@ -11137,7 +11156,7 @@ export class Graph implements GraphContext {
         dataManagerInternals.buildRowsTogether(this.dataManager, () => {
             for (const row of unbuilt) {
                 const id =
-                    batches?.columnRowOf(row) === undefined
+                    batches?.columnRowOf(row) === undefined && !this.updateManager.rowHiddenByStyle(row)
                         ? dataManagerInternals.unbuiltAt(this.dataManager, row)
                         : undefined;
                 const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);

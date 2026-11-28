@@ -14,12 +14,14 @@ import {
     logCost,
     loggedCost,
     paidSteps,
+    readCache,
     RETRY,
     runCost,
     runJobs,
     spendWarning,
     STEP,
     usageCost,
+    writeCache,
 } from "./llm-spend.mjs";
 
 RETRY.waitMs = 0;
@@ -150,6 +152,74 @@ describe("countPaid", () => {
         const get = async () => ({ total_count: 1, jobs: [llm] });
         const r = await countPaid(get, "o/r", [{ id: 7, updated_at: "2026-10-30T01:01:00Z" }], STEP);
         assert.deepEqual(r.logged, [{ at: "2026-10-30T01:00:00Z", usd: 0.2871, steps: 1 }]);
+    });
+});
+
+describe("the counted-runs cache", () => {
+    const llm = job([
+        { name: STEP, conclusion: "success", completed_at: "2026-11-18T01:00:00Z" },
+        { name: "LLM regression cost: 0.25 USD", conclusion: "success", completed_at: "2026-11-18T01:00:05Z" },
+    ]);
+    const counting = () => {
+        const reads = [];
+        const get = async (path) => {
+            reads.push(path);
+            return { total_count: 1, jobs: [llm] };
+        };
+        return { reads, get };
+    };
+    const done = { id: 1, run_attempt: 1, status: "completed", updated_at: "2026-11-18T01:01:00Z" };
+    const going = { id: 2, run_attempt: 1, status: "in_progress", updated_at: "2026-11-18T01:01:00Z" };
+
+    it("reads only runs not yet counted, with the same totals", async () => {
+        const cache = {};
+        const first = counting();
+        const a = await countPaid(first.get, "o/r", [done, going], STEP, cache);
+        assert.equal(first.reads.length, 2);
+        assert.deepEqual(Object.keys(cache), ["1:1"]); // a run still going is read again next time
+
+        const second = counting();
+        const b = await countPaid(second.get, "o/r", [done, going], STEP, cache);
+        assert.deepEqual(second.reads, ["repos/o/r/actions/runs/2/jobs?filter=all&per_page=100&page=1"]);
+        assert.deepEqual(b.paid, a.paid);
+        assert.deepEqual(b.logged, a.logged);
+        assert.equal(
+            b.logged.reduce((sum, r) => sum + r.usd, 0),
+            0.5,
+        );
+    });
+
+    it("reads a re-run again, since its new attempt has new jobs", async () => {
+        const cache = { "1:1": { paid: [], logged: [] } };
+        const f = counting();
+        const r = await countPaid(f.get, "o/r", [{ ...done, run_attempt: 2 }], STEP, cache);
+        assert.equal(f.reads.length, 1);
+        assert.deepEqual(r.paid, ["2026-11-18T01:00:00Z"]);
+    });
+
+    it("keeps no run it could not read", async () => {
+        const cache = {};
+        const get = async () => {
+            throw Object.assign(new Error("gh: Not Found (HTTP 404)"), { status: 404 });
+        };
+        const r = await countPaid(get, "o/r", [done], STEP, cache);
+        assert.deepEqual(r.unread, [1]);
+        assert.deepEqual(cache, {});
+    });
+
+    it("round-trips through its file, dropping runs no longer listed, and starts empty without one", () => {
+        const dir = mkdtempSync(join(tmpdir(), "llm-spend-"));
+        try {
+            const file = join(dir, "cache.json");
+            assert.deepEqual(readCache(file), {});
+            writeFileSync(file, "{torn");
+            assert.deepEqual(readCache(file), {});
+            const counted = { paid: ["2026-11-18T01:00:00Z"], logged: [] };
+            writeCache(file, { "1:1": counted, "9:1": counted }, [done]);
+            assert.deepEqual(readCache(file), { "1:1": counted });
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 });
 

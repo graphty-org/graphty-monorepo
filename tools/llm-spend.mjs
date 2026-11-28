@@ -11,14 +11,17 @@
 // Bisects before the run name carried the lane (October 2026: run 40492117633, one point) are not counted.
 //
 // Until the results store exists (design/ci/channels-pipeline.md section 4), the month's runs are read through the
-// Actions API; the store's query replaces fetchPaid.
+// Actions API; the store's query replaces fetchPaid. Reading every job page of every run of the month took the step
+// from 4 to 8 minutes by mid-November 2026 (#8764), so what each completed run counted is kept in LLM_SPEND_CACHE (a
+// JSON file release.yml carries run to run in the Actions cache) and only runs not yet counted are read. A cached
+// run is keyed by its id and attempt, so a re-run is read again; a run still going or not read is never kept.
 //
-//   GH_TOKEN=... GITHUB_REPOSITORY=o/r [GITHUB_RUN_ID=n] node tools/llm-spend.mjs
+//   GH_TOKEN=... GITHUB_REPOSITORY=o/r [GITHUB_RUN_ID=n] [LLM_SPEND_CACHE=file] node tools/llm-spend.mjs
 //   node tools/llm-spend.mjs cost <usage> [<log>]   prints the run's cost in USD from its usage file
 //                                                   (LLM_REGRESSION_USAGE_FILE), else from its vitest log, or nothing
 //   node --test tools/llm-spend.test.mjs
 import { execFile } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -197,36 +200,81 @@ export async function runJobs(get, repo, id) {
 }
 
 /**
+ * A run's key in the cache: its id and attempt, so a re-run's new jobs are read.
+ * @param run { id, run_attempt }
+ * @returns the key
+ */
+const cacheKey = (run) => `${run.id}:${run.run_attempt ?? 1}`;
+
+/**
  * The paid steps of some runs, 8 runs at a time; a run whose jobs cannot be read counts as one paid step at its
- * last update and is named in `unread`.
+ * last update and is named in `unread`. A completed run found in `cache` is not read again; a completed run read here
+ * is added to it.
  * @param get as for getRetried
  * @param repo owner/name
- * @param runs [{ id, updated_at }]
+ * @param runs [{ id, run_attempt, status, updated_at }]
  * @param step the paid step's name
+ * @param [cache] { "<id>:<attempt>": { paid, logged } }, updated in place
  * @returns the paid steps' ISO times (`paid`), the run ids not read (`unread`), and the costs runs with paid steps
  *   logged (`logged`: [{ at, usd }])
  */
-export async function countPaid(get, repo, runs, step) {
+export async function countPaid(get, repo, runs, step, cache = {}) {
     const queue = [...runs];
     const paid = [];
     const unread = [];
     const logged = [];
     const worker = async () => {
         for (let run = queue.pop(); run !== undefined; run = queue.pop()) {
-            try {
-                const jobs = await runJobs(get, repo, run.id);
-                const times = paidSteps(jobs, step);
-                paid.push(...times);
-                const usd = loggedCost(jobs);
-                if (usd !== undefined && times.length) logged.push({ at: times.at(-1), usd, steps: times.length });
-            } catch {
-                paid.push(run.updated_at);
-                unread.push(run.id);
+            let counted = cache[cacheKey(run)];
+            if (!counted) {
+                try {
+                    const jobs = await runJobs(get, repo, run.id);
+                    const times = paidSteps(jobs, step);
+                    const usd = loggedCost(jobs);
+                    counted = {
+                        paid: times,
+                        logged:
+                            usd !== undefined && times.length ? [{ at: times.at(-1), usd, steps: times.length }] : [],
+                    };
+                    if (run.status === "completed") cache[cacheKey(run)] = counted;
+                } catch {
+                    paid.push(run.updated_at);
+                    unread.push(run.id);
+                    continue;
+                }
             }
+            paid.push(...counted.paid);
+            logged.push(...counted.logged);
         }
     };
     await Promise.all(Array.from({ length: 8 }, worker));
     return { paid, unread, logged };
+}
+
+/**
+ * The cache file's runs, or none when it is missing or unreadable.
+ * @param file the cache file
+ * @returns the counted runs by "<id>:<attempt>", each { paid, logged }
+ */
+export function readCache(file) {
+    try {
+        const runs = JSON.parse(readFileSync(file, "utf8"))?.runs;
+        return runs && typeof runs === "object" ? runs : {};
+    } catch {
+        return {};
+    }
+}
+
+/**
+ * Writes the cache, keeping only the runs still listed, so it holds about a month.
+ * @param file the cache file
+ * @param cache as countPaid's
+ * @param runs the runs listed this time
+ */
+export function writeCache(file, cache, runs) {
+    const listed = new Set(runs.map((run) => cacheKey(run)));
+    const kept = Object.fromEntries(Object.entries(cache).filter(([key]) => listed.has(key)));
+    writeFileSync(file, `${JSON.stringify({ runs: kept })}\n`);
 }
 
 const DAY_MS = 86_400_000;
@@ -281,9 +329,10 @@ async function listRuns(repo, workflow, since) {
  * @param repo owner/name
  * @param since YYYY-MM-DD
  * @param ownRun this run's id, left out
+ * @param [cacheFile] the cache file (LLM_SPEND_CACHE), read and rewritten
  * @returns the paid steps' ISO times (`paid`) and the run ids not read (`unread`)
  */
-async function fetchPaid(repo, since, ownRun) {
+async function fetchPaid(repo, since, ownRun, cacheFile) {
     // ponytail: a release run that reached the LLM lane ran CI first, so only runs of 15 minutes or more are read job
     // by job. The results store's LLM-run query replaces this list.
     const long = (r) => Date.parse(r.updated_at) - Date.parse(r.run_started_at) >= 900_000;
@@ -291,8 +340,10 @@ async function fetchPaid(repo, since, ownRun) {
         (r) => long(r) && String(r.id) !== String(ownRun),
     );
     const bisect = (await listRuns(repo, "bisect.yml", since)).filter((r) => /\bllm lane\b/.test(r.display_title));
-    const a = await countPaid(ghGet, repo, release, STEP);
-    const b = await countPaid(ghGet, repo, bisect, BISECT_STEP);
+    const cache = cacheFile ? readCache(cacheFile) : {};
+    const a = await countPaid(ghGet, repo, release, STEP, cache);
+    const b = await countPaid(ghGet, repo, bisect, BISECT_STEP, cache);
+    if (cacheFile) writeCache(cacheFile, cache, [...release, ...bisect]);
     return { paid: [...a.paid, ...b.paid], unread: [...a.unread, ...b.unread], logged: [...a.logged, ...b.logged] };
 }
 
@@ -304,10 +355,10 @@ async function main() {
         return;
     }
 
-    const { GITHUB_REPOSITORY: repo, GITHUB_RUN_ID: ownRun } = process.env;
+    const { GITHUB_REPOSITORY: repo, GITHUB_RUN_ID: ownRun, LLM_SPEND_CACHE: cacheFile } = process.env;
     const month = new Date().toISOString().slice(0, 7);
     const monthStart = new Date(Date.parse(`${month}-01`) - DAY_MS).toISOString().slice(0, 10);
-    await fetchPaid(repo, monthStart, ownRun).then(
+    await fetchPaid(repo, monthStart, ownRun, cacheFile).then(
         ({ paid, unread, logged }) => {
             if (unread.length)
                 console.log(

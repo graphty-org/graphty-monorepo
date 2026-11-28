@@ -187,6 +187,8 @@ interface ParsedSimulationOptions {
     distributedAction?: boolean;
     linlog?: boolean;
     dissuadeHubs?: boolean;
+    barnesHut?: boolean;
+    barnesHutTheta?: number;
     weighted?: boolean;
     nodeMass?: Readonly<Record<string, number>> | string | null;
     k?: number | null;
@@ -242,6 +244,8 @@ function simulationModel(
                 distributedAction: options.distributedAction,
                 linlog: options.linlog,
                 dissuadeHubs: options.dissuadeHubs,
+                barnesHutOptimize: options.barnesHut,
+                barnesHutTheta: options.barnesHutTheta,
                 weight: options.weighted,
                 nodeMass: options.nodeMass,
                 nodeSize: null,
@@ -556,6 +560,8 @@ export const layoutManagerInternals = {} as {
     styles(manager: LayoutManager): Styles;
     /** Install an engine, or none, as a standalone test's stand-in for a build. */
     setEngine(manager: LayoutManager, engine: LayoutEngine | undefined): void;
+    /** Whether a 2D drawing is still rising into 3D; see `LayoutManager.liftIntoDepth`. */
+    rising(manager: LayoutManager): boolean;
 };
 
 /**
@@ -730,6 +736,7 @@ export class LayoutManager implements Manager {
     static {
         layoutManagerInternals.apply = (manager, choice, options) => manager.apply(choice, options);
         layoutManagerInternals.styles = (manager) => manager.styles;
+        layoutManagerInternals.rising = (manager) => manager.#rise !== null;
         layoutManagerInternals.setLayout = (manager, type, opts, scope) => manager.setLayout(type, opts, scope);
         layoutManagerInternals.takeOwedMembers = (manager) => {
             manager.takeOwedMembers();

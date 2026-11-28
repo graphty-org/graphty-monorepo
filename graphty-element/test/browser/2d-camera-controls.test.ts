@@ -82,20 +82,30 @@ describe("2D Camera Controls", () => {
     });
 
     /**
-     * Hold the "d" key for a number of update passes and let it go.
-     * @param passes - The update passes the key is held for.
-     * @returns How far the view moved, as a share of its half-width.
+     * Hold the "d" key until it pans at its steady speed, then measure a number of update passes.
+     * The element's own render loop also runs while the key goes down and up, and under load each
+     * of its frames stands for up to six nominal frames, so the share is read only across passes
+     * pumped back to back: no frame of the element's loop can run between them.
+     * @param passes - The update passes measured.
+     * @returns How far the view moved across them, as a share of its half-width.
      */
     async function holdPan(passes: number): Promise<number> {
         graph.canvas.focus();
-        const start = cameraController.camera.position.x;
         await holdKey("d");
+        // The velocity is damped by 0.85 a pass, so after 100 passes it is at its steady speed
+        // whatever the element's loop added while the key went down.
+        for (let pass = 0; pass < 100; pass++) {
+            graph.camera.update();
+        }
+
+        const start = cameraController.camera.position.x;
         for (let pass = 0; pass < passes; pass++) {
             graph.camera.update();
         }
 
+        const moved = (cameraController.camera.position.x - start) / cameraController.halfWidth;
         await releaseKey("d");
-        return (cameraController.camera.position.x - start) / cameraController.halfWidth;
+        return moved;
     }
 
     // Issue #10326: the push was in world units, so on a large graph's wide view a held key crawled.
@@ -105,8 +115,7 @@ describe("2D Camera Controls", () => {
         const far = await holdPan(30);
 
         assert.isAbove(near, 0.25, "thirty passes pan more than a quarter of the half-width");
-        // The element's own loop also runs while the key goes down and up, a frame or two either way.
-        assert.closeTo(far / near, 1, 0.2, `the same share of a view 1000 times wider (${far} against ${near})`);
+        assert.closeTo(far / near, 1, 1e-6, `the same share of a view 1000 times wider (${far} against ${near})`);
     });
 
     test("mouse wheel zooms camera", async () => {

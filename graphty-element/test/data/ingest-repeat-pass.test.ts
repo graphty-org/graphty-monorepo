@@ -2,19 +2,21 @@ import { assert, describe, it } from "vitest";
 
 import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
-import type { GraphContext } from "../../src/managers/GraphContext";
 import { Styles } from "../../src/Styles";
 
 /**
  * A manager on the "batched" or "objects" render path, counting how often ingest asks it for the
  * edges between a pair: the per-edge question a bulk load on the batched path answers from its own
  * pass instead.
+ *
+ * On the renderer's own manager rather than a headless session, because only an element draws on
+ * the "batched" path: a headless session's ingest is always the objects path. The manager runs with
+ * no graph context, its own state before an element attaches one; nothing on the store path reads it.
  * @param batched - true for the "batched" render path
  * @returns the manager and the running count of pair questions
  */
 function makeManager(batched: boolean): { dm: DataManager; asked: () => number } {
     const dm = new DataManager(new EventManager(), Styles.default());
-    dm.setGraphContext({} as unknown as GraphContext);
     dm.renderLimits = { ceilings: () => undefined, batched: () => batched };
     let asked = 0;
     // The ingest host's pair question. It reads the store directly rather than through the public

@@ -481,6 +481,19 @@ function placeByDrawOrder(mesh: Mesh, drawOrder: number | undefined): void {
     mesh.refreshBoundingInfo();
 }
 
+/**
+ * An outline grown by a distance for a plate filled from its middle (an underlay, overlay or shadow layer). A corner too
+ * sharp to mitre in full is cut square, as a ring's is ({@link mitredEdges}): pulling its mitre in along the bisector
+ * drew both sides meeting there in toward the node, so a vee's plate came within 0.51 of it where 0.6 was promised. An
+ * outline drawn in (a soft shadow's inner layer) is moved as {@link offsetOutline} moves it.
+ * @param outline - The outline, counter-clockwise.
+ * @param distance - How far out; below 0, how far in.
+ * @returns The grown outline.
+ */
+function plateOutline(outline: readonly Point2[], distance: number): Point2[] {
+    return distance > 0 ? mitredEdges(outline, [distance])[0] : offsetOutline(outline, distance);
+}
+
 /** How finely a round shape is tessellated: the shape's own mesh, the low-detail one, or a count. */
 type MeshDetail = NonNullable<NonNullable<NodeStyleConfig["shape"]>["detail"]>;
 
@@ -1426,7 +1439,7 @@ export class NodeMesh {
                 );
             } else {
                 const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
-                outline = offsetOutline(nodeOutline, pad);
+                outline = plateOutline(nodeOutline, pad);
             }
             fill.computeWorldMatrix(true);
             const box = fill.getBoundingInfo().boundingBox;
@@ -1448,7 +1461,7 @@ export class NodeMesh {
                     mesh,
                     fill,
                     depth,
-                    (round) => piecesOf(offsetOutline(round, reach)),
+                    (round) => piecesOf(plateOutline(round, reach)),
                     undefined,
                     kind,
                     true,
@@ -1520,7 +1533,7 @@ export class NodeMesh {
             const instance = cache.get(key, () => {
                 const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
                 const piecesOf = (round: Point2[]): RingPiece[] => {
-                    const outline = offsetOutline(round, pad + inset).map(([x, y]): Point2 => [x + dx, y + dy]);
+                    const outline = plateOutline(round, pad + inset).map(([x, y]): Point2 => [x + dx, y + dy]);
                     return [{ inner: outline.map((): Point2 => [dx, dy]), outer: outline, closed: true }];
                 };
                 fill.computeWorldMatrix(true);

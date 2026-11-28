@@ -79,7 +79,7 @@ describe("the Shaders section", () => {
         for (const words of ["Instead of the node", "Behind"]) {
             assert.isNull(within(gallery).queryByRole("radio", { name: words }), `no ${words} choice`);
         }
-        await userEvent.click(within(gallery).getByRole("button", { name: "Sticker" }));
+        await userEvent.click(page.elementLocator(gallery).getByRole("button", { name: "Sticker", exact: true }));
         await waitFor(() => {
             assert.deepEqual(usesOn(mounted.session, layer), [{ shader: sticker }]);
         });
@@ -154,10 +154,10 @@ describe("the Shaders section", () => {
             assert.lengthOf(rows, 2);
             return rows;
         });
-        await userEvent.click(within(first).getByText("Aura"), { button: "right" });
+        await userEvent.click(page.elementLocator(first).getByText("Aura", { exact: true }), { button: "right" });
         const up = await screen.findByRole("menuitem", { name: "Move up" });
         assert.isTrue(up.hasAttribute("data-disabled") || up.getAttribute("aria-disabled") === "true");
-        await userEvent.click(screen.getByRole("menuitem", { name: "Move down" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Move down", exact: true }));
         await waitFor(() => {
             assert.deepEqual(
                 usesOn(mounted.session, layer).map((use) => use.shader),
@@ -178,7 +178,9 @@ describe("the Shaders section", () => {
             return rows;
         });
 
-        await userEvent.click(within(reticle).getByRole("button", { name: "Reticle settings" }));
+        await userEvent.click(
+            page.elementLocator(reticle).getByRole("button", { name: "Reticle settings", exact: true }),
+        );
         const minimum = await waitFor(() => minimumSize());
         assert.isNotNull(minimum, "Reticle has a Minimum size row");
         assert.include(minimum?.textContent, "Minimum size");
@@ -189,7 +191,7 @@ describe("the Shaders section", () => {
             assert.isNull(document.querySelector(".ws-shader-params"));
         });
 
-        await userEvent.click(within(frost).getByRole("button", { name: "Frost settings" }));
+        await userEvent.click(page.elementLocator(frost).getByRole("button", { name: "Frost settings", exact: true }));
         await waitFor(() => {
             assert.isNotNull(document.querySelector(".ws-shader-params"));
         });
@@ -220,7 +222,7 @@ vec4 shade(NodeInput n) {
         assert.include(await tooltipOf(within(row).getByRole("button", { name: "Ring settings" })), "Around");
         assert.isNull(within(row).queryByLabelText(/^Place of/), "no Place dropdown, as on a built-in");
 
-        await userEvent.click(within(row).getByRole("button", { name: "Ring settings" }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "Ring settings", exact: true }));
         const minimum = await waitFor(() => {
             const found = minimumSize();
             assert.isNotNull(found, "a declared minimum size is a setting");
@@ -276,7 +278,9 @@ vec4 shade(NodeInput n) {
         await waitFor(() => {
             assert.lengthOf(shaderRows(), 1);
         });
-        await userEvent.click(within(shaderRows()[0]).getByRole("button", { name: "Reticle settings" }));
+        await userEvent.click(
+            page.elementLocator(shaderRows()[0]).getByRole("button", { name: "Reticle settings", exact: true }),
+        );
         await waitFor(() => {
             assert.isNotNull(minimumSize());
         });

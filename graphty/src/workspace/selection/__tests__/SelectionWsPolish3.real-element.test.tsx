@@ -17,7 +17,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, UnionLeaf } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
@@ -78,7 +78,7 @@ async function openLayer(session: GraphSession, name: string, where?: UnionLeaf)
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -100,7 +100,7 @@ async function opened(): Promise<HTMLElement> {
 
 /** Opens the layer's workspace with the sidebar's Edit. */
 async function edit(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
     return opened();
 }
 
@@ -123,8 +123,9 @@ describe("a style layer's workspace", () => {
         const { session, heard } = await openSample();
         await openLayer(session, "Spoken", degreeAtLeast(10));
         const ws = await edit();
-        const from = await within(ws).findByRole("textbox", { name: "Degree from, number" });
-        await userEvent.click(from);
+        const from = (): Locator =>
+            page.elementLocator(ws).getByRole("textbox", { name: "Degree from, number", exact: true });
+        await userEvent.click(from());
         await userEvent.keyboard("{Control>}a{/Control}5{Tab}");
         await waitFor(() => {
             assert.isTrue(
@@ -173,7 +174,9 @@ describe("round 1's gate", () => {
             Boolean(search.compareDocumentPosition(strip.querySelector("table, [role=grid]") ?? strip) & 4),
             "the search comes before the table",
         );
-        await userEvent.click(search);
+        await userEvent.click(
+            page.elementLocator(strip).getByRole("searchbox", { name: "Search matches", exact: true }),
+        );
         await userEvent.keyboard("Valjean");
         await waitFor(() => {
             assert.isAtMost(rows(), 3, "the table holds what the search found");

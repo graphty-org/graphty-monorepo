@@ -90,7 +90,7 @@ const CITIES = [
  * @returns queries inside it.
  */
 async function openDataPlace(): Promise<Within> {
-    await userEvent.click(screen.getByRole("button", { name: "Data" }));
+    await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
     return within(await screen.findByRole("region", { name: "Data place" }));
 }
 
@@ -109,7 +109,7 @@ async function pickField(place: Within, row: string, column: string): Promise<vo
         assert.isNotNull(found);
         return found;
     });
-    await userEvent.click(await within(list).findByRole("option", { name: column }));
+    await userEvent.click(page.elementLocator(list).getByRole("option", { name: column, exact: true }));
 }
 
 /**
@@ -129,9 +129,9 @@ function at(element: Element, id: string): { x: number; y: number } {
  * @returns the popover.
  */
 async function openMapForm(): Promise<HTMLElement> {
-    await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+    await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
     const popover = await screen.findByRole("dialog", { name: "Layout" });
-    await userEvent.click(within(popover).getByRole("option", { name: /^Map/ }));
+    await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Map/ }));
     return popover;
 }
 
@@ -145,7 +145,7 @@ async function openMapForm(): Promise<HTMLElement> {
  * @param option - the entry's name.
  */
 async function pickByKeys(scope: HTMLElement, label: string, option: string): Promise<void> {
-    await userEvent.click(within(scope).getByRole("combobox", { name: label }));
+    await userEvent.click(page.elementLocator(scope).getByRole("combobox", { name: label, exact: true }));
     const target = await within(scope).findByRole("option", { name: option });
     const highlighted = (): boolean => target.hasAttribute("data-combobox-selected");
     for (const _ of within(scope).getAllByRole("option")) {
@@ -166,9 +166,9 @@ async function pickByKeys(scope: HTMLElement, label: string, option: string): Pr
  */
 async function switchView(mode: "2D" | "3D"): Promise<void> {
     const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-    await userEvent.click(within(toolbar).getByRole("button", { name: /^Mode, / }));
+    await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: /^Mode, / }));
     const menu = await screen.findByRole("menu", { name: /^Mode/ });
-    await userEvent.click(within(menu).getByRole("menuitemradio", { name: new RegExp(`^${mode}`) }));
+    await userEvent.click(page.elementLocator(menu).getByRole("menuitemradio", { name: new RegExp(`^${mode}`) }));
 }
 
 /**
@@ -177,7 +177,12 @@ async function switchView(mode: "2D" | "3D"): Promise<void> {
  * @param shape - the shape.
  */
 async function pickShape(popover: HTMLElement, shape: "2D" | "3D"): Promise<void> {
-    await userEvent.click(within(within(popover).getByRole("radiogroup", { name: "Shape" })).getByText(shape));
+    await userEvent.click(
+        page
+            .elementLocator(popover)
+            .getByRole("radiogroup", { name: "Shape", exact: true })
+            .getByText(shape, { exact: true }),
+    );
 }
 
 /**
@@ -189,7 +194,7 @@ async function layOutOnMap(element: Element, shape?: "2D"): Promise<void> {
     if (shape !== undefined) {
         await pickShape(popover, shape);
     }
-    await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+    await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
     await waitFor(() => {
         assert.strictEqual(element.session.layout.id, "location-map");
     });
@@ -209,7 +214,7 @@ describe("the location map", () => {
         const popover = await openMapForm();
         const location = within(popover).getByRole("button", { name: "Location" });
         assert.strictEqual(location.textContent, "where", "the column the element found");
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
 
         await waitFor(() => {
             assert.strictEqual(element.session.layout.id, "location-map");
@@ -254,7 +259,7 @@ describe("the location map", () => {
         const element = await openAirports();
         const popover = await openMapForm();
         await pickShape(popover, "2D");
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.strictEqual(element.mapFrame?.mapDimension, "2d");
             assert.strictEqual(element.mapFrame?.dimensions, 3, "in the 3D view");
@@ -270,7 +275,7 @@ describe("the location map", () => {
 
     it("chooses the map in the Map form, swapping it at once under nodes that stay where they are", async () => {
         const element = await openAirports(true);
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+        await userEvent.click(page.getByRole("tab", { name: "Style", exact: true }));
         await screen.findByRole("combobox", { name: "Lighting" });
         assert.isNull(screen.queryByRole("combobox", { name: "Map" }), "Graph settings has no map");
 
@@ -295,9 +300,12 @@ describe("the location map", () => {
         await waitFor(() => {
             assert.strictEqual(map.value, "Tiles");
         });
-        await userEvent.fill(within(popover).getByRole("textbox", { name: "Credit" }), "Test tiles");
         await userEvent.fill(
-            within(popover).getByRole("textbox", { name: "Address" }),
+            page.elementLocator(popover).getByRole("textbox", { name: "Credit", exact: true }),
+            "Test tiles",
+        );
+        await userEvent.fill(
+            page.elementLocator(popover).getByRole("textbox", { name: "Address", exact: true }),
             "http://127.0.0.1:9/{z}/{x}/{y}.png",
         );
         await userEvent.keyboard("{Enter}");
@@ -352,7 +360,7 @@ describe("the location map", () => {
         await pickByKeys(popover, "Map", "Image");
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="1"><rect width="2" height="1"/></svg>';
         await commands.chooseNextFile("world.svg", "image/svg+xml", svg);
-        await userEvent.click(within(popover).getByRole("button", { name: "Upload image" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Upload image", exact: true }));
         await waitFor(() => {
             assert.deepStrictEqual(element.session.layout.options.map, {
                 image: `data:image/svg+xml;base64,${btoa(svg)}`,
@@ -365,7 +373,7 @@ describe("the location map", () => {
             { id: "a", label: "A" },
             { id: "b", label: "B" },
         ]);
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
         const map = within(popover).getByRole("option", { name: /^Map/ });
         await waitFor(() => {
@@ -382,7 +390,7 @@ describe("the location map", () => {
 
     it("tags Map Recommended for nodes with locations", async () => {
         await openAirports();
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
         await waitFor(() => {
             const map = within(popover).getByRole("option", { name: /^Map/ });
@@ -393,7 +401,7 @@ describe("the location map", () => {
     it("applied with its defaults, places every node by its coordinates on a map drawn under them", async () => {
         const element = await openAirports(false, CITIES);
         const popover = await openMapForm();
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.strictEqual(element.basemapStatus.state, "ready", "a map is drawn");
         });
@@ -428,8 +436,8 @@ describe("the location map", () => {
             assert.isNull(place.queryByRole("combobox", { name: "Node longitude column" }));
         });
         await userEvent.click(place.getByRole("button", { name: "Add to node attributes" }));
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Coordinates" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "home" }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Coordinates", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "home", exact: true }));
         await waitFor(() => {
             assert.deepInclude(element.session.layout.locationColumns(), {
                 from: "designated",
@@ -448,7 +456,7 @@ describe("the location map", () => {
 
         const popover = await openMapForm();
         assert.strictEqual(within(popover).getByRole("button", { name: "Location" }).textContent, "home");
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.deepInclude(element.mapFrame?.location, { kind: "location", column: "home" });
         });
@@ -489,7 +497,7 @@ describe("the location map", () => {
             within(popover).getByRole("button", { name: "Location" }).textContent,
             "latitude, longitude",
         );
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.deepInclude(element.mapFrame?.location, {
                 kind: "columns",
@@ -510,7 +518,7 @@ describe("the location map", () => {
         const popover = await openMapForm();
         const location = within(popover).getByRole("button", { name: "Location" });
         assert.strictEqual(location.textContent, "lat, lng");
-        await userEvent.click(location);
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Location", exact: true }));
         await screen.findByRole("region", { name: "Data place" });
     });
 
@@ -534,7 +542,7 @@ describe("the location map", () => {
 
         const popover = await openMapForm();
         await pickByKeys(popover, "Unplaced", "Hide");
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.strictEqual(element.session.layout.options.unplaced, "hide");
         });
@@ -558,7 +566,7 @@ describe("the location map", () => {
             }
         });
         await layOutOnMap(element);
-        const select = await screen.findByRole("button", { name: "Select" });
+        const select = page.getByRole("button", { name: "Select", exact: true });
         await userEvent.click(select);
         await waitFor(() => {
             assert.deepStrictEqual(element.session.selection.nodes.map(String), ["nowhere"]);
@@ -566,9 +574,9 @@ describe("the location map", () => {
         const shown = posted;
 
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        await userEvent.click(within(toolbar).getByRole("button", { name: "Mode, 3D" }));
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Mode, 3D", exact: true }));
         const menu = await screen.findByRole("menu", { name: /^Mode/ });
-        await userEvent.click(within(menu).getByRole("menuitemradio", { name: /^2D/ }));
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitemradio", { name: /^2D/ }));
         await waitFor(() => {
             assert.strictEqual(element.session.layout.dimension, "2d");
             assert.strictEqual(element.mapFrame?.dimensions, 2);
@@ -602,7 +610,7 @@ describe("the location map", () => {
         const flat = await openAirports();
         const popover = await openMapForm();
         await pickShape(popover, "2D");
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.notStrictEqual(flat.basemapStatus.state, "off", "the map is drawn");
         });
@@ -641,7 +649,7 @@ describe("Settings' map layout node size rule", () => {
      */
     async function applyMap(element: Element): Promise<void> {
         const popover = await openMapForm();
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.strictEqual(element.session.layout.id, "location-map");
         });
@@ -695,10 +703,10 @@ describe("Settings' map layout node size rule", () => {
         await waitFor(() => {
             assert.strictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");
         });
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Circle(?!s)/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.notStrictEqual(element.session.layout.id, "location-map");
             assert.notStrictEqual(element.layoutBehavior?.node?.sizeSpace, "screen");

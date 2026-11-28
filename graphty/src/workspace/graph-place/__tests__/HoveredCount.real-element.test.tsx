@@ -44,13 +44,13 @@ describe("the Hovered row", () => {
             return drawn;
         });
 
-        await userEvent.hover(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        await userEvent.hover(page.getByCss("graphty-element").first(), { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
         await waitFor(() => {
             assert.strictEqual(session.selection.hovered, "Valjean", "the element hovers the node");
             assert.isTrue(countsOne(), "the row counts it");
         });
 
-        await userEvent.hover(screen.getByRole("tree", { name: "Style layers" }));
+        await userEvent.hover(page.getByRole("tree", { name: "Style layers", exact: true }));
         await waitFor(() => {
             assert.isNull(session.selection.hovered, "the pointer left the drawing");
             assert.isFalse(countsOne(), "the row counts nothing");

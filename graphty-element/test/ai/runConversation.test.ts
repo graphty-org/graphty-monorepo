@@ -17,7 +17,7 @@ import { type AiEngine, NO_HOSTED_TOOLS, type TurnEvent } from "../../src/ai/eng
 import type { LlmProvider, LlmResponse } from "../../src/ai/providers/types";
 import { type Conversation, runConversation, TurnFailed } from "../../src/ai/runConversation";
 import type { AiEvent } from "../../src/events";
-import { createMessageGraph } from "../helpers/message-graph";
+import { createCommandGraph, graphHandle } from "../helpers/session-graph";
 
 /** A conversation with one request in it. */
 function conversation(text: string): Conversation {
@@ -38,7 +38,7 @@ async function run(
     message = "1",
     place: RunPlace = {},
 ) {
-    const graph = place.graph ?? createMessageGraph();
+    const graph = place.graph ?? (await createCommandGraph());
     const events: AiEvent[] = [];
     const conv = conversation(text);
     const result = await runConversation({
@@ -247,7 +247,7 @@ describe("runConversation", () => {
                 { type: "finish", reason: "stop" },
             ],
         ]);
-        const graph = createMessageGraph();
+        const graph = await createCommandGraph();
         const result = await runConversation({
             conversation: conversation("go"),
             engine,
@@ -355,7 +355,7 @@ describe("runConversation", () => {
 
     it("runs two messages at once on one session, each with its own steps and results", async () => {
         const session: GraphSession = createGraphSession();
-        const graph = { getSession: () => session } as unknown as CommandContext["graph"];
+        const { graph } = graphHandle(session);
         const baseline = session.history.position;
         const registry = new CommandRegistry();
         registry.register({
@@ -449,7 +449,7 @@ describe("the status a host draws while a message runs", () => {
             }
         });
         status.submit();
-        const graph = createMessageGraph();
+        const graph = await createCommandGraph();
         await runConversation({
             conversation: conversation("look twice"),
             engine,

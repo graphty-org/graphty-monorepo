@@ -15,6 +15,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { pickWork } from "../../src/render/PickService";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 import { click, drag, hover, moveHeld, nextFrame, type Point, press, release } from "../helpers/real-input";
 
 /** The two graph sizes: big enough that a pick per node is 4x. */
@@ -63,6 +64,23 @@ async function mounted(size: number): Promise<Graphty> {
 }
 
 /**
+ * Stop drawing frames, so the frames drawn while the input is sent pick nothing of their own: only
+ * the input does. And thaw the list of what is drawn, so every pick takes the path that walks the
+ * meshes. Once a still graph has drawn a few quiet frames the list freezes, and a pick reads the
+ * nodes from a table made for the freeze instead (issue #10128), building more rays (17 for one move
+ * onto a node, not 12) at any graph size. Whether that freeze had landed when the loop stopped
+ * depended on how many frames each graph drew first, so the two sizes could be counted on different
+ * paths (issue #10469).
+ * @param element - The element.
+ */
+function stopDrawing(element: Graphty): void {
+    element.graph.engine.stopRenderLoop();
+    const thaw = (element.graph.scene.metadata as GraphSceneMetadata | null)?.thawActiveMeshes;
+    assert.isDefined(thaw, "the scene can thaw its list of what is drawn");
+    thaw();
+}
+
+/**
  * Where node `t` is drawn.
  * @param element - The element.
  * @returns Its center in CSS pixels from the element's top-left corner.
@@ -95,8 +113,7 @@ async function picksFor(size: number): Promise<number> {
         return pick(...args);
     };
     try {
-        // Frames drawn while the input is sent make no picks of their own: only the input does.
-        element.graph.engine.stopRenderLoop();
+        stopDrawing(element);
         const at = target(element);
 
         await hover(element, EMPTY);
@@ -149,8 +166,7 @@ async function raysFor(size: number): Promise<number> {
     });
 
     const at = target(element);
-    // Frames drawn while the input is sent build no rays of their own: only the input does.
-    element.graph.engine.stopRenderLoop();
+    stopDrawing(element);
 
     let rays = 0;
     const unproject = Ray.prototype.unprojectRayToRef;
@@ -185,8 +201,7 @@ describe("one click on a node", () => {
         const element = await mounted(SIZES[0]);
         const at = target(element);
         await hover(element, at);
-        // Frames drawn while the input is sent make no picks of their own: only the input does.
-        element.graph.engine.stopRenderLoop();
+        stopDrawing(element);
 
         const before = pickWork.meshPicks;
         const babylonBefore = pickWork.pointerPicks;

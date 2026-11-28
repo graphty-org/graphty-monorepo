@@ -3556,8 +3556,18 @@ async function everythingStyle(page) {
 
 /** Clicks a control (located by Playwright) as the timed input. */
 async function clickTimed(page, locator, spec) {
-    const box = await locator.boundingBox();
-    if (!box) throw new Error("the control is not on screen");
+    // A control that just appeared can still be moving: Analyze's Run row grows the popover over the toolbar, and
+    // the popover is placed again (37 px higher) a frame later. Aimed before that, the click lands on the toolbar and
+    // closes the popover. So the box is read until it holds still across two frames.
+    let box = null;
+    for (let tries = 0; ; tries++) {
+        const prev = box;
+        box = await locator.boundingBox();
+        if (!box) throw new Error("the control is not on screen");
+        if (prev && ["x", "y", "width", "height"].every((k) => Math.abs(prev[k] - box[k]) < 0.5)) break;
+        if (tries === 30) throw new Error("set-up: the control never held still for two frames");
+        await frames(page, 2);
+    }
     const x = box.x + box.width / 2,
         y = box.y + box.height / 2;
     await page.mouse.move(x, y);

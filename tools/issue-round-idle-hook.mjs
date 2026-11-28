@@ -27,7 +27,12 @@ const QUIET_MS = 10 * 60 * 1000;
 const RENEW_MS = 6 * 24 * 60 * 60 * 1000;
 const ROUNDS = ["issue-round", "pipeline-round"];
 
-const readJson = (path) => {
+/**
+ * A JSON file's value, or null when it is missing or not JSON.
+ * @param path the file
+ * @returns the value, or null
+ */
+export const readJson = (path) => {
     try {
         return JSON.parse(readFileSync(path, "utf8"));
     } catch (error) {

@@ -1,0 +1,8 @@
+{
+    "session_id": "a67d7fa8-0000-4000-8000-000000000001",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false,
+    "last_assistant_message": "The Stop hook reads last_assistant_message and background_tasks from its input. Claude Code will let a turn end after eight blocks in a row.",
+    "background_tasks": [],
+    "session_crons": []
+}

@@ -1,0 +1,8 @@
+{
+    "session_id": "a67d7fa8-0000-4000-8000-000000000001",
+    "hook_event_name": "Stop",
+    "stop_hook_active": true,
+    "last_assistant_message": "I said the routine that starts issue work will pick them up.",
+    "background_tasks": [],
+    "session_crons": []
+}

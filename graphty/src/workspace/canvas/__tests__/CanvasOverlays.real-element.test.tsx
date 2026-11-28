@@ -161,7 +161,7 @@ describe("the canvas on the real element", () => {
         // The toast; the workspace's status line speaks the same words.
         await screen.findByText("Hidden by your layer My gray", { selector: ".cm-toast-message" });
         assert.isNull(screen.queryByRole("group", { name: "Color: Louvain" }));
-        await userEvent.click(screen.getByRole("button", { name: "Show anyway" }));
+        await userEvent.click(page.getByRole("button", { name: "Show anyway", exact: true }));
 
         await waitFor(() => {
             assert.equal(session.styles.list().at(-1)?.id, session.runs.bindings(run.id)[0], "Louvain is on top");

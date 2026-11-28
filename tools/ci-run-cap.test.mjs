@@ -2,6 +2,7 @@
 // GET actions/workflows/<file>/runs and GET actions/runs/<id>/jobs, recorded 2026-10-26, trimmed).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { test } from "node:test";
 
 import {
@@ -16,6 +17,7 @@ import {
     POLL_SECONDS,
     RELEASE_SHARE,
     RUN_JOBS_ESTIMATE,
+    runCapApi,
     waitTurn,
 } from "./ci-run-cap.mjs";
 
@@ -460,6 +462,38 @@ test("a red fix is judged by the pull request's current body and every commit, n
     // a pull request that fixes nothing red stays capped, even when its stale payload named the alarm
     const plain = await judge({ body: "Fixes #10305", commits: ["fix: x\n\nFixes #10305"] }, "Refs #10340");
     assert.equal(plain.outcome, "wait limit");
+});
+
+// #10481: the search API's own bucket reports at most 30 left, which the MIN_RATE_LEFT floor (for the hourly core
+// bucket) once read as "the token is nearly out", so every red fix waited the full MAX_WAIT_MINUTES
+test("a red fix skips the wait when the search response reports 30 left", async () => {
+    const alarm = { number: 10477, state: "open", title: "Red master: CI failed on b02a405" };
+    const server = createServer((req, res) => {
+        const search = req.url.startsWith("/search/issues?");
+        const headers = { "content-type": "application/json", "x-ratelimit-remaining": search ? "30" : "4000" };
+        headers["x-ratelimit-resource"] = search ? "search" : "graphql";
+        const pullRequest = { title: "fix: x", body: "Fixes #10477", commits: { nodes: [] } };
+        const answer = search ? { items: [alarm] } : { data: { repository: { pullRequest } } };
+        res.writeHead(200, headers).end(JSON.stringify(answer));
+    });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    try {
+        const api = runCapApi("o/r", `http://127.0.0.1:${server.address().port}`, "t");
+        const pr = { number: 7, head: { ref: "fix/10477-x" } };
+        const lines = [];
+        const r = await waitTurn({
+            cap: 1,
+            runId: ME.id,
+            api,
+            pr,
+            repo: "o/r",
+            sleep: async () => {},
+            log: (l) => lines.push(l),
+        });
+        assert.equal(r.outcome, "red fix", lines.join("\n"));
+    } finally {
+        server.close();
+    }
 });
 
 test("namedIssues reads Fixes, Closes, Resolves and Refs, and not a bare mention", () => {

@@ -309,12 +309,13 @@ function newNodeLook(color: string): LayerSpec["set"] {
 }
 
 /**
- * What a new edge gets in a color: dashed.
+ * What a new edge gets in a color: dashed and curved. Curved, it fans out of the straight edges the graph already
+ * holds between the same two nodes, which it would otherwise be drawn on top of (#10209).
  * @param color - The color.
  * @returns The channels.
  */
 function newEdgeLook(color: string): LayerSpec["set"] {
-    return { "edge.color": color, "edge.style": "dash" };
+    return { "edge.color": color, "edge.style": "dash", "edge.curvature": true };
 }
 
 /**
@@ -433,7 +434,7 @@ export function draftRings(view: DraftView, draftIds?: DraftIds): DraftRing[] {
 /**
  * The layers a draft view (`styles.showDraft`) draws, bottom first: the rest faint when asked, a
  * ring on each node the commit would merge and each edge it would fold a row into in that color, a
- * dashed border on each node it would add, and each edge it would add drawn dashed, read from `graphty.draft`; a dotted border on the untouched nodes;
+ * dashed border on each node it would add, and each edge it would add drawn dashed and curved, read from `graphty.draft`; a dotted border on the untouched nodes;
  * each listed step's in its own color over those, a node two listed steps merge ringed wider; the focused steps' merged
  * nodes ringed at the focus ring; what it would remove dashed and dimmed; the marked elements at full strength; the ghosts
  * drawn faint as under a branches view.

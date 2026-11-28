@@ -11,7 +11,7 @@ import { type GraphSession, GraphtyError, type GraphtyErrorCode } from "@graphty
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -49,10 +49,10 @@ async function openScene(): Promise<GraphSession> {
  */
 async function duplicateKeyPeople(): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Key people, / }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Key people, / }));
     await userEvent.keyboard("{Shift>}{F10}{/Shift}");
     const menu = await screen.findByRole("menu");
-    await userEvent.click(within(menu).getByRole("menuitem", { name: /^Duplicate/ }));
+    await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: /^Duplicate/ }));
 }
 
 /**

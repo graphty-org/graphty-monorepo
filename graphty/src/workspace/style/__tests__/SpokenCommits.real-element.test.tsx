@@ -52,11 +52,11 @@ async function openPaint(): Promise<GraphSession> {
     await session.styles.settled();
 
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Paint, / }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Paint, / }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     await screen.findByTestId("style-tab");
     await showKind("node");
@@ -66,9 +66,9 @@ async function openPaint(): Promise<GraphSession> {
 describe("a committed change is said", () => {
     it("says a color committed with Enter, with how many nodes it paints", async () => {
         await openPaint();
-        await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
+        await userEvent.click(page.getByRole("button", { name: "Add to node fill", exact: true }));
         // Fill also offers Picture, so its "+" opens a menu.
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Color", exact: true }));
         const box = await waitFor(() => {
             const found = document.querySelector<HTMLInputElement>(
                 '[data-testid="style-tab"] .ws-row[data-line="node.color"] [data-testid="compact-color-input-hex"]',
@@ -90,11 +90,11 @@ describe("a committed change is said", () => {
     it("says a size bound to a value, with how many nodes it sizes", async () => {
         const session = await openPaint();
         const tab = await screen.findByTestId("style-tab", {});
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Node size by attribute" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Size", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Node size by attribute", exact: true }));
         await userEvent.keyboard("Degree");
-        await userEvent.click(await screen.findByRole("option", { name: /^Degree(,|$)/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Degree(,|$)/ }));
         await waitFor(() => {
             assert.isTrue(
                 session.styles.list().some((layer) => {

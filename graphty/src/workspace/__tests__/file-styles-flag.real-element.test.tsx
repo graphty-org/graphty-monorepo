@@ -59,11 +59,11 @@ async function openProject(set: Record<string, unknown> = {}): Promise<GraphSess
  */
 async function openStyle(): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Key, / }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Key, / }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     return screen.findByTestId("style-tab");
 }
@@ -95,7 +95,7 @@ async function shapeChoices(tab: HTMLElement): Promise<string[]> {
  * @returns the menu's item names.
  */
 async function shapeAdds(tab: HTMLElement): Promise<string[]> {
-    await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+    await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
     const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
     await userEvent.keyboard("{Escape}");
     return items;
@@ -145,9 +145,14 @@ async function includeStyles(): Promise<boolean> {
     await userEvent.keyboard("{Control>}e{/Control}");
     const dialog = await screen.findByRole("dialog", { name: "Export" });
     // With no table showing Export opens on Image.
-    await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"));
-    await userEvent.click(await within(dialog).findByRole("combobox", { name: "Format" }));
-    await userEvent.click(await screen.findByRole("option", { name: "GraphML" }));
+    await userEvent.click(
+        page
+            .elementLocator(dialog)
+            .getByRole("grid", { name: "What to export", exact: true })
+            .getByText("Data", { exact: true }),
+    );
+    await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Format", exact: true }));
+    await userEvent.click(page.getByRole("option", { name: "GraphML", exact: true }));
     await waitFor(() => {
         assert.notInclude(within(dialog).getByLabelText("Preview of the exported data").textContent, "Writing");
     });
@@ -165,7 +170,7 @@ for (const on of [false, true]) {
 
         it(`${on ? "offers" : "hides"} the Settings switch on the start screen, before any project`, async () => {
             render(<Workspace store={createWorkspaceStore()} />);
-            await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+            await userEvent.click(page.getByRole("button", { name: /settings/i }));
             await screen.findByText("Number format");
             assert.strictEqual(screen.queryByRole("switch", { name: /^Import styles from files/ }) !== null, on);
         });

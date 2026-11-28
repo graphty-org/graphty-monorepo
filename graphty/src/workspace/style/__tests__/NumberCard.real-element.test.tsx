@@ -16,7 +16,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, RuleTree } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
@@ -68,10 +68,10 @@ async function openCard(): Promise<{
     });
     await session.styles.settled();
     await selectWithTwin(session, "Busy");
-    await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+    await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
     const region = await screen.findByRole("group", { name: "Which nodes" });
     await openConditions(region);
-    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${degree.name}(,|$)`) }));
+    await userEvent.click(page.getByRole("option", { name: new RegExp(`^${degree.name}(,|$)`) }));
     const card = await waitFor(() => within(region).getByRole("group", { name: new RegExp(`^${degree.name}(,|$)`) }));
     return { session, store, id: layer.id, card, name: degree.name };
 }
@@ -82,7 +82,9 @@ async function openCard(): Promise<{
  */
 async function openConditions(region: HTMLElement): Promise<void> {
     if (screen.queryByRole("listbox") === null) {
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await userEvent.click(
+            page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+        );
     }
     await screen.findByRole("listbox");
 }
@@ -120,8 +122,10 @@ function topOf(session: GraphSession, id: string): number | undefined {
  * @returns the count's box.
  */
 async function pickHighest(session: GraphSession, id: string, card: HTMLElement, name: string): Promise<HTMLElement> {
-    await userEvent.click(within(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }));
-    await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
+    await userEvent.click(
+        page.elementLocator(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }),
+    );
+    await userEvent.click(page.getByRole("option", { name: "Highest", exact: true }));
     const top = await within(card).findByRole("textbox", { name: `${name}: how many` });
     await waitFor(() => {
         assert.strictEqual(topOf(session, id), 10);
@@ -137,9 +141,10 @@ function panelShown(): void {
 describe("number card", () => {
     it("holds a from above its to in the card once committed, writes nothing, and takes a valid range", async () => {
         const { session, store, id, card, name } = await openCard();
-        const from = within(card).getByRole("textbox", { name: `${name} from, number` });
+        const from = (): Locator =>
+            page.elementLocator(card).getByRole("textbox", { name: `${name} from, number`, exact: true });
         const to = within(card).getByRole("textbox", { name: `${name} to, number` });
-        await userEvent.click(from);
+        await userEvent.click(from());
         await userEvent.keyboard("20");
         assert.notStrictEqual(rangeOf(session, id)?.min, 20, "typing alone writes nothing");
         await userEvent.tab();
@@ -149,7 +154,9 @@ describe("number card", () => {
         const before = rangeOf(session, id);
 
         // Control+A in "to", then 15: below from, but nothing is said until it is committed.
-        await userEvent.click(to);
+        await userEvent.click(
+            page.elementLocator(card).getByRole("textbox", { name: `${name} to, number`, exact: true }),
+        );
         await userEvent.keyboard("{Control>}a{/Control}15");
         assert.isNull(within(card).queryByRole("alert"), "no message while typing");
         assert.notStrictEqual(to.getAttribute("aria-invalid"), "true");
@@ -164,7 +171,9 @@ describe("number card", () => {
         assert.isNull(store.get().notice, "no refusal notice: nothing was refused");
 
         // A click back in selects the refused text; 30 is above from: written, message gone.
-        await userEvent.click(to);
+        await userEvent.click(
+            page.elementLocator(card).getByRole("textbox", { name: `${name} to, number`, exact: true }),
+        );
         await userEvent.keyboard("30");
         await userEvent.tab();
         await waitFor(() => {
@@ -180,7 +189,9 @@ describe("number card", () => {
         const to = within(card).getByRole("textbox", { name: `${name} to, number` });
 
         // A click from outside selects the value: typing replaces it.
-        await userEvent.click(to);
+        await userEvent.click(
+            page.elementLocator(card).getByRole("textbox", { name: `${name} to, number`, exact: true }),
+        );
         await userEvent.keyboard("30");
         await userEvent.tab();
         await waitFor(() => {
@@ -188,7 +199,9 @@ describe("number card", () => {
         });
 
         // A digit after a starting 0 replaces the 0.
-        await userEvent.click(from);
+        await userEvent.click(
+            page.elementLocator(card).getByRole("textbox", { name: `${name} from, number`, exact: true }),
+        );
         await userEvent.keyboard("0");
         assert.strictEqual((from as HTMLInputElement).value, "0");
         await userEvent.keyboard("5");
@@ -199,7 +212,9 @@ describe("number card", () => {
         });
 
         // Grouping separators are read.
-        await userEvent.click(to);
+        await userEvent.click(
+            page.elementLocator(card).getByRole("textbox", { name: `${name} to, number`, exact: true }),
+        );
         await userEvent.keyboard("1,000");
         await userEvent.tab();
         await waitFor(() => {
@@ -209,7 +224,9 @@ describe("number card", () => {
 
         // Anything else is refused on commit, the text kept, nothing written, and the message asks
         // for a number with an example from the column's own range.
-        await userEvent.click(to);
+        await userEvent.click(
+            page.elementLocator(card).getByRole("textbox", { name: `${name} to, number`, exact: true }),
+        );
         await userEvent.keyboard("$1,000");
         assert.isNull(within(card).queryByRole("alert"), "no message while typing");
         await userEvent.tab();
@@ -228,7 +245,7 @@ describe("number card", () => {
 
     it("selects the from box when choosing an attribute by Enter puts focus there: typing 20 gives 20", async () => {
         const { session, id, card, name } = await openCard();
-        await userEvent.click(within(card).getByRole("button", { name: `Remove ${name}` }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: `Remove ${name}`, exact: true }));
         const region = screen.getByRole("group", { name: "Which nodes" });
         await openConditions(region);
         await userEvent.keyboard(`${name}{Enter}`);
@@ -248,7 +265,9 @@ describe("number card", () => {
     it("Escape keeps what was typed, focus and the picker open, and takes the bound", async () => {
         const { session, id, card, name } = await openCard();
         const from = within(card).getByRole("textbox", { name: `${name} from, number` });
-        await userEvent.dblClick(from);
+        await userEvent.dblClick(
+            page.elementLocator(card).getByRole("textbox", { name: `${name} from, number`, exact: true }),
+        );
         await userEvent.keyboard("5");
         await userEvent.keyboard("{Escape}");
         assert.strictEqual((from as HTMLInputElement).value, "5", "the typed bound stays");
@@ -258,8 +277,10 @@ describe("number card", () => {
             assert.strictEqual(rangeOf(session, id)?.min, 5);
         });
         // A count it cannot take stays as typed too, with its reason, and the picker stays open.
-        await userEvent.click(within(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }));
-        await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
+        await userEvent.click(
+            page.elementLocator(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }),
+        );
+        await userEvent.click(page.getByRole("option", { name: "Highest", exact: true }));
         const top = await within(card).findByRole("textbox", { name: `${name}: how many` });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, top);
@@ -272,11 +293,12 @@ describe("number card", () => {
 
     it("says the bound went back when the card closes on text it could not take", async () => {
         const { session, store, id, card, name } = await openCard();
-        const from = within(card).getByRole("textbox", { name: `${name} from, number` });
+        const from = (): Locator =>
+            page.elementLocator(card).getByRole("textbox", { name: `${name} from, number`, exact: true });
         const before = rangeOf(session, id);
-        await userEvent.click(from);
+        await userEvent.click(from());
         await userEvent.keyboard("abc");
-        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await userEvent.click(page.getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.match(store.get().notice?.message ?? "", new RegExp(`^${name}: .* went back to `));
         });
@@ -286,8 +308,9 @@ describe("number card", () => {
     it("clears the refusal notice once a rule is taken", async () => {
         const { session, store, id, card, name } = await openCard();
         store.set({ notice: { message: "That rule could not be used for this layer", error: true } });
-        const from = within(card).getByRole("textbox", { name: `${name} from, number` });
-        await userEvent.click(from);
+        const from = (): Locator =>
+            page.elementLocator(card).getByRole("textbox", { name: `${name} from, number`, exact: true });
+        await userEvent.click(from());
         await userEvent.keyboard("3");
         await userEvent.tab();
         await waitFor(() => {
@@ -320,7 +343,7 @@ describe("number card", () => {
         await waitFor(() => {
             assert.strictEqual(topOf(session, id), Number(total));
         });
-        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await userEvent.click(page.getByRole("button", { name: "Done", exact: true }));
         const row = await screen.findByRole("button", { name: /^Which nodes, / });
         assert.include(row.getAttribute("aria-label") ?? "", `${name}: all ${total}, ${total} nodes`);
         panelShown();
@@ -328,12 +351,14 @@ describe("number card", () => {
 
     it("names both numbers on a closed Highest chip: the count asked for and the nodes it keeps", async () => {
         const { session, id, card, name } = await openCard();
-        await userEvent.click(within(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }));
-        await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
+        await userEvent.click(
+            page.elementLocator(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }),
+        );
+        await userEvent.click(page.getByRole("option", { name: "Highest", exact: true }));
         await waitFor(() => {
             assert.strictEqual(topOf(session, id), 10);
         });
-        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await userEvent.click(page.getByRole("button", { name: "Done", exact: true }));
         const row = await screen.findByRole("button", { name: /^Which nodes, / });
         const kept = session.styles.counts(id).matched;
         await waitFor(() => {
@@ -344,8 +369,10 @@ describe("number card", () => {
 
     it("ranks a Highest style rule among what is shown, so a filter changes who is on top", async () => {
         const { session, id, card, name } = await openCard();
-        await userEvent.click(within(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }));
-        await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
+        await userEvent.click(
+            page.elementLocator(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }),
+        );
+        await userEvent.click(page.getByRole("option", { name: "Highest", exact: true }));
         await waitFor(() => {
             assert.strictEqual(topOf(session, id), 10);
         });
@@ -357,20 +384,22 @@ describe("number card", () => {
 
     it("says a from above its to was the reason when the card closes on it", async () => {
         const { session, store, id, card, name } = await openCard();
-        const from = within(card).getByRole("textbox", { name: `${name} from, number` });
-        const to = within(card).getByRole("textbox", { name: `${name} to, number` });
-        await userEvent.click(to);
+        const from = (): Locator =>
+            page.elementLocator(card).getByRole("textbox", { name: `${name} from, number`, exact: true });
+        const to = (): Locator =>
+            page.elementLocator(card).getByRole("textbox", { name: `${name} to, number`, exact: true });
+        await userEvent.click(to());
         await userEvent.keyboard("25");
         await userEvent.tab();
         await waitFor(() => {
             assert.strictEqual(rangeOf(session, id)?.max, 25);
         });
         const before = rangeOf(session, id);
-        await userEvent.click(from);
+        await userEvent.click(from());
         await userEvent.keyboard("30");
         await userEvent.keyboard("{Enter}");
         await within(card).findByRole("alert");
-        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await userEvent.click(page.getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.match(
                 store.get().notice?.message ?? "",
@@ -384,7 +413,9 @@ describe("number card", () => {
     it("clears a refusal as soon as the box reads as a number, and raises none while typing", async () => {
         const { card, name } = await openCard();
         const to = within(card).getByRole("textbox", { name: `${name} to, number` });
-        await userEvent.click(to);
+        await userEvent.click(
+            page.elementLocator(card).getByRole("textbox", { name: `${name} to, number`, exact: true }),
+        );
         await userEvent.keyboard("$30");
         await userEvent.keyboard("{Enter}");
         await within(card).findByRole("alert");

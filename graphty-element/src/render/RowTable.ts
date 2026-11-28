@@ -604,6 +604,22 @@ export class RowTable {
     }
 
     /**
+     * One row's CPU copies as they stand, without catching up a publish the lane owes (which `rowPosition` does):
+     * for a test that records what a frame drew from, where catching up would change it.
+     * @param row - The row.
+     * @returns Its position (x, y, z, w), its extent, and whether it is hidden or held.
+     * @internal
+     */
+    rawRow(row: number): { position: number[]; extent: number[]; hidden: boolean; held: boolean } {
+        return {
+            position: Array.from(this.positions.floats.subarray(POSITION_FLOATS * row, POSITION_FLOATS * (row + 1))),
+            extent: Array.from(this.extents.floats.subarray(EXTENT_FLOATS * row, EXTENT_FLOATS * (row + 1))),
+            hidden: this.isHidden(row),
+            held: this.isHeld(row),
+        };
+    }
+
+    /**
      * Whether a row is drawn from its own writes rather than repacked from the lane: held or shrunk.
      * @param row - The row.
      * @returns True when the repack leaves it alone.

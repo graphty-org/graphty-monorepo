@@ -14,7 +14,7 @@ import "@graphty/graphty-element";
 
 import type { CaptureResult, PostHog } from "posthog-js";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { commands, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import {
     type AnalyticsCalls,
@@ -275,7 +275,7 @@ describe("on a site with no PostHog ids", () => {
     it("starts error reporting alone on a first visit's Share", async () => {
         await boot(false);
         const card = screen.getByRole("complementary", { name: "Usage data" });
-        await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: "Share usage data", exact: true }));
         assert.strictEqual(sentryStarts, 1, "Share starts error reporting, as before");
         await useTheApp();
 
@@ -301,7 +301,9 @@ describe("on a site with no PostHog ids", () => {
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         const toggle = within(dialog).getByRole<HTMLInputElement>("switch", { name: "Share usage data" });
         assert.isTrue(toggle.checked, "Share is on");
-        await userEvent.click(toggle);
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("switch", { name: "Share usage data", exact: true }),
+        );
         assert.isFalse(toggle.checked);
 
         assert.isEmpty(analyticsKeys(), "PostHog's id, the survey keys and the visit and survey records are gone");
@@ -327,7 +329,7 @@ describe("on canary's host with no PostHog ids", () => {
 
         const card = screen.getByRole("complementary", { name: "Usage data" });
         assert.isNull(document.querySelector(".ws-usage-corner"), "no survey corner: the card is laid out as before");
-        await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: "Share usage data", exact: true }));
         assert.strictEqual(sentryStarts, 1, "Share starts error reporting, as before");
         assert.strictEqual(globalThis.location.search, SECRET_QUERY, "Share keeps the query");
         assert.strictEqual(imports, 0, "PostHog's code was never asked for");
@@ -350,7 +352,7 @@ describe("a reader who never shares usage data", () => {
     it("sends PostHog only anonymous counts and Sentry nothing after No thanks, with no secret", async () => {
         await boot();
         const card = screen.getByRole("complementary", { name: "Usage data" });
-        await userEvent.click(within(card).getByRole("button", { name: "No thanks" }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: "No thanks", exact: true }));
         await useTheApp();
         await assertOnlyAnonymousCounts();
         assert.notInclude(
@@ -378,7 +380,7 @@ describe("a reader who never shares usage data", () => {
     it("returns to anonymous counts for good when Share is turned off in Settings: opted out, no id kept", async () => {
         await boot();
         const card = screen.getByRole("complementary", { name: "Usage data" });
-        await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: "Share usage data", exact: true }));
         await vi.waitFor(() => {
             assert.isDefined(postHog(), "Share loaded PostHog");
         });
@@ -395,7 +397,7 @@ describe("a reader who never shares usage data", () => {
             ...[own ?? []].flat(),
         ];
 
-        await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
+        await userEvent.click(page.getByRole("button", { name: "Change this in Settings > Privacy", exact: true }));
         // Not vacuous: while Share is on, a real click reaches the shared instance's before_send.
         await vi.waitFor(() => {
             assert.include(sharedSeen, "$autocapture");
@@ -403,7 +405,9 @@ describe("a reader who never shares usage data", () => {
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         const toggle = within(dialog).getByRole<HTMLInputElement>("switch", { name: "Share usage data" });
         assert.isTrue(toggle.checked, "Share is on");
-        await userEvent.click(toggle);
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("switch", { name: "Share usage data", exact: true }),
+        );
         assert.isFalse(toggle.checked);
         const seenAtSwitch = sharedSeen.length;
 
@@ -445,7 +449,7 @@ describe("the usage card while site.json loads", () => {
         // The page paints before site.json settles, on no known site.
         render(<Workspace store={createWorkspaceStore()} />);
         const card = screen.getByRole("complementary", { name: "Usage data" });
-        await userEvent.click(within(card).getByRole("button", { name: "No thanks" }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: "No thanks", exact: true }));
         const line = document.querySelector(".ws-start-answer");
         assert.isNotNull(line, "the answer line");
         const close = await vi.waitFor(() => {
@@ -468,7 +472,7 @@ describe("the usage card while site.json loads", () => {
         // The page paints before site.json settles: the card's words never name PostHog.
         render(<Workspace store={createWorkspaceStore()} />);
         const card = screen.getByRole("complementary", { name: "Usage data" });
-        await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: "Share usage data", exact: true }));
         // Not vacuous: the Share started error reporting, and focus moved to the answer line's Close.
         assert.isTrue(isSentryEnabled(), "Share started error reporting");
         await vi.waitFor(() => {

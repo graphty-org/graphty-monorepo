@@ -67,11 +67,11 @@ const everyNode = (name: string, set: LayerSpec["set"]): LayerSpec => ({
  */
 async function openStyle(name: string): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     const tab = await screen.findByTestId("style-tab");
     await showKind("node");
@@ -187,8 +187,12 @@ describe("the node tab by part of the drawing", () => {
     it("typing a border color paints the node's border", async () => {
         const session = await openProject([everyNode("Key", { "node.shape": "box" })]);
         const tab = await openStyle("Key");
-        await userEvent.click(within(section(tab, "border")).getByRole("button", { name: "Add to node border" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Border color/ }));
+        await userEvent.click(
+            page
+                .elementLocator(section(tab, "border"))
+                .getByRole("button", { name: "Add to node border", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Border color/ }));
         await waitFor(() => {
             const line = section(tab, "border").querySelector('.ws-row[data-line="node.borderColor"]');
             assert.isTrue(line?.contains(document.activeElement) === true, "focus is in the new line");
@@ -241,7 +245,9 @@ describe("the node tab by part of the drawing", () => {
         await waitFor(() => {
             assert.isNotNull(effects.querySelector('[data-item="shadow"]'));
         });
-        await userEvent.click(within(effects).getByRole("button", { name: "Remove drop shadow" }));
+        await userEvent.click(
+            page.elementLocator(effects).getByRole("button", { name: "Remove drop shadow", exact: true }),
+        );
         await waitFor(() => {
             const layer = session.styles.list().find((each) => each.name === "Key");
             assert.deepEqual(Object.keys(layer?.set ?? {}), ["node.color"]);
@@ -261,7 +267,9 @@ describe("the node tab by part of the drawing", () => {
         const tab = await openStyle("Key");
         const shapes = session.catalog.channelValues("node.shape");
         assert.strictEqual(shapes.length, 53, "the element offers 53 shapes with file styles on");
-        await userEvent.click(await within(section(tab, "shape")).findByRole("button", { name: /^Node shape, Box/ }));
+        await userEvent.click(
+            page.elementLocator(section(tab, "shape")).getByRole("button", { name: /^Node shape, Box/ }),
+        );
         const search = await screen.findByPlaceholderText("Search 53 shapes");
         const list = await screen.findByRole("group", { name: /values$/ });
         const options = within(list).getAllByRole("option");
@@ -276,7 +284,9 @@ describe("the node tab by part of the drawing", () => {
     it("typing in the shape list filters it and Enter picks the shape", async () => {
         const session = await openProject([everyNode("Key", { "node.shape": "box" })]);
         const tab = await openStyle("Key");
-        await userEvent.click(await within(section(tab, "shape")).findByRole("button", { name: /^Node shape, Box/ }));
+        await userEvent.click(
+            page.elementLocator(section(tab, "shape")).getByRole("button", { name: /^Node shape, Box/ }),
+        );
         await screen.findByPlaceholderText("Search 53 shapes");
         await userEvent.keyboard("torus k");
         const list = await screen.findByRole("group", { name: /values$/ });
@@ -324,9 +334,11 @@ describe("the node tab by part of the drawing", () => {
         const session = await openProject([everyNode("Key", { "node.shape": "box" })]);
         const tab = await openStyle("Key");
         await userEvent.click(
-            within(section(tab, "visibility")).getByRole("button", { name: "Add to node visibility" }),
+            page
+                .elementLocator(section(tab, "visibility"))
+                .getByRole("button", { name: "Add to node visibility", exact: true }),
         );
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Hide" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Hide", exact: true }));
         await waitFor(() => {
             assert.isFalse(session.styles.explain({ node: "b" }).merged["node.visible"]);
         });
@@ -340,8 +352,12 @@ describe("the node tab by part of the drawing", () => {
         }
         await session.styles.settled();
         const tab = await openStyle("Both");
-        await userEvent.click(within(section(tab, "border")).getByRole("button", { name: "Add to node border" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Border color/ }));
+        await userEvent.click(
+            page
+                .elementLocator(section(tab, "border"))
+                .getByRole("button", { name: "Add to node border", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Border color/ }));
         await waitFor(() => {
             const line = section(tab, "border").querySelector('.ws-row[data-line="node.borderColor"]');
             assert.isTrue(line?.contains(document.activeElement) === true, "focus is in the new line");
@@ -377,7 +393,11 @@ describe("the node tab by part of the drawing", () => {
     it("Effects' + offers whole effects and adding the drop shadow draws its settings under its heading", async () => {
         await openProject([everyNode("Key", { "node.shape": "box" })]);
         const tab = await openStyle("Key");
-        await userEvent.click(within(section(tab, "effects")).getByRole("button", { name: "Add to node effects" }));
+        await userEvent.click(
+            page
+                .elementLocator(section(tab, "effects"))
+                .getByRole("button", { name: "Add to node effects", exact: true }),
+        );
         const menu = await screen.findByRole("menu");
         assert.deepEqual(
             within(menu)
@@ -385,7 +405,7 @@ describe("the node tab by part of the drawing", () => {
                 .map((item) => item.textContent),
             ["Drop shadow", "Glow", "Halo", "Underlay", "Overlay"],
         );
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Drop shadow" }));
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: "Drop shadow", exact: true }));
         const effects = section(tab, "effects");
         await waitFor(() => {
             assert.isNotNull(effects.querySelector('[data-item="shadow"]'));
@@ -439,7 +459,9 @@ describe("the node tab by part of the drawing", () => {
     it("the shape list marks the value the layer sets", async () => {
         await openProject([everyNode("Key", { "node.shape": "box" })]);
         const tab = await openStyle("Key");
-        await userEvent.click(await within(section(tab, "shape")).findByRole("button", { name: /^Node shape, Box/ }));
+        await userEvent.click(
+            page.elementLocator(section(tab, "shape")).getByRole("button", { name: /^Node shape, Box/ }),
+        );
         const list = await screen.findByRole("group", { name: /values$/ });
         const selected = within(list)
             .getAllByRole("option")
@@ -453,8 +475,10 @@ describe("the node tab by part of the drawing", () => {
     it("a shape just added and not picked yet reads as the default it draws", async () => {
         await openProject([everyNode("Key", { "node.size": 2 })]);
         const tab = await openStyle("Key");
-        await userEvent.click(within(section(tab, "shape")).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        await userEvent.click(
+            page.elementLocator(section(tab, "shape")).getByRole("button", { name: "Add to node shape", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Shape", exact: true }));
         const picker = await waitFor(() => {
             const found = section(tab, "shape").querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
             assert.isNotNull(found);

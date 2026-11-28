@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
@@ -50,7 +50,7 @@ async function lesMis(): Promise<GraphSession> {
  */
 async function pickTreeRow(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
 /**
@@ -95,11 +95,11 @@ function shownName(row: HTMLElement): string {
 async function renameFirst(popover: HTMLElement, edit: string): Promise<void> {
     rowsOf(popover)[0].querySelector<HTMLElement>("[role=gridcell]")?.focus();
     await userEvent.keyboard("{F2}");
-    const box = await within(popover).findByRole("textbox", { name: /^Name of / });
+    const box = (): Locator => page.elementLocator(popover).getByRole("textbox", { name: /^Name of / });
     if (edit !== "") {
-        await userEvent.clear(box);
+        await userEvent.clear(box());
     }
-    await userEvent.type(box, "{Enter}");
+    await userEvent.type(box(), "{Enter}");
     await waitFor(() => {
         assert.isNull(within(popover).queryByRole("textbox", { name: /^Name of / }));
     });
@@ -131,8 +131,8 @@ describe("group rows by Layer and held across layers", () => {
 
         const fill = await fillRow();
         await userEvent.hover(fill);
-        await userEvent.click(within(fill).getByRole("button", { name: / by attribute$/ }));
-        await userEvent.click(await screen.findByRole("option", { name: /^Each layer's own value/ }));
+        await userEvent.click(page.elementLocator(fill).getByRole("button", { name: / by attribute$/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Each layer's own value/ }));
         const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
         await within(popover).findByRole("grid", { name: /groups$/ });
 
@@ -140,7 +140,7 @@ describe("group rows by Layer and held across layers", () => {
         const [first] = rowsOf(popover);
         const firstName = first.querySelector<HTMLElement>("[data-group-name]");
         assert.isNotNull(firstName);
-        await userEvent.click(firstName);
+        await userEvent.click(page.elementLocator(first).getByCss("[data-group-name]").first());
         assert.isNull(screen.queryByRole("group", { name: / properties$/ }), "no detail opens");
         assert.lengthOf(rowsOf(popover), 3, "the list stays");
 
@@ -152,9 +152,9 @@ describe("group rows by Layer and held across layers", () => {
         // Shift+ArrowDown picks two: Select these, and no Set properties, selects both layers' nodes.
         rowsOf(popover)[0].querySelector<HTMLElement>("[role=gridcell]")?.focus();
         await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}");
-        const selectThese = await within(popover).findByRole("button", { name: "Select these" });
+        await within(popover).findByRole("button", { name: "Select these" });
         assert.isNull(within(popover).queryByRole("button", { name: /^Set properties for / }), "a layer has none");
-        await userEvent.click(selectThese);
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Select these", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.selection.nodes, 4, "two layers of two characters each");
         });
@@ -172,10 +172,12 @@ describe("group rows by Layer and held across layers", () => {
 
         // Each group layer holds its own color; Change source picks a field, held until close.
         const fill = await fillRow();
-        await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
+        await userEvent.click(
+            page.elementLocator(fill).getByRole("button", { name: /^Node color: from each layer, / }),
+        );
         const byLayer = await screen.findByRole("dialog", { name: "Color from each layer" });
-        await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^Node id\b/ }));
+        await userEvent.click(page.elementLocator(byLayer).getByRole("button", { name: "Change source", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: /^Node id\b/ }));
         const popover = await screen.findByRole("dialog", { name: /^Color by / });
         await within(popover).findByRole("grid", { name: /groups$/ });
 
@@ -200,7 +202,7 @@ describe("group rows by Layer and held across layers", () => {
         });
 
         // Closed, every layer holds the field with that one group hidden.
-        await userEvent.click(within(popover).getByRole("button", { name: /^Close / }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: /^Close / }));
         await waitFor(() => {
             for (const id of layers) {
                 const binding = session.styles.get(id)?.encode?.["node.color"];

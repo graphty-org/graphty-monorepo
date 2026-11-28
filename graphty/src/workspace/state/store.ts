@@ -34,6 +34,8 @@ import type { StartSample } from "../../data/sampleManifest";
 import type { InspectedKind } from "../commands/registry";
 import type { ExportDraft } from "../export/choices";
 import type { JoinHow } from "../join/commands";
+import type { NoteView } from "../notes/NotesPlace";
+import type { Verb } from "../selection/model";
 import {
     layoutOf,
     MAP_DEPTH_INDEPENDENT_SIZE,
@@ -41,8 +43,6 @@ import {
     readWorkspaceLayout,
     writeWorkspaceLayout,
 } from "../settings/preferences";
-import type { NoteView } from "../notes/NotesPlace";
-import type { Verb } from "../selection/model";
 import type { KeptShaderDrafts } from "../style/ShaderEditorDialog";
 
 /**

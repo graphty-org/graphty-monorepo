@@ -348,6 +348,9 @@ export class EdgeLineBatch {
      */
     private live = 0;
 
+    /** Edges that will take a slot when first placed ({@link EdgeLineBatch.hold}): they keep the batch while it has none. */
+    private holds = 0;
+
     /** Told by this batch that it has emptied, so whoever holds it can forget it. */
     private readonly retire: () => void;
 
@@ -499,12 +502,13 @@ export class EdgeLineBatch {
      * Take a slot to draw one edge in.
      * @param owner - The edge it draws, whose row says how old it is when lines fade by age; a slot
      *     with none draws as the newest.
+     * @param lowest - Take the lowest free slot rather than the last freed ({@link EdgeLineBatch.takeHeld}).
      * @returns The slot's index, which the caller keeps until it releases it.
      */
-    acquire(owner?: SlotOwner): number {
+    acquire(owner?: SlotOwner, lowest = false): number {
         this.live++;
 
-        let index = this.free.pop();
+        let index = lowest ? this.takeLowestFree() : this.free.pop();
         if (index === undefined) {
             if (this.highWater === this.slots.length / this.stride) {
                 this.grow();
@@ -676,6 +680,24 @@ export class EdgeLineBatch {
     }
 
     /**
+     * Take the lowest free slot off the free list.
+     *
+     * ponytail: a scan of the free list per slot taken; keep it sorted if a profile shows the scan.
+     * @returns The slot, or undefined when none is free.
+     */
+    private takeLowestFree(): number | undefined {
+        const { free } = this;
+        let at = -1;
+        for (let i = 0; i < free.length; i++) {
+            if (at < 0 || free[i] < free[at]) {
+                at = i;
+            }
+        }
+
+        return at < 0 ? undefined : free.splice(at, 1)[0];
+    }
+
+    /**
      * Hand a slot back, and stop drawing it.
      *
      * ponytail: the free list never shrinks and the slots are never compacted, so a graph that
@@ -703,9 +725,41 @@ export class EdgeLineBatch {
         this.live--;
         this.slotReleased(index);
 
-        // The last edge takes the batch with it, so an appearance nothing is drawn with any more
-        // leaves no mesh and no material behind. This is what `ArrowCapBatch.release` does too.
-        if (this.live === 0) {
+        this.disposeIfUnused();
+    }
+
+    /**
+     * Keep the batch for an edge that takes its slot when it is first placed (`Edge.takeLineSlot`), though no slot draws
+     * here yet: until {@link EdgeLineBatch.takeHeld} or {@link EdgeLineBatch.dropHold}.
+     */
+    hold(): void {
+        this.holds++;
+    }
+
+    /**
+     * Take the slot a {@link EdgeLineBatch.hold} was kept for: the lowest free one, so curves restyled together, each
+     * giving its slot up before any is placed, take slots in the order they are placed, as a pulled curve batch hands
+     * its slots out.
+     * @param owner - The edge it draws ({@link EdgeLineBatch.acquire}).
+     * @returns The slot.
+     */
+    takeHeld(owner?: SlotOwner): number {
+        this.holds--;
+        return this.acquire(owner, true);
+    }
+
+    /** Give a {@link EdgeLineBatch.hold} up with no slot taken. */
+    dropHold(): void {
+        this.holds--;
+        this.disposeIfUnused();
+    }
+
+    /**
+     * The last edge takes the batch with it, so an appearance nothing is drawn with any more leaves no mesh and no
+     * material behind. This is what `ArrowCapBatch.release` does too.
+     */
+    private disposeIfUnused(): void {
+        if (this.live === 0 && this.holds === 0) {
             this.retire();
             this.dispose();
         }

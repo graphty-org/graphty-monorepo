@@ -565,9 +565,12 @@ export class PulledLineBatch {
      * @param drawOrder - Its `edge.drawOrder`: a piece of a higher one is drawn after, so over, every piece of a
      *     lower one, and a piece with none after every piece with one, as the object path's batches are drawn
      *     (`stackByDrawOrder`). Undefined for none.
+     * @param curve - A curve batch's entry for a curve: its draw slot is taken when the curve is first placed
+     *     ({@link PulledLineBatch.setCurve}), as the object path's curve takes its slot (`Edge.takeLineSlot`), so
+     *     straight lines made in the same write are under it and one added once it is drawn is over it (#10083).
      * @returns The piece.
      */
-    acquire(width = 0, drawOrder?: number): number {
+    acquire(width = 0, drawOrder?: number, curve = false): number {
         if (this.slots === null) {
             return this.takeSlot(width, drawOrder);
         }
@@ -583,7 +586,12 @@ export class PulledLineBatch {
 
         this.entryWidths[entry] = width;
         this.entryOrders[entry] = drawOrder;
-        this.slotsFor(entry, 1);
+        if (curve) {
+            this.groupOf(width);
+        } else {
+            this.slotsFor(entry, 1);
+        }
+
         return entry;
     }
 
@@ -659,13 +667,7 @@ export class PulledLineBatch {
             this.setCount();
         }
 
-        let group = this.groups.get(width);
-        if (group === undefined) {
-            group = { rank: this.ranked.length, highWater: 0, free: [] };
-            this.groups.set(width, group);
-            this.ranked.push(group);
-        }
-
+        const group = this.groupOf(width);
         const key = group.rank * SLOTS_PER_RANK + (group.free.pop() ?? group.highWater++);
         // With one width a piece's key is its own number, as the free pieces are taken in the same order, so the keys
         // are kept only from the second width on, starting from that identity.
@@ -688,6 +690,23 @@ export class PulledLineBatch {
         }
 
         return piece;
+    }
+
+    /**
+     * The draw order group of a width, made the first time the width is seen: a width ranks where its first piece was
+     * handed out, as the object path's batch of that width is made with its first line.
+     * @param width - The width.
+     * @returns The group.
+     */
+    private groupOf(width: number): WidthGroup {
+        let group = this.groups.get(width);
+        if (group === undefined) {
+            group = { rank: this.ranked.length, highWater: 0, free: [] };
+            this.groups.set(width, group);
+            this.ranked.push(group);
+        }
+
+        return group;
     }
 
     /**

@@ -2898,6 +2898,12 @@ export class Edge {
                 old.release(slot);
             }
 
+            // a curve that has not taken its slot yet moves its hold (`takeLineSlot`)
+            if (this.lineSlots.length === 0) {
+                next.hold();
+                old.dropHold();
+            }
+
             this.lineBatch = next;
             this.lineSlots = slots;
             this.mesh = next.mesh;
@@ -3061,6 +3067,25 @@ export class Edge {
         }
 
         shaded(this.lineBatch)?.setSpeed(slot, this.lineSpeed);
+    }
+
+    /**
+     * Take the line's first slot, for a curve made with none (`createLine`): a curve's slot is taken when it is first
+     * placed, as a run of a slot a piece takes the rest of its pieces, so straight lines made in the same write are
+     * under it and one added once it is drawn is over it (#10083). It is the lowest free slot (`EdgeLineBatch.takeHeld`);
+     * a pulled curve's slot is taken the same way (`PulledLineBatch.acquire`).
+     * @param batch - The line's batch.
+     * @returns The slot.
+     */
+    private takeLineSlot(batch: EdgeLineBatch): number {
+        const slot = batch.takeHeld(this);
+        this.lineSlots.push(slot);
+        if (this.drawnStyle !== null) {
+            this.colorLine(this.drawnStyle);
+        }
+
+        this.prepareLineSlot(slot);
+        return slot;
     }
 
     /**
@@ -3414,7 +3439,16 @@ export class Edge {
         if (this.lineBatch) {
             // A curve's run of slots is sized to its length when it is first placed.
             this.readRoute(drawnStyle);
-            this.lineSlots = [this.lineBatch.acquire(this)];
+            // a curve its batch draws from one slot takes the slot when it is first placed (`takeLineSlot`)
+            const later =
+                this.lineBatch.drawsCurves &&
+                this.lineRoute === null &&
+                EdgeMesh.pullsCurve(drawnStyle, this.isLoop, this.route);
+            if (later) {
+                this.lineBatch.hold();
+            }
+
+            this.lineSlots = later ? [] : [this.lineBatch.acquire(this)];
             this.colorLine(drawnStyle);
             this.lineStatic = null;
             this.createOutline(meshKey, drawnStyle);
@@ -3784,7 +3818,7 @@ export class Edge {
         const drawOrder = style.line?.drawOrder;
         let piece: number;
         try {
-            piece = batch.acquire(look.width, drawOrder);
+            piece = batch.acquire(look.width, drawOrder, this.pullsCurve(style));
         } catch (error) {
             // a batch the card cannot hold more of: this line is drawn as the object path draws it
             this.refuseTooLarge(batch, error);
@@ -4213,10 +4247,7 @@ export class Edge {
         this.haloBands = [];
 
         if (this.lineBatch) {
-            for (const slot of this.lineSlots) {
-                this.lineBatch.release(slot);
-            }
-
+            this.releaseLineSlots(this.lineBatch);
             this.lineBatch = null;
             this.lineSlots = [];
             return;
@@ -4225,6 +4256,21 @@ export class Edge {
         // PatternedLineMesh has its own dispose logic, so it is called whatever the state.
         if (this.mesh instanceof PatternedLineMesh || !this.mesh.isDisposed()) {
             this.mesh.dispose();
+        }
+    }
+
+    /**
+     * Hand the line's slots back to its batch, or the hold of a curve that has not taken its slot yet
+     * ({@link Edge.takeLineSlot}).
+     * @param batch - The line's batch.
+     */
+    private releaseLineSlots(batch: EdgeLineBatch): void {
+        for (const slot of this.lineSlots) {
+            batch.release(slot);
+        }
+
+        if (this.lineSlots.length === 0) {
+            batch.dropHold();
         }
     }
 
@@ -4878,6 +4924,10 @@ export class Edge {
         // A batched line is sixteen floats in a shared buffer, and this is the write that moves
         // it. The whole buffer reaches the GPU once a frame, from the batch itself.
         if (this.lineBatch && this.lineIsCurve) {
+            if (this.lineSlots.length === 0) {
+                this.takeLineSlot(this.lineBatch);
+            }
+
             const curve = this.placeCurve(this.lineBatch, this.lineSlots, srcPoint, dstPoint);
             this.placeBands(curve);
         } else if (this.lineBatch) {
@@ -5262,7 +5312,6 @@ export class Edge {
         const slot = this.lineSlots[0];
         if (
             batch?.drawsCurves !== true ||
-            slot === undefined ||
             style === null ||
             !EdgeMesh.pullsCurve(style, this.isLoop, this.route) ||
             this.lineRoute !== null ||
@@ -5285,7 +5334,7 @@ export class Edge {
         const to = this.isLoop ? src : dst;
         this.laidCurve = null;
         Edge.releaseRun(batch, this.lineSlots);
-        batch.placeCurve(slot, src, to, span);
+        batch.placeCurve(slot ?? this.takeLineSlot(batch), src, to, span);
         this.curveRun = { src: src.clone(), dst: to.clone(), span };
         if (this.haloBatch !== null || this.hasBands()) {
             const flat = curvePath(src, to, span);
@@ -5803,6 +5852,10 @@ export class Edge {
      */
     private placeLineRun(batch: EdgeLineBatch | null, flat: readonly number[]): void {
         if (batch !== null) {
+            if (this.lineSlots.length === 0) {
+                this.takeLineSlot(batch);
+            }
+
             this.placeRun(batch, this.lineSlots, flat, (slot) => {
                 this.prepareLineSlot(slot);
             });
@@ -5949,6 +6002,10 @@ export class Edge {
      * @param dstPoint - Where it ends.
      */
     private placeStraight(batch: EdgeLineBatch, srcPoint: Vector3, dstPoint: Vector3): void {
+        if (this.lineSlots.length === 0) {
+            this.takeLineSlot(batch);
+        }
+
         const tapers = tapersBothEnds(this.drawnStyle);
         // a plain line of one slot, nearly every line, is placed with no points list (issue #9420)
         if (!tapers && this.lineSlots.length <= 1 && !this.hasBands()) {

@@ -824,6 +824,15 @@ describe("style combination matrix", () => {
             meshRingChecks(diamond, ring, 1.05, 0.005, true, "outer-border").every((k) => k.pass),
             "diamond",
         );
+        // read by its median (a plate round a solid in perspective), the same ring's corners carry the reading past
+        const median = meshRingChecks(diamond, ring, 1.05, 0.005, true, "underlay", false);
+        assert.deepEqual(
+            median.map((k) => [k.name, k.pass]),
+            [
+                ["mesh-underlay-reach", false],
+                ["mesh-underlay-centered", true],
+            ],
+        );
         // a thin triangle: its tips are cut square at three times the offset
         const triangle: P2[] = [
             [0, 1],

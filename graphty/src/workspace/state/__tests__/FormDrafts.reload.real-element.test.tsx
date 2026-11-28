@@ -144,9 +144,9 @@ async function pickResultItem(id: string, item: string): Promise<void> {
         assert.isNotNull(found);
         return found;
     });
-    await userEvent.hover(row);
-    await userEvent.click(within(row).getByRole("button", { name: /^More for/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: new RegExp(`^${item}`) }));
+    await userEvent.hover(page.elementLocator(list).getByCss(`[data-run="${id}"]`));
+    await userEvent.click(page.elementLocator(row).getByRole("button", { name: /^More for/ }));
+    await userEvent.click(page.getByRole("menuitem", { name: new RegExp(`^${item}`) }));
 }
 
 /**
@@ -165,19 +165,19 @@ function notesListed(): (string | null)[] {
 /** Opens Add filter in the Data place and picks Degree from 5, leaving its workspace open on card A. */
 async function newDegreeFilter(): Promise<HTMLElement> {
     await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
-    await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+    await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
     // The value picker opens on a new card's arrival, or from its empty Value.
-    const empty = await waitFor(() => {
+    await waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws [data-new-step] [data-first-focus]");
         assert.isNotNull(found, "the new card's Value");
         return found;
     });
     if (screen.queryByRole("combobox", { name: "Find attributes, results" }) === null) {
-        await userEvent.click(empty);
+        await userEvent.click(page.getByCss(".sel-ws [data-new-step] [data-first-focus]"));
     }
     await screen.findByRole("combobox", { name: "Find attributes, results" });
     await userEvent.keyboard("Degree{Enter}");
-    const from = await screen.findByRole<HTMLInputElement>("textbox", { name: "Degree from, number" });
+    const from = page.getByRole("textbox", { name: "Degree from, number", exact: true });
     await userEvent.clear(from);
     await userEvent.type(from, "5{Enter}");
     await screen.findAllByRole("region", { name: "A, 41 of 77 nodes" });
@@ -336,12 +336,14 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
         it("reopens Report a problem on the message the reader typed", async () => {
             const before = await openAutosaved("Les Miserables");
             // Help > Report a problem asks for usage data: the reader turns it on in Settings > Privacy.
-            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Settings..." }));
+            await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+            await userEvent.click(page.getByRole("menuitem", { name: "Settings...", exact: true }));
             const settings = await screen.findByRole("dialog", { name: "Settings" });
-            await userEvent.click(within(settings).getByText("Privacy"));
+            await userEvent.click(page.elementLocator(settings).getByText("Privacy", { exact: true }));
             const share = await within(settings).findByRole<HTMLInputElement>("switch", { name: "Share usage data" });
-            await userEvent.click(share);
+            await userEvent.click(
+                page.elementLocator(settings).getByRole("switch", { name: "Share usage data", exact: true }),
+            );
             await waitFor(() => {
                 assert.isTrue(share.checked);
             });
@@ -349,13 +351,16 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await waitFor(() => {
                 assert.isNull(screen.queryByRole("dialog", { name: "Settings" }));
             });
-            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-            await userEvent.hover(await screen.findByRole("menuitem", { name: "Help" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Report a problem" }));
+            await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+            await userEvent.hover(page.getByRole("menuitem", { name: "Help", exact: true }));
+            await userEvent.click(page.getByRole("menuitem", { name: "Report a problem", exact: true }));
             const dialog = await screen.findByRole("dialog", { name: "Send Feedback" });
-            await userEvent.type(within(dialog).getByRole("textbox", { name: "Name (optional)" }), "Ada");
             await userEvent.type(
-                within(dialog).getByRole("textbox", { name: /^What happened/ }),
+                page.elementLocator(dialog).getByRole("textbox", { name: "Name (optional)", exact: true }),
+                "Ada",
+            );
+            await userEvent.type(
+                page.elementLocator(dialog).getByRole("textbox", { name: /^What happened/ }),
                 "The tab went blank.",
             );
 
@@ -378,12 +383,12 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             const run = session.runs.start("degree", {});
             await run;
             await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
-            await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
+            await userEvent.click(page.getByRole("tab", { name: "Calculated", exact: true }));
             await pickResultItem(run.id, "Combine into a score");
             const dialog = await screen.findByRole("dialog", { name: "Custom score" });
-            const name = within(dialog).getByRole("textbox", { name: "Name" });
-            await userEvent.clear(name);
-            await userEvent.type(name, "Reach");
+            const name = (): Locator => page.elementLocator(dialog).getByRole("textbox", { name: "Name", exact: true });
+            await userEvent.clear(name());
+            await userEvent.type(name(), "Reach");
 
             const after = await reload(before, { lostSession });
             const back = await screen.findByRole("dialog", { name: "Custom score" });
@@ -400,8 +405,8 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await waitFor(() => {
                 assert.deepEqual(notesListed(), ["second", "first"]);
             });
-            await userEvent.click(screen.getByRole("combobox", { name: "Sort" }));
-            await userEvent.click(await screen.findByRole("option", { name: "Oldest" }));
+            await userEvent.click(page.getByRole("combobox", { name: "Sort", exact: true }));
+            await userEvent.click(page.getByRole("option", { name: "Oldest", exact: true }));
             await waitFor(() => {
                 assert.deepEqual(notesListed(), ["first", "second"]);
             });
@@ -417,8 +422,10 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
         it("reopens a selection workspace with the card the reader folded and the Preview they picked", async () => {
             const before = await openAutosaved("Les Miserables");
             const ws = await newDegreeFilter();
-            await userEvent.click(within(ws).getByText("Styled"));
-            await userEvent.click(within(cardA()).getByRole("button", { name: "Collapse A" }));
+            await userEvent.click(page.elementLocator(ws).getByText("Styled", { exact: true }));
+            await userEvent.click(
+                page.elementLocator(cardA()).getByRole("button", { name: "Collapse A", exact: true }),
+            );
             await waitFor(() => {
                 assert.isTrue(cardA().hasAttribute("data-folded"));
             });
@@ -435,7 +442,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
         it("reopens a selection workspace on the step the reader was adding", async () => {
             const before = await openAutosaved("Les Miserables");
             await newDegreeFilter();
-            await userEvent.click(within(cardA()).getByRole("button", { name: "Keep" }));
+            await userEvent.click(page.elementLocator(cardA()).getByRole("button", { name: "Keep", exact: true }));
             await screen.findByRole("combobox", { name: "Find attributes, results" });
 
             const after = await reload(before, { lostSession });

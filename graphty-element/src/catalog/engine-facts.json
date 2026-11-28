@@ -1702,6 +1702,26 @@
                     "advanced": true
                 },
                 {
+                    "name": "barnesHut",
+                    "plainName": "Barnes-Hut",
+                    "technicalName": "barnesHut",
+                    "type": "boolean",
+                    "description": "Approximate the push between nodes: a far group of nodes pushes as one, so each step costs n log n instead of n squared and large graphs settle much faster, with a slightly different drawing. Applies on the CPU; an accelerator ignores it.",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "barnesHutTheta",
+                    "plainName": "Barnes-Hut Theta",
+                    "technicalName": "barnesHutTheta",
+                    "type": "number",
+                    "description": "How far a group must be to push as one, with Barnes-Hut on: lower is closer to the exact push and slower",
+                    "default": 1.2,
+                    "min": 0,
+                    "step": 0.1,
+                    "advanced": true
+                },
+                {
                     "name": "nodeGap",
                     "plainName": "Node Gap",
                     "technicalName": "nodeGap",

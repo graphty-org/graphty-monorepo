@@ -58,6 +58,7 @@ export interface TransitionDescriptor {
 export interface TransitionRegistration {
     /** The catalog facts. `params` may be left out when it takes none. */
     readonly descriptor: Omit<TransitionDescriptor, "params" | "drawable"> & {
+        /** The options `layoutTransition.params` may set for this transition. Leave it out when there are none. */
         readonly params?: readonly OptionDescriptor[];
     };
     /**

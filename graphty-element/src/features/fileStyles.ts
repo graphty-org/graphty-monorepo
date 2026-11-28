@@ -381,6 +381,7 @@ export const FILE_STYLE_ARROWS: readonly string[] = Object.freeze([
     "kite",
     "deltoid",
     "open-vee",
+    "hollow-vee",
     "slash",
     "stem",
 ]);

@@ -108,6 +108,16 @@ def yed_default_painted(r):
     return local(r.tag) == "GenericNode" and (r.get("configuration") or "").lower().startswith("com.yjava.")
 
 
+def framed_unfilled(r):
+    """Whether the edge is a framed edge (GenericEdge com.yworks.edge.framed) with no FramedEdgePainter.fillColor:
+    yEd's own drawing of graphml-stm32-func strokes one closed outline round its band and both notched standard heads,
+    with fill="none", so those heads are hollow."""
+    if local(r.tag) != "GenericEdge" or r.get("configuration") != "com.yworks.edge.framed":
+        return False
+    props = r.find(Y + "StyleProperties")
+    return not any(p.get("name") == "FramedEdgePainter.fillColor" for p in (props if props is not None else []))
+
+
 def picture_only(r):
     """Whether yEd draws the node as its picture alone: its own drawings of graphml-synthetic-nodes and
     graphml-stm32-func paint neither the realizer's fill nor its border under a y:SVGNode or y:ImageNode."""
@@ -202,12 +212,15 @@ def scene(path):
         pts = clip_path(route, s, t)
         color = hex_color(ls.get("color", "#000000")) or ("#000000", 1.0)
         bs = r.find(Y + "BendStyle")
+        heads = {end: a.get(end, "none") if a is not None else "none" for end in ("source", "target")}
+        if framed_unfilled(r):
+            # yEd strokes an unfilled framed edge's outline round its heads too: a standard head is drawn hollow
+            heads = {end: "open-triangle" if h == "standard" else h for end, h in heads.items()}
         labs = [lab.text.strip() for lab in r.findall(Y + "EdgeLabel") if lab.get("visible", "true") == "true" and (lab.text or "").strip()]
         edges.append({"id": e.get("id"), "source": e.get("source"), "target": e.get("target"), "points": pts,
                       "curved": local(r.tag) in CURVED_EDGES or (bs is not None and bs.get("smoothed") == "true" and bool(bends)),
                       "color": color[0], "opacity": color[1], "width": float(ls.get("width", 1)), "style": ls.get("type", "line"),
-                      "arrow": {"source": a.get("source", "none") if a is not None else "none",
-                                "target": a.get("target", "none") if a is not None else "none"},
+                      "arrow": heads,
                       "label": "\n".join(labs) if labs else None})
     return {"provenance": provenance("yed-file", "yed_facts.py (Python standard library ElementTree)", python_version(),
                                      "python3 yed_facts.py <file>", path),

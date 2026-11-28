@@ -493,6 +493,13 @@ export interface WorkspaceState {
     /** What the reader typed in Report a problem (its attachments cannot come back); null: nothing yet. */
     readonly feedbackDraft: FeedbackDraft | null;
     /**
+     * The name being edited in place and what names its row (`source:<key>`, `chat:<id>`); null: no
+     * rename open.
+     */
+    readonly renameDraft: { readonly on: string; readonly text: string } | null;
+    /** Whether the Assistant shows its chat list in place of the log. */
+    readonly assistantListing: boolean;
+    /**
      * What the reader set in the Load custom model dialog: the address loaded, the layer's own
      * settings and each model's Name and settings (the loaded files cannot come back); null: nothing.
      */
@@ -661,6 +668,8 @@ export const ON_RELOAD = {
     scoreOn: "kept",
     notesView: "kept",
     feedbackDraft: "kept",
+    renameDraft: "kept",
+    assistantListing: "kept",
     customModelDraft: "kept",
     customModelOn: "kept",
     shaderEditorOn: "kept",
@@ -829,6 +838,8 @@ const INITIAL: WorkspaceState = {
     scoreOn: null,
     notesView: null,
     feedbackDraft: null,
+    renameDraft: null,
+    assistantListing: false,
     customModelDraft: null,
     customModelOn: null,
     shaderEditorOn: null,

@@ -4,7 +4,8 @@
  * editor's code, the Export dialog's Report words, Report a problem's message, the Custom score's
  * name, the Notes place's Sort and a selection workspace's folded card, Preview and new step
  * (issue #10356), Load custom model's address and Name, and the shader editor opened from a layer's
- * Shaders or the Background (issue #10430). Safari ends
+ * Shaders or the Background (issue #10430), and a source's or a chat's name being renamed (issue
+ * #10479). Safari ends
  * a background tab and loads it again, often with its session storage emptied, so each case runs
  * with that storage kept and with it emptied. Real element, real autosave, real input.
  */
@@ -13,12 +14,15 @@
 import "@graphty/graphty-element";
 
 import { EditorView } from "@codemirror/view";
+import { MockLlmProvider } from "@graphty/graphty-element/ai";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { forgetAutosave, openAutosaved, reload } from "../../../test/reload";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { scriptEnable } from "../../assistant/__tests__/script-enable";
+import { writeAssistantChoice } from "../../assistant-door/provider";
 import { setUsageSenderForTests } from "../../privacy/usageData";
 import { drop } from "../../source-steps/__tests__/sourceSteps";
 import { quadGlb } from "../../style/__tests__/quadGlb";
@@ -215,6 +219,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
         });
         afterEach(async () => {
             vi.restoreAllMocks();
+            writeAssistantChoice(null);
             setUsageSenderForTests();
             await forget();
         });
@@ -544,6 +549,63 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 (await within(back).findByRole<HTMLInputElement>("textbox", { name: "Name" })).value,
                 "Panel",
             );
+            after.view.unmount();
+        });
+
+        it("reopens a source's rename on the name the reader was typing, which Enter still applies", async () => {
+            const before = await openAutosaved("Les Miserables");
+            await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
+            const entry = await waitFor(() => {
+                const found = document.querySelector<HTMLElement>(".dp-source-entry");
+                assert.isNotNull(found, "the source's entry is drawn");
+                return found;
+            });
+            const name = entry.getAttribute("aria-label") ?? "";
+            const row = page.getByRole("listitem", { name, exact: true });
+            await userEvent.hover(row);
+            await userEvent.click(row.getByRole("button", { name: `${name} menu`, exact: true }));
+            await userEvent.click(page.getByRole("menuitem", { name: "Rename", exact: true }));
+            await screen.findByRole("textbox", { name: "Source name" });
+            const field = page.getByRole("textbox", { name: "Source name", exact: true });
+            await userEvent.fill(field, "Characters");
+
+            const after = await reload(before, { lostSession });
+            const back = await screen.findByRole<HTMLInputElement>("textbox", { name: "Source name" });
+            assert.strictEqual(back.value, "Characters");
+            await userEvent.click(field);
+            await userEvent.keyboard("{Enter}");
+            await screen.findByRole("listitem", { name: "Characters" });
+            after.view.unmount();
+        });
+
+        it("reopens a chat's rename in the chat list on the name the reader was typing, which Enter still applies", async () => {
+            await new Promise((resolve) => {
+                indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
+            });
+            // Kept on this device, so the assistant is set up after the tab's session storage goes too.
+            writeAssistantChoice({ provider: "mock", model: "mock", remember: true });
+            scriptEnable((config) => ({ ...config, providerInstance: new MockLlmProvider() }));
+            const before = await openAutosaved("Florentine families");
+            await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
+            await screen.findByRole("textbox", { name: "Message the assistant" });
+            await userEvent.click(page.getByRole("textbox", { name: "Message the assistant", exact: true }));
+            await userEvent.keyboard("First talk{Enter}");
+            await screen.findByText("This is a mock response.");
+            await screen.findByRole("button", { name: "Send" });
+            await userEvent.click(page.getByRole("button", { name: /^Chats/ }));
+            await screen.findByRole("button", { name: "First talk menu" });
+            await userEvent.click(page.getByRole("button", { name: "First talk menu", exact: true }));
+            await userEvent.click(page.getByRole("menuitem", { name: /^Rename/ }));
+            await screen.findByRole("textbox", { name: "Chat name" });
+            const field = page.getByRole("textbox", { name: "Chat name", exact: true });
+            await userEvent.fill(field, "Departments");
+
+            const after = await reload(before, { lostSession });
+            const back = await screen.findByRole<HTMLInputElement>("textbox", { name: "Chat name" });
+            assert.strictEqual(back.value, "Departments");
+            await userEvent.click(field);
+            await userEvent.keyboard("{Enter}");
+            await screen.findByRole("button", { name: "Departments" });
             after.view.unmount();
         });
     },

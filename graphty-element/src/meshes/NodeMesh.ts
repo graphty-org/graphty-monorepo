@@ -267,6 +267,49 @@ function faceEachNode(
 }
 
 /**
+ * The turn that carries a node's own axes into the camera's view, seen along the line to the node's middle when the
+ * camera has perspective (the way its ring instance was turned to face it, {@link faceEachNode}).
+ * @param world - The node's world matrix.
+ * @param view - The camera's view matrix.
+ * @param facing - The turn the node's ring instance was given in the camera's view, or null for no perspective.
+ * @param scale - Set to the node's scale.
+ * @returns The turn, with no translation.
+ */
+function seenFrom(world: Matrix, view: Matrix, facing: Quaternion | null, scale: Vector3): Matrix {
+    const quaternion = new Quaternion();
+    world.decompose(scale, quaternion);
+    const toView = Matrix.FromQuaternionToRef(quaternion, new Matrix()).multiply(view);
+    toView.setTranslationFromFloats(0, 0, 0);
+    return facing === null
+        ? toView
+        : toView.multiply(Matrix.FromQuaternionToRef(Quaternion.Inverse(facing), new Matrix()));
+}
+
+/**
+ * A ring's vertices, scaled along each axis and moved along z.
+ * @param pieces - The ring's pieces.
+ * @param depth - How deep the ring is along z.
+ * @param scale - What each axis is multiplied by.
+ * @param shift - How far along z it is then moved.
+ * @returns The vertex data.
+ */
+function placedRing(
+    pieces: readonly RingPiece[],
+    depth: number,
+    scale: readonly [number, number, number],
+    shift: number,
+): VertexData {
+    const data = ringVertexData(pieces, depth);
+    const positions = data.positions ?? [];
+    for (let i = 0; i + 2 < positions.length; i += 3) {
+        positions[i] *= scale[0];
+        positions[i + 1] *= scale[1];
+        positions[i + 2] = positions[i + 2] * scale[2] + shift;
+    }
+    return data;
+}
+
+/**
  * Whether two outlines are one.
  * @param a - An outline.
  * @param b - Another.
@@ -1818,9 +1861,8 @@ export class NodeMesh {
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
         // a model's parts, found once: the node they were found under may go while others still draw the ring
         const groups = this.modelGroups(fill);
-        const [toView, turn, unturn, alongLine] = [new Matrix(), new Matrix(), new Matrix(), new Matrix()];
         const [scale, at] = [new Vector3(), new Vector3()];
-        const [quaternion, facing] = [new Quaternion(), new Quaternion()];
+        const facing = new Quaternion();
         let seen = "";
         let drawn: Point2[] = [];
         let drawnShift = Number.NaN;
@@ -1852,16 +1894,7 @@ export class NodeMesh {
             }
 
             seen = key;
-            world.decompose(scale, quaternion);
-            Matrix.FromQuaternionToRef(quaternion, turn);
-            turn.multiplyToRef(view, toView);
-            toView.setTranslationFromFloats(0, 0, 0);
-            if (perspective) {
-                // seen along the line to the nearest node's middle, the way its instance was turned to face
-                Matrix.FromQuaternionToRef(Quaternion.Inverse(facing), unturn);
-                toView.multiplyToRef(unturn, alongLine);
-            }
-            const seenBy = perspective ? alongLine : toView;
+            const seenBy = seenFrom(world, view, perspective ? facing : null, scale);
             // kept at the depth it was placed at (behind the node, by z-index), or a halo moved off the solid
             const [ux, uy, uz] = unit ?? [1, 1, 1];
             const shift =
@@ -1887,14 +1920,8 @@ export class NodeMesh {
             drawn = outline;
             drawnShift = shift;
             drawnGrow = grow;
-            const data = ringVertexData(piecesOf(outline.map(([x, y]): Point2 => [x * ux, y * uy])), depth);
-            const positions = data.positions ?? [];
-            for (let i = 0; i + 2 < positions.length; i += 3) {
-                positions[i] *= grow / ux;
-                positions[i + 1] *= grow / uy;
-                positions[i + 2] = positions[i + 2] / uz + shift;
-            }
-            data.applyToMesh(mesh, true);
+            const pieces = piecesOf(outline.map(([x, y]): Point2 => [x * ux, y * uy]));
+            placedRing(pieces, depth, [grow / ux, grow / uy, 1 / uz], shift).applyToMesh(mesh, true);
             mesh.refreshBoundingInfo();
             // A new submesh: a frozen list of what is drawn holds the old one, whose counts overrun these buffers.
             (scene.metadata as GraphSceneMetadata | null)?.thawActiveMeshes?.();

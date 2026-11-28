@@ -1999,6 +1999,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getNodeBatches: READ,
             getEdgeRowLines: READ,
             drawnNodeSpots: READ,
+            drawnHalos: READ,
             getNodeIdTarget: READ,
             getEdgeIdTarget: READ,
             renderPath: READ,

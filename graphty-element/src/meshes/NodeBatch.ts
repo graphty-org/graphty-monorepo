@@ -12,7 +12,14 @@ import isEqual from "lodash/isEqual.js";
 import type { Rgba } from "../catalog/types";
 import { drawnText } from "../config/RichTextStyle";
 import { RowMap } from "../data/RowMap";
-import { batchableOf, type BatchView, isPlainPaint, type NodePaint, shaderPartOf } from "../managers/StylePainter";
+import {
+    batchableOf,
+    type BatchView,
+    isPlainPaint,
+    type NodePaint,
+    shaderPartOf,
+    withoutHalo,
+} from "../managers/StylePainter";
 import type { Node } from "../Node";
 import type { RowMeasure } from "../render/RowTable";
 import { batchUploadFrames } from "./FrameRoster";
@@ -168,8 +175,9 @@ export class NodeBatch {
      * @param scale - Its size against the source the batch was built from.
      * @param rank - Where its source draws among the sources the batch draws, which the objects
      *   path draws one after another: a depth tie between two rows goes to the later draw.
+     * @param matrix - Its matrix against its table place, 16 floats, in place of `scale`: a halo's stretch and lift.
      */
-    put(row: number, color: Rgba | null, scale = 1, rank = 0): void {
+    put(row: number, color: Rgba | null, scale = 1, rank = 0, matrix?: ArrayLike<number>): void {
         let slot = this.slotOfRow(row);
         if (slot === NO_SLOT) {
             slot = this.slots;
@@ -205,6 +213,19 @@ export class NodeBatch {
 
         // A row drawn from its own matrix keeps it; any other slot's is its scale alone.
         const m = slot * MATRIX_FLOATS;
+        if (matrix !== undefined) {
+            const matrices = this.matrices ?? this.scaleRows();
+            for (let i = 0; i < MATRIX_FLOATS; i++) {
+                if (matrices[m + i] !== Math.fround(matrix[i] ?? 0)) {
+                    matrices.set(matrix, m);
+                    this.matricesDirty = true;
+                    break;
+                }
+            }
+
+            return;
+        }
+
         const matrices = this.matrices ?? (Math.fround(scale) === 1 ? undefined : this.scaleRows());
         if (matrices !== undefined && (this.rows[slot] ?? 0) > OWNED && !isScale(matrices, m, scale)) {
             matrices.fill(0, m, m + MATRIX_FLOATS);
@@ -787,7 +808,9 @@ export class ColumnRow implements RowMeasure {
             (shape?.sizeSpace ?? view.sizeSpace) === "scene" &&
             // A plain paint is the fallback past an object budget: under 3D flat lighting, which batches nothing
             // else, it is still drawn by a batch, without the outline only a `Node` draws.
-            batchableOf(paint, isPlainPaint(paint) ? UNLIT_VIEW : view)
+            // A halo is drawn by a batch of its own over the row's place (`NodeBatches.syncHalo`), as a `Node`'s
+            // halo is an instance beside its body: 5,000 selected rows built 5,000 `Node`s in one frame.
+            batchableOf({ style: withoutHalo(paint.style) }, isPlainPaint(paint) ? UNLIT_VIEW : view)
         );
     }
 
@@ -1011,6 +1034,13 @@ export interface NodeBatchHost {
     edgeEndsChanged?(row: number): void;
     /** Rows drawn with no `Node` that a new view no longer batches: each is to be painted again. */
     repaint?(rows: readonly number[]): void;
+    /**
+     * The halo a row drawn with no `Node` carries, as a `Node` of its paint would draw it: the halo source mesh,
+     * and the halo's matrix against the row's place.
+     * @param row - The row.
+     * @returns The two, or null when it draws none.
+     */
+    haloOf?(row: ColumnRow): { readonly source: Mesh; readonly matrix: ArrayLike<number> } | null;
 }
 
 /** Decides which rows are batched and keeps the batches up to date, once a frame. */
@@ -1029,6 +1059,10 @@ export class NodeBatches {
     private plainRows = 0;
     /** The rows drawn with no `Node`, by row: an array slot each, not a Map entry (G11). */
     private readonly columnRows = new RowMap<ColumnRow>();
+    /** Of the rows drawn with no `Node`, each whose halo a batch draws, and that batch. */
+    private readonly haloRows = new RowMap<NodeBatch>();
+    /** The halo batches written since the last flush. */
+    private readonly haloFlushes = new Set<NodeBatch>();
 
     /**
      * Whether any row drawn with no `Node` has been painted below z-index 0, which a 2D view draws behind edges.
@@ -1272,6 +1306,80 @@ export class NodeBatches {
         } else {
             this.draw(node, null);
         }
+
+        this.syncRowHalo(node, group, object);
+    }
+
+    /**
+     * {@link NodeBatches.syncHalo} for a row just synced: drawn while its group is batched and it is no object row.
+     * @param node - The row.
+     * @param group - Its group.
+     * @param object - Whether the batch cannot draw it.
+     */
+    private syncRowHalo(node: BatchRow, group: RowGroup, object: boolean): void {
+        if (node instanceof ColumnRow) {
+            this.syncHalo(node, group.batched && !object);
+        }
+    }
+
+    /**
+     * Draw a row's halo from a halo batch while the row's own batch draws it, or take it down. A `Node` draws its
+     * own halo (`Node.syncHalo`); a row with no `Node` has its halo drawn here, from the source a `Node`'s halo
+     * would be an instance of, at the place the row table gives the row.
+     * @param row - The row.
+     * @param drawn - Whether the row is drawn by its batch.
+     */
+    private syncHalo(row: ColumnRow, drawn: boolean): void {
+        const had = this.haloRows.get(row.index);
+        const halo = drawn && row.paint.style.effect?.halo !== undefined ? (this.host.haloOf?.(row) ?? null) : null;
+        const batch =
+            halo === null ? undefined : this.host.cache.batchFor(halo.source, this.host.places, this.host.root());
+        if (had !== undefined && had !== batch) {
+            had.free(row.index);
+            this.haloFlushes.add(had);
+            this.haloRows.delete(row.index);
+        }
+
+        if (batch !== undefined && halo !== null) {
+            batch.put(row.index, null, 1, 0, halo.matrix);
+            this.haloRows.set(row.index, batch);
+            this.haloFlushes.add(batch);
+        }
+    }
+
+    /**
+     * Draw every halo of the rows with no `Node` again: the selection style they take their look from changed.
+     * @internal
+     */
+    refreshHalos(): void {
+        for (const [, row] of this.columnRows) {
+            this.syncHalo(row, this.groupOf(row)?.batched === true && !this.objectRows.has(row));
+        }
+    }
+
+    /**
+     * The rows drawn with no `Node` whose halo a batch draws, each with the batch mesh that draws it.
+     * @returns Row number and mesh pairs.
+     * @internal
+     */
+    haloMeshes(): [number, Mesh][] {
+        return [...this.haloRows].map(([row, batch]) => [row, batch.mesh]);
+    }
+
+    /**
+     * Upload the halo batches written since the last flush.
+     * @returns Whether one started or stopped drawing.
+     */
+    private flushHalos(): boolean {
+        let changed = false;
+        for (const batch of this.haloFlushes) {
+            if (!batch.mesh.isDisposed()) {
+                changed = batch.flush() || changed;
+            }
+        }
+
+        this.haloFlushes.clear();
+        return changed;
     }
 
     /**
@@ -1299,6 +1407,7 @@ export class NodeBatches {
         group.members.delete(node);
         if (node instanceof ColumnRow) {
             group.columns--;
+            this.syncHalo(node, false);
         } else {
             this.nodeGroups.delete(node);
             this.held.delete(node);
@@ -1526,6 +1635,13 @@ export class NodeBatches {
         const rows = remap === null ? [] : [...this.columnRows.values()];
         if (remap !== null) {
             this.columnRows.clear();
+            // keyed by the old rows: each stale group's settle draws them again at the new ones
+            for (const [index, batch] of this.haloRows) {
+                batch.free(index);
+                this.haloFlushes.add(batch);
+            }
+
+            this.haloRows.clear();
         }
 
         for (const row of rows) {
@@ -1557,6 +1673,7 @@ export class NodeBatches {
             this.refill(family);
         }
 
+        this.flushHalos();
         this.host.meshesChanged();
     }
 
@@ -1649,7 +1766,8 @@ export class NodeBatches {
 
         const flushes = new Set<RowFamily>();
         const changed = this.settleDirty(flushes);
-        if (this.drain(flushes) || changed) {
+        const drained = this.drain(flushes);
+        if (this.flushHalos() || drained || changed) {
             this.host.meshesChanged();
         }
     }
@@ -1821,6 +1939,9 @@ export class NodeBatches {
         const source = batched ? group.source : null;
         handOverTogether(group.source.getScene(), this.host.root(), group.members, (node) => {
             this.draw(node, node instanceof ColumnRow || !this.held.has(node) ? source : null, group.restVisibility);
+            if (node instanceof ColumnRow) {
+                this.syncHalo(node, batched && !this.objectRows.has(node));
+            }
         });
 
         group.source.visibility = batched ? 0 : group.restVisibility;
@@ -1959,6 +2080,7 @@ export class NodeBatches {
             this.objectRows.delete(node);
             if (node instanceof ColumnRow) {
                 // ponytail: its source is gone, so the row draws nothing until it is painted again.
+                this.syncHalo(node, false);
                 this.columnRows.delete(node.index);
                 this.plainRows -= isPlainPaint(node.paint) ? 1 : 0;
             } else {

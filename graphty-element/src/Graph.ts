@@ -289,6 +289,7 @@ import type {
 import {
     AdHocData,
     type ColorScheme,
+    DEFAULT_SELECTION_STYLE,
     defaultXRConfig,
     FetchEdgesFn,
     FetchNeighborEdgesFn,
@@ -416,7 +417,7 @@ import { onRewriteMissed } from "./meshes/RowPullPlugin";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
-import { keepNodeMeshForDimension, Node, releaseNodeMesh } from "./Node";
+import { keepNodeMeshForDimension, Node, type NodeIdType, nodeInternals, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
 import { EdgeIdTarget } from "./render/EdgeIdTarget";
 import { NodeIdTarget } from "./render/NodeIdTarget";
@@ -1879,6 +1880,15 @@ export class Graph implements GraphContext {
                 for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
                     node.refreshSelectionOverlay();
                 }
+
+                // a row with no `Node` takes its halo's look from the selection style (`NodeBatches.syncHalo`)
+                this.#nodeBatches?.refreshHalos();
+            }
+
+            // Without the starting rows the selection draws its own halo, which only a `Node` does: the selected rows
+            // with none are given one (`UpdateManager.selectionBuildsNodes`).
+            if (changed("startingRows")) {
+                this.updateManager.invalidateViewMasks();
             }
 
             // A selected edge's halo is drawn from the selection style: redraw it.
@@ -5720,6 +5730,31 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Every node a halo is drawn around now, by id, with the mesh that draws it: a `Node`'s own halo, or the batch
+     * that draws the halo of a row with no `Node`. A reader counts halos here, the same on both render paths.
+     * @returns The meshes, by node id.
+     * @internal
+     */
+    drawnHalos(): Map<NodeIdType, AbstractMesh> {
+        const halos = new Map<NodeIdType, AbstractMesh>();
+        for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+            const { halo } = nodeInternals.drawn(node);
+            if (halo !== null && !halo.isDisposed() && halo.isVisible && halo.isEnabled()) {
+                halos.set(node.id, halo);
+            }
+        }
+
+        for (const [row, mesh] of this.#nodeBatches?.haloMeshes() ?? []) {
+            const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
+            if (id !== undefined && !mesh.isDisposed() && mesh.isEnabled()) {
+                halos.set(id, mesh);
+            }
+        }
+
+        return halos;
+    }
+
+    /**
      * The node batches, on the `"batched"` path.
      * @returns The batches, or null.
      * @internal
@@ -5981,6 +6016,14 @@ export class Graph implements GraphContext {
                     edgeEndsChanged: (row) => {
                         this.updateManager.placeEdgesOfRow(row);
                     },
+                    haloOf: (row) =>
+                        Node.rowHalo(
+                            this.dataManager.meshCache,
+                            row.paintedSourceMesh,
+                            row.paint.style.effect?.halo,
+                            this.styles.config.graph.selection ?? DEFAULT_SELECTION_STYLE,
+                            this.getViewMode() === "2d",
+                        ),
                 },
                 this.scene,
             );

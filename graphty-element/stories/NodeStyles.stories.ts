@@ -309,13 +309,16 @@ export const Halo: Story = {
 
         await assertGraphLoaded(scene, { nodes: 4, edges: 0 });
 
-        const halos = scene.graph.scene.meshes.filter(
-            (mesh) => mesh.name.startsWith("graphty-selection-halo") && mesh.isVisible && mesh.isEnabled(),
-        );
+        // The halos drawn, by node: a `Node`'s own or a batch's, so the count holds on both render paths.
+        const halos = scene.graph.drawnHalos();
+        const haloed = [...halos.keys()].map(String).sort();
 
-        await holds(halos.length === 3, "Styles/Node Halo: three of the four nodes are highlighted");
         await holds(
-            halos.some((mesh) => mesh.name.toLowerCase().includes("#00bcd4")),
+            haloed.join(",") === "box,gold,teal",
+            `Styles/Node Halo: three of the four nodes are highlighted, drawn around [${haloed.join(", ")}]`,
+        );
+        await holds(
+            halos.get("teal")?.name.toLowerCase().includes("#00bcd4") === true,
             "Styles/Node Halo: one highlight is drawn in the layer's own colour",
         );
         await assertDistinctPicture(scene, "Styles/Node");

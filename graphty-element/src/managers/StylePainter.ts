@@ -142,6 +142,23 @@ export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): b
 }
 
 /**
+ * A style less its halo. A built `Node` draws its halo as an overlay of its own, hung from its anchor, whatever
+ * draws its body -- as it does for a selection drawn without the starting rows -- so a halo keeps its body on
+ * the batch. Counted as unbatchable, one selected node put every row of its look back on an instance mesh,
+ * and each such row needed a `Node` built for it (issue #9164).
+ * @param style - The style.
+ * @returns It, without `effect.halo`.
+ */
+export function withoutHalo(style: NodeStyleConfig): NodeStyleConfig {
+    if (style.effect?.halo === undefined) {
+        return style;
+    }
+
+    const { halo: _halo, ...effect } = style.effect;
+    return { ...style, effect };
+}
+
+/**
  * The paint a row past `limits.objectRows` is drawn with: its own, less everything no batch draws
  * (a border, an outline, a model, a picture, a label or tooltip), so a batch draws it as a plain body.
  * @param paint - The row's paint.

@@ -316,17 +316,64 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
         assert.isAtMost(during, 4, "the map waited for at most the three frames in flight and the next");
     });
 
-    for (const path of ["batched", "objects"] as const) {
-        it(`hovers a node with a real pointer on the still scene under ${path}`, async () => {
-            // The default 300 nodes: unpaced, batched hover still never answers.
-            const graph = await open(path);
-            await graph.setLayout("circular");
-            await graph.waitForStableFrame();
-            loadEveryFrame(graph);
+    it("hovers a node with a real pointer on the still scene under batched", async () => {
+        // The default 300 nodes: unpaced, the hover's GPU pick waits behind the queue and never answers.
+        const graph = await open("batched");
+        await graph.setLayout("circular");
+        await graph.waitForStableFrame();
+        loadEveryFrame(graph);
+        await drawn(graph, 30);
+        await hoverAndAnswer(graph);
+    });
+
+    // Under "objects" the pick is a ray walk on the page, no GPU readback, so hover answers however
+    // far behind the queue runs, and an unpaced loop passed a hover-only case at every size (issue
+    // #10458). What pacing holds there is the queue itself: count the frames it has not finished.
+    it("keeps at most three frames on the queue and reads nothing back while hovering under objects", async () => {
+        const graph = await open("objects");
+        await graph.setLayout("circular");
+        await graph.waitForStableFrame();
+        loadEveryFrame(graph);
+        const engine = graph.engine as WebGPUEngine;
+        const { queue } = engine._device;
+        // Asked at the end of each frame drawn, after the loop's own fence: unanswered, that frame is
+        // still on the queue. A tick the loop skips ends a frame too, with nothing submitted.
+        const { ticks } = renderManagerOf(graph);
+        let counted = ticks.drawn;
+        let queued = 0;
+        let deepest = 0;
+        const probe = engine.onEndFrameObservable.add(() => {
+            if (ticks.drawn === counted) {
+                return;
+            }
+
+            counted = ticks.drawn;
+            queued++;
+            deepest = Math.max(deepest, queued);
+            const done = (): void => {
+                queued--;
+            };
+            queue.onSubmittedWorkDone().then(done, done);
+        });
+        // A readback would wait behind every frame queued: the objects path's hover makes none.
+        let maps = 0;
+        const realMap = GPUBuffer.prototype.mapAsync;
+        GPUBuffer.prototype.mapAsync = function (this: GPUBuffer, ...args: Parameters<GPUBuffer["mapAsync"]>) {
+            maps++;
+            return realMap.apply(this, args);
+        };
+        try {
+            // Unpaced, these frames pile up on the queue (27 behind on SwiftShader in the map case above).
             await drawn(graph, 30);
             await hoverAndAnswer(graph);
-        });
-    }
+        } finally {
+            GPUBuffer.prototype.mapAsync = realMap;
+            engine.onEndFrameObservable.remove(probe);
+        }
+
+        assert.isAtMost(deepest, 3, "no more than three frames were ever unfinished on the queue");
+        assert.strictEqual(maps, 0, "hover read nothing back from the GPU");
+    });
 
     it("moves the GPU layout and hovers a node while it runs", async () => {
         const graph = await open("batched", true, LAYOUT_NODES);

@@ -1009,11 +1009,13 @@ function withJoin(before: SourceSteps, after: SourceSteps, join: StepJoin | unde
     if (join === undefined) {
         return after;
     }
-    // Only the keys a load reads back, so a caller cannot save what the same session refuses to open.
+    // Only the keys a load reads back, so a caller cannot save what the same session refuses to open. A
+    // name is trimmed and a blank one dropped, as renameJoin keeps one.
+    const name = typeof join.name === "string" ? join.name.trim() : "";
     const kept: StepJoin = {
         id: join.id,
         matches: [...join.matches],
-        ...(typeof join.name === "string" ? { name: join.name } : {}),
+        ...(name === "" ? {} : { name }),
     };
     return {
         ...after,

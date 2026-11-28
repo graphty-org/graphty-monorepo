@@ -142,6 +142,26 @@ describe("a join's name", () => {
         session.dispose();
     });
 
+    it("trims a name an act is given, and keeps no blank one, as renameJoin does", async () => {
+        const { session, accounts, ids, join } = await opened();
+        const draft = session.data.draft();
+        draft.merge({
+            from: { source: ids, field: "account_id" },
+            into: { source: accounts },
+            join: { ...join, name: "  Risky  " },
+        });
+        assert.deepStrictEqual(names(draft.steps()), ["Risky"], "trimmed");
+        draft.undo();
+        draft.merge({
+            from: { source: ids, field: "account_id" },
+            into: { source: accounts },
+            join: { ...join, name: "   " },
+        });
+        const tag = draft.steps().find((row) => row.join !== undefined)?.join;
+        assert.notProperty(tag ?? {}, "name", "a blank name is no name");
+        session.dispose();
+    });
+
     it("keeps only the join keys a load reads, so what is saved opens again", async () => {
         const { session, accounts, ids, join } = await opened();
         const odd = { ...join, name: 5, extra: "x" } as unknown as SourceJoinTag;

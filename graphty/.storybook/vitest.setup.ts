@@ -6,9 +6,10 @@
 
 import { setProjectAnnotations } from "@storybook/react-vite";
 import { onTestFinished, vi } from "vitest";
-import { cdp, server, userEvent } from "vitest/browser";
+import { server, userEvent } from "vitest/browser";
 
 import type { RealInput } from "../src/stories/real-input";
+import { cdpSend, topPagePoint } from "../src/test/real-pointer";
 import * as projectAnnotations from "./preview";
 
 // Real input for every play function's `userEvent` (vitest.real-user-event.mjs at the root): Playwright drives
@@ -18,39 +19,13 @@ vi.mock("storybook/test", async (importOriginal) => {
     return withRealUserEvent(await importOriginal(), (await import("vitest/browser")).userEvent);
 });
 
-/** A protocol command and its parameters; the session's own type is too narrow to name them. */
-type Send = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
-
-/**
- * The middle of an element's visible part, in the top page's viewport, where the protocol's input lands. The test
- * page runs in an iframe of the vitest page, possibly scaled to fit.
- * @param element - the element
- * @returns the point in the top page's CSS pixels
- */
-function middleOnPage(element: Element): { x: number; y: number } {
-    // The middle of the part on screen: the middle of an element taller than the window (a whole
-    // page) is below the fold, where no input lands.
-    const rect = element.getBoundingClientRect();
-    const top = Math.max(rect.top, 0);
-    const left = Math.max(rect.left, 0);
-    const x = (left + Math.min(rect.right, window.innerWidth)) / 2;
-    const y = (top + Math.min(rect.bottom, window.innerHeight)) / 2;
-    const frame = window.frameElement;
-    if (frame === null) {
-        return { x, y };
-    }
-    const box = frame.getBoundingClientRect();
-    const scale = box.width / window.innerWidth;
-    return { x: box.left + frame.clientLeft * scale + x * scale, y: box.top + frame.clientTop * scale + y * scale };
-}
-
 const realInput: RealInput = {
     userEvent,
     async dragFileOver(element) {
-        const send = (cdp() as unknown as { send: Send }).send.bind(cdp());
+        const send = cdpSend();
         // Any file on disk: the drag is never dropped, so it is never read.
         const data = { items: [], files: [`${server.config.root}/package.json`], dragOperationsMask: 1 };
-        const at = middleOnPage(element);
+        const at = topPagePoint(element);
         onTestFinished(async () => {
             await send("Input.dispatchDragEvent", { type: "dragCancel", ...at, data });
         });
@@ -59,8 +34,8 @@ const realInput: RealInput = {
         await send("Input.dispatchDragEvent", { type: "dragOver", ...at, data });
     },
     async wheel(element, deltaY) {
-        const send = (cdp() as unknown as { send: Send }).send.bind(cdp());
-        await send("Input.dispatchMouseEvent", { type: "mouseWheel", ...middleOnPage(element), deltaX: 0, deltaY });
+        const send = cdpSend();
+        await send("Input.dispatchMouseEvent", { type: "mouseWheel", ...topPagePoint(element), deltaX: 0, deltaY });
     },
 };
 

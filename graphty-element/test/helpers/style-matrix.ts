@@ -1164,18 +1164,19 @@ export interface NodeFrames {
     /** Whether "bottom" is the screen's bottom (an unturned view), so the label can be judged. */
     labelReadable?: boolean;
     /**
-     * How much the element stretches this node's halo along the plane's u and v axes for a `haloScale` and a border
-     * reaching `border` plane units (Node.ts: haloAxisScale with borderReach). Unset, the halo is the node scaled
-     * `haloScale` about its center.
+     * How much the element stretches this node's outline along the plane's u and v axes for a `haloScale`, a border
+     * `border` plane units wide and a fill drawn `inset` plane units in from the outline by a centered or inside
+     * border (Node.ts: haloAxisScale with borderReach and fillInset). Unset, the halo is the node scaled `haloScale`
+     * about its center.
      */
-    haloGrow?: (scale: number, border: number) => [number, number];
+    haloGrow?: (scale: number, border: number, inset: number) => [number, number];
     /**
-     * The hull, in plane units, of where the element's halo should be for a `haloScale` and a border reaching
-     * `border` plane units: the node's own vertices stretched as haloAxisScale stretches them and projected as the
+     * The hull, in plane units, of where the element's halo should be for a `haloScale`, a border `border` plane units
+     * wide and a fill drawn `inset` in: the node's own vertices stretched as haloAxisScale stretches them and projected as the
      * camera projects them, so perspective and an oblique view of a stretched solid are in it exactly. Empty (or
      * unset) where a hull would bridge the shape's hollows; then {@link NodeFrames.haloGrow}'s model is used.
      */
-    haloHull?: (scale: number, border: number) => P2[];
+    haloHull?: (scale: number, border: number, inset: number) => P2[];
     /**
      * The other nodes' drawn extents (every mesh they hold), as convex hulls in device pixels. The classifier cannot
      * tell two nodes' parts apart, so a ray is read only up to where it enters one (like an edge crossing it).
@@ -1778,8 +1779,10 @@ export function measureNode(
     if (s.effect === "halo" && !hidden && !shifted) {
         const HALO = partIndex("halo");
         const scale = override.haloScale ?? AMOUNTS.haloScale;
-        const [gu, gv] = frames.haloGrow?.(scale, borderWorld) ?? [scale, scale];
-        const haloHull = frames.haloHull?.(scale, borderWorld) ?? [];
+        // a centered or inside border draws the fill in from the outline; the halo is measured from the outline
+        const fillInset = borderWorld * (1 - fraction);
+        const [gu, gv] = frames.haloGrow?.(scale, borderWorld, fillInset) ?? [scale, scale];
+        const haloHull = frames.haloHull?.(scale, borderWorld, fillInset) ?? [];
         const misses: number[] = [];
         const haloSigned: number[] = [];
         angles.forEach((a, i) => {

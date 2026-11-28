@@ -1750,7 +1750,13 @@ export class Node implements ModelUser {
         if (box !== undefined) {
             this.drawAsGroup(box);
         }
-        return this.borderReach !== before;
+        const moved = this.borderReach !== before;
+        // the halo's band starts past the border, so it is grown again round the rebuilt one
+        if (moved && this.halo?.isEnabled() === true && !this.halo.isDisposed()) {
+            this.scaleHalo(this.halo);
+            this.syncOverlayPositions();
+        }
+        return moved;
     }
 
     /**

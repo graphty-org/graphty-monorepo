@@ -115,7 +115,12 @@ function drawn(
     const shape = { type, size: 1 };
     const border = { width, position: "inside" as const, color: "#0000ff" };
     const view = is2D ? "2d" : "3d";
-    const plainMesh = NodeMesh.create(cache, { styleId: `${String(type)}-plain-${view}`, is2D, size: 1 }, { shape }, scene);
+    const plainMesh = NodeMesh.create(
+        cache,
+        { styleId: `${String(type)}-plain-${view}`, is2D, size: 1 },
+        { shape },
+        scene,
+    );
     const options = { styleId: `${String(type)}-inside-${String(width)}-${view}`, is2D, size: 1 };
     const fill = NodeMesh.create(cache, options, { shape, border }, scene);
     const ring = NodeMesh.createBorder(cache, options, { shape, border }, fill, scene);

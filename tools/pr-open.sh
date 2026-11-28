@@ -21,7 +21,8 @@
 #   3. runs the fresh-context review (tools/pr-review.sh; reused when its report already carries the branch's
 #      patch id) and stops, exit 3, on a blocking finding: fix it, or answer each finding in the Proof and run
 #      again with --review-answered;
-#   4. scans the branch's changed files for secrets, uploads its Git LFS objects, and pushes the branch;
+#   4. scans the branch's changed files for secrets, checks the American spelling of the lines it adds (the push gate's
+#      tools/check-spelling.mjs, since its own push skips the hooks), uploads its Git LFS objects, and pushes the branch;
 #   5. opens the pull request (title: the branch's first commit header; body: the commit list, a line
 #      "Fixes #N", or "Refs #N" with --refs, then a "Fixes #M" for every other issue a commit names with Fixes,
 #      Closes or Resolves and a "Refs #M" for every one named only with Refs (an issue group's members; GitHub
@@ -180,6 +181,8 @@ if grep -q '^<!-- member-not-addressed ' <<<"$header"; then
 fi
 scan="${PR_OPEN_SCAN:-$here/scan-secrets.sh}"
 PREPUSH_ROOT="$PWD" "$scan" "$base" HEAD || die "the secret scan refused the branch"
+# The push below skips .husky/pre-push, so its spelling check runs here (issue #9011).
+node "$here/check-spelling.mjs" --diff "$base" || die "the spelling check refused the branch (above); node tools/check-spelling.mjs --fix <file> rewrites a file"
 zero=0000000000000000000000000000000000000000
 remote_sha=$(git rev-parse -q --verify "refs/remotes/origin/$branch" || echo "$zero")
 printf 'refs/heads/%s %s refs/heads/%s %s\n' "$branch" "$(git rev-parse HEAD)" "$branch" "$remote_sha" |

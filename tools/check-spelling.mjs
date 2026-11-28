@@ -17,6 +17,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const OUR = [
@@ -476,12 +477,14 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
             ],
             { maxBuffer: 1 << 28 },
         ).toString();
+        // git names the files from the repository root, whatever directory this runs in.
+        const top = execFileSync("git", ["rev-parse", "--show-toplevel"]).toString().trim();
         let bad = 0;
         for (const [f, lines] of addedLines(diff)) {
             if (SKIP.test(f)) continue;
             let text;
             try {
-                text = readFileSync(f, "utf8");
+                text = readFileSync(join(top, f), "utf8");
             } catch {
                 continue; // a directory or a submodule
             }

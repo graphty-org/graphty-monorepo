@@ -44,7 +44,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { acceptedRows, approvedEntries, fetchIssueComment } from "./load-time.mjs";
+import { acceptedRows, approvedEntries, fetchIssueComment, runAsMain } from "./load-time.mjs";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const HISTORY_FILE = join(REPO, "benchmarks/results/interaction-latency-history.jsonl");
@@ -565,11 +565,4 @@ async function main(argv) {
     throw new Error("usage: run | record | compare | report (see the top of tools/interaction-latency.mjs)");
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    try {
-        process.exitCode = await main(process.argv.slice(2));
-    } catch (e) {
-        console.error(`interaction-latency: ${e instanceof Error ? e.message : String(e)}`);
-        process.exitCode = 1;
-    }
-}
+await runAsMain(import.meta.url, "interaction-latency", main);

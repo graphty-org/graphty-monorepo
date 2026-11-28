@@ -30,11 +30,9 @@
             "provider",
             "remember"
         ],
-        "src/workspace/assistant/AssistantPanel.tsx": ["listing"],
         "src/workspace/assistant/Checks.tsx": ["all", "live", "stop"],
         "src/workspace/assistant/Composer.tsx": ["voiceLine"],
         "src/workspace/assistant/Conversation.tsx": ["behind", "chosen", "late", "open"],
-        "src/workspace/assistant/ConversationList.tsx": ["deleting", "focusTo", "renaming"],
         "src/workspace/assistant/Talk.tsx": ["listening", "support"],
         "src/workspace/assistant/Waiting.tsx": ["picked"],
         "src/workspace/assistant/chats.ts": ["saved"],
@@ -81,7 +79,6 @@
         ],
         "src/workspace/frame/Header.tsx": ["?"],
         "src/workspace/frame/HelpDialogs.tsx": ["current"],
-        "src/workspace/frame/RenameInput.tsx": ["text"],
         "src/workspace/graph-place/FindBox.tsx": [
             "active",
             "listOpen",

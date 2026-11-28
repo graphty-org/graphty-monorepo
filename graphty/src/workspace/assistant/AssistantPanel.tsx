@@ -2,7 +2,7 @@ import "./assistant.css";
 
 import { TooltipShortcut } from "@graphty/compact-mantine";
 import { ActionIcon, Button, Stack, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useRef } from "react";
 
 import { closeAssistant } from "../assistant-door/commands";
 import { type AssistantChoice, providerDescriptor, useAssistantChoice } from "../assistant-door/provider";
@@ -221,7 +221,14 @@ export default function AssistantPanel(): React.JSX.Element {
     const { store, element } = useWorkspace();
     const choice = useAssistantChoice();
     const view = useAssistantView(choice);
-    const [listing, setListing] = useState(false);
+    // Kept in the store, so a reload comes back to the list (and a rename open in it).
+    const listing = useWorkspaceState((state) => state.assistantListing);
+    const setListing = useCallback(
+        (next: boolean) => {
+            store.set({ assistantListing: next });
+        },
+        [store],
+    );
     const setUp = choice !== null && !view.keyMissing;
     const asked = useWorkspaceState((state) => state.assistantTalkPress);
     useEffect(() => {
@@ -236,7 +243,7 @@ export default function AssistantPanel(): React.JSX.Element {
         if (running) {
             setListing(false);
         }
-    }, [running]);
+    }, [running, setListing]);
     // Every chat opens asking about the whole graph: opening another, or a new one, drops Selection.
     const chatId = view.conversation?.id ?? null;
     const lastChat = useRef(chatId);

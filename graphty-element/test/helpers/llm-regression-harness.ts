@@ -46,6 +46,7 @@ import {
     GeminiTransport,
     REQUEST_TIMEOUT_CODE,
 } from "./llm-regression-gemini";
+import { graphHandle } from "./session-graph";
 
 /** What only a renderer does, answered as one would: the camera, a capture, XR. */
 export const STAND_IN_RENDERER = {
@@ -478,7 +479,7 @@ export class LlmRegressionTestHarness {
         // renderer for what only a renderer does (the camera, a capture, XR).
         const session =
             options.session ?? (await assistantSession(LlmRegressionTestHarness.recordsOf(options.graphData)));
-        const graph = { getSession: () => session, ...STAND_IN_RENDERER } as unknown as Graph;
+        const { graph } = graphHandle(session, STAND_IN_RENDERER);
         // The renderer's camera, as the element installs it: a view.camera call arrives at once.
         dispatcherOf(session).services.camera = { move: () => Promise.resolve(), current: () => ({}) };
 

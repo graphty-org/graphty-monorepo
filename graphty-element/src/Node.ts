@@ -71,7 +71,7 @@ import {
     type SurfacePath,
 } from "./meshes/NodeShaderDrawing";
 import { shareLabelBox } from "./meshes/NodeShapeGeometry";
-import { createOverlayMaterial } from "./meshes/overlayMaterial";
+import { createOverlayMaterial, keepBehindMiddle } from "./meshes/overlayMaterial";
 import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -4835,7 +4835,7 @@ export class Node implements ModelUser {
             source = MeshBuilder.CreateSphere(name, { diameter: 1, segments: 8 }, scene);
         }
 
-        // Its shader was compiled with the scene's first node source (`prepareOverlayShader`).
+        // Its shader was compiled right after the scene's first frame of nodes (`prepareOverlayShader`).
         const material = createOverlayMaterial(`${name}-material`, color, alpha, scene);
         // A halo around a solid draws only its far side. The near side lies in front of the node
         // it surrounds, and blending it over the node tinted the whole node the halo's color (a
@@ -4847,6 +4847,12 @@ export class Node implements ModelUser {
         // does a context point, drawn in place of a hidden node with nothing in front of it.
         material.backFaceCulling = name.startsWith(SELECTION_HALO_MESH) && !Node.isFlat(source);
         material.cullBackFaces = false;
+        // Some far faces of a tetrahedron, a torus, or a box or cone seen at an angle lie in front of the node's
+        // middle, where its border, outer border and plates are drawn as flat rings: kept behind them (#10499). A
+        // 3D view's camera is a perspective one.
+        if (material.backFaceCulling && !flat) {
+            keepBehindMiddle(material);
+        }
         // Drawn just behind a surface it shares a depth with, so around a flat node -- whose
         // scaled copy lies in the node's own plane -- the halo shows as a rim around the node
         // instead of fighting it for the same pixels. Too small to move a 3D halo visibly. A 2D

@@ -1698,9 +1698,10 @@ export function measureNode(
         fullRuns.forEach((runs, i) => {
             const k = lastIndex(runs, (r) => r.part === PLATE);
             const last = runs[k];
-            // the plate's end shows only where background follows it; another part there hides it
+            // the plate's end shows only where background follows it: another part there hides it, and a ray that
+            // stops first (at the end of its walk, or cut short by a crossing) never saw it end
             const after = runs.slice(k + 1).find((r) => r.part !== partIndex("mixed"));
-            if (last !== undefined && (after === undefined || after.part === partIndex("bg"))) {
+            if (last !== undefined && after?.part === partIndex("bg")) {
                 const a = angles[i];
                 ends.push(signed(last.to * Math.cos(a), last.to * Math.sin(a)));
             }
@@ -1844,6 +1845,13 @@ export function measureNode(
             // this node's halo runs out from the node to the first background; a halo past that is a neighbor's
             const gap = runs.findIndex((r, k) => k > 0 && r.part === partIndex("bg"));
             const last = lastOf(gap < 0 ? runs : runs.slice(0, gap), (r) => r.part === HALO);
+            // where the halo's edge shows only in blended pixels past a ring, the last pure halo is an earlier run
+            // (seen through a dashed border's gap): its edge is not read there
+            const after =
+                last === undefined ? undefined : runs.slice(runs.indexOf(last) + 1).find((r) => r.part !== MIXED);
+            if (there === MIXED && after !== undefined && after.part !== partIndex("bg")) {
+                return;
+            }
             // no halo on this ray (an edge or a label crossed it first): unread
             if (last !== undefined) {
                 misses.push(Math.abs(last.to - edge) * ppu.max);
@@ -2122,6 +2130,26 @@ export function inradius(hull: readonly P2[]): number {
 }
 
 /**
+ * The sharpest corner of a convex hull, in radians.
+ * @param hull - The hull.
+ * @returns Its smallest interior angle, pi for fewer than three points.
+ */
+export function sharpestCornerOf(hull: readonly P2[]): number {
+    let best = Math.PI;
+    hull.forEach((p, i) => {
+        const a = hull[(i - 1 + hull.length) % hull.length];
+        const b = hull[(i + 1) % hull.length];
+        const [ax, ay, bx, by] = [a[0] - p[0], a[1] - p[1], b[0] - p[0], b[1] - p[1]];
+        const la = Math.hypot(ax, ay);
+        const lb = Math.hypot(bx, by);
+        if (la > 1e-4 && lb > 1e-4) {
+            best = Math.min(best, Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (la * lb)))));
+        }
+    });
+    return best;
+}
+
+/**
  * A convex polygon's mitred offset outward by a distance, each corner's mitre cut square to its bisector at
  * {@link MITRE_LIMIT} times the distance from the corner (as the element's mitredEdges cuts a sharp corner).
  * @param hull - The polygon, in order (either way round).
@@ -2189,6 +2217,9 @@ export function mitredOffset(hull: readonly P2[], distance: number): P2[] {
  * @param nearest - Whether the ring is the fill hull's exact mitred offset in this plane, so its nearest ray and the
  * mitre's limit are read; false where it is not (a plate drawn at its own depth round a solid seen in perspective),
  * where only the median is.
+ * @param inset - How far a centered or inside border drew the fill in from the outline the ring is offset from: the
+ * ring's mitre is limited past that outline, and the fill's tip at a corner of angle t retreats inset / sin(t / 2)
+ * from the outline's.
  * @returns The checks.
  */
 export function meshRingChecks(
@@ -2199,6 +2230,7 @@ export function meshRingChecks(
     symmetric: boolean,
     name: string,
     nearest = true,
+    inset = 0,
 ): Check[] {
     const offsets = Array.from({ length: RAYS }, (_, i) => {
         const angle = (i / RAYS) * Math.PI * 2;
@@ -2229,11 +2261,13 @@ export function meshRingChecks(
         ),
     ];
     if (nearest) {
+        const retreat = inset > 0 ? inset / Math.sin(sharpestCornerOf(fill) / 2) : 0;
         checks.push(
             atMost(
                 `mesh-${name}-mitre`,
-                `the ${name} mesh reaches no more than ${String(MITRE_LIMIT)} times its distance past a corner`,
-                most(offsets) - MITRE_LIMIT * expected,
+                `the ${name} mesh reaches no more than ${String(MITRE_LIMIT)} times its distance past the outline's ` +
+                    "corner, and a drawn-in fill's tip no further in than the inset over sin(half its angle)",
+                most(offsets) - MITRE_LIMIT * (expected - inset) - retreat,
                 tolerance,
             ),
         );

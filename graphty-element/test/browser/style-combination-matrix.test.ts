@@ -54,6 +54,7 @@ import {
     planeOf,
     type Settings,
     shardOf,
+    sharpestCornerOf,
     SYMMETRIC,
     toPlane,
     toScreen,
@@ -279,7 +280,7 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
         const ring = hullOf(node.border, measure);
         if (ring.length > 0) {
             if (!CONCAVE.has(settings.shape)) {
-                checks.push(...meshRingChecks(fill, ring, border, tol, symmetric, "border"));
+                checks.push(...meshRingChecks(fill, ring, border, tol, symmetric, "border", true, inset));
             }
         }
     }
@@ -288,7 +289,7 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
         const reach =
             border + ((settings.outer === "gap" ? AMOUNTS.outerGap : 0) + AMOUNTS.outerWidth) * PER_SIZE * sizeFactor;
         if (ring.length > 0 && !CONCAVE.has(settings.shape)) {
-            checks.push(...meshRingChecks(fill, ring, reach, tol, symmetric, "outer-border"));
+            checks.push(...meshRingChecks(fill, ring, reach, tol, symmetric, "outer-border", true, inset));
         }
     }
     for (const [field, padding] of [
@@ -311,6 +312,7 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
                         symmetric,
                         field,
                         exact,
+                        inset,
                     ),
                 );
             }
@@ -451,26 +453,6 @@ function shadowPlaneOf(id: string, measure: Measure): ((u: number, v: number) =>
             engine.getRenderHeight(),
         );
     };
-}
-
-/**
- * The sharpest corner of a convex hull, in radians.
- * @param hull - The hull.
- * @returns Its smallest interior angle, pi for fewer than three points.
- */
-function sharpestCornerOf(hull: readonly P2[]): number {
-    let best = Math.PI;
-    hull.forEach((p, i) => {
-        const a = hull[(i - 1 + hull.length) % hull.length];
-        const b = hull[(i + 1) % hull.length];
-        const [ax, ay, bx, by] = [a[0] - p[0], a[1] - p[1], b[0] - p[0], b[1] - p[1]];
-        const la = Math.hypot(ax, ay);
-        const lb = Math.hypot(bx, by);
-        if (la > 1e-4 && lb > 1e-4) {
-            best = Math.min(best, Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (la * lb)))));
-        }
-    });
-    return best;
 }
 
 /**

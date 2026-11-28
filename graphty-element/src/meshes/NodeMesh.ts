@@ -300,28 +300,15 @@ function faceEachNode(
 }
 
 /**
- * Where along the view axis a solid's overlay or underlay slab is centered: just in front of the solid's nearest
- * vertex toward the camera, or just behind its farthest.
- * @param solid - The solid's mesh.
- * @param view - The rotation from the solid's local space into view space.
- * @param ahead - 1 when the camera looks along +z in view space, -1 along -z.
- * @param depth - The slab's depth.
- * @param halo - Which of the two.
- * @returns The slab's center depth.
+ * Whether two outlines are one.
+ * @param a - An outline.
+ * @param b - Another.
+ * @returns Whether they are the same, point for point, to a hair.
  */
-function haloDepth(solid: Mesh, view: Matrix, ahead: number, depth: number, halo: "underlay" | "overlay"): number {
-    const positions = solid.getVerticesData(VertexBuffer.PositionKind) ?? [];
-    const { m } = view;
-    let [near, far] = [Infinity, -Infinity];
-    for (let i = 0; i < positions.length; i += 3) {
-        const z = positions[i] * m[2] + positions[i + 1] * m[6] + positions[i + 2] * m[10];
-        near = Math.min(near, z);
-        far = Math.max(far, z);
-    }
-    const [front, rear] = ahead > 0 ? [near, far] : [far, near];
-    const out = depth * 0.01 + depth / 2;
-
-    return halo === "overlay" ? front - ahead * out : rear + ahead * out;
+function sameOutline(a: readonly Point2[], b: readonly Point2[]): boolean {
+    return (
+        a.length === b.length && a.every(([x, y], i) => Math.abs(x - b[i][0]) < 1e-6 && Math.abs(y - b[i][1]) < 1e-6)
+    );
 }
 
 /**
@@ -339,6 +326,39 @@ function distinctPoints(outline: readonly Point2[]): Point2[] {
     );
     return kept.length > 0 ? kept : outline.slice(0, 1);
 }
+
+/**
+ * Where along the view axis a solid's overlay, underlay or drawn-over border slab is centered: just in front of the
+ * solid's nearest vertex toward the camera (a border drawn over its fill's edge), one slab further (an overlay, drawn
+ * over that border), or just behind its farthest (an underlay).
+ * @param solid - The solid's mesh.
+ * @param view - The rotation from the solid's local space into view space.
+ * @param ahead - 1 when the camera looks along +z in view space, -1 along -z.
+ * @param depth - The slab's depth.
+ * @param halo - Which of the three.
+ * @returns The slab's center depth.
+ */
+function haloDepth(solid: Mesh, view: Matrix, ahead: number, depth: number, halo: FrontOrBack): number {
+    const positions = solid.getVerticesData(VertexBuffer.PositionKind) ?? [];
+    const { m } = view;
+    let [near, far] = [Infinity, -Infinity];
+    for (let i = 0; i < positions.length; i += 3) {
+        const z = positions[i] * m[2] + positions[i + 1] * m[6] + positions[i + 2] * m[10];
+        near = Math.min(near, z);
+        far = Math.max(far, z);
+    }
+    const [front, rear] = ahead > 0 ? [near, far] : [far, near];
+    const out = depth * 0.01 + depth / 2;
+    if (halo === "underlay") {
+        return rear + ahead * out;
+    }
+
+    // an overlay clears a border slab (no deeper than it) drawn over the fill
+    return front - ahead * (halo === "overlay" ? out + depth * 1.02 : out);
+}
+
+/** Where a solid's ring is moved off it in a 3D view: in front of it, over its fill's edge, or behind it. */
+type FrontOrBack = "underlay" | "overlay" | "border";
 
 /**
  * Move a node mesh's geometry back so its front face sits `-zIndex` steps behind the plane every
@@ -893,11 +913,12 @@ export class NodeMesh {
             return mesh;
         }
 
-        // fitted or at its own proportions, the solid draws its fill in by the inset of a border centered on or
-        // inside its outline, so the ring ends where the plain solid would (#10403). A fitted solid is fitted to its
-        // plain extents first: fitting it to the extents less the inset drew its slanted sides in by less (#10500).
-        // A depth the node names (or a plaque's) is kept, as it always was.
-        NodeMesh.shrinkFill(mesh, inset, sized.z === undefined);
+        // in 3D the solid keeps its plain size under a border centered on or inside its outline, and the ring is drawn
+        // over its fill's edge, as an inside stroke is drawn over a fill: one solid shrunk to sit inside the ring
+        // matches the ring only from some angles, a cone's or a dipyramid's slanted sides from none (#10438, #10500)
+        if (inset > 0) {
+            this.plainOf.set(mesh, "drawn-over");
+        }
         return mesh;
     }
 
@@ -962,6 +983,39 @@ export class NodeMesh {
         // the stroke the fill shrinks to a point and the ring is what is left out to that edge (Pajek's x_fact 0
         // vertex, a zero-size ellipse stroked 1 wide, is a dot 1 across)
         return { inset, ring: position === "center" ? width / 2 + inset : ring };
+    }
+
+    /**
+     * {@link NodeMesh.borderFit} as the node's drawn fill sees it: how far its fill mesh is drawn in, and how far the
+     * ring reaches past that mesh. A solid in 3D keeps its plain size under a centered or inside border, its ring drawn
+     * over its edge, so its fill is not drawn in and the ring reaches only the border's outer edge past it.
+     * @param shape - The node's shape block.
+     * @param border - The node's border block.
+     * @param extents - The node's extents at its size.
+     * @param is2D - Whether the graph is drawn in 2D.
+     * @returns The inset and the ring's reach past the fill mesh.
+     * @internal
+     */
+    static drawnFit(
+        shape: NodeStyleConfig["shape"],
+        border: NodeStyleConfig["border"],
+        extents: NodeExtents,
+        is2D: boolean,
+    ): { inset: number; ring: number } {
+        const fit = this.borderFit(shape, border, extents);
+        return this.drawnOver(shape, is2D) ? { inset: 0, ring: fit.ring - fit.inset } : fit;
+    }
+
+    /**
+     * Whether a node's fill keeps its plain size under a centered or inside border, its ring drawn over its edge: a
+     * solid (a built-in or registered shape that is not flat) in 3D.
+     * @param shape - The node's shape block.
+     * @param is2D - Whether the graph is drawn in 2D.
+     * @returns Whether it does.
+     */
+    private static drawnOver(shape: NodeStyleConfig["shape"], is2D: boolean): boolean {
+        const type = shape?.type;
+        return !is2D && type !== undefined && !isFlatShape(type) && this.shapeCreators.get(type) !== undefined;
     }
 
     /**
@@ -1126,61 +1180,68 @@ export class NodeMesh {
         }
 
         const flat = isFlatShape(shape.type);
-        const instance = cache.get(
-            `${this.ringKey("node-border", options, fill)}${ownRingSuffix(shape, options.is2D, fill)}`,
-            () => {
-                const extents = this.fillExtents(sized, inset);
-                const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
-                const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
-                const style = border?.style ?? "solid";
-                // a ring round a drawn-in fill is the band from the shape's own outline drawn in by the inset (the fill's
-                // edge) out to that outline (or half the width past it, centered), point for point ({@link bandRing})
-                const bandOf = (full: Point2[]): RingPiece[] | null => {
-                    if (wave !== undefined) {
-                        return null;
-                    }
-                    // where the shape comes apart drawn in (a figure's head off its neck), the drawn-in edge has a point
-                    // more than the outline on each side of the cut, paired with the outline's point there
-                    const drawnIn = insetOutline(full, inset);
-                    const outer = width > inset ? offsetOutline(full, width - inset) : full;
-                    return bandRing(
-                        drawnIn.points,
-                        drawnIn.from.map((i) => outer[i]),
-                        style,
-                        width,
-                        options.dashUnit,
-                    );
-                };
-                const band = flat && inset > 0 ? bandOf(this.flatOutline(shape, sized)) : null;
-                // ponytail: a stroke or a wave inside the size is still drawn round the shape scaled to the fill's box,
-                // off the outline on a pointed shape; along the band's middle if one shows
-                let outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
-                if (band !== null) {
-                    outline = this.fillOutline(shape, sized, inset);
+        // in 3D drawn over the fill's edge, in front of the solid from any angle
+        const over = !flat && !options.is2D && this.plainOf.get(this.sourceOf(fill)) === "drawn-over";
+        // A ring drawn over the fill must sit exactly on the outline its own node shows: one ring shared by the style
+        // is built round the nearest node's, and a node seen from another direction showed its fill past it. So each
+        // node gets its own.
+        // ponytail: one rebuild per node each time the 3D view changes; share it again across nodes seen alike (an
+        // orthographic camera) if a large graph with inside borders on solids is slow to turn.
+        const key =
+            this.ringKey("node-border", options, fill) +
+            (over ? `-node-${String(fill.uniqueId)}` : ownRingSuffix(shape, options.is2D, fill));
+        const instance = cache.get(key, () => {
+            const extents = this.fillExtents(sized, inset);
+            const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
+            const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
+            const style = border?.style ?? "solid";
+            // a ring round a drawn-in fill is the band from the shape's own outline drawn in by the inset (the fill's
+            // edge) out to that outline (or half the width past it, centered), point for point ({@link bandRing})
+            const bandOf = (full: Point2[]): RingPiece[] | null => {
+                if (wave !== undefined) {
+                    return null;
                 }
-                // a drawn-in solid's outline is the plain solid's (solidOutline), and its fill is drawn in from it as the
-                // band is ({@link NodeMesh.insetFill}, {@link NodeMesh.shrinkFill})
-                const drawnInSolid = !flat && this.plainOf.has(this.sourceOf(fill));
-                const piecesOf = (round: Point2[]): RingPiece[] => {
-                    if (band !== null) {
-                        return band;
-                    }
-                    if (!drawnInSolid) {
-                        return borderRing(round, width, style, wave, options.dashUnit);
-                    }
-                    const full = distinctPoints(round);
-                    return (
-                        bandOf(full) ??
-                        borderRing(distinctPoints(insetOutline(full, inset).fill), width, style, wave, options.dashUnit)
-                    );
-                };
-                const color = border?.color ?? "#000000";
+                // where the shape comes apart drawn in (a figure's head off its neck), the drawn-in edge has a point
+                // more than the outline on each side of the cut, paired with the outline's point there
+                const drawnIn = insetOutline(full, inset);
+                const outer = width > inset ? offsetOutline(full, width - inset) : full;
+                return bandRing(
+                    drawnIn.points,
+                    drawnIn.from.map((i) => outer[i]),
+                    style,
+                    width,
+                    options.dashUnit,
+                );
+            };
+            const band = flat && inset > 0 ? bandOf(this.flatOutline(shape, sized)) : null;
+            // ponytail: a stroke or a wave inside the size is still drawn round the shape scaled to the fill's box,
+            // off the outline on a pointed shape; along the band's middle if one shows
+            let outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+            if (band !== null) {
+                outline = this.fillOutline(shape, sized, inset);
+            }
+            // a drawn-in solid's outline is the plain solid's (solidOutline): its fill is drawn in from it as the band
+            // is ({@link NodeMesh.insetFill}) in 2D, and in 3D is drawn at it, the band over its edge
+            const drawnInSolid = !flat && this.plainOf.has(this.sourceOf(fill));
+            const piecesOf = (round: Point2[]): RingPiece[] => {
+                if (band !== null) {
+                    return band;
+                }
+                if (!drawnInSolid) {
+                    return borderRing(round, width, style, wave, options.dashUnit);
+                }
+                const full = distinctPoints(round);
+                return (
+                    bandOf(full) ??
+                    borderRing(distinctPoints(insetOutline(full, inset).fill), width, style, wave, options.dashUnit)
+                );
+            };
+            const color = border?.color ?? "#000000";
 
-                const ring = { outline, depth, piecesOf, flat, color, opacity };
+            const ring = { outline, depth, piecesOf, flat, color, opacity, over };
 
-                return this.borderSlab("node-border", ring, shape, options, fill, scene);
-            },
-        );
+            return this.borderSlab("node-border", ring, shape, options, fill, scene);
+        });
 
         instance.sourceMesh.isPickable = false;
         instance.isPickable = false;
@@ -1287,7 +1348,7 @@ export class NodeMesh {
         fill: AbstractMesh,
         scene?: Scene,
     ): InstancedMesh | null {
-        const { shape } = createOptions;
+        const { shape, border } = createOptions;
         const opacity = halo?.opacity ?? 0;
         if (shape?.type === undefined || opacity <= 0) {
             return null;
@@ -1297,8 +1358,10 @@ export class NodeMesh {
         const pad = (halo?.padding ?? 0) * perSize;
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
-        // a solid's fill drawn in by a centered or inside border is outlined at its plain size (solidOutline)
-        const reach = pad;
+        // a fitted solid's fill is drawn in by a centered or inside border (createMeshWithoutCache): grow its outline
+        // back out to the box first; a flat shape's and a drawn-in solid's outline is already the plain one
+        const plain = flat || this.plainOf.has(this.sourceOf(fill));
+        const reach = plain ? pad : pad + this.borderFit(shape, border, sized).inset;
         const ownRing =
             halo?.shape !== undefined && isFlatShape(halo.shape) ? "" : ownRingSuffix(shape, options.is2D, fill);
         const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}${ownRing}`, () => {
@@ -1396,8 +1459,10 @@ export class NodeMesh {
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
         // a solid's fill is drawn in by a centered or inside border, fitted or not (createMeshWithoutCache); grow its
-        // outline back out to the box first
-        const inset = flat ? 0 : this.borderFit(shape, border, sized).inset;
+        // outline back out to the box first, as the halo's is (createHalo). A drawn-in solid's outline is already the
+        // plain one (solidOutline): grown again, its shadow reached the inset past the node on every side
+        const plain = flat || this.plainOf.has(this.sourceOf(fill));
+        const inset = plain ? 0 : this.borderFit(shape, border, sized).inset;
         const count = blur > 0 ? SHADOW_LAYERS : 1;
         // a layer drawn alone at `share` and `count` of them over one another make `opacity`
         const share = 1 - (1 - opacity) ** (1 / count);
@@ -1682,6 +1747,7 @@ export class NodeMesh {
      * @param ring.flat - Whether the node's shape is flat.
      * @param ring.color - The ring's color.
      * @param ring.opacity - The ring's opacity, 0..1.
+     * @param ring.over - Whether a solid's ring is drawn over its fill's edge, in front of it, in a 3D view.
      * @param shape - The node's shape block.
      * @param options - The node's mesh options.
      * @param fill - The node's own mesh.
@@ -1697,6 +1763,7 @@ export class NodeMesh {
             flat: boolean;
             color: string;
             opacity: number;
+            over?: boolean;
         },
         shape: NodeStyleConfig["shape"],
         options: NodeMeshOptions,
@@ -1714,7 +1781,7 @@ export class NodeMesh {
         }
         placeByZIndex(mesh, shape, options.is2D);
         if (!ring.flat && !options.is2D) {
-            this.followView(mesh, fill, ring.depth, ring.piecesOf, unit);
+            this.followView(mesh, fill, ring.depth, ring.piecesOf, unit, ring.over === true ? "border" : undefined);
         }
         mesh.material = this.createBorderMaterial(ring.color, ring.opacity, scene);
 
@@ -1747,17 +1814,11 @@ export class NodeMesh {
         }
         // a model's outline is every part's; a built-in solid's is its source mesh's
         const parts = groups ?? [this.sourceOf(fill)];
-        // a fill shrunk inside its border is seen at its plain size: its rings keep to the plain solid's outline
-        const scale = drawnIn instanceof Vector3 ? drawnIn : undefined;
-        const seen =
-            scale === undefined
-                ? view
-                : Matrix.Scaling(1 / scale.x, 1 / scale.y, 1 / scale.z).multiply(view ?? Matrix.Identity());
         const points: Point2[] = [];
         const triangles: number[] = [];
         for (const part of parts) {
             const base = points.length;
-            points.push(...projectedVertices(part, seen, at));
+            points.push(...projectedVertices(part, view, at));
             for (const index of part.getIndices() ?? []) {
                 triangles.push(base + index);
             }
@@ -1784,7 +1845,8 @@ export class NodeMesh {
      * @param depth - How deep the ring is along z.
      * @param piecesOf - The ring's pieces round an outline of the solid.
      * @param unit - A model's scale (see borderSlab): the ring is built at it and scaled back.
-     * @param halo - An overlay (in front of the solid) or underlay (behind it); omitted, the ring keeps its depth.
+     * @param halo - An overlay or a border drawn over the fill (in front of the solid) or an underlay (behind it);
+     *   omitted, the ring keeps its depth.
      * @param plate - A plate filled from its middle (an underlay, overlay or shadow), whose outer edge shows at its face
      * toward the camera, so that face is put on the outline; a ring's inner edge shows at its face away from it.
      */
@@ -1794,7 +1856,7 @@ export class NodeMesh {
         depth: number,
         piecesOf: (outline: Point2[]) => RingPiece[],
         unit?: readonly [number, number, number],
-        halo?: "underlay" | "overlay",
+        halo?: FrontOrBack,
         plate = false,
     ): void {
         const scene = mesh.getScene();
@@ -1864,12 +1926,7 @@ export class NodeMesh {
             } else {
                 outline = this.solidOutline(fill, toView, undefined, groups);
             }
-            const same =
-                shift === drawnShift &&
-                back === drawnBack &&
-                outline.length === drawn.length &&
-                outline.every(([x, y], i) => Math.abs(x - drawn[i][0]) < 1e-6 && Math.abs(y - drawn[i][1]) < 1e-6);
-            if (same) {
+            if (shift === drawnShift && back === drawnBack && sameOutline(outline, drawn)) {
                 return;
             }
 
@@ -1921,11 +1978,11 @@ export class NodeMesh {
     }
 
     /**
-     * How a solid's fill was drawn in inside its border, keyed by its source mesh, so the outline its rings follow is
-     * the plain solid's ({@link NodeMesh.solidOutline}): the scale on each axis {@link NodeMesh.shrinkFill} gave it,
-     * or the plain outline along z {@link NodeMesh.insetFill} drew it in from.
+     * How a solid's fill sits inside its centered or inside border, keyed by its source mesh, so the outline its rings
+     * follow is the plain solid's ({@link NodeMesh.solidOutline}): the plain outline along z {@link NodeMesh.insetFill}
+     * drew it in from (2D), or "drawn-over" for one kept at its plain size with its ring drawn over its edge (3D).
      */
-    private static readonly plainOf = new WeakMap<Mesh, Vector3 | Point2[]>();
+    private static readonly plainOf = new WeakMap<Mesh, "drawn-over" | Point2[]>();
 
     /**
      * Draws a solid seen along z (in 2D) in by `inset` on every side of its outline, each side parallel to itself:
@@ -1935,8 +1992,8 @@ export class NodeMesh {
      * a cone's, a tetrahedron's or a capsule's slanted or round sides in by less than the inset, under its ring
      * (issue #10438).
      *
-     * ponytail: the outline seen along z only; a 3D view, which goes round the solid, shrinks it on each axis
-     * ({@link NodeMesh.shrinkFill}), exact on a sphere.
+     * The outline seen along z only: a 3D view, which goes round the solid, keeps it at its plain size and draws the
+     * ring over its edge.
      * @param mesh - The mesh a shape creator returned.
      * @param inset - How far in, on each side, in world units.
      */
@@ -2006,41 +2063,6 @@ export class NodeMesh {
         }
         mesh.bakeTransformIntoVertices(Matrix.Scaling(1, 1, Math.max(depth - 2 * inset, MIN_NODE_SIZE) / depth));
         mesh.refreshBoundingInfo();
-    }
-
-    /**
-     * Shrinks a solid's mesh, at its plain size, so it comes in by `inset` on every side along each axis: the fill
-     * of a solid whose border sits centered on or inside its size. Scaling it by its largest extent alone drew a
-     * cone's, a capsule's or a cylinder's short side in by less than the inset, and the ring built out from that fill
-     * ended past the node's outline (issue #10438). Its rings are built from the plain solid's outline instead.
-     *
-     * ponytail: a slanted side (a cone's, a dipyramid's) still comes in by a little less than the inset, under the
-     * ring; a true parallel inset of a solid would need its outline per view.
-     * @param mesh - The mesh a shape creator returned.
-     * @param inset - How far in, on each side, in world units.
-     * @param depth - Whether to draw it in along z as well.
-     */
-    private static shrinkFill(mesh: Mesh, inset: number, depth = true): void {
-        if (inset <= 0) {
-            return;
-        }
-
-        mesh.refreshBoundingInfo();
-        const { minimum: min, maximum: max } = mesh.getBoundingInfo().boundingBox;
-        const shrink = (across: number): number =>
-            across > 0 ? Math.max(across - 2 * inset, MIN_NODE_SIZE) / across : 1;
-        const scale = new Vector3(shrink(max.x - min.x), shrink(max.y - min.y), depth ? shrink(max.z - min.z) : 1);
-        mesh.bakeTransformIntoVertices(Matrix.Scaling(scale.x, scale.y, scale.z));
-        // a scale that is not the same on every axis turns the normals: work them out again from the faces
-        const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
-        const indices = mesh.getIndices();
-        if ((scale.x !== scale.y || scale.x !== scale.z) && positions !== null && indices !== null) {
-            const normals: number[] = [];
-            VertexData.ComputeNormals(positions, indices, normals);
-            mesh.setVerticesData(VertexBuffer.NormalKind, normals);
-        }
-        mesh.refreshBoundingInfo();
-        this.plainOf.set(mesh, scale);
     }
 
     /**

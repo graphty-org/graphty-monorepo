@@ -1423,14 +1423,23 @@ export class Node implements ModelUser {
      * @param style - The resolved style.
      * @param border - The border drawn (a screen-pixel border already in scene units).
      * @param perSize - The shape's extent per unit of size.
+     * @param pastFill - Read as how far it reaches past the drawn fill mesh: on a solid in 3D, whose fill keeps its
+     *   plain size under an inside or centered border, only the border's outer edge past the outline.
      * @returns The width.
      */
-    private drawnBorderWidth(style: NodeStyleConfig, border: NodeStyleConfig["border"], perSize: number): number {
+    private drawnBorderWidth(
+        style: NodeStyleConfig,
+        border: NodeStyleConfig["border"],
+        perSize: number,
+        pastFill = false,
+    ): number {
         if ((border?.position ?? "outside") === "outside") {
             return (border?.width ?? 0) * perSize;
         }
         const extents = NodeMesh.extentsOf(style.shape ?? {}, Math.max(style.shape?.size ?? this.size, 1e-3));
-        return NodeMesh.borderFit(style.shape, border, extents).ring;
+        return pastFill
+            ? NodeMesh.drawnFit(style.shape, border, extents, this.context.is2D()).ring
+            : NodeMesh.borderFit(style.shape, border, extents).ring;
     }
 
     /**
@@ -1552,12 +1561,13 @@ export class Node implements ModelUser {
     private syncBorder(meshKey: string, style: NodeStyleConfig): void {
         this.groupBorderSource?.dispose();
         this.groupBorderSource = null;
-        const { scale, dashScale, border, key, width } = this.borderPlan(meshKey, style);
+        const { scale, dashScale, border, key } = this.borderPlan(meshKey, style);
         // a patterned ring drawn with its pattern floored is cached per zoom step, as a screen-pixel border is
         const styleId = dashScale === null ? key : `${key}|dash${String(dashScale)}`;
         this.borderBuilt = { meshKey, style, scale, dashScale };
         const { dashUnit } = this;
-        this.borderWidth = width;
+        // how far the ring reaches past the drawn fill, where an edge stops and a halo starts
+        this.borderWidth = this.drawnBorderWidth(style, border, NodeMesh.extentPerSize(style.shape), true);
         this.border = NodeMesh.createBorder(
             this.context.getMeshCache(),
             { styleId, is2D: this.context.is2D(), size: this.size, dashUnit },
@@ -1587,7 +1597,7 @@ export class Node implements ModelUser {
             this.outerBorder.parent = this.#anchor;
             this.outerBorder.position.setAll(0);
         }
-        this.outlineReach = this.drawnBorderReach(style, width);
+        this.outlineReach = this.drawnBorderReach(style, this.borderWidth);
 
         for (const kind of ["underlay", "overlay"] as const) {
             const old = this[kind];
@@ -5499,10 +5509,11 @@ export class Node implements ModelUser {
             return 0;
         }
         const { shape } = style;
-        return NodeMesh.borderFit(
+        return NodeMesh.drawnFit(
             shape,
             style.border,
             NodeMesh.extentsOf(shape ?? {}, Math.max(shape?.size ?? this.size, 1e-3)),
+            this.context.is2D(),
         ).inset;
     }
 

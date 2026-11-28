@@ -60,7 +60,12 @@ describe("a Sources row's issues", () => {
         const place = within(screen.getByRole("region", { name: "Data place" }));
         const row = await place.findByRole("listitem", { name: "sites.csv" });
         await within(row).findByRole("button", { name: "1 issue in sites.csv" });
-        assert.isNull(screen.queryByRole("region", { name: "Table" }), "the table is closed");
+        // A load with an issue opens the table; closed by real input, the chip is the way to the list.
+        const table = await screen.findByRole("region", { name: "Table" });
+        await userEvent.click(page.elementLocator(table).getByRole("button", { name: "Close table", exact: true }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "Table" }), "the table is closed");
+        });
 
         await userEvent.click(
             page.elementLocator(row).getByRole("button", { name: "1 issue in sites.csv", exact: true }),

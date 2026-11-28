@@ -148,14 +148,15 @@ function rowOf(popover: HTMLElement, value: string): HTMLElement {
 }
 
 /**
- * Opens a group row's menu and picks an item.
+ * Opens a group row's menu and picks an item. The row's button is found by its name as the click
+ * lands: a row redraws after the frame that shows an edit, and a locator made from the row as it
+ * was would wait for its old words.
  * @param popover - the popover.
- * @param row - the row.
  * @param name - the row's name.
  * @param item - the item's name.
  */
-async function rowMenu(popover: HTMLElement, row: HTMLElement, name: string, item: string | RegExp): Promise<void> {
-    await userEvent.click(page.elementLocator(row).getByRole("button", { name: new RegExp(` ${name} actions$`) }));
+async function rowMenu(popover: HTMLElement, name: string, item: string | RegExp): Promise<void> {
+    await userEvent.click(page.elementLocator(popover).getByRole("button", { name: new RegExp(` ${name} actions$`) }));
     await userEvent.click(page.elementLocator(popover).getByRole("menuitem", { name: item, exact: true }));
 }
 
@@ -213,7 +214,7 @@ async function editValue(
     assert.equal(colorOfValue(session, layer.id, value), "#00aa00", "and leaves the entry");
 
     // Clear, in the row's menu, returns the value to the palette.
-    await rowMenu(popover, rowOf(popover, value), name, /^Clear color/);
+    await rowMenu(popover, name, /^Clear color/);
     await waitFor(() => {
         const back = session.styles.categories(layer.id, "node.color").find((c) => String(c.value) === value);
         assert.isUndefined(back?.entry);
@@ -222,7 +223,7 @@ async function editValue(
 
     // "New layer for <value>": a layer directly above its source, its rule that value, carrying
     // what the value paints, so the drawing does not change.
-    await rowMenu(popover, rowOf(popover, value), name, `New layer for ${name}`);
+    await rowMenu(popover, name, `New layer for ${name}`);
     const binding = layer.encode?.["node.color"];
     const by = binding !== undefined && "by" in binding ? binding.by : "";
     const added = await waitFor(() => {
@@ -490,7 +491,7 @@ describe("the binding popover on the real element", () => {
         const value = String(session.styles.categories(layer.id, "node.color")[0]?.value);
         const name = keyName(session, layer.id, value);
         const popover = await openBinding(store, layer);
-        await rowMenu(popover, rowOf(popover, value), name, /^Rename/);
+        await rowMenu(popover, name, /^Rename/);
         const field = (): Locator =>
             page.elementLocator(popover).getByRole("textbox", { name: new RegExp(`^Name of .* ${name}$`) });
         await userEvent.clear(field());

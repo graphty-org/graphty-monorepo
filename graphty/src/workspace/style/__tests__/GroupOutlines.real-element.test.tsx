@@ -297,13 +297,18 @@ describe("group outlines, Around the group in the gallery", () => {
         await waitFor(() => {
             assert.deepEqual(session.styles.get(layer.id)?.set?.["node.shaders"], [{ shader: "metaball-hull" }]);
         });
-        const row = section("shaders").querySelector<HTMLElement>("[data-shader-row]");
+        // The Shaders section redraws after the frame that shows the write: its row is read only then.
+        const settings = await within(section("shaders")).findByRole("button", { name: "Hull settings" });
+        const row = settings.closest<HTMLElement>("[data-shader-row]");
         assert.isNotNull(row);
         // Its place is said in its settings button's tooltip, never as a line in the sidebar (#8739).
         assert.notInclude(row?.textContent, "Around the group");
-        await userEvent.hover(page.elementLocator(row).getByRole("button", { name: "Hull settings", exact: true }));
+        const hull = page
+            .elementLocator(section("shaders"))
+            .getByRole("button", { name: "Hull settings", exact: true });
+        await userEvent.hover(hull);
         assert.include((await screen.findByRole("tooltip", {})).textContent, "Around the group");
-        await userEvent.unhover(page.elementLocator(row).getByRole("button", { name: "Hull settings", exact: true }));
+        await userEvent.unhover(hull);
 
         await userEvent.click(
             page.elementLocator(section("shaders")).getByRole("button", { name: "Group by None", exact: true }),

@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -50,13 +50,13 @@ function box(scope: HTMLElement, name: string | RegExp): HTMLInputElement {
 describe("Load custom model: pictures one by one, and a set's x", () => {
     it("draws a picture again when its own box is checked, and All textures checks every picture again", async () => {
         const { session } = await openShapes();
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Add custom model..." }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Add custom model...", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Load custom model" });
         await choose(dialog, "Choose folder", [KIT_FOLDER]);
         await previewOf(dialog, "police");
         const own = previewPicture(dialog, "police");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Model settings" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Model settings", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Model settings" });
         const textures = within(popover).getByRole("group", { name: "Textures" });
         const pictures = within(textures)
@@ -111,25 +111,27 @@ describe("Load custom model: pictures one by one, and a set's x", () => {
 
         // A key other than the arrows on Next model moves focus on and steps nothing.
         const next = within(dialog).getByRole("button", { name: "Next model" });
-        await userEvent.click(next);
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Next model", exact: true }));
         await previewOf(dialog, "quad");
         await userEvent.keyboard("{Tab}");
         assert.notEqual(document.activeElement, next, "Tab moved on");
         assert.equal(position.textContent, "2 of 3", "Tab stepped nothing");
-        await userEvent.click(next);
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Next model", exact: true }));
         await previewOf(dialog, "wall");
         assert.equal(position.textContent, "3 of 3");
 
         // The x on the model shown, the last: the one before it is shown.
         const list = within(dialog).getByRole("region", { name: "Models" });
-        await userEvent.click(within(list).getByRole("button", { name: "Remove wall.glb" }));
+        await userEvent.click(page.elementLocator(list).getByRole("button", { name: "Remove wall.glb", exact: true }));
         await waitFor(() => {
             assert.equal(within(dialog).getByTestId("model-position").textContent, "2 of 2");
         });
         await previewOf(dialog, "quad");
 
         // The x on a model before the one shown: the same model stays shown, now the only one.
-        await userEvent.click(within(list).getByRole("button", { name: "Remove police.glb" }));
+        await userEvent.click(
+            page.elementLocator(list).getByRole("button", { name: "Remove police.glb", exact: true }),
+        );
         await waitFor(() => {
             assert.isNull(within(dialog).queryByTestId("model-position"), "one model: no arrows");
             assert.isNull(within(dialog).queryByRole("region", { name: "Models" }), "one model: no list");

@@ -827,10 +827,19 @@ export function convexHull(points: readonly Point2[]): Point2[] {
     const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     const cross = (o: Point2, a: Point2, b: Point2): number =>
         (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    // Points a rounding error apart are one point: kept as two, scaling can land them on each other, and a side
+    // with no length has no direction to offset along (issue #10497).
+    const span = points.reduce((most, [x, y]) => Math.max(most, Math.abs(x), Math.abs(y)), 0);
+    const same = span * 1e-9;
     const half = (list: Point2[]): Point2[] => {
         const chain: Point2[] = [];
 
         for (const point of list) {
+            const last = chain.at(-1);
+            if (last !== undefined && Math.abs(point[0] - last[0]) <= same && Math.abs(point[1] - last[1]) <= same) {
+                continue;
+            }
+
             while (chain.length >= 2 && cross(chain.at(-2) ?? point, chain.at(-1) ?? point, point) <= 0) {
                 chain.pop();
             }
@@ -1125,6 +1134,9 @@ export function offsetOutline(outline: readonly Point2[], distance: number): Poi
     });
 }
 
+/** How many rays {@link mitredEdges} casts along an outline to find sides that face each other across a notch. */
+const SIDE_RAYS = 256;
+
 /** How far a corner's mitre reaches past it, at most, as a multiple of the offset (see {@link offsetOutline}). */
 const MITRE_LIMIT = 3;
 
@@ -1143,6 +1155,37 @@ const MITRE_LIMIT = 3;
 export function mitredEdges(outline: readonly Point2[], distances: readonly number[]): Point2[][] {
     const count = outline.length;
     const edges: Point2[][] = distances.map(() => []);
+    const widest = Math.max(...distances);
+    // rays at fixed places along the outline, whatever the distances, so a ring offset from this ring's outer edge
+    // (an outer border) takes its points where this ring took them
+    // ponytail: SIDE_RAYS rays, each against every side; a sweep-line offset if outlines grow to thousands of points
+    const step = Math.max(cumulativeLengths(outline).at(-1) ?? 0, 1e-9) / SIDE_RAYS;
+
+    // points along side i where a facing side is nearer than the ring is wide: there the side's ring stops short of
+    // the facing side, so the side takes points of its own; a side that faces nothing within the ring takes none
+    const alongSide = (i: number): void => {
+        const [x0, y0] = outline[i];
+        const [x1, y1] = outline[(i + 1) % count];
+        const [nx, ny] = unitNormal(x0, y0, x1, y1);
+        const pieces = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / step);
+        const points: [number, number, number][] = [];
+        for (let j = 1; j < pieces; j++) {
+            const [x, y] = [x0 + ((x1 - x0) * j) / pieces, y0 + ((y1 - y0) * j) / pieces];
+            points.push([x, y, clearance(outline, x, y, nx, ny, i, true)]);
+        }
+        if (points.every(([, , room]) => room >= widest)) {
+            return;
+        }
+        // each point stops as short as its neighbors do, so the step from a short point to a full one lies past the
+        // end of the facing side and not across its corner
+        points.forEach(([x, y], j) => {
+            const room = Math.min(...points.slice(Math.max(0, j - 1), j + 2).map(([, , near]) => near));
+            distances.forEach((distance, k) => {
+                const out = Math.min(distance, room);
+                edges[k].push([x + nx * out, y + ny * out]);
+            });
+        });
+    };
 
     outline.forEach(([x, y], i) => {
         const [px, py] = outline[(i + count - 1) % count];
@@ -1153,7 +1196,9 @@ export function mitredEdges(outline: readonly Point2[], distances: readonly numb
         const convex = (x - px) * (ny - y) - (y - py) * (nx - x) > 0;
 
         if (!convex || along < 1e-9 || 2 / along <= MITRE_LIMIT) {
-            distances.forEach((distance, k) => edges[k].push(offsetCorner(x, y, [ax, ay], [bx, by], distance)));
+            const room = along < 1e-9 ? Infinity : clearance(outline, x, y, (ax + bx) / along, (ay + by) / along, i);
+            distances.forEach((distance, k) => edges[k].push(offsetCorner(x, y, [ax, ay], [bx, by], distance, room)));
+            alongSide(i);
             return;
         }
 
@@ -1166,9 +1211,55 @@ export function mitredEdges(outline: readonly Point2[], distances: readonly numb
             return [x + reach * mx - t * my, y + reach * my + t * mx];
         };
         distances.forEach((distance, k) => edges[k].push(cut([ax, ay], distance), cut([bx, by], distance)));
+        alongSide(i);
     });
 
     return edges;
+}
+
+/**
+ * How far a ray runs before it meets a side of an outline: where two sides face each other across a notch narrower
+ * than a ring (a figure's armpits, the gap between its legs), each side's ring stops at the facing side, so the two
+ * fill the notch and neither crosses it onto the fill beyond (issue #10409).
+ * @param outline - The closed outline.
+ * @param x - Where the ray starts, x, on the outline.
+ * @param y - Where it starts, y.
+ * @param dx - The ray's unit direction, x.
+ * @param dy - The ray's unit direction, y.
+ * @param from - The corner the ray starts at, or the side it starts on: the sides it starts on are skipped.
+ * @param onSide - True when the ray starts on side `from`, between its corners, rather than at corner `from`.
+ * @returns The distance to the nearest side it meets, or Infinity when it meets none.
+ */
+function clearance(
+    outline: readonly Point2[],
+    x: number,
+    y: number,
+    dx: number,
+    dy: number,
+    from: number,
+    onSide = false,
+): number {
+    const count = outline.length;
+    let nearest = Infinity;
+    for (let k = 0; k < count; k++) {
+        if (k === from || (!onSide && (k + 1) % count === from)) {
+            continue;
+        }
+        const [ax, ay] = outline[k];
+        const [bx, by] = outline[(k + 1) % count];
+        const [ex, ey] = [bx - ax, by - ay];
+        const denom = dx * ey - dy * ex;
+        if (denom === 0) {
+            continue;
+        }
+        // (x, y) + t d = a + s e
+        const t = ((ax - x) * ey - (ay - y) * ex) / denom;
+        const s = ((ax - x) * dy - (ay - y) * dx) / denom;
+        if (s >= 0 && s <= 1 && t > 1e-9 && t < nearest) {
+            nearest = t;
+        }
+    }
+    return nearest;
 }
 
 /**
@@ -1179,9 +1270,10 @@ export function mitredEdges(outline: readonly Point2[], distances: readonly numb
  * @param a - The outward unit normal of the side before it.
  * @param b - The outward unit normal of the side after it.
  * @param distance - How far out.
+ * @param room - How far it may move at most ({@link clearance}).
  * @returns The moved corner.
  */
-function offsetCorner(x: number, y: number, a: Point2, b: Point2, distance: number): Point2 {
+function offsetCorner(x: number, y: number, a: Point2, b: Point2, distance: number, room = Infinity): Point2 {
     const [mx, my] = [a[0] + b[0], a[1] + b[1]];
     const along = Math.hypot(mx, my);
 
@@ -1190,7 +1282,7 @@ function offsetCorner(x: number, y: number, a: Point2, b: Point2, distance: numb
     }
 
     // The mitre's length is distance / cos(half the turn) = 2 * distance / |a + b|.
-    const length = Math.min((2 * distance) / along, distance * MITRE_LIMIT);
+    const length = Math.min((2 * distance) / along, distance * MITRE_LIMIT, room);
 
     return [x + (mx / along) * length, y + (my / along) * length];
 }

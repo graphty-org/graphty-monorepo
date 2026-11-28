@@ -1,7 +1,7 @@
 import { PopoutManager } from "@graphty/compact-mantine";
 import React from "react";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { SettingsPopout } from "../SettingsPopout";
@@ -17,7 +17,7 @@ describe("a settings popout", () => {
         );
         const button = screen.getByRole("button", { name: "Line settings" });
         assert.strictEqual(button.getAttribute("aria-expanded"), "false");
-        await userEvent.click(button);
+        await userEvent.click(page.getByRole("button", { name: "Line settings", exact: true }));
         await screen.findByRole("dialog", { name: "Line settings" });
         assert.strictEqual(button.getAttribute("aria-expanded"), "true");
         await userEvent.keyboard("{Escape}");

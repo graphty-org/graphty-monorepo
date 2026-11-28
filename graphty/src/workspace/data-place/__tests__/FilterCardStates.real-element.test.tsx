@@ -112,7 +112,7 @@ describe("Filter cards in their less common states", () => {
         assert.match(off.querySelector(".dp-filter-name")?.getAttribute("aria-label") ?? "", /, off$/);
 
         // The header chip's x switches the card still on off, and leaves the one already off as it is.
-        await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+        await userEvent.click(page.getByRole("button", { name: "Clear filters", exact: true }));
         await waitFor(() => {
             assert.isFalse(session.visibility.conditions.find((c) => c.id === "busy")?.on);
         });
@@ -131,9 +131,9 @@ describe("Filter cards in their less common states", () => {
         assert.isNull(screen.queryByRole("button", { name: "Clear filters" }), "a Select card is no filter to clear");
 
         await userEvent.click(pick.getAllByRole("button")[0] ?? document.body);
-        const remove = await within(filters()).findByRole("button", { name: "Delete" });
+        await within(filters()).findByRole("button", { name: "Delete" });
         assert.isNull(filters().querySelector(".sel-editor"), "no editor writes it as a card that stays");
-        await userEvent.click(remove);
+        await userEvent.click(page.elementLocator(filters()).getByRole("button", { name: "Delete", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 0);
         });

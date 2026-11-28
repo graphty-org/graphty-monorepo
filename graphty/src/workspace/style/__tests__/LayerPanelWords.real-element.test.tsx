@@ -13,7 +13,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { historyTip } from "../../frame/historyWords";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -50,7 +50,7 @@ async function openScene(): Promise<{ session: GraphSession; idOf: (name: string
  */
 async function clickRow(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
 describe("the layer panel's words", () => {
@@ -64,8 +64,8 @@ describe("the layer panel's words", () => {
         });
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Sized, / }));
-        const fill = await screen.findByRole("button", { name: "Add to node fill" });
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Sized, / }));
+        const fill = page.getByRole("button", { name: "Add to node fill", exact: true });
         await userEvent.hover(fill);
         // The theme opens a tooltip after 1000 ms, the whole of findByRole's default wait.
         const tip = await screen.findByRole("tooltip", {});

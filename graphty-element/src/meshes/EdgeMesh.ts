@@ -1592,8 +1592,9 @@ export class EdgeMesh {
 
             // A vee's line runs on under it to its notch, half the cap back from its tip: Graphviz strokes a shaft
             // from the notch to the back (arrows.c arrow_type_crow0), Cytoscape.js and vis-network draw the line on
-            // under the vee
+            // under the vee; a hollow vee's line meets its outline at the notch
             case "vee":
+            case "hollow-vee":
                 return {
                     positioningMode: "tip",
                     needsRotation: false,

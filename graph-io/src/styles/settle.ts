@@ -109,6 +109,7 @@ export const ARROWS: ReadonlyMap<string, string> = new Map([
     ["other:kite", "kite"],
     ["other:deltoid", "deltoid"],
     ["other:open-vee", "open-vee"],
+    ["other:hollow-vee", "hollow-vee"],
     // the end cap of each arrow of several pieces (`ARROW_RUNS`); the rest is its row
     ["other:white_delta_bar", "triangle-open"],
     ["other:crows_foot_many_optional", "crow"],
@@ -226,6 +227,7 @@ const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
     "vee",
     // an open vee has the vee's proportions
     "other:open-vee",
+    "other:hollow-vee",
     "inverted",
     "diamond",
     "diamond-open",

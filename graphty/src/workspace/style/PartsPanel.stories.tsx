@@ -8,6 +8,7 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { loadSiteConfig, resetSiteConfig } from "../../siteConfig";
 import { freshStore, storeOf } from "../../stories/freshStore";
+import { paintSettled } from "../../stories/paintSettled";
 import { siteFeatures } from "../../test/siteFeatures";
 import type { WorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
@@ -135,6 +136,10 @@ function fileStory(
             await showStyle(canvasElement, store, { kind: "layer-row", id: layer.row ?? layer.id }, kind);
             await element.waitForStableFrame();
             await play(canvasElement, element);
+            // The status bar's WebGPU chip and the pop-over arrive a frame early or late, and a
+            // partial repaint draws rounded corners a level off (#8703): draw the page afresh.
+            await body().findByTestId("webgpu-chip");
+            await paintSettled(canvasElement.ownerDocument);
         },
     };
 }

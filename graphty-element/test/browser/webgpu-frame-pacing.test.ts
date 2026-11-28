@@ -43,8 +43,12 @@ function ring(count: number): { nodes: { id: string }[]; edges: { src: string; d
     return { nodes, edges };
 }
 
-/** Enough nodes for a hover to have a crowd to pick from. */
-const HEAVY = 4000;
+/**
+ * Nodes in the GPU layout case: enough that, unpaced, the layout's batches wait behind the queue and
+ * hover never answers. At 300 an unpaced loop still passed that case; at 4000 each SwiftShader frame
+ * cost about 250 ms, and the file took six minutes of its CI shard (issue #10453).
+ */
+const LAYOUT_NODES = 1000;
 
 /** Frames drawn within which a real pointer's hover must answer. */
 const HOVER_FRAMES = 8;
@@ -270,6 +274,9 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
     it.each(PATHS)("lets an on-demand loop go idle on a still graph under %s", async (path) => {
         const graph = await open(path);
         await drawn(graph, 3);
+        // Placed at once: waiting for the default force layout to settle the ring cost about 5 s
+        // of the case, and the loop under test rests or not whatever made the graph still.
+        await graph.setLayout("circular");
         await graph.setRenderSettings({ onDemand: true });
         await graph.waitForStableFrame();
         const { ticks } = renderManagerOf(graph);
@@ -285,7 +292,9 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
     });
 
     it("answers a 256-byte map within 4 frames once a still scene has had time to fill the queue", async () => {
-        const graph = await open("batched", false, HEAVY);
+        // The default 300 nodes: the added compute pass, not the scene, is what fills the queue
+        // (unpaced, the map waited for 269 frames drawn at 300 nodes and 256 at 4000).
+        const graph = await open("batched");
         loadEveryFrame(graph);
         // Unpaced, these frames sit on the device queue and a map waits for all of them (27 frames
         // drawn on SwiftShader with the frame rate unlimited, where Chromium does not hold the
@@ -309,7 +318,8 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
 
     for (const path of ["batched", "objects"] as const) {
         it(`hovers a node with a real pointer on the still scene under ${path}`, async () => {
-            const graph = await open(path, false, HEAVY);
+            // The default 300 nodes: unpaced, batched hover still never answers.
+            const graph = await open(path);
             await graph.setLayout("circular");
             await graph.waitForStableFrame();
             loadEveryFrame(graph);
@@ -319,7 +329,7 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
     }
 
     it("moves the GPU layout and hovers a node while it runs", async () => {
-        const graph = await open("batched", true, HEAVY);
+        const graph = await open("batched", true, LAYOUT_NODES);
         // The layout must still be running when hover answers, so neither its budget nor its settle
         // rule may end it within the test: a batch computes at most 128 iterations and the test
         // draws fewer than a hundred frames, far short of either count. With the default settle

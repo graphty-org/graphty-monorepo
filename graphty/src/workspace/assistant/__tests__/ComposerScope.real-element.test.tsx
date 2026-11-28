@@ -6,7 +6,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/ai";
+import { MockLlmProvider } from "@graphty/graphty-element/ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -14,6 +14,7 @@ import { cleanup, render, screen, waitFor, within } from "../../../test/test-uti
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { scriptEnable } from "./script-enable";
 
 const COMPOSER = { name: "Message the assistant" };
 
@@ -56,17 +57,8 @@ describe("the composer's placeholder", () => {
     beforeEach(async () => {
         await page.viewport(1440, 900);
         localStorage.clear();
-        const tag = customElements.get("graphty-element") as unknown as {
-            prototype: HTMLElementTagNameMap["graphty-element"];
-        };
-        const realEnable = tag.prototype.enableAiControl;
         const model = new AskingModel();
-        vi.spyOn(tag.prototype, "enableAiControl").mockImplementation(async function enable(
-            this: HTMLElementTagNameMap["graphty-element"],
-            config: AiManagerConfig,
-        ) {
-            await realEnable.call(this, { ...config, providerInstance: model });
-        });
+        scriptEnable((config) => ({ ...config, providerInstance: model }));
     });
 
     afterEach(() => {
@@ -78,7 +70,7 @@ describe("the composer's placeholder", () => {
     it("stays on the whole graph with nodes selected, follows the pick, and a waiting question wins", async () => {
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
         render(<Workspace store={createWorkspaceStore({ project: { name: "Check", id: 1 } })} />);
-        await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+        await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
         const session = await waitFor(() => {
             const found = document.querySelector("graphty-element")?.session;
             assert.isDefined(found);
@@ -90,15 +82,15 @@ describe("the composer's placeholder", () => {
         await session.selection.apply({ ids: ["a", "b"] });
         await placeholder("Ask about this graph");
 
-        await userEvent.click(screen.getByRole("button", { name: "Options" }));
-        await userEvent.click(await screen.findByRole("menuitemradio", { name: /^Selection/ }));
+        await userEvent.click(page.getByRole("button", { name: "Options", exact: true }));
+        await userEvent.click(page.getByRole("menuitemradio", { name: /^Selection/ }));
         await placeholder("Ask about this selection");
 
-        await userEvent.click(screen.getByRole("button", { name: "Options, asking about the selection" }));
-        await userEvent.click(await screen.findByRole("menuitemradio", { name: "Whole graph" }));
+        await userEvent.click(page.getByRole("button", { name: "Options, asking about the selection", exact: true }));
+        await userEvent.click(page.getByRole("menuitemradio", { name: "Whole graph", exact: true }));
         await placeholder("Ask about this graph");
 
-        await userEvent.click(screen.getByRole("textbox", COMPOSER));
+        await userEvent.click(page.getByRole("textbox", { ...COMPOSER, exact: true }));
         await userEvent.keyboard("Pick one{Enter}");
         await screen.findByRole("radio", { name: "a" });
         await placeholder("Or type an answer");
@@ -107,7 +99,7 @@ describe("the composer's placeholder", () => {
     it("opens every chat asking about the whole graph, and groups each set of options under its label", async () => {
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
         render(<Workspace store={createWorkspaceStore({ project: { name: "Check", id: 1 } })} />);
-        await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+        await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
         const session = await waitFor(() => {
             const found = document.querySelector("graphty-element")?.session;
             assert.isDefined(found);
@@ -115,13 +107,13 @@ describe("the composer's placeholder", () => {
         });
         await session.data.addNodes([{ id: "a" }, { id: "b" }]);
         await session.selection.apply({ ids: ["a", "b"] });
-        await userEvent.click(await screen.findByRole("button", { name: "Options" }));
+        await userEvent.click(page.getByRole("button", { name: "Options", exact: true }));
         const about = await screen.findByRole("group", { name: "Ask about" });
         assert.lengthOf(within(about).getAllByRole("menuitemradio"), 2);
-        await userEvent.click(within(about).getByRole("menuitemradio", { name: /^Selection/ }));
+        await userEvent.click(page.elementLocator(about).getByRole("menuitemradio", { name: /^Selection/ }));
         await placeholder("Ask about this selection");
 
-        await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+        await userEvent.click(page.getByRole("button", { name: "New chat", exact: true }));
         await placeholder("Ask about this graph");
         screen.getByRole("button", { name: "Options" });
     });

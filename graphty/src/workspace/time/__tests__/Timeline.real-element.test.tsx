@@ -96,11 +96,11 @@ async function pickField(column: string, row: "Edge time" | "Node time" = "Edge 
     const name = new RegExp(String.raw`^${column}(\s*[\d,]+ will not convert)?$`);
     if (entry === null) {
         await userEvent.click(plus);
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Time" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Time", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name, exact: true }));
     } else {
         await userEvent.click(entry);
-        await userEvent.click(await screen.findByRole("option", { name }));
+        await userEvent.click(page.getByRole("option", { name, exact: true }));
     }
 }
 
@@ -111,7 +111,9 @@ async function pickField(column: string, row: "Edge time" | "Node time" = "Edge 
 async function timeCard(): Promise<Within> {
     if (screen.queryByTestId("time-card") === null) {
         const dock = await openDock();
-        await userEvent.click(within(dock).getByRole("button", { name: "Timeline settings" }));
+        await userEvent.click(
+            page.elementLocator(dock).getByRole("button", { name: "Timeline settings", exact: true }),
+        );
     }
     return within(await screen.findByTestId("time-card"));
 }
@@ -123,7 +125,7 @@ async function timeCard(): Promise<Within> {
 async function openDock(): Promise<HTMLElement> {
     const toggle = await screen.findByRole("button", { name: "Timeline" });
     if (toggle.getAttribute("aria-pressed") !== "true") {
-        await userEvent.click(toggle);
+        await userEvent.click(page.getByRole("button", { name: "Timeline", exact: true }));
     }
     return screen.findByRole("region", { name: "Timeline" });
 }
@@ -148,7 +150,7 @@ async function designateSent(session: GraphSession): Promise<HTMLElement> {
  */
 async function pickIn(menu: string, option: string | RegExp): Promise<void> {
     await userEvent.click(await (await timeCard()).findByRole("combobox", { name: menu }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
+    await userEvent.click(page.getByRole("option", { name: option, exact: true }));
 }
 
 /**
@@ -234,17 +236,17 @@ describe("the timeline on the real element", () => {
         assert.equal(session.visibility.summary.visibleEdges, 2102);
         // Speed cycles 1x, 2x, 4x in the dock; the time card has no Speed row.
         assert.isNull((await timeCard()).queryByText("Speed"));
-        await userEvent.click(within(dock).getByRole("button", { name: "Speed 1x" }));
-        await userEvent.click(within(dock).getByRole("button", { name: "Speed 2x" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Speed 1x", exact: true }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Speed 2x", exact: true }));
         assert.equal(store.get().timeSpeed, 4);
         const { position } = session.history;
 
-        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Play", exact: true }));
         await waitFor(() => {
             assert.isTrue(session.time.playing);
             assert.isAbove(Number(session.time.current?.from), Date.UTC(2024, 11, 30));
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Pause", exact: true }));
         assert.isFalse(session.time.playing);
         await waitFor(() => {
             assert.equal(session.history.position, position + 1, "a play is one step");
@@ -267,12 +269,12 @@ describe("the timeline on the real element", () => {
         const listening = vi.spyOn(document, "addEventListener");
         const waits = (): number => listening.mock.calls.filter(([type]) => type === "visibilitychange").length;
 
-        await userEvent.click(within(dock).getByRole("button", { name: "Speed 1x" }));
-        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Speed 1x", exact: true }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Play", exact: true }));
         await waitFor(() => {
             assert.isAbove(waits(), 0);
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Speed 2x" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Speed 2x", exact: true }));
         const before = waits();
         await waitFor(() => {
             assert.isAtLeast(waits(), before + 2);
@@ -293,7 +295,7 @@ describe("the timeline on the real element", () => {
         const DAY = 86_400_000;
         const start = Date.UTC(2025, 0, 1);
 
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
         await waitFor(() => {
             assert.equal(Number(session.time.current?.from), start, "the first window, not the second");
             assert.equal(readout(dock), "Jan 1, 2025");
@@ -326,14 +328,18 @@ describe("the timeline on the real element", () => {
         const { session } = await open();
         const dock = await designateSent(session);
         await pickIn("When window moves", "Keep");
-        await userEvent.click(within((await timeCard()).getByRole("radiogroup", { name: "Mode" })).getByText("Grow"));
+        await userEvent.click(
+            page
+                .elementLocator((await timeCard()).getByRole("radiogroup", { name: "Mode" }))
+                .getByText("Grow", { exact: true }),
+        );
         await pickIn("Step", "Week");
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
         await waitFor(() => {
             assert.isNotNull(session.time.current);
         });
 
-        await userEvent.click(within(dock).getByRole("button", { name: "Show all time" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Show all time", exact: true }));
         await waitFor(() => {
             assert.isNull(session.time.current);
         });
@@ -356,11 +362,11 @@ describe("the timeline on the real element", () => {
     it("reads a typed range from the readout's popover", async () => {
         const { session } = await open();
         const dock = await designateSent(session);
-        await userEvent.click(within(dock).getByTestId("time-readout"));
-        const from = await screen.findByRole("textbox", { name: "From" });
+        await userEvent.click(page.elementLocator(dock).getByTestId("time-readout"));
+        const from = page.getByRole("textbox", { name: "From", exact: true });
         await userEvent.clear(from);
         await userEvent.type(from, "Mar 9, 2025");
-        const to = screen.getByRole("textbox", { name: "To" });
+        const to = page.getByRole("textbox", { name: "To", exact: true });
         await userEvent.clear(to);
         await userEvent.type(to, "Mar 19, 2025{Enter}");
         await waitFor(() => {
@@ -371,20 +377,20 @@ describe("the timeline on the real element", () => {
     it("names the window in the header chip, the Filters list and Undo; the chip focuses the brush and clears", async () => {
         const { session, store } = await open();
         await designateSent(session);
-        await userEvent.click(screen.getByRole("button", { name: /^Undo/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Undo/ }));
         await waitFor(() => {
             assert.equal(store.get().announcement, "Undid setting the time field");
         });
-        await userEvent.click(screen.getByRole("button", { name: /^Redo/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Redo/ }));
         // The dock went with the field and came back with it.
         const dock = await openDock();
         await pickIn("Step", "Week");
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
 
         await waitFor(() => {
             assert.isNotNull(session.time.current);
         });
-        const chip = await screen.findByRole("button", { name: /^Time: / });
+        const chip = page.getByRole("button", { name: /^Time: / });
         await userEvent.click(chip);
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Window start");
         // The dock's icon controls say their names on hover, whatever the window's state.
@@ -392,7 +398,7 @@ describe("the timeline on the real element", () => {
         assert.equal(await tooltipOf(settings), "Timeline settings");
         const clear = screen.getByRole("button", { name: "Clear the time window" });
         assert.equal(await tooltipOf(clear), "Clear the time window");
-        await userEvent.click(clear);
+        await userEvent.click(page.getByRole("button", { name: "Clear the time window", exact: true }));
         await waitFor(() => {
             assert.isNull(session.time.current);
         });
@@ -412,13 +418,13 @@ describe("the timeline on the real element", () => {
         const { session } = await open();
         const dock = await designateSent(session);
         await pickIn("Step", "Day");
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
         // The chips after the time chip start where it ends: that edge stays put.
         const chip = (await screen.findByRole("button", { name: /^Time: / })).closest(".tl-chip");
         const xs = new Set<number>();
         for (let step = 0; step < 4; step++) {
             const before = Number(session.time.current?.from);
-            await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+            await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
             await waitFor(() => {
                 assert.isAbove(Number(session.time.current?.from), before);
             });
@@ -448,7 +454,7 @@ describe("the timeline on the real element", () => {
             await session.time.setSettings({ step: "week" });
         });
         const dock = await openDock();
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
         await waitFor(() => {
             assert.isNotNull(session.time.current);
         });
@@ -458,7 +464,7 @@ describe("the timeline on the real element", () => {
             await session.styles.settled();
         });
 
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
         await waitFor(() => {
             assert.equal(run.stale?.reason, "window-moved");
         });
@@ -469,7 +475,7 @@ describe("the timeline on the real element", () => {
         });
         // ...and shows it: a mark beside its count, named with the same words.
         within(row).getByRole("img", { name: "Out of date: ran on Dec 30, 2024 - Jan 5, 2025" });
-        await userEvent.click(row);
+        await userEvent.click(page.getByRole("treeitem", { name: /^Connections, / }));
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
         await inspector.findByText(/^Out of date: ran on /);
         const errors: unknown[] = [];
@@ -477,7 +483,11 @@ describe("the timeline on the real element", () => {
             errors.push(event.reason);
         };
         window.addEventListener("unhandledrejection", onError);
-        await userEvent.click(inspector.getByRole("button", { name: "Rerun" }));
+        await userEvent.click(
+            page
+                .getByRole("complementary", { name: "Inspector", exact: true })
+                .getByRole("button", { name: "Rerun", exact: true }),
+        );
         await waitFor(() => {
             assert.isNull(session.runs.get("degree")?.stale);
         });
@@ -493,7 +503,7 @@ describe("the timeline on the real element", () => {
         });
         await userEvent.keyboard("{Shift>}T{/Shift}");
         const dock = await screen.findByRole("region", { name: "Table" });
-        await userEvent.click(await within(dock).findByRole("tab", { name: "Edges" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: "Edges", exact: true }));
         const [edge] = session.data.edgePage({ limit: 1 }).records;
         const from = session.data.name(edge.source) ?? "";
         assert.notEqual(from, String(edge.source), "the sample labels its nodes");
@@ -503,7 +513,7 @@ describe("the timeline on the real element", () => {
             assert.equal(first.textContent, from);
         });
         // A row click selects the edge; the inspector names its ends the same way.
-        await userEvent.click(within(grid).getAllByRole("rowheader")[0]);
+        await userEvent.click(page.elementLocator(grid).getByRole("rowheader").nth(0));
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
         await inspector.findByText(new RegExp(`^${from} `));
     });
@@ -524,7 +534,11 @@ describe("the Overview and the import of time", () => {
     it("offers the column that reads as time as a door to Fields, and reads the whole graph while a window is on", async () => {
         const { session } = await open(OFFICE_EMAIL, "graph");
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(await inspector.findByRole("button", { name: "Set in Data" }));
+        await userEvent.click(
+            page
+                .getByRole("complementary", { name: "Inspector", exact: true })
+                .getByRole("button", { name: "Set in Data", exact: true }),
+        );
         // The door opens the Time entry's home, Data > Fields, with the column chosen and focused.
         const place = await screen.findByRole("region", { name: "Data place" });
         await waitFor(() => {
@@ -553,7 +567,7 @@ describe("the Overview and the import of time", () => {
         });
 
         // The window moves along the real years, not stuck in January 1970.
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
         await userEvent.keyboard(".");
         await waitFor(() => {
             assert.equal(new Date(Number(session.time.current?.from)).getUTCFullYear(), 1996);
@@ -566,12 +580,12 @@ describe("the Overview and the import of time", () => {
 
         // The same years as plain numbers: Unit, Number.
         await userEvent.click(await dataPlace().findByRole("combobox", { name: "Node time unit" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Number" }));
+        await userEvent.click(page.getByRole("option", { name: "Number", exact: true }));
         await waitFor(() => {
             assert.equal(session.time.field?.nodes?.unit, "ordinal");
             assert.equal(readout(dock), "1995 - 2024");
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
         await waitFor(() => {
             assert.isTrue(Number.isInteger(Number(session.time.current?.from)));
             assert.isAtLeast(Number(session.time.current?.from), 1990);
@@ -593,7 +607,7 @@ describe("the Overview and the import of time", () => {
         await session.data.import({ type: "csv", config: { data }, name: "Spans" });
         await pickField("began");
         await userEvent.click(await dataPlace().findByRole("combobox", { name: "Edge time end" }));
-        await userEvent.click(await screen.findByRole("option", { name: "ended" }));
+        await userEvent.click(page.getByRole("option", { name: "ended", exact: true }));
         const live = session;
         await waitFor(() => {
             assert.deepEqual(live.time.field?.edges, { start: "began", end: "ended" });
@@ -619,18 +633,18 @@ describe("the Overview and the import of time", () => {
         await session.data.import({ type: "csv", config: { data }, name: "Steps" });
         await pickField("began");
         await userEvent.click(await dataPlace().findByRole("combobox", { name: "Edge time unit" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Number" }));
+        await userEvent.click(page.getByRole("option", { name: "Number", exact: true }));
         const live = session;
         await waitFor(() => {
             assert.equal(live.time.field?.edges?.unit, "ordinal");
         });
         await userEvent.click(await dataPlace().findByRole("combobox", { name: "Edge time end" }));
-        await userEvent.click(await screen.findByRole("option", { name: "ended" }));
+        await userEvent.click(page.getByRole("option", { name: "ended", exact: true }));
         await waitFor(() => {
             assert.deepEqual(live.time.field?.edges, { start: "began", unit: "ordinal", end: "ended" });
         });
         await userEvent.click(await dataPlace().findByRole("combobox", { name: "Edge time end" }));
-        await userEvent.click(await screen.findByRole("option", { name: "None" }));
+        await userEvent.click(page.getByRole("option", { name: "None", exact: true }));
         await waitFor(() => {
             assert.deepEqual(live.time.field?.edges, { start: "began", unit: "ordinal" });
         });
@@ -666,7 +680,11 @@ describe("the Overview and the import of time", () => {
         await pickField("t");
         await openDock();
         const radio = async (group: string, label: string): Promise<void> => {
-            await userEvent.click(within((await timeCard()).getByRole("radiogroup", { name: group })).getByText(label));
+            await userEvent.click(
+                page
+                    .elementLocator((await timeCard()).getByRole("radiogroup", { name: group }))
+                    .getByText(label, { exact: true }),
+            );
         };
 
         await radio("Unit", "Epoch s");
@@ -714,11 +732,11 @@ describe("the Overview and the import of time", () => {
         const toggle = await screen.findByRole("button", { name: "Timeline" });
         assert.equal(toggle.getAttribute("aria-pressed"), "false", "setting the field leaves the dock shut");
         assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
-        await userEvent.click(toggle);
+        await userEvent.click(page.getByRole("button", { name: "Timeline", exact: true }));
         await screen.findByRole("region", { name: "Timeline" });
         assert.equal(toggle.getAttribute("aria-pressed"), "true");
 
-        await userEvent.click(toggle);
+        await userEvent.click(page.getByRole("button", { name: "Timeline", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
             assert.equal(toggle.getAttribute("aria-pressed"), "false");
@@ -746,14 +764,14 @@ describe("the Overview and the import of time", () => {
                 "Timeline Hidden",
             );
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
         await waitFor(() => {
             assert.isNotNull(session.time.current);
         });
         // How what lies outside draws is the row's style, edited like any other row: the Time card
         // has no control of its own for it.
         assert.isNull((await timeCard()).queryByRole("radiogroup", { name: "Outside" }));
-        await userEvent.click(screen.getByRole("button", { name: "Close Timeline settings" }));
+        await userEvent.click(page.getByRole("button", { name: "Close Timeline settings", exact: true }));
         const graph = session.data.snapshot();
         const ghostLayer = session.styles
             .list()
@@ -786,8 +804,11 @@ describe("the Overview and the import of time", () => {
     it("plays the Marvel films with no layout running: no node and no camera moves, and the Timeline Hidden row holds the rest", async () => {
         const { session } = await open(MARVEL, "graph");
         await session.config.set({ startingRows: true });
-        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(await inspector.findByRole("button", { name: "Set in Data" }));
+        await userEvent.click(
+            page
+                .getByRole("complementary", { name: "Inspector", exact: true })
+                .getByRole("button", { name: "Set in Data", exact: true }),
+        );
         await waitFor(() => {
             assert.deepEqual(session.time.field, { edges: { start: "released" } });
         });
@@ -798,7 +819,7 @@ describe("the Overview and the import of time", () => {
         const camera = JSON.stringify(element?.getCameraState());
         const dock = await openDock();
 
-        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Play", exact: true }));
         await waitFor(() => {
             assert.isNotNull(session.time.current);
         });
@@ -812,7 +833,7 @@ describe("the Overview and the import of time", () => {
             assert.isAbove(Number(session.time.current?.from), second);
         });
         if (session.time.playing) {
-            await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+            await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Pause", exact: true }));
         }
         await element?.waitForSettled();
         assert.isBelow(session.time.inside?.nodes ?? Infinity, session.data.statistics().nodeCount);
@@ -842,10 +863,15 @@ describe("the Overview and the import of time", () => {
             config: { data: "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,\n" },
         });
         await pickField("sent");
-        await userEvent.click((await openDock()).querySelector("[aria-label='Step forward']") as Element);
+        await userEvent.click(
+            page
+                .elementLocator(await openDock())
+                .getByCss("[aria-label='Step forward']")
+                .first(),
+        );
         const shown = live.time.inside?.edges ?? 0;
         const untimed = await (await timeCard()).findByRole("radiogroup", { name: "Untimed" });
-        await userEvent.click(within(untimed).getByText("Hide"));
+        await userEvent.click(page.elementLocator(untimed).getByText("Hide", { exact: true }));
         await waitFor(() => {
             assert.equal(live.time.inside?.edges, shown - 1);
         });
@@ -867,7 +893,12 @@ describe("the Overview and the import of time", () => {
         within(results).getByRole("combobox", { name: "When window moves" });
         assert.isNull(within(settings).queryByRole("radiogroup", { name: "Mode" }), "Mode is not a Time setting");
         within(animation).getByRole("button", { name: "About Animation" });
-        await userEvent.click(within(within(animation).getByRole("radiogroup", { name: "Mode" })).getByText("Grow"));
+        await userEvent.click(
+            page
+                .elementLocator(animation)
+                .getByRole("radiogroup", { name: "Mode", exact: true })
+                .getByText("Grow", { exact: true }),
+        );
         await waitFor(() => {
             assert.equal(session.time.settings.mode, "cumulative");
         });
@@ -875,7 +906,7 @@ describe("the Overview and the import of time", () => {
         assert.isNull(dataPlace().queryByRole("group", { name: /^Time window/ }), "no Filters card");
         await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
         // The new card opens in the selection workspace: its Value list holds the filterable values.
-        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
+        await userEvent.click(page.getByRole("button", { name: "Value", exact: true }));
         await screen.findByRole("option", { name: "Largest component" });
         assert.isNull(screen.queryByRole("option", { name: "Time window" }));
         await userEvent.keyboard("{Escape}");
@@ -936,11 +967,11 @@ describe("the Overview and the import of time", () => {
             }
         });
 
-        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Play", exact: true }));
         await waitFor(() => {
             assert.isAtLeast(frames.length, 12, "frames played");
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Pause", exact: true }));
         off();
 
         const WEEK = 7 * 86_400_000;
@@ -977,11 +1008,11 @@ describe("the Overview and the import of time", () => {
             }
         });
 
-        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Play", exact: true }));
         await waitFor(() => {
             assert.isAtLeast(frames, 12, "frames played");
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Pause", exact: true }));
         off();
         attributes.mockRestore();
 
@@ -999,8 +1030,11 @@ describe("the canvas toolbar in a 1200 x 900 window with the side panels open", 
 
     it("leaves every toolbar button uncovered, and Timeline opens the dock", async () => {
         const { session } = await open(MARVEL, "graph");
-        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(await inspector.findByRole("button", { name: "Set in Data" }));
+        await userEvent.click(
+            page
+                .getByRole("complementary", { name: "Inspector", exact: true })
+                .getByRole("button", { name: "Set in Data", exact: true }),
+        );
         await waitFor(() => {
             assert.deepEqual(session.time.field, { edges: { start: "released" } });
         });
@@ -1018,7 +1052,7 @@ describe("the canvas toolbar in a 1200 x 900 window with the side panels open", 
             assert.isTrue(button.contains(top), `nothing lies over ${name}`);
         }
 
-        await userEvent.click(screen.getByRole("button", { name: "Timeline" }));
+        await userEvent.click(page.getByRole("button", { name: "Timeline", exact: true }));
         await screen.findByRole("region", { name: "Timeline" });
     });
 });

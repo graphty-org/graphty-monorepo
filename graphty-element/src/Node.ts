@@ -71,7 +71,7 @@ import {
     type SurfacePath,
 } from "./meshes/NodeShaderDrawing";
 import { shareLabelBox } from "./meshes/NodeShapeGeometry";
-import { createOverlayMaterial } from "./meshes/overlayMaterial";
+import { createOverlayMaterial, keepBehindMiddle } from "./meshes/overlayMaterial";
 import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -1435,7 +1435,8 @@ export class Node implements ModelUser {
      * current zoom, under a key of its own per zoom step; any other border as it is, under the node's key.
      * @param meshKey - The source mesh key the node is drawn under.
      * @param border - The resolved style's border.
-     * @param scale - Scene units per screen pixel, or null when the node is not sized on the screen.
+     * @param scale - Screen pixels per unit of the node's mesh ({@link Node.screenScale}), or null when the border is
+     *     not in screen pixels.
      * @param perSize - The shape's extent per unit of size.
      * @returns The border and its mesh key.
      */
@@ -1448,9 +1449,13 @@ export class Node implements ModelUser {
         if (scale === null || border?.screenWidth === undefined) {
             return { border, key: meshKey };
         }
-        // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw).
+        // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw). The ring is built in the
+        // node's mesh, which the view then scales by its size space (#wholeScale): both widths are in the mesh's units,
+        // not the scene's (#10407).
         const box = this.bounds().boundingBox.extendSize;
-        const across = 2 * Math.min(box.x * Math.abs(this.#anchor.scaling.x), box.y * Math.abs(this.#anchor.scaling.y));
+        const view = Math.abs(this.#wholeScale) || 1;
+        const across =
+            (2 * Math.min(box.x * Math.abs(this.#anchor.scaling.x), box.y * Math.abs(this.#anchor.scaling.y))) / view;
         // ponytail: a ring per style and zoom step stays in the mesh cache until the scene
         // goes; a reader zooms over a few dozen steps, so it is a few dozen small rings.
         return {
@@ -1590,7 +1595,7 @@ export class Node implements ModelUser {
             const halo = NodeMesh.createHalo(
                 this.context.getMeshCache(),
                 { styleId: key, is2D: this.context.is2D(), size: this.size },
-                style.shape,
+                { shape: style.shape, border },
                 style[kind],
                 kind,
                 this.#anchor as AbstractMesh,
@@ -1669,25 +1674,29 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The screen pixels one scene unit is drawn as where this node is, rounded to 1/16 of a
-     * doubling, for a style whose border is in screen pixels; null for any other.
+     * The screen pixels one unit of the node's own mesh is drawn as where this node is (a scene unit times the view
+     * scale its size space draws it at), rounded to 1/16 of a doubling, for a style whose border is in screen pixels;
+     * null for any other.
      * @param style - The style the border is built from.
      * @returns The rounded scale, or null.
      */
     private screenScale(style: NodeStyleConfig): number | null {
-        return style.border?.screenWidth === undefined ? null : this.roundedPixelsPerUnit();
+        return style.border?.screenWidth === undefined ? null : this.roundedPixelsPerUnit(this.#wholeScale);
     }
 
     /**
      * The screen pixels one scene unit is drawn as where this node is, rounded to 1/16 of a doubling.
+     * @param factor - A scale to multiply it by before it is rounded.
      * @returns The rounded scale; 1 with no camera.
      */
-    private roundedPixelsPerUnit(): number {
+    private roundedPixelsPerUnit(factor = 1): number {
         const camera = this.context.getScene().activeCamera;
         // In CSS pixels, as a program drawing on a page counts them: a render pixel is a fraction
         // of one on a high-density screen.
         const ppu = camera
-            ? pixelsPerUnit(camera, this.#anchor.getAbsolutePosition()) * camera.getEngine().getHardwareScalingLevel()
+            ? pixelsPerUnit(camera, this.#anchor.getAbsolutePosition()) *
+              camera.getEngine().getHardwareScalingLevel() *
+              Math.abs(factor)
             : 0;
 
         // ponytail: the scale of the scene's root (an XR gesture's) is not divided out; a border
@@ -2626,6 +2635,9 @@ export class Node implements ModelUser {
         if (this.#wholeScale !== whole) {
             this.#wholeScale = whole;
             this.context.getNodeBatches?.()?.rescale(this);
+            // a screen-pixel border is built in the mesh's units, which the view scale sets: with the camera still,
+            // nothing else rebuilds it (#10434)
+            this.refreshScreenBorder();
         }
     }
 
@@ -3840,6 +3852,10 @@ export class Node implements ModelUser {
         }
 
         const built = this.build(fit.meshKey, fit.style);
+        // the new mesh is drawn at scale 1 until the sizing pass scales it for its size space: a view scale left from
+        // the old mesh built a screen-pixel border for a size the node is no longer drawn at (#10434). Leaving a batch
+        // builds a mesh too, but moves the old scale onto it, so the view scale is kept there.
+        this.#wholeScale = 1;
 
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);
@@ -4841,7 +4857,7 @@ export class Node implements ModelUser {
             source = MeshBuilder.CreateSphere(name, { diameter: 1, segments: 8 }, scene);
         }
 
-        // Its shader was compiled with the scene's first node source (`prepareOverlayShader`).
+        // Its shader was compiled right after the scene's first frame of nodes (`prepareOverlayShader`).
         const material = createOverlayMaterial(`${name}-material`, color, alpha, scene);
         // A halo around a solid draws only its far side. The near side lies in front of the node
         // it surrounds, and blending it over the node tinted the whole node the halo's color (a
@@ -4853,6 +4869,12 @@ export class Node implements ModelUser {
         // does a context point, drawn in place of a hidden node with nothing in front of it.
         material.backFaceCulling = name.startsWith(SELECTION_HALO_MESH) && !Node.isFlat(source);
         material.cullBackFaces = false;
+        // Some far faces of a tetrahedron, a torus, or a box or cone seen at an angle lie in front of the node's
+        // middle, where its border, outer border and plates are drawn as flat rings: kept behind them (#10499). A
+        // 3D view's camera is a perspective one.
+        if (material.backFaceCulling && !flat) {
+            keepBehindMiddle(material);
+        }
         // Drawn just behind a surface it shares a depth with, so around a flat node -- whose
         // scaled copy lies in the node's own plane -- the halo shows as a rim around the node
         // instead of fighting it for the same pixels. Too small to move a 3D halo visibly. A 2D

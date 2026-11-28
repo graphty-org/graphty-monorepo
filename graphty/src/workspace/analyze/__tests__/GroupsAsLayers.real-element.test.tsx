@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
@@ -59,10 +59,10 @@ describe("a grouping run from Analyze", () => {
     it("makes a folder of group layers; a recolored group keeps its members through a re-run", async () => {
         const session = await openScene();
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
-        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Louvain");
-        await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
-        await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Analyze", exact: true }));
+        await userEvent.type(page.getByRole("combobox", { name: "Filter analyses", exact: true }), "Louvain");
+        await userEvent.click(page.getByRole("option", { name: /^Louvain/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Run\b/ }));
         const runId = await waitFor(() => {
             const run = session.runs.list().find((r) => r.algorithm === "louvain");
             assert.equal(run?.status, "succeeded");
@@ -71,8 +71,9 @@ describe("a grouping run from Analyze", () => {
         await session.styles.settled();
 
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        const folder = await within(tree).findByRole("treeitem", { name: /^Louvain, folder, \d+ layers$/ });
-        await userEvent.click(folder);
+        const folder = (): Locator =>
+            page.elementLocator(tree).getByRole("treeitem", { name: /^Louvain, folder, \d+ layers$/ });
+        await userEvent.click(folder());
         await userEvent.keyboard("{ArrowRight}");
         const first = await within(tree).findByRole("treeitem", { name: /^Group 1, node layer, \d+ nodes$/ });
         assert.isNotNull(first);
@@ -86,20 +87,20 @@ describe("a grouping run from Analyze", () => {
         });
         assert.isDefined(own);
         await userEvent.click(
-            within(tree).getByRole("treeitem", { name: new RegExp(`^${own?.name ?? ""}, node layer`) }),
+            page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${own?.name ?? ""}, node layer`) }),
         );
         const tab = await screen.findByTestId("style-tab");
-        const fill = await within(tab).findByRole("textbox", { name: /^Node color/ });
-        await userEvent.tripleClick(fill);
+        const fill = (): Locator => page.elementLocator(tab).getByRole("textbox", { name: /^Node color/ });
+        await userEvent.tripleClick(fill());
         await userEvent.keyboard("123456{Enter}");
         await waitFor(() => {
             assert.equal(session.styles.get(own?.id ?? "")?.set?.["node.color"], "#123456");
         });
 
         // The folder's menu opens the run, whose page holds its settings and Rerun.
-        await userEvent.click(folder);
+        await userEvent.click(folder());
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Run settings" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Run settings", exact: true }));
         await waitFor(() => {
             const names = screen.queryAllByRole("heading", { level: 2 }).map((h) => h.textContent);
             assert.isTrue(
@@ -129,16 +130,16 @@ describe("a grouping run from Analyze", () => {
         const session = await openScene(store);
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
         const analyze = within(toolbar).getByRole("button", { name: "Analyze" });
-        await userEvent.click(analyze);
-        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Louvain");
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Analyze", exact: true }));
+        await userEvent.type(page.getByRole("combobox", { name: "Filter analyses", exact: true }), "Louvain");
         await userEvent.keyboard("{Enter}");
-        await userEvent.click(await screen.findByRole("button", { name: "Settings for Louvain" }));
-        const resolution = await screen.findByRole("spinbutton", { name: /^Resolution/ });
+        await userEvent.click(page.getByRole("button", { name: "Settings for Louvain", exact: true }));
+        const resolution = page.getByRole("spinbutton", { name: /^Resolution/ });
         await userEvent.tripleClick(resolution);
         await userEvent.keyboard("1.2{Enter}");
         // Escape closes only the settings; Analyze stays open with its Run.
         await userEvent.keyboard("{Escape}");
-        await userEvent.click(await screen.findByRole("button", { name: /^(Run|Add) Louvain/ }));
+        await userEvent.click(page.getByRole("button", { name: /^(Run|Add) Louvain/ }));
 
         const runId = await waitFor(() => {
             const found = session.runs.list().find((r) => r.algorithm === "louvain");

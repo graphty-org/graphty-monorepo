@@ -36,7 +36,6 @@ import {
     ringVertexData,
     setLabelBox,
 } from "./NodeShapeGeometry";
-import { prepareOverlayShader } from "./overlayMaterial";
 import { ON_TOP_RENDERING_GROUP } from "./RichTextLabel";
 import {
     borderRing,
@@ -171,22 +170,96 @@ const Z_INDEX_STEP = 0.05;
  * @returns The node, or null when none is in front of the camera.
  */
 function nearestDrawing(ring: Mesh, view: Matrix, ahead: number, at: Vector3): TransformNode | null {
-    const middle = new Vector3();
     let nearest: TransformNode | null = null;
     let distance = Infinity;
+    forEachDrawn(ring, view, (_instance, node, middle) => {
+        if (middle.z * ahead > 0 && middle.z * ahead < distance) {
+            [nearest, distance] = [node, middle.z * ahead];
+            at.copyFrom(middle);
+        }
+    });
+
+    return nearest;
+}
+
+/**
+ * Visit every enabled instance of a ring that has a node, with that node's middle in the camera's view.
+ * @param ring - The ring's source mesh.
+ * @param view - The camera's view matrix.
+ * @param visit - Called with the instance, its node and the node's middle (reused between calls).
+ */
+function forEachDrawn(
+    ring: Mesh,
+    view: Matrix,
+    visit: (instance: InstancedMesh, node: TransformNode, middle: Vector3) => void,
+): void {
+    const middle = new Vector3();
     for (const instance of ring.instances) {
         const node = instance.parent as TransformNode | null;
         if (node === null || !instance.isEnabled()) {
             continue;
         }
         Vector3.TransformCoordinatesToRef(node.getAbsolutePosition(), view, middle);
-        if (middle.z * ahead > 0 && middle.z * ahead < distance) {
-            [nearest, distance] = [node, middle.z * ahead];
-            at.copyFrom(middle);
-        }
+        visit(instance, node, middle);
     }
+}
 
-    return nearest;
+/**
+ * How much larger than its own outline a solid seen from `distance` looks on the plane through its middle, square to
+ * the line from the camera: a sphere of `radius` is seen inside the cone that touches it, whose circle on that plane is
+ * `distance / sqrt(distance^2 - radius^2)` times the sphere's; and a ring whose far face is `back` behind that plane is
+ * built larger by as much as that face is further away, so the face's inner edge is seen on the outline.
+ * @param distance - How far the solid's middle is from the camera.
+ * @param radius - The solid's radius, in the same units.
+ * @param back - How far behind the middle the ring's far face is, in the same units.
+ * @returns The factor.
+ */
+function seenGrowth(distance: number, radius: number, back: number): number {
+    const square = Math.max(distance * distance - radius * radius, 1e-6 * distance * distance);
+
+    return (distance / Math.sqrt(square)) * ((distance + back) / distance);
+}
+
+/**
+ * Turn every node's instance of a solid's ring to face the camera along the line to that node's own middle, and size
+ * it for that node's distance, so each node gets the ring the nearest one was built for, seen as it would see it.
+ * A ring turned only with the camera, square to the middle of the view, is round on a node in the middle of the view
+ * and stretched toward the edge of it; one ring shared by a style was built for the nearest node, so every other node
+ * of the style drew that node's stretch (issue #10373).
+ * @param ring - The ring's source mesh, every instance billboarded to the camera.
+ * @param view - The camera's view matrix.
+ * @param ahead - 1 where the camera looks along +z in its view, -1 where along -z.
+ * @param size - The solid's size in its own units.
+ * @param size.radius - Its radius.
+ * @param size.back - How far the ring's far face is behind the node's middle along the view.
+ * @param nearest - The nearest node's middle in the camera's view; its instance is the unit the others are sized by.
+ * @param nearestScale - The nearest node's scale.
+ * @param turned - Set to the turn the nearest node's instance was given, in the camera's view.
+ */
+function faceEachNode(
+    ring: Mesh,
+    view: Matrix,
+    ahead: number,
+    size: { radius: number; back: number },
+    nearest: Vector3,
+    nearestScale: number,
+    turned: Quaternion,
+): void {
+    const { radius, back } = size;
+    const forward = new Vector3(0, 0, ahead);
+    const unit = seenGrowth(nearest.length(), radius * nearestScale, back * nearestScale);
+    Quaternion.FromUnitVectorsToRef(forward, nearest.normalizeToNew(), turned);
+    forEachDrawn(ring, view, (instance, node, middle) => {
+        const distance = middle.length();
+        if (middle.z * ahead <= 0) {
+            return;
+        }
+        // applied before the billboard's turn to the camera, so a turn in the camera's view
+        instance.rotationQuaternion ??= new Quaternion();
+        Quaternion.FromUnitVectorsToRef(forward, middle.scaleInPlace(1 / distance), instance.rotationQuaternion);
+        const scale = node.absoluteScaling.x;
+        instance.scaling.setAll(seenGrowth(distance, radius * scale, back * scale) / unit);
+    });
 }
 
 /**
@@ -576,8 +649,6 @@ export class NodeMesh {
 
         const material = this.createMaterial(createOptions, options.is2D, scene);
         mesh.material = material;
-        // A node drawn now may be selected next: have its halo's shader ready before it is.
-        prepareOverlayShader(mesh.getScene());
         if (isNodeMaterial(material)) {
             outlineNodeMesh(mesh, sceneLighting(scene));
         }
@@ -1054,7 +1125,7 @@ export class NodeMesh {
      * cached under the node's style key as its outer border is.
      * @param cache - The mesh cache the node's own mesh came from.
      * @param options - The node's mesh options.
-     * @param shape - The node's shape block.
+     * @param createOptions - The node's shape, and its border, whose inset a solid's fill is drawn in by.
      * @param halo - The underlay or overlay.
      * @param kind - Which of the two.
      * @param fill - The node's own mesh, whose outline and depth it follows.
@@ -1064,12 +1135,13 @@ export class NodeMesh {
     static createHalo(
         cache: MeshCache,
         options: NodeMeshOptions,
-        shape: NodeStyleConfig["shape"],
+        createOptions: Pick<NodeMeshCreateOptions, "shape" | "border">,
         halo: NodeStyleConfig["underlay"],
         kind: "underlay" | "overlay",
         fill: AbstractMesh,
         scene?: Scene,
     ): InstancedMesh | null {
+        const { shape, border } = createOptions;
         const opacity = halo?.opacity ?? 0;
         if (shape?.type === undefined || opacity <= 0) {
             return null;
@@ -1079,6 +1151,9 @@ export class NodeMesh {
         const pad = (halo?.padding ?? 0) * perSize;
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
+        // a solid's fill, fitted or at its own proportions, is drawn in by a centered or inside border
+        // (createMeshWithoutCache); grow its outline back out to the box first
+        const reach = flat ? pad : pad + this.borderFit(shape, border, sized).inset;
         const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
             const own = halo?.shape;
             const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
@@ -1097,7 +1172,7 @@ export class NodeMesh {
                 );
             } else {
                 const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
-                outline = offsetOutline(nodeOutline, pad);
+                outline = offsetOutline(nodeOutline, reach);
             }
             fill.computeWorldMatrix(true);
             const box = fill.getBoundingInfo().boundingBox;
@@ -1115,7 +1190,7 @@ export class NodeMesh {
                 mesh.refreshBoundingInfo();
             }
             if (!ownOutline && !flat && !options.is2D) {
-                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, pad)));
+                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, reach)));
             }
             mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
 
@@ -1514,9 +1589,9 @@ export class NodeMesh {
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
         // a model's parts, found once: the node they were found under may go while others still draw the ring
         const groups = this.modelGroups(fill);
-        const [toView, turn] = [new Matrix(), new Matrix()];
+        const [toView, turn, unturn, alongLine] = [new Matrix(), new Matrix(), new Matrix(), new Matrix()];
         const [scale, at] = [new Vector3(), new Vector3()];
-        const quaternion = new Quaternion();
+        const [quaternion, facing] = [new Quaternion(), new Quaternion()];
         let seen = "";
         let drawn: Point2[] = [];
         const observer = scene.onBeforeRenderObservable.add(() => {
@@ -1533,6 +1608,13 @@ export class NodeMesh {
             }
 
             const world = nearest.getWorldMatrix();
+            const box = mesh.getBoundingInfo().boundingBox;
+            const perspective = camera.mode === Camera.PERSPECTIVE_CAMERA;
+            const backZ = ahead > 0 ? box.maximum.z : box.minimum.z;
+            if (perspective) {
+                const { radius } = source.getBoundingInfo().boundingSphere;
+                faceEachNode(mesh, view, ahead, { radius, back: backZ * ahead }, at, nearest.absoluteScaling.x, facing);
+            }
             const key = `${String(view.updateFlag)}|${String(nearest.uniqueId)}|${String(world.updateFlag)}`;
             if (key === seen) {
                 return;
@@ -1543,14 +1625,16 @@ export class NodeMesh {
             Matrix.FromQuaternionToRef(quaternion, turn);
             turn.multiplyToRef(view, toView);
             toView.setTranslationFromFloats(0, 0, 0);
-            const box = mesh.getBoundingInfo().boundingBox;
             let outline: Point2[];
-            if (camera.mode === Camera.PERSPECTIVE_CAMERA) {
-                at.scaleInPlace(1 / scale.x);
+            if (perspective) {
+                // seen along the line to the nearest node's middle, the way its instance was turned to face
+                Matrix.FromQuaternionToRef(Quaternion.Inverse(facing), unturn);
+                toView.multiplyToRef(unturn, alongLine);
+                at.set(0, 0, (ahead * at.length()) / scale.x);
                 // looking into the ring, its inner wall is seen down to the face away from the camera, drawn smaller
                 // than the node's middle by as much: that face's inner edge is put on the solid's outline
-                const back = (at.z + (ahead > 0 ? box.maximum.z : box.minimum.z)) / at.z;
-                outline = this.solidOutline(fill, toView, at, groups).map(([x, y]): Point2 => [x * back, y * back]);
+                const back = (at.z + backZ) / at.z;
+                outline = this.solidOutline(fill, alongLine, at, groups).map(([x, y]): Point2 => [x * back, y * back]);
             } else {
                 outline = this.solidOutline(fill, toView, undefined, groups);
             }

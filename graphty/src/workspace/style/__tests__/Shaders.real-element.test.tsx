@@ -10,7 +10,7 @@
 import type { Channel, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -65,23 +65,25 @@ describe("style options and the Shaders gallery", () => {
         renderPanel(mounted, [layer]);
         const shape = (): HTMLElement => section("node", "shape");
 
-        await userEvent.click(within(shape()).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Glow" }));
+        await userEvent.click(
+            page.elementLocator(shape()).getByRole("button", { name: "Add to node shape", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Glow", exact: true }));
         const row = await waitFor(() => {
             const found = shape().querySelector<HTMLElement>('.ws-row[data-line="node.glow"]');
             assert.isNotNull(found, "a Glow row");
             return found;
         });
         assert.isUndefined(written(mounted.session, layer, "node.glow"), "adding writes nothing before a value");
-        const hex = within(row).getByRole<HTMLInputElement>("textbox", { name: /^Node glow/ });
-        await userEvent.tripleClick(hex);
+        const hex = (): Locator => page.elementLocator(row).getByRole("textbox", { name: /^Node glow/ });
+        await userEvent.tripleClick(hex());
         await userEvent.keyboard("FF00FF{Enter}");
         await waitFor(() => {
             assert.equal(written(mounted.session, layer, "node.glow"), "#FF00FF");
             assert.equal(glowOf(mounted.session), "#ff00ff");
         });
 
-        await userEvent.click(within(row).getByRole("button", { name: "Remove node glow" }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "Remove node glow", exact: true }));
         await waitFor(() => {
             assert.isUndefined(written(mounted.session, layer, "node.glow"), "removed from the layer");
             assert.isNull(shape().querySelector('.ws-row[data-line="node.glow"]'), "the row is gone");
@@ -108,7 +110,11 @@ describe("style options and the Shaders gallery", () => {
         const mounted = await mountElement();
         const layer = await addNodeLayer(mounted.session);
         renderPanel(mounted, [layer]);
-        await userEvent.click(within(section("node", "shaders")).getByRole("button", { name: "Add to node shaders" }));
+        await userEvent.click(
+            page
+                .elementLocator(section("node", "shaders"))
+                .getByRole("button", { name: "Add to node shaders", exact: true }),
+        );
         const gallery = await screen.findByTestId("shader-gallery", {});
         await userEvent.keyboard("glow");
         const tile = await within(gallery).findByRole("button", { name: "Glow" });
@@ -155,11 +161,13 @@ describe("style options and the Shaders gallery", () => {
         renderPanel(mounted, [nodes, edges.id]);
         await showKind("edge");
         const ends = screen.getByRole("group", { name: "Arrowheads" });
-        await userEvent.click(within(ends).getByRole("button", { name: "Add to edge arrowheads" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Target end" }));
-        const head = await within(ends).findByRole("combobox", { name: /^Edge target end/ });
-        await userEvent.click(head);
-        await userEvent.click(await screen.findByRole("option", { name: "None" }));
+        await userEvent.click(
+            page.elementLocator(ends).getByRole("button", { name: "Add to edge arrowheads", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Target end", exact: true }));
+        const head = (): Locator => page.elementLocator(ends).getByRole("combobox", { name: /^Edge target end/ });
+        await userEvent.click(head());
+        await userEvent.click(page.getByRole("option", { name: "None", exact: true }));
         await waitFor(() => {
             assert.equal(written(mounted.session, edges.id, "edge.arrowHead"), "none");
         });

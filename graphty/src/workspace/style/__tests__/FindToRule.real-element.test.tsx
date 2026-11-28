@@ -79,15 +79,16 @@ function readerLayers(session: GraphSession): Layer[] {
  * @param hex - the color, six hex digits.
  */
 async function newLayerFromSelection(session: GraphSession, hex: string): Promise<void> {
-    const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-    await userEvent.click(await inspector.findByRole("button", { name: /actions$/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /New layer from selection/ }));
+    await userEvent.click(
+        page.getByRole("complementary", { name: "Inspector", exact: true }).getByRole("button", { name: /actions$/ }),
+    );
+    await userEvent.click(page.getByRole("menuitem", { name: /New layer from selection/ }));
     const tab = await screen.findByTestId("style-tab", {});
     // Fill's "+" adds Color; typing its hex writes it.
-    await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
+    await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node fill", exact: true }));
     // Fill also offers Picture, so its "+" opens a menu.
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
-    const field = await screen.findByRole("textbox", { name: /^Node color(,|$)/ });
+    await userEvent.click(page.getByRole("menuitem", { name: "Color", exact: true }));
+    const field = page.getByRole("textbox", { name: /^Node color(,|$)/ });
     await userEvent.clear(field);
     await userEvent.type(field, `${hex}{Enter}`);
 }
@@ -158,7 +159,7 @@ describe("selection as a way into a rule", () => {
 
         // A right-click on a selected node keeps the selection and lists its commands.
         await userEvent.click(element, { position: at("a"), button: "right" });
-        await userEvent.click(await screen.findByRole("menuitem", { name: /New layer from selection/ }));
+        await userEvent.click(page.getByRole("menuitem", { name: /New layer from selection/ }));
 
         // The layer is made with no value set yet, named after the selection.
         await waitFor(() => {
@@ -192,7 +193,7 @@ describe("selection as a way into a rule", () => {
     it("a selection made by a rule makes a layer with that rule", async () => {
         const { session } = await openWithGraph();
         const before = readerLayers(session).length;
-        const find = await screen.findByRole("combobox", { name: "Find" });
+        const find = page.getByRole("combobox", { name: "Find", exact: true });
         await userEvent.click(find);
         await userEvent.keyboard("=age > `30`{Enter}");
         await waitFor(() => {

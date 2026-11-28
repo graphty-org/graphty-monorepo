@@ -3745,6 +3745,14 @@ export interface LoadedSource extends DataSourceDescriptor {
      */
     readonly named?: number;
     /**
+     * How many of `counts.nodes` no source's rows hold: nodes it supplied only as an edge end,
+     * such as the node a join adds for a row naming one no file holds (`unmatched: "add"`).
+     * `counts.nodes` minus this is how many it supplied by its rows. Present only under the
+     * source-steps experiment.
+     * @experimental source-steps
+     */
+    readonly endNodes?: number;
+    /**
      * Its rows the build left out, by reason. `"left-out:repeated-key"` counts node rows whose key
      * an earlier row of the source gave: the node keeps the first row's values. Present only under
      * the source-steps experiment.

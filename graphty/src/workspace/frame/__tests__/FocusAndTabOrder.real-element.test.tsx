@@ -144,8 +144,8 @@ describe("focus and Tab order in the workspace, on the real element", () => {
             await session.selection.apply({ nodes: ["n3"] });
         });
         const view = screen.getByRole("button", { name: "Camera" });
-        await userEvent.click(view);
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Fit selection" }));
+        await userEvent.click(page.getByRole("button", { name: "Camera", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Fit selection", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("menu"));
             assert.strictEqual(document.activeElement, view);
@@ -278,7 +278,7 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         await inspector().findByRole("heading", { name: /Everything/ });
         const host = document.querySelector("graphty-element");
         assert.exists(host);
-        await userEvent.click(host, { button: "right", position: { x: 6, y: 6 } });
+        await userEvent.click(page.getByCss("graphty-element").first(), { button: "right", position: { x: 6, y: 6 } });
         await userEvent.keyboard("{Escape}");
         assert.exists(inspector().queryByRole("heading", { name: /Everything/ }), "the inspector left the layer");
     });
@@ -300,7 +300,7 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         const { session } = await openRings();
         await session.selection.apply({ nodes: ["n1"] });
         await userEvent.click(await treeRow("Everything"), { button: "right" });
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Select more" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Select more", exact: true }));
         await screen.findByText("1 selected");
         screen.getByRole("button", { name: "Main menu" }).focus();
         await userEvent.keyboard("{Escape}");

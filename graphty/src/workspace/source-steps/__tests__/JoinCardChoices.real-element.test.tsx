@@ -19,6 +19,7 @@ import { screen, waitFor, within } from "../../../test/test-utils";
 import {
     addMatch,
     advanced,
+    checkedWay,
     choose,
     done,
     draftOf,
@@ -33,6 +34,7 @@ import {
     pickFields,
     pickSources,
     selectJoin,
+    stageFile,
     waysToJoin,
 } from "./sourceSteps";
 
@@ -69,7 +71,7 @@ async function opened(
     );
     store.set({ dockOpen: false, dockMaximized: false });
     for (const [name, text] of files) {
-        drop(name, text);
+        await stageFile(name, text);
         await screen.findByRole("listitem", { name });
     }
     return { session, modal: await openJoins() };
@@ -139,14 +141,20 @@ describe("a join card's choices (source-steps)", () => {
         const { session, modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
         const steps = draftOf(session).steps().length;
         const card = modal.querySelector<HTMLElement>("[data-join-editor]") ?? modal;
+        // The boxes the reader can pick from: the Join type is named from the start, off until a match is whole.
         const boxes = (): string[] =>
             within(card)
                 .getAllByRole<HTMLInputElement>("combobox")
+                .filter((box) => !box.disabled)
                 .map((box) => `${box.getAttribute("aria-label") ?? ""}: ${box.value}`);
         assert.deepStrictEqual(boxes(), ["Source 1: ", "Source 2: "], "a new card is two blank pickers");
+        assert.isTrue(
+            within(card).getByRole<HTMLInputElement>("combobox", { name: "Join type" }).disabled,
+            "and its join type, named and waiting",
+        );
         assert.lengthOf(within(card).queryAllByRole("button", { name: /Add as is|Match|Remove/ }), 0);
         await choose(modal, "Source 1", "people");
-        assert.lengthOf(within(card).queryAllByRole("combobox"), 2, "fields wait for both sources");
+        assert.lengthOf(boxes(), 2, "fields wait for both sources");
         await choose(modal, "Source 2", "entries");
         assert.deepStrictEqual(boxes(), ["Source 1: people", "Source 2: entries", "Field 1: ", "Field 2: "]);
         await userEvent.click(page.elementLocator(modal).getByRole("combobox", { name: "Field 2", exact: true }));
@@ -161,8 +169,8 @@ describe("a join card's choices (source-steps)", () => {
         await pickFields(modal, "badge", "badge");
         assert.strictEqual(within(modal).getByLabelText("Match count 1").textContent, "4 of 5 match");
         assert.deepStrictEqual(waysToJoin(modal), [FIELDS, NODE]);
-        assert.isNull(within(modal).queryByRole("radio", { checked: true, name: FIELDS }), "nothing is picked");
-        assert.strictEqual(draftOf(session).steps().length, steps, "nothing is applied");
+        assert.strictEqual(checkedWay(modal), NODE, "the type that adds edges is picked at once");
+        assert.isAbove(draftOf(session).steps().length, steps, "and applied");
         await joinAs(modal, NODE);
         await newest(session, (step) => step.act?.act === "connect", "a node linked to its person");
         assert.notInclude(offered(modal), "Existing edge", "only an edge meets another");
@@ -175,8 +183,8 @@ describe("a join card's choices (source-steps)", () => {
         assert.isNull(within(modal).queryByRole("combobox", { name: "Direction" }));
         await addMatch(modal, 2, ["entries", "door"], ["doors", "door"]);
         assert.include(waysToJoin(modal), EDGE);
-        assert.isNull(within(modal).queryByRole("radio", { checked: true, name: FIELDS }), "its join is asked again");
-        assert.lengthOf(joinsOf(session), 0, "and taken out until it is said");
+        assert.isNull(within(modal).queryByRole("radio", { checked: true, name: FIELDS }), "its join is picked again");
+        assert.strictEqual(checkedWay(modal), EDGE, "by the first type of both matches that adds edges");
     });
 
     it("an edge becomes a node between its two ends and back, and no node of the rows stays behind", async () => {

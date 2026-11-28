@@ -32,6 +32,7 @@ import {
     pickSources,
     rowWith,
     select,
+    stageFile,
 } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
@@ -52,7 +53,7 @@ const VISITORS = "badge,name\nB1,Ann\nV1,Val";
  * @param text - its contents.
  */
 async function stage(name: string, text: string): Promise<void> {
-    drop(name, text);
+    await stageFile(name, text);
     await screen.findByRole("listitem", { name });
 }
 

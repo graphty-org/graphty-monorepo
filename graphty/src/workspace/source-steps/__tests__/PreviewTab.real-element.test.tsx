@@ -20,7 +20,6 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import {
     draftOf,
-    drop,
     emptyProject,
     joinAs,
     openJoins,
@@ -28,6 +27,7 @@ import {
     pickSources,
     rowWith,
     select,
+    stageFile,
 } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
@@ -67,7 +67,7 @@ async function joinOn(
         );
         await project.session.data.add(id, { overlap: "merge" });
     }
-    drop(name, text);
+    await stageFile(name, text);
     await screen.findByRole("listitem", { name });
     const modal = await openJoins();
     const source = name.replace(".csv", "");
@@ -120,7 +120,7 @@ describe("the join workspace's table (source-steps)", () => {
             { type: "csv", config: { data: ENTRIES }, name: "entries.csv" },
             { key: "entry", type: "entry" },
         );
-        drop("people.csv", PEOPLE);
+        await stageFile("people.csv", PEOPLE);
         await screen.findByRole("listitem", { name: "people.csv" });
         const modal = await openJoins();
         await pickSources(modal, "entries", "people");

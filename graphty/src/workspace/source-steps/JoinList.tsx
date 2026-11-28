@@ -19,8 +19,8 @@ export interface JoinListRow {
 }
 
 /**
- * "Join +" and every join under it, one line each: below the data sources, and at the top of the join
- * workspace.
+ * "Join +" and every join under it, one line each, below the data sources (the join workspace draws its
+ * joins as cards).
  * @param props - Component props
  * @param props.rows - the joins, in order
  * @param props.current - the selected one, or null
@@ -46,7 +46,8 @@ export function JoinList({
             actions={
                 <Group gap={4} wrap="nowrap" data-join-plus="">
                     <KeyWords combo={JOIN_WORKSPACE_KEY} />
-                    <Tooltip label={WORKSPACE_WORDS.open}>
+                    {/* What joining does, for a reader who has loaded several sources and looks for how to connect them. */}
+                    <Tooltip label={WORKSPACE_WORDS.openTip} multiline w={240}>
                         <ActionIcon
                             variant="subtle"
                             aria-label={WORKSPACE_WORDS.open}

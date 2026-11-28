@@ -1,6 +1,6 @@
 import { SegmentedControl } from "@graphty/compact-mantine";
 import type { DraftRing, SourceDraft, SourceDraftMarkCounts } from "@graphty/graphty-element/session";
-import { Button, Group, Loader, Text } from "@mantine/core";
+import { Button, Group, Loader, Text, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { formatNumber } from "../inspector/words";
@@ -67,6 +67,9 @@ function keyOf(marks: SourceDraftMarkCounts, rings: readonly DraftRing[], colors
  * @param props.onRedo - makes again what Undo took back
  * @param props.onCancel - throws the draft away
  * @param props.onDone - commits it
+ * @param props.name - the open card's name, after the workspace's as the selection workspace's title reads
+ * @param props.menu - the workspace's "..." menu
+ * @param props.children - the key, after the title
  * @returns the header
  */
 export function JoinHead({
@@ -80,6 +83,9 @@ export function JoinHead({
     onRedo,
     onCancel,
     onDone,
+    name,
+    menu,
+    children,
 }: Readonly<{
     titleId: string;
     draft: SourceDraft;
@@ -91,12 +97,22 @@ export function JoinHead({
     onRedo: () => void;
     onCancel: () => void;
     onDone: () => void;
+    name: string | null;
+    menu: React.ReactNode;
+    children?: React.ReactNode;
 }>): React.JSX.Element {
     return (
         <header className="sel-ws-head">
-            <Text size="sm" fw={600} className="sel-ws-title" id={titleId}>
-                {WORKSPACE_WORDS.title}
-            </Text>
+            <Group gap={4} wrap="nowrap" className="sel-ws-title">
+                <Text size="sm" fw={600} id={titleId} style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+                    {WORKSPACE_WORDS.title}
+                </Text>
+                {name === null ? null : (
+                    <Text size="sm" fw={600} truncate title={name}>
+                        {`/ ${name}`}
+                    </Text>
+                )}
+            </Group>
             {drawing ? (
                 <Group gap={4} wrap="nowrap" data-drawing="">
                     <Loader size={12} aria-hidden />
@@ -105,41 +121,50 @@ export function JoinHead({
                     </Text>
                 </Group>
             ) : null}
+            {children}
             <span className="sel-spacer" />
-            <SegmentedControl
-                aria-label={WORKSPACE_WORDS.preview}
-                value={colors ? "colors" : "styled"}
-                data={[
-                    { value: "colors", label: WORKSPACE_WORDS.cardColors },
-                    { value: "styled", label: WORKSPACE_WORDS.styled },
-                ]}
-                onChange={(value) => {
-                    onColors(value === "colors");
-                }}
-            />
-            <SegmentedControl
-                aria-label={PREVIEW_WORDS.beforeAfter}
-                aria-keyshortcuts={ariaKey(SIDE_KEY)}
-                value={draft.side}
-                data={[
-                    { value: "before", label: PREVIEW_WORDS.before },
-                    {
-                        value: "after",
-                        label: (
-                            <Group gap={4} wrap="nowrap" component="span">
-                                {`${PREVIEW_WORDS.after} `}
-                                {/* Its key is shown, and said by the control's aria-keyshortcuts: never part of its name. */}
-                                <span aria-hidden>
-                                    <KeyWords combo={SIDE_KEY} />
-                                </span>
-                            </Group>
-                        ),
-                    },
-                ]}
-                onChange={(value) => {
-                    onSide(value === "before" ? "before" : "after");
-                }}
-            />
+            <Tooltip label={WORKSPACE_WORDS.cardColorsTip} openDelay={500} multiline w={260}>
+                <div>
+                    <SegmentedControl
+                        aria-label={WORKSPACE_WORDS.preview}
+                        value={colors ? "colors" : "styled"}
+                        data={[
+                            { value: "colors", label: WORKSPACE_WORDS.cardColors },
+                            { value: "styled", label: WORKSPACE_WORDS.styled },
+                        ]}
+                        onChange={(value) => {
+                            onColors(value === "colors");
+                        }}
+                    />
+                </div>
+            </Tooltip>
+            <Tooltip label={WORKSPACE_WORDS.sideTip} openDelay={500} multiline w={260}>
+                <div>
+                    <SegmentedControl
+                        aria-label={PREVIEW_WORDS.beforeAfter}
+                        aria-keyshortcuts={ariaKey(SIDE_KEY)}
+                        value={draft.side}
+                        data={[
+                            { value: "before", label: PREVIEW_WORDS.before },
+                            {
+                                value: "after",
+                                label: (
+                                    <Group gap={4} wrap="nowrap" component="span">
+                                        {`${PREVIEW_WORDS.after} `}
+                                        {/* Its key is shown, and said by the control's aria-keyshortcuts: never part of its name. */}
+                                        <span aria-hidden>
+                                            <KeyWords combo={SIDE_KEY} />
+                                        </span>
+                                    </Group>
+                                ),
+                            },
+                        ]}
+                        onChange={(value) => {
+                            onSide(value === "before" ? "before" : "after");
+                        }}
+                    />
+                </div>
+            </Tooltip>
             <Button
                 size="compact-xs"
                 variant="subtle"
@@ -160,6 +185,7 @@ export function JoinHead({
             >
                 {WORKSPACE_WORDS.redo}
             </Button>
+            {menu}
             <span className="sel-ws-gap" />
             <Button
                 size="compact-xs"
@@ -191,11 +217,11 @@ export function JoinKey({
     colors,
 }: Readonly<{ marks: SourceDraftMarkCounts; rings: readonly DraftRing[]; colors: boolean }>): React.JSX.Element {
     return (
-        <div className="jw-key">
+        <div className="jw-key sel-count">
             {keyOf(marks, rings, colors).map((each) => (
                 <Group key={each.id} gap={4} wrap="nowrap" aria-label={`${each.label} ${String(each.count)}`}>
                     <span className="jw-key-mark" data-mark={each.id} style={{ color: each.color }} aria-hidden />
-                    <Text size="xs">{`${each.label} ${formatNumber(each.count)}`}</Text>
+                    <Text size="sm">{`${each.label} ${formatNumber(each.count)}`}</Text>
                 </Group>
             ))}
         </div>

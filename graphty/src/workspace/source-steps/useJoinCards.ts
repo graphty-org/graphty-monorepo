@@ -128,6 +128,21 @@ function afterRemoval(mine: readonly ReaderCard[], id: string, written: boolean)
     return mine.map((each) => (each.id === id ? { ...each, deleted: true } : each));
 }
 
+/** The join types that add edges, picked first when a match is complete: they show the change most plainly. */
+const EDGE_CODES: ReadonlySet<SourceJoinOutcome["code"]> = new Set(["link", "edge", "middle"]);
+
+/**
+ * The join type picked for the reader once a card's matches are complete: the first, in the element's
+ * order, that uses every match and matches a row, one that adds edges before one that does not.
+ * @param outcomes - what the matches can make
+ * @param matches - how many whole matches the card has
+ * @returns the type, or undefined when none matches a row
+ */
+function defaultOutcome(outcomes: readonly SourceJoinOutcome[], matches: number): SourceJoinOutcome | undefined {
+    const ways = outcomes.filter((each) => each.uses.length === matches && !each.matched.includes(0));
+    return ways.find((each) => EDGE_CODES.has(each.code)) ?? ways.at(0);
+}
+
 /**
  * The cards of an open draft.
  * @param session - the element's session
@@ -256,26 +271,31 @@ export function useJoinCards(
     const setLines = (card: OpenCard, lines: readonly CardLine[], resided: boolean): void => {
         const next = { ...mineOf(card), lines };
         calm(card.id);
-        if (card.step === null || sameMatches(card.lines, lines)) {
+        if (sameMatches(card.lines, lines)) {
             save(next);
             return;
         }
-        // The way to join stays while it is still offered of the same sources and matches a row; another
-        // source, or no row matching, asks again.
+        // The way to join stays while it is still offered of the same sources and matches a row. Otherwise,
+        // and on a card not joined yet, a complete match joins at once by the default join type, so the graph
+        // shows the change and the reader can switch it; with no row matching, the card asks again.
+        const offered = offeredOutcomes(draft, lines, card, card.step);
+        const whole = wholeLines(lines).length;
         const again =
-            resided || current === undefined
+            card.step === null || resided || current === undefined
                 ? undefined
-                : offeredOutcomes(draft, lines, card, card.step).find(
-                      (each) =>
-                          each.uses.length === wholeLines(lines).length &&
-                          !each.matched.includes(0) &&
-                          sameOutcome(each, current),
+                : offered.find(
+                      (each) => each.uses.length === whole && !each.matched.includes(0) && sameOutcome(each, current),
                   );
-        if (again === undefined) {
-            takeBack(card, next);
-        } else {
-            write(card, again, resultNow(card), { lines });
+        const way = again ?? defaultOutcome(offered, whole);
+        if (way === undefined) {
+            if (card.step === null) {
+                save(next);
+            } else {
+                takeBack(card, next);
+            }
+            return;
         }
+        write(card, way, again === undefined ? { ...DEFAULT_RESULT, ...card.chosen } : resultNow(card), { lines });
     };
     const setIgnoring = (card: OpenCard, change: Partial<Ignoring>): void => {
         const on = { ...ignoringOf(card), ...change };

@@ -59,6 +59,21 @@ export async function remap(
 }
 
 /**
+ * Add to graph in a staged section's menu: draws the waiting source as its own nodes, one undo step.
+ * @param workspace - the workspace store.
+ * @param session - the element's session.
+ * @param source - the staged source.
+ * @returns settles once added or refused.
+ */
+export async function addStaged(workspace: WorkspaceStore, session: GraphSession, source: SourceKey): Promise<void> {
+    await session.data.add(source).catch((error: unknown) => {
+        if (!askIfDraftOpen(workspace, error, () => addStaged(workspace, session, source))) {
+            workspace.set({ notice: { message: STAGED_WORDS.notAdded } });
+        }
+    });
+}
+
+/**
  * Remove in a staged section's menu: drops the source, one undo step.
  * @param workspace - the workspace store.
  * @param session - the element's session.

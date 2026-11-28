@@ -38,6 +38,8 @@ export const STAGED_WORDS = {
     to: "To",
     meets: "meets",
     add: "Add",
+    /** A waiting source's menu item that draws it as its own nodes. */
+    addToGraph: "Add to graph",
     remove: "Remove",
     merge: "Merge",
     separate: "Keep separate",
@@ -126,7 +128,9 @@ export const WORKSPACE_WORDS = {
     repeats: "repeats",
     unique: "unique",
     empty: "empty",
-    joinAs: "Join as",
+    joinAs: "Join type",
+    /** A card whose join type is not picked yet. */
+    notJoined: "Not joined",
     advanced: "Advanced",
     all: "All",
     only: (name: string) => `Only ${name}`,
@@ -170,7 +174,14 @@ export const WORKSPACE_WORDS = {
     redo: "Redo",
     unfinished: "Unfinished",
     unanswered: "Question unanswered",
-    frame: "Frame",
+    frameMatches: "Frame the matches",
+    rowsWord: "rows",
+    nodesWord: "nodes",
+    /** What the preview's two looks and its two sides show, on hover. */
+    cardColorsTip: "Card colors: each join's nodes and edges in its card's color. Styled: the graph's own style.",
+    sideTip: "Before: the graph as it is. After: the graph with these joins applied.",
+    /** What Join does, on hover of the sidebar's Join +. */
+    openTip: "Join loaded sources: match a field of one to a field of another to connect or merge their rows",
     remove: "Remove",
     rows: "Rows",
     drawing: "Drawing",

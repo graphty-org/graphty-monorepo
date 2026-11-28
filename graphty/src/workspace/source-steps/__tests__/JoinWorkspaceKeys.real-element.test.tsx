@@ -20,7 +20,6 @@ import {
     choose,
     done,
     draftOf,
-    drop,
     emptyProject,
     joinAs,
     joinLines,
@@ -29,9 +28,11 @@ import {
     pickField,
     pickFields,
     pickSources,
+    removeOpen,
     rowWith,
     select,
     selectJoin,
+    stageFile,
 } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
@@ -62,7 +63,7 @@ async function opened(
     );
     store.set({ dockOpen: false, dockMaximized: false });
     for (const [name, text] of files) {
-        drop(name, text);
+        await stageFile(name, text);
         await screen.findByRole("listitem", { name });
     }
     return { session, modal: await joinPlus() };
@@ -87,10 +88,11 @@ async function joinPlus(): Promise<HTMLElement> {
 async function join(session: GraphSession, modal: HTMLElement, words: string): Promise<void> {
     await pickSources(modal, "people", "entries");
     await pickFields(modal, "badge", "badge");
-    const before = joinsOf(session).length;
+    // The complete match joins at once by a default type; the reader's pick then makes it this one.
     await joinAs(modal, words);
+    await within(modal).findByRole("radio", { name: words, checked: true });
     await waitFor(() => {
-        assert.isAbove(joinsOf(session).length, before);
+        assert.isAbove(joinsOf(session).length, 0);
     });
 }
 
@@ -237,21 +239,24 @@ describe("the join workspace's keys (source-steps)", () => {
 
     it("Done selects a join begun and not finished, and says so; finished, it commits", async () => {
         const { session, modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
+        // Both matches whole join at once by their edge type; a second card with one source picked is begun.
         await matchBoth(modal);
+        await within(modal).findByRole("radio", { name: EDGE, checked: true });
         await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Join", exact: true }));
+        await choose(modal, "Source 1", "people");
         await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Done", exact: true }));
         assert.strictEqual((await within(modal).findByRole("alert")).textContent, "Unfinished");
         assert.strictEqual(
-            within(modal).getByRole<HTMLInputElement>("combobox", { name: "Match 2 field 1" }).value,
-            "door",
-            "the card it is drawn on",
+            within(modal).getByRole<HTMLInputElement>("combobox", { name: "Source 1" }).value,
+            "people",
+            "the card it is drawn on is open",
         );
-        await joinAs(modal, EDGE);
+        await removeOpen(modal);
         await waitFor(() => {
             assert.isNull(within(modal).queryByRole("alert"));
         });
         await done(modal);
-        assert.isAbove(session.data.edges().length, 0, "the blank card is no join begun");
+        assert.isAbove(session.data.edges().length, 0, "the joined card is committed");
     });
 
     it("both pickers list every source, waiting and in the graph, and only the second New nodes", async () => {
@@ -289,7 +294,7 @@ describe("the join workspace's keys (source-steps)", () => {
     it("draw a removed card again: Undo brings its step back, and once more its lines", async () => {
         const { session, modal } = await opened(["entries.csv", ENTRIES]);
         await join(session, modal, NODE);
-        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Remove/ }));
+        await removeOpen(modal);
         await waitFor(() => {
             assert.lengthOf(draftOf(session).steps(), 1);
         });
@@ -414,7 +419,13 @@ describe("a join card's matches and table (source-steps)", () => {
                 .getByRole("radiogroup", { name: "No match", exact: true })
                 .getByText("Add", { exact: true }),
         );
-        await newest(session, (row) => row.act?.unmatchedFrom === "keep", "its leftover row is a node");
+        // The second card joined at once too, so the first card's step is no longer the newest.
+        await waitFor(() => {
+            assert.isTrue(
+                joinsOf(session).some((row) => row.act?.unmatchedFrom === "keep"),
+                "its leftover row is a node",
+            );
+        });
         await selectJoin(modal, "people + watch, name");
         await within(modal).findByRole("radio", { name: "Merge watch nodes into people" });
     });
@@ -521,7 +532,7 @@ describe("a join card's matches and table (source-steps)", () => {
         await joinAs(modal, "Node per entries row, linked to doors");
         await newest(session, (row) => row.act !== null, "joined");
         await selectJoin(modal, "doors, added");
-        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Remove/ }));
+        await removeOpen(modal);
         await waitFor(() => {
             assert.lengthOf(joinsOf(session), 0, "the join that names its nodes goes too");
         });
@@ -555,7 +566,7 @@ describe("a join card's matches and table (source-steps)", () => {
             const box = within(modal).getByRole("button", { name: "Done" }).getBoundingClientRect();
             const frame = modal.getBoundingClientRect();
             assert.isAtMost(box.right, frame.right);
-            assert.isAbove(within(modal).getByText("Join", { selector: ".sel-ws-title" }).clientWidth, 0);
+            assert.isAbove(modal.querySelector(".sel-ws-title")?.clientWidth ?? 0, 0, "the title keeps its room");
         });
     });
 
@@ -567,7 +578,7 @@ describe("a join card's matches and table (source-steps)", () => {
             { key: "entry", type: "entry" },
         );
         store.set({ dockOpen: false, dockMaximized: false });
-        drop("people.csv", PEOPLE);
+        await stageFile("people.csv", PEOPLE);
         await screen.findByRole("listitem", { name: "people.csv" });
         const modal = await joinPlus();
         await pickSources(modal, "entries", "people");
@@ -592,7 +603,7 @@ describe("a join card's matches and table (source-steps)", () => {
         await page.viewport(1280, 1000);
         const { session } = await emptyProject();
         await session.data.import({ type: "csv", config: { data: PEOPLE }, name: "people.csv" }, { key: "badge" });
-        drop("doors.csv", DOORS);
+        await stageFile("doors.csv", DOORS);
         const entry = await screen.findByRole("listitem", { name: "doors.csv" });
         await userEvent.click(page.elementLocator(entry).getByRole("button", { name: /^Expand doors.csv/ }));
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));

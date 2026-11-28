@@ -252,3 +252,35 @@ describe("each node's ring drawn over its fill is built round the outline that n
         });
     }
 });
+
+describe("a 3D solid's ring reaches only the border's outer edge past its plain fill (#10438)", () => {
+    // what an edge stops at and a halo starts from: the fill keeps its plain size, so an inside ring reaches no further
+    // than its outline, and a centered one half its width past it
+    const width = 0.1 * NODE_EXTENT_PER_SIZE;
+    const fit = (type: string, position: "inside" | "center", is2D: boolean): { inset: number; ring: number } => {
+        const shape = { type, size: 1 };
+        return NodeMesh.drawnFit(shape, { width: 0.1, position }, NodeMesh.extentsOf(shape, 1), is2D);
+    };
+
+    test("a solid in 3D", () => {
+        assert.deepEqual(fit("cone", "inside", false), { inset: 0, ring: 0 });
+        const centered = fit("box", "center", false);
+        assert.strictEqual(centered.inset, 0);
+        assert.approximately(centered.ring, width / 2, 1e-12);
+    });
+
+    test("a solid in 2D, and a flat shape in 3D, are drawn in as before", () => {
+        for (const [type, is2D] of [
+            ["cone", true],
+            ["ellipse", false],
+        ] as const) {
+            const shape = { type, size: 1 };
+            const border = { width: 0.1, position: "inside" as const };
+            assert.deepEqual(
+                fit(type, "inside", is2D),
+                NodeMesh.borderFit(shape, border, NodeMesh.extentsOf(shape, 1)),
+                `${type} ${is2D ? "2D" : "3D"}`,
+            );
+        }
+    });
+});

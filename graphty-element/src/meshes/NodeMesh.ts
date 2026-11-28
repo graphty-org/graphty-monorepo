@@ -955,6 +955,39 @@ export class NodeMesh {
     }
 
     /**
+     * {@link NodeMesh.borderFit} as the node's drawn fill sees it: how far its fill mesh is drawn in, and how far the
+     * ring reaches past that mesh. A solid in 3D keeps its plain size under a centered or inside border, its ring drawn
+     * over its edge, so its fill is not drawn in and the ring reaches only the border's outer edge past it.
+     * @param shape - The node's shape block.
+     * @param border - The node's border block.
+     * @param extents - The node's extents at its size.
+     * @param is2D - Whether the graph is drawn in 2D.
+     * @returns The inset and the ring's reach past the fill mesh.
+     * @internal
+     */
+    static drawnFit(
+        shape: NodeStyleConfig["shape"],
+        border: NodeStyleConfig["border"],
+        extents: NodeExtents,
+        is2D: boolean,
+    ): { inset: number; ring: number } {
+        const fit = this.borderFit(shape, border, extents);
+        return this.drawnOver(shape, is2D) ? { inset: 0, ring: fit.ring - fit.inset } : fit;
+    }
+
+    /**
+     * Whether a node's fill keeps its plain size under a centered or inside border, its ring drawn over its edge: a
+     * solid (a built-in or registered shape that is not flat) in 3D.
+     * @param shape - The node's shape block.
+     * @param is2D - Whether the graph is drawn in 2D.
+     * @returns Whether it does.
+     */
+    private static drawnOver(shape: NodeStyleConfig["shape"], is2D: boolean): boolean {
+        const type = shape?.type;
+        return !is2D && type !== undefined && !isFlatShape(type) && this.shapeCreators.get(type) !== undefined;
+    }
+
+    /**
      * A wave border's swing and period in world units (`border.waveAmplitude`, `border.wavePeriod`), or undefined
      * when it has no swing of its own and is drawn within its ring.
      * @param border - The node's border block.

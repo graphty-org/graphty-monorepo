@@ -2299,6 +2299,9 @@ export class Node implements ModelUser {
         drawInRowOrder(mesh, this);
         this.#anchor = this.#mesh = mesh;
         this.#source = mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh;
+        // the new mesh is drawn at scale 1 until the sizing pass scales it for its size space: a view scale left from
+        // the old mesh built a screen-pixel border for a size the node is no longer drawn at (#10434)
+        this.#wholeScale = 1;
         return mesh;
     }
 
@@ -2611,6 +2614,9 @@ export class Node implements ModelUser {
         if (this.#wholeScale !== whole) {
             this.#wholeScale = whole;
             this.context.getNodeBatches?.()?.rescale(this);
+            // a screen-pixel border is built in the mesh's units, which the view scale sets: with the camera still,
+            // nothing else rebuilds it (#10434)
+            this.refreshScreenBorder();
         }
     }
 

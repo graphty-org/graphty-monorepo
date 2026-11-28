@@ -146,13 +146,13 @@ You can help users:
             return "";
         }
 
-        const nodeCount = this.graph.getNodeCount();
-        const edgeCount = this.graph.getEdgeCount();
+        const session = this.graph.getSession();
+        const { nodes, edges } = session.status.counts;
 
         return `## Current Graph State
-- Total nodes: ${nodeCount}
-- Total edges: ${edgeCount}
-- Visualization mode: ${this.graph.getViewMode() === "2d" ? "2D" : "3D"}`;
+- Total nodes: ${nodes}
+- Total edges: ${edges}
+- Visualization mode: ${session.layout.dimension === "2d" ? "2D" : "3D"}`;
     }
 
     /**
@@ -176,8 +176,7 @@ You can help users:
             return "";
         }
 
-        const layoutManager = this.graph.getLayoutManager();
-        const currentLayout = layoutManager.layoutEngine?.type ?? "unknown";
+        const currentLayout = this.graph.getSession().layout.engine;
 
         return `## Layout Information
 - Current layout: ${currentLayout}

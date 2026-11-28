@@ -1607,12 +1607,13 @@ export class UpdateManager implements Manager {
      * what is drawn instead of thawing it, when the halos are all that came or were shown or hidden
      * (`settleActiveMeshFreeze`).
      * @param mesh - The halo.
-     * @param built - Whether it was just built, so it is new to the scene.
+     * @param built - The meshes just built for it, new to the scene: 0, 1 for the instance, 2 when its source mesh
+     *     was built with it (the first halo of a look).
      * @internal
      */
-    haloTouched(mesh: AbstractMesh, built: boolean): void {
+    haloTouched(mesh: AbstractMesh, built: number): void {
         if (!this.touchedHalos.has(mesh)) {
-            this.touchedHalos.set(mesh, { shownBefore: !built && shownMesh(mesh), built });
+            this.touchedHalos.set(mesh, { shownBefore: built === 0 && shownMesh(mesh), built });
         }
     }
 
@@ -4739,7 +4740,7 @@ export class UpdateManager implements Manager {
     private freezeLanded = false;
 
     /** The halos shown, hidden or built since the last frame, each with whether it was shown before or just built. */
-    private readonly touchedHalos = new Map<AbstractMesh, { readonly shownBefore: boolean; readonly built: boolean }>();
+    private readonly touchedHalos = new Map<AbstractMesh, { readonly shownBefore: boolean; readonly built: number }>();
 
     /** Counts freeze requests and changes, so a freeze Babylon runs late knows it was withdrawn. */
     private freezeRequest = 0;
@@ -5945,7 +5946,8 @@ export class UpdateManager implements Manager {
 
     /**
      * Whether the touched halos explain the whole change in the scene's meshes since the last frame: as many were
-     * built as meshes came, and those shown and hidden moved {@link shownMeshesChecksum} by what it moved.
+     * built (halo instances and the sources built with them) as meshes came, and those shown and hidden moved
+     * {@link shownMeshesChecksum} by what it moved.
      * @param added - How many more meshes the scene holds.
      * @param moved - What the checksum moved by, 32 bits.
      * @returns True when they do.
@@ -5953,12 +5955,12 @@ export class UpdateManager implements Manager {
     private onlyHalosChanged(added: number, moved: number): boolean {
         let built = 0;
         let sum = 0;
-        for (const [mesh, { shownBefore, built: isNew }] of this.touchedHalos) {
+        for (const [mesh, { shownBefore, built: meshes }] of this.touchedHalos) {
             if (mesh.isDisposed()) {
                 return false;
             }
 
-            built += isNew ? 1 : 0;
+            built += meshes;
             const shownAfter = shownMesh(mesh);
             if (shownAfter !== shownBefore) {
                 const weight = meshWeight(mesh);

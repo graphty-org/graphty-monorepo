@@ -7,6 +7,7 @@ import type { SourceRowCommand } from "../commands/registry";
 import { sourceReferencesOn } from "../features";
 import { CommandMenuItem } from "../frame/menus";
 import { RenameInput } from "../frame/RenameInput";
+import { useRenaming } from "../frame/useRenaming";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { TIME_FIELD_EVENTS, useSessionEvents } from "../sessionEvents";
@@ -127,19 +128,18 @@ export function MoreMenu({ name, children }: Readonly<{ name: string; children: 
  */
 function useRename(source: LoadedSource): {
     readonly renaming: boolean;
+    readonly on: string;
     readonly start: () => void;
     readonly done: (next: string | null) => void;
 } {
     const { session, store } = useWorkspace();
-    // on reload: fresh: in flight: a rename under way
-    const [renaming, setRenaming] = useState(false);
+    const on = `source:${source.key}`;
+    const [renaming, start] = useRenaming(on, sourceName(source));
     return {
         renaming,
-        start: () => {
-            setRenaming(true);
-        },
+        on,
+        start,
         done: (next) => {
-            setRenaming(false);
             if (next === null || next.trim() === "" || next === sourceName(source) || session === null) {
                 return;
             }
@@ -198,6 +198,7 @@ function EntryFrame({
                     {rename.renaming ? (
                         <RenameInput
                             name={name}
+                            on={rename.on}
                             onDone={rename.done}
                             label="Source name"
                             container=".dp-source-entry"

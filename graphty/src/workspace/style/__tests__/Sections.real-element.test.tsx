@@ -92,11 +92,11 @@ function escape(name: string): string {
  */
 async function openStyle(name: string): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escape(name)}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${escape(name)}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     return screen.findByTestId("style-tab");
 }
@@ -221,7 +221,9 @@ describe("the Style tab's sections", () => {
         await showKind(kind);
         const where = `${kind} ${title}`;
         await userEvent.click(
-            within(section(kind, id)).getByRole("button", { name: `Add to ${kind} ${title.toLowerCase()}` }),
+            page
+                .elementLocator(section(kind, id))
+                .getByRole("button", { name: `Add to ${kind} ${title.toLowerCase()}`, exact: true }),
         );
         // A "+" with one thing to add adds it at once; with more, it opens a menu.
         const items = await waitFor(() => {
@@ -246,7 +248,7 @@ describe("the Style tab's sections", () => {
             assert.isTrue(row.contains(document.activeElement), `${where}: focus in the new row`);
             assert.match(said(store), picked ? / added$/ : / added: pick a value$/, where);
         });
-        await userEvent.click(within(row).getByRole("button", { name: /^Remove / }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: /^Remove / }));
         await waitFor(() => {
             assert.isTrue(isEmpty(section(kind, id)), `${where}: removed`);
             assert.equal(
@@ -264,7 +266,9 @@ describe("the Style tab's sections", () => {
         await openStyle("Key people");
         const color = section("node", "fill").querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
         assert.isNotNull(color);
-        await userEvent.click(within(color).getByRole("button", { name: "Remove node color" }));
+        await userEvent.click(
+            page.elementLocator(color).getByRole("button", { name: "Remove node color", exact: true }),
+        );
         await waitFor(() => {
             assert.isTrue(isEmpty(section("node", "fill")), "Fill is its dimmed title and '+'");
         });
@@ -277,8 +281,12 @@ describe("the Style tab's sections", () => {
     it("hands focus to the restored row, or the section's '+', on every Undo, and announces each", async () => {
         const { session, store } = await openScene();
         await openStyle("Key people");
-        await userEvent.click(within(section("node", "shape")).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await userEvent.click(
+            page
+                .elementLocator(section("node", "shape"))
+                .getByRole("button", { name: "Add to node shape", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Size", exact: true }));
         const row = await waitFor(() => {
             const found = section("node", "shape").querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
             assert.isNotNull(found);
@@ -300,7 +308,7 @@ describe("the Style tab's sections", () => {
         if (set === null) {
             throw new Error("no size line");
         }
-        await userEvent.click(within(set).getByRole("button", { name: "Remove node size" }));
+        await userEvent.click(page.elementLocator(set).getByRole("button", { name: "Remove node size", exact: true }));
         await waitFor(() => {
             assert.equal(document.activeElement?.getAttribute("aria-label"), "Add to node shape");
         });
@@ -354,7 +362,9 @@ describe("the Style tab's sections", () => {
             throw new Error("no arrowhead line");
         }
         await userEvent.hover(line);
-        await userEvent.click(within(line).getByRole("button", { name: "Remove edge target end" }));
+        await userEvent.click(
+            page.elementLocator(line).getByRole("button", { name: "Remove edge target end", exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(written(session, "Everything", "edge.arrowHead"));
         });
@@ -374,7 +384,9 @@ describe("the Style tab's sections", () => {
         await session.styles.update(everything.id, { set: { ...everything.set, "edge.style": "dash" } });
         // The count is the only setting the pattern has: its row's "+" adds it at once.
         await userEvent.click(
-            await within(section("edge", "line")).findByRole("button", { name: "Add to edge pattern" }),
+            page
+                .elementLocator(section("edge", "line"))
+                .getByRole("button", { name: "Add to edge pattern", exact: true }),
         );
         await waitFor(() => {
             const box = section("edge", "line").querySelector<HTMLInputElement>(
@@ -389,20 +401,24 @@ describe("the Style tab's sections", () => {
         const { session } = await openScene();
         await openStyle("Key people");
         const shape = (): HTMLElement => section("node", "shape");
-        await userEvent.click(within(shape()).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(
+            page.elementLocator(shape()).getByRole("button", { name: "Add to node shape", exact: true }),
+        );
         const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
         assert.includeMembers(items, ["Glow", "Halo"], "one entry per style");
         for (const setting of ["Glow strength", "Halo size", "Halo opacity"]) {
             assert.notInclude(items, setting, `${setting} is a setting of its style, not a menu entry`);
         }
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Halo" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Halo", exact: true }));
         // Halo's row has its own "+", which lists its settings by their own names.
-        await userEvent.click(await within(shape()).findByRole("button", { name: "Add to node halo" }));
+        await userEvent.click(
+            page.elementLocator(shape()).getByRole("button", { name: "Add to node halo", exact: true }),
+        );
         assert.deepEqual(
             (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
             ["Size", "Opacity"],
         );
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Size", exact: true }));
         await waitFor(() => {
             const rows = [...shape().querySelectorAll<HTMLElement>(".ws-row")];
             assert.deepEqual(
@@ -430,14 +446,16 @@ describe("the Style tab's sections", () => {
         if (halo === null) {
             throw new Error("no halo row");
         }
-        await userEvent.click(within(halo).getByRole("button", { name: "Remove node halo" }));
+        await userEvent.click(page.elementLocator(halo).getByRole("button", { name: "Remove node halo", exact: true }));
         await waitFor(() => {
             assert.isUndefined(written(session, "Key people", "node.haloColor"));
             assert.isUndefined(written(session, "Key people", "node.haloScale"), "the size goes with its halo");
         });
         assert.isDefined(written(session, "Key people", "node.glow"), "another style stays");
         // Glow's strength is added from the Glow row, the only setting it has.
-        await userEvent.click(within(shape()).getByRole("button", { name: "Add to node glow" }));
+        await userEvent.click(
+            page.elementLocator(shape()).getByRole("button", { name: "Add to node glow", exact: true }),
+        );
         await waitFor(() => {
             const strength = shape().querySelector<HTMLElement>('.ws-row[data-line="node.glowStrength"]');
             assert.equal(strength?.querySelector(".ws-field-name")?.textContent, "Strength");
@@ -462,7 +480,9 @@ describe("the Style tab's sections", () => {
         await openStyle("Key people");
         const shape = (): HTMLElement => section("node", "shape");
         // The width is the outline's only setting: the Outline row's "+" adds it at once.
-        await userEvent.click(await within(shape()).findByRole("button", { name: "Add to node outline" }));
+        await userEvent.click(
+            page.elementLocator(shape()).getByRole("button", { name: "Add to node outline", exact: true }),
+        );
         const width = await waitFor(() => {
             const row = shape().querySelector<HTMLElement>('.ws-row[data-line="node.outlineWidth"]');
             assert.equal(row?.querySelector(".ws-field-name")?.textContent, "Width");
@@ -487,9 +507,13 @@ describe("the Style tab's sections", () => {
         const { session } = await openScene();
         await openStyle("Everything");
         await showKind("edge");
-        await userEvent.click(within(section("edge", "text")).getByRole("button", { name: "Add to edge text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Label at target end" }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
+        await userEvent.click(
+            page.elementLocator(section("edge", "text")).getByRole("button", { name: "Add to edge text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Label at target end", exact: true }));
+        await userEvent.click(
+            page.elementLocator(await findValuePicker()).getByRole("option", { name: "Fixed text", exact: true }),
+        );
         await within(section("edge", "text")).findByRole("textbox", { name: /text$/ });
         await userEvent.keyboard("End{Enter}");
         // Les Miserables draws no arrowheads, so the element draws the end text on no edge; the
@@ -557,8 +581,12 @@ describe("the Style tab's sections", () => {
         assert.isDefined(degree);
         // Shape over Everything's one shape: the same shape, so nothing changes on the canvas.
         await openStyle("Key people");
-        await userEvent.click(within(section("node", "shape")).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        await userEvent.click(
+            page
+                .elementLocator(section("node", "shape"))
+                .getByRole("button", { name: "Add to node shape", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Shape", exact: true }));
         const beneath = String(written(session, "Everything", "node.shape"));
         await waitFor(() => {
             const line = section("node", "shape").querySelector<HTMLElement>('[data-line="node.shape"]');
@@ -576,9 +604,11 @@ describe("the Style tab's sections", () => {
         });
         await session.styles.settled();
         await openStyle("Over degree");
-        await userEvent.click(within(section("node", "fill")).getByRole("button", { name: "Add to node fill" }));
+        await userEvent.click(
+            page.elementLocator(section("node", "fill")).getByRole("button", { name: "Add to node fill", exact: true }),
+        );
         // Fill offers Color and Picture in a menu.
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Color", exact: true }));
         await waitFor(() => {
             assert.isNotNull(section("node", "fill").querySelector('[data-line="node.color"]'));
         });
@@ -602,14 +632,18 @@ describe("the Style tab's sections", () => {
 
         const tree = screen.getByRole("tree", { name: "Style layers" });
         const everything = within(tree).getByRole("treeitem", { name: /^Everything, / });
-        await userEvent.click(within(everything).getByRole("button", { name: "Hide Everything" }));
+        await userEvent.click(
+            page.elementLocator(everything).getByRole("button", { name: "Hide Everything", exact: true }),
+        );
         await within(everything).findByRole("button", { name: "Show Everything" });
         await session.styles.settled();
         await waitFor(() => {
             assert.deepEqual(drawn(session), ["Javert", "Valjean"], "only Key people's two nodes stay drawn");
         });
 
-        await userEvent.click(within(everything).getByRole("button", { name: "Show Everything" }));
+        await userEvent.click(
+            page.elementLocator(everything).getByRole("button", { name: "Show Everything", exact: true }),
+        );
         await session.styles.settled();
         await waitFor(() => {
             assert.lengthOf(drawn(session), all, "shown again");
@@ -639,9 +673,9 @@ describe("the Style tab's sections", () => {
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         const user = userEvent.setup();
-        await user.click(within(tree).getByRole("treeitem", { name: /^Key people, / }));
+        await user.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Key people, / }));
         await user.keyboard("{Control>}");
-        await user.click(within(tree).getByRole("treeitem", { name: /^Big, / }));
+        await user.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Big, / }));
         await user.keyboard("{/Control}");
         await waitFor(() => {
             const color = section("node", "fill").querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
@@ -665,17 +699,17 @@ describe("the Style tab's sections", () => {
     it("shows every eye at rest, names a hidden row's eye 'Show', and deletes Everything like any row", async () => {
         const { session } = await openScene();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.unhover(tree);
+        await userEvent.unhover(page.getByRole("tree", { name: "Style layers", exact: true }));
         const eyes = within(tree).getAllByRole("button", { name: /^(Hide|Show) / });
         assert.isAbove(eyes.length, 3);
         for (const eye of eyes) {
             assert.equal(getComputedStyle(eye).opacity, "1", `${eye.getAttribute("aria-label") ?? ""} shows at rest`);
         }
         const key = within(tree).getByRole("treeitem", { name: /^Key people, / });
-        await userEvent.click(within(key).getByRole("button", { name: "Hide Key people" }));
+        await userEvent.click(page.elementLocator(key).getByRole("button", { name: "Hide Key people", exact: true }));
         await within(key).findByRole("button", { name: "Show Key people" });
 
-        await userEvent.click(within(tree).getByRole("treeitem", { name: /^Everything, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Everything, / }));
         await userEvent.keyboard("{Delete}");
         await session.styles.settled();
         assert.isUndefined(

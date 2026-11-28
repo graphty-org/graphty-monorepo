@@ -6,14 +6,17 @@ import { assert, beforeEach, describe, expect, it, type Mock, vi } from "vitest"
 import { Algorithm } from "../../src/algorithms/Algorithm";
 import type { Graph } from "../../src/Graph";
 import { AlgorithmManager } from "../../src/managers/AlgorithmManager";
+import { DataManager } from "../../src/managers/DataManager";
 import type { EventManager } from "../../src/managers/EventManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
+import { Styles } from "../../src/Styles";
+import { graphHandle } from "../helpers/session-graph";
 import { makeSession } from "../session/helpers";
 
 describe("AlgorithmManager", () => {
     let algorithmManager: AlgorithmManager;
-    let mockEventManager: EventManager;
-    let mockGraph: Graph;
+    let eventManager: EventManager;
+    let graph: Graph;
     let mockAlgorithm: { run: Mock<(...args: unknown[]) => Promise<void>> };
 
     beforeEach(() => {
@@ -23,23 +26,16 @@ describe("AlgorithmManager", () => {
         vi.clearAllMocks();
         vi.spyOn(Algorithm, "get");
 
-        // Create mock event manager
-        mockEventManager = {
-            emitGraphError: vi.fn(),
-            emit: vi.fn(),
-        } as unknown as EventManager;
-
-        // A mock graph over a real headless session: a 1.10 run is an `algo.legacy` command, which
-        // the session's dispatcher runs through the manager's legacy service.
+        // A graph handle over a real headless session (a 1.10 run is an `algo.legacy` command,
+        // which the session's dispatcher runs through the manager's legacy service), with a real
+        // event manager whose error reports are recorded, and the element's own data manager for
+        // the node and edge records a legacy plugin writes to.
         const { session } = makeSession();
-        mockGraph = {
-            id: "test-graph",
-            getSession: () => session,
-            getDataManager: vi.fn().mockReturnValue({
-                nodes: new Map(),
-                edges: new Map(),
-            }),
-        } as unknown as Graph;
+        ({ graph } = graphHandle(session, { id: "test-graph" }));
+        ({ eventManager } = graph);
+        const dataManager = new DataManager(eventManager, Styles.default());
+        Object.assign(graph, { getDataManager: () => dataManager });
+        vi.spyOn(eventManager, "emitGraphError");
 
         // Create mock algorithm
         mockAlgorithm = {
@@ -49,7 +45,7 @@ describe("AlgorithmManager", () => {
         // Default Algorithm.get to return mock algorithm
         vi.mocked(Algorithm.get).mockReturnValue(mockAlgorithm as unknown as Algorithm);
 
-        algorithmManager = new AlgorithmManager(mockEventManager, mockGraph);
+        algorithmManager = new AlgorithmManager(eventManager, graph);
         const manager = algorithmManager;
         dispatcherOf(session).services.legacy = { run: (command, ctx) => manager.runLegacy(command, ctx) };
     });
@@ -59,7 +55,7 @@ describe("AlgorithmManager", () => {
      * @param value - What the plugin was handed.
      */
     function assertFacade(value: unknown): void {
-        assert.notStrictEqual(value, mockGraph, "the plugin is handed a facade, not the graph");
+        assert.notStrictEqual(value, graph, "the plugin is handed a facade, not the graph");
         assert.strictEqual((value as { id?: unknown }).id, "test-graph", "a facade of this graph");
     }
 
@@ -105,10 +101,10 @@ describe("AlgorithmManager", () => {
 
             const {
                 mock: { calls: errorCalls },
-            } = vi.mocked(mockEventManager.emitGraphError);
+            } = vi.mocked(eventManager.emitGraphError);
             assert.equal(errorCalls.length, 1);
             const errorCall = errorCalls[0];
-            assert.equal(errorCall[0], mockGraph);
+            assert.equal(errorCall[0], graph);
             assert.match(errorCall[1].message, /algorithm not found/);
             assert.equal(errorCall[2], "algorithm");
         });
@@ -122,10 +118,10 @@ describe("AlgorithmManager", () => {
             // Should emit error event
             const {
                 mock: { calls: errorCalls },
-            } = vi.mocked(mockEventManager.emitGraphError);
+            } = vi.mocked(eventManager.emitGraphError);
             assert.equal(errorCalls.length, 1);
             const errorCall = errorCalls[0];
-            assert.equal(errorCall[0], mockGraph);
+            assert.equal(errorCall[0], graph);
             assert.equal(errorCall[1], error);
             assert.equal(errorCall[2], "algorithm");
             assert.deepEqual(errorCall[3], {
@@ -141,7 +137,7 @@ describe("AlgorithmManager", () => {
 
             const {
                 mock: { calls: errorCalls },
-            } = vi.mocked(mockEventManager.emitGraphError);
+            } = vi.mocked(eventManager.emitGraphError);
             assert.equal(errorCalls.length, 1);
             const errorCall = errorCalls[0];
             assert.instanceOf(errorCall[1], Error);
@@ -163,7 +159,7 @@ describe("AlgorithmManager", () => {
             } = mockAlgorithm.run;
             const {
                 mock: { calls: errorCalls },
-            } = vi.mocked(mockEventManager.emitGraphError);
+            } = vi.mocked(eventManager.emitGraphError);
             assert.equal(algorithmGetCalls.length, 3);
             assert.equal(algorithmRunCalls.length, 3);
             assert.equal(errorCalls.length, 0);
@@ -183,7 +179,7 @@ describe("AlgorithmManager", () => {
             assert.equal(algorithmGetCalls.length, 2); // Only valid ones
 
             // Should emit individual error for invalid format
-            const errorCalls = vi.mocked(mockEventManager.emitGraphError).mock.calls;
+            const errorCalls = vi.mocked(eventManager.emitGraphError).mock.calls;
             assert.isAtLeast(errorCalls.length, 1);
             assert.match(errorCalls[0][1].message, /invalid algorithm name format/);
         });
@@ -218,13 +214,13 @@ describe("AlgorithmManager", () => {
 
             // Should emit individual error for failed algorithm plus summary error
             const individualErrors = vi
-                .mocked(mockEventManager.emitGraphError)
+                .mocked(eventManager.emitGraphError)
                 .mock.calls.filter((call) => call[3]?.algorithm === "algo2:type2");
             assert.equal(individualErrors.length, 1);
 
             // Should also emit summary error
             const summaryErrors = vi
-                .mocked(mockEventManager.emitGraphError)
+                .mocked(eventManager.emitGraphError)
                 .mock.calls.filter((call) => call[3]?.errorCount === 1);
             assert.equal(summaryErrors.length, 1);
         });
@@ -240,7 +236,7 @@ describe("AlgorithmManager", () => {
             );
 
             // Should emit individual errors for each failure plus summary
-            const errorCalls = vi.mocked(mockEventManager.emitGraphError).mock.calls;
+            const errorCalls = vi.mocked(eventManager.emitGraphError).mock.calls;
             assert.isAtLeast(errorCalls.length, 4); // 3 individual + 1 summary
 
             // Check summary error
@@ -256,7 +252,7 @@ describe("AlgorithmManager", () => {
                 mock: { calls: algorithmGetCalls },
             } = vi.mocked(Algorithm.get);
             assert.equal(algorithmGetCalls.length, 0);
-            assert.equal(vi.mocked(mockEventManager.emitGraphError).mock.calls.length, 0);
+            assert.equal(vi.mocked(eventManager.emitGraphError).mock.calls.length, 0);
         });
 
         it("should handle algorithms with spaces in names", async () => {
@@ -285,7 +281,7 @@ describe("AlgorithmManager", () => {
                 mock: { calls: algorithmGetCalls },
             } = vi.mocked(Algorithm.get);
             assert.equal(algorithmGetCalls.length, 1);
-            assert.deepEqual(algorithmGetCalls[0], [mockGraph, "test", "algorithm"]);
+            assert.deepEqual(algorithmGetCalls[0], [graph, "test", "algorithm"]);
         });
 
         it("should return false for non-existent algorithm", () => {
@@ -326,7 +322,7 @@ describe("AlgorithmManager", () => {
                 // Expected to throw
             }
 
-            const errorCall = vi.mocked(mockEventManager.emitGraphError).mock.calls[0];
+            const errorCall = vi.mocked(eventManager.emitGraphError).mock.calls[0];
             assert.isDefined(errorCall[3]);
             assert.equal(errorCall[3].component, "AlgorithmManager");
         });

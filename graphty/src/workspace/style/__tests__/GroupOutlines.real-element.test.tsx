@@ -79,11 +79,11 @@ function idOf(session: GraphSession, name: string): string {
  */
 async function openStyle(name: string): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     const tab = await screen.findByTestId("style-tab");
     await showKind("node");
@@ -108,7 +108,9 @@ function section(id: string): HTMLElement {
  * @returns the gallery.
  */
 async function openGallery(): Promise<HTMLElement> {
-    await userEvent.click(within(section("shaders")).getByRole("button", { name: "Add to node shaders" }));
+    await userEvent.click(
+        page.elementLocator(section("shaders")).getByRole("button", { name: "Add to node shaders", exact: true }),
+    );
     return screen.findByTestId("shader-gallery", {});
 }
 
@@ -118,7 +120,7 @@ async function openGallery(): Promise<HTMLElement> {
  */
 async function addShader(name: string): Promise<void> {
     const gallery = await openGallery();
-    await userEvent.click(await within(gallery).findByRole("button", { name }));
+    await userEvent.click(page.elementLocator(gallery).getByRole("button", { name, exact: true }));
     await waitFor(() => {
         assert.isNull(screen.queryByTestId("shader-gallery"), "the pick closes the gallery");
     });
@@ -266,7 +268,7 @@ describe("shaders on the Selected and Hovered rows", () => {
             );
         });
 
-        await userEvent.hover(screen.getByRole("tree", { name: "Style layers" }));
+        await userEvent.hover(page.getByRole("tree", { name: "Style layers", exact: true }));
         await waitFor(() => {
             assert.strictEqual(element.drawnShaders().nodes.get("orbiting-satellites")?.drawn ?? 0, 0, "gone");
         });
@@ -291,7 +293,7 @@ describe("group outlines, Around the group in the gallery", () => {
             ["Hull", "Soap bubble"],
             "the group outlines, each badged Around the group",
         );
-        await userEvent.click(within(gallery).getByRole("button", { name: "Hull" }));
+        await userEvent.click(page.elementLocator(gallery).getByRole("button", { name: "Hull", exact: true }));
         await waitFor(() => {
             assert.deepEqual(session.styles.get(layer.id)?.set?.["node.shaders"], [{ shader: "metaball-hull" }]);
         });
@@ -299,13 +301,15 @@ describe("group outlines, Around the group in the gallery", () => {
         assert.isNotNull(row);
         // Its place is said in its settings button's tooltip, never as a line in the sidebar (#8739).
         assert.notInclude(row?.textContent, "Around the group");
-        await userEvent.hover(within(row).getByRole("button", { name: "Hull settings" }));
+        await userEvent.hover(page.elementLocator(row).getByRole("button", { name: "Hull settings", exact: true }));
         assert.include((await screen.findByRole("tooltip", {})).textContent, "Around the group");
-        await userEvent.unhover(within(row).getByRole("button", { name: "Hull settings" }));
+        await userEvent.unhover(page.elementLocator(row).getByRole("button", { name: "Hull settings", exact: true }));
 
-        await userEvent.click(within(section("shaders")).getByRole("button", { name: "Group by None" }));
+        await userEvent.click(
+            page.elementLocator(section("shaders")).getByRole("button", { name: "Group by None", exact: true }),
+        );
         const picker = await findValuePicker();
-        await userEvent.click(within(picker).getByRole("option", { name: /^Louvain(,|$)/ }));
+        await userEvent.click(page.elementLocator(picker).getByRole("option", { name: /^Louvain(,|$)/ }));
         await waitFor(() => {
             assert.deepEqual(session.styles.get(layer.id)?.set?.["node.shaders"], [
                 { shader: "metaball-hull", groupBy: path },

@@ -69,7 +69,9 @@ async function textList(): Promise<HTMLElement> {
  * @returns the pop-out.
  */
 async function openSettings(): Promise<HTMLElement> {
-    await userEvent.click(within(await textList()).getByRole("button", { name: "Node label settings" }));
+    await userEvent.click(
+        page.elementLocator(await textList()).getByRole("button", { name: "Node label settings", exact: true }),
+    );
     return screen.findByRole("dialog", { name: "Label settings" });
 }
 
@@ -101,7 +103,7 @@ function labelStyle(session: GraphSession): Record<string, unknown> | undefined 
  */
 async function pick(name: string): Promise<void> {
     const list = await findValuePicker();
-    await userEvent.click(within(list).getByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
+    await userEvent.click(page.elementLocator(list).getByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
 }
 
 /**
@@ -122,8 +124,10 @@ describe("a label drawn as a card on the real element", () => {
     it("Text + Card makes a card whose settings edit its contents and its look", async () => {
         const { session, element } = await opened();
         // "+" -> Card: the value list opens; the pick is the card's first row, in bold.
-        await userEvent.click(within(await textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Card" }));
+        await userEvent.click(
+            page.elementLocator(await textList()).getByRole("button", { name: "Add to node text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Card", exact: true }));
         await pick("name");
         await waitFor(() => {
             assert.deepEqual(template(session), ["<bold>{data.name}</bold>"]);
@@ -133,21 +137,24 @@ describe("a label drawn as a card on the real element", () => {
 
         // The settings pop-out: switching the panel shadow off writes the element's label style.
         let settings = await openSettings();
-        await userEvent.click(within(settings).getByRole("combobox", { name: /^Panel shadow/ }));
-        await userEvent.click(await screen.findByRole("option", { name: "Off" }));
+        await userEvent.click(page.elementLocator(settings).getByRole("combobox", { name: /^Panel shadow/ }));
+        await userEvent.click(page.getByRole("option", { name: "Off", exact: true }));
         await waitFor(() => {
             assert.equal(labelStyle(session)?.panelShadow, false);
         });
 
         // A second row from the value list, then its words.
         settings = await screen.findByRole("dialog", { name: "Label settings" });
-        await userEvent.click(within(settings).getByRole("button", { name: "Add card row" }));
+        await userEvent.click(page.elementLocator(settings).getByRole("button", { name: "Add card row", exact: true }));
         await pick("dept");
         await waitFor(() => {
             assert.deepEqual(template(session), ["<bold>{data.name}</bold>", "{data.dept}"]);
         });
         settings = await screen.findByRole("dialog", { name: "Label settings" });
-        await userEvent.type(within(settings).getByRole("textbox", { name: "Card row 2 words" }), "Dept: {Enter}");
+        await userEvent.type(
+            page.elementLocator(settings).getByRole("textbox", { name: "Card row 2 words", exact: true }),
+            "Dept: {Enter}",
+        );
         await waitFor(() => {
             assert.deepEqual(template(session), ["<bold>{data.name}</bold>", "Dept: {data.dept}"]);
         });
@@ -172,7 +179,9 @@ describe("a label drawn as a card on the real element", () => {
 
         // The minus removes the card: its lines and its look.
         await userEvent.keyboard("{Escape}");
-        await userEvent.click(within(await textList()).getByRole("button", { name: "Remove label" }));
+        await userEvent.click(
+            page.elementLocator(await textList()).getByRole("button", { name: "Remove label", exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(template(session));
             assert.isUndefined(labelStyle(session)?.panelShadow);
@@ -202,7 +211,7 @@ describe("a label drawn as a card on the real element", () => {
         assert.isNotNull(within(settings).getByLabelText(`Card row 3, written by hand: ${community}`));
 
         // An edit elsewhere on the card keeps the hand-written line exactly.
-        await userEvent.click(within(settings).getByRole("button", { name: "Add card row" }));
+        await userEvent.click(page.elementLocator(settings).getByRole("button", { name: "Add card row", exact: true }));
         await pick("name");
         await waitFor(() => {
             const bound = session.styles.get(card.id)?.encode?.["node.label"];

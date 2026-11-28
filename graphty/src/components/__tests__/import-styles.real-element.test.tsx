@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { act } from "react";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import cysUrl from "../../../../graph-io/test/corpus/styles/cys/BasicDataVizDemo.cys?url";
 import { withFeatures } from "../../test/features";
@@ -164,7 +164,7 @@ describe("import styles from files, on the real element", () => {
         const box = await screen.findByRole("checkbox", { name: CHECKBOX });
         assert.isTrue((box as HTMLInputElement).checked, "on by default");
 
-        await userEvent.click(screen.getByRole("button", { name: "Load" }));
+        await userEvent.click(page.getByRole("button", { name: "Load", exact: true }));
         await loadedTwelve(session);
         await waitFor(() => {
             assert.isNotEmpty(fileLayers(session));
@@ -177,10 +177,10 @@ describe("import styles from files, on the real element", () => {
 
     it("the Data page loads none of the file's layers with the box unchecked, and keeps that choice", async () => {
         const session = await dataPageWith(styledGexf());
-        await userEvent.click(await screen.findByRole("checkbox", { name: CHECKBOX }));
+        await userEvent.click(page.getByRole("checkbox", { name: CHECKBOX, exact: true }));
         assert.equal(localStorage.getItem(IMPORT_FILE_STYLES.key), "off");
 
-        await userEvent.click(screen.getByRole("button", { name: "Load" }));
+        await userEvent.click(page.getByRole("button", { name: "Load", exact: true }));
         await loadedTwelve(session);
         assert.deepEqual(fileLayers(session), []);
         assert.notEqual(colorOf(session, "n1"), "#ff0000");
@@ -193,14 +193,14 @@ describe("import styles from files, on the real element", () => {
 
     it("keeps the Settings choice across a reload", async () => {
         const first = render(<Workspace store={createWorkspaceStore()} />);
-        await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+        await userEvent.click(page.getByRole("button", { name: /settings/i }));
         const on = await screen.findByRole("switch", { name: /^Import styles from files/ });
         assert.isTrue((on as HTMLInputElement).checked);
-        await userEvent.click(on);
+        await userEvent.click(page.getByRole("switch", { name: /^Import styles from files/ }));
         first.unmount();
 
         render(<Workspace store={createWorkspaceStore()} />);
-        await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+        await userEvent.click(page.getByRole("button", { name: /settings/i }));
         const off = await screen.findByRole("switch", { name: /^Import styles from files/ });
         assert.isFalse((off as HTMLInputElement).checked);
     });

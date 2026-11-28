@@ -13,7 +13,7 @@ import "@graphty/graphty-element";
 
 import type { AssetRecord, GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -58,7 +58,7 @@ async function layerNamingSet(
 async function openParts(tab: HTMLElement): Promise<HTMLElement> {
     const parts = await within(tab).findByRole("button", { name: /: / });
     assert.equal(parts.textContent, "Parts");
-    await userEvent.click(parts);
+    await userEvent.click(page.elementLocator(tab).getByRole("button", { name: /: / }));
     return screen.findByTestId("parts-popover");
 }
 
@@ -69,8 +69,8 @@ async function openParts(tab: HTMLElement): Promise<HTMLElement> {
  * @param choice - the choice's name.
  */
 async function pick(scope: HTMLElement, label: string, choice: string): Promise<void> {
-    await userEvent.click(within(scope).getByRole("combobox", { name: label }));
-    await userEvent.click(await screen.findByRole("option", { name: choice }));
+    await userEvent.click(page.elementLocator(scope).getByRole("combobox", { name: label, exact: true }));
+    await userEvent.click(page.getByRole("option", { name: choice, exact: true }));
 }
 
 describe("the Parts pop-over when graphty-element cannot tell which file", () => {
@@ -119,7 +119,10 @@ describe("the Parts pop-over's address field", () => {
         const { tab, store } = await layerNamingSet(new Map([["police.glb", await bytesOf(policeUrl)]]));
         const popover = await openParts(tab);
         const field = within(popover).getByRole<HTMLInputElement>("textbox", { name: "colormap.png address" });
-        await userEvent.type(field, "https://example.com/colormap.png");
+        await userEvent.type(
+            page.elementLocator(popover).getByRole("textbox", { name: "colormap.png address", exact: true }),
+            "https://example.com/colormap.png",
+        );
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.equal(store.get().announcement, "Address discarded");
@@ -178,7 +181,9 @@ describe("the Load custom model dialog with a picture two files could be (#8614)
 
     it("loads the model without that picture with the row's Load without it", async () => {
         const { session, dialog, row } = await policeWithTwoPictures();
-        await userEvent.click(within(row).getByRole("button", { name: "Load without colormap.png" }));
+        await userEvent.click(
+            page.elementLocator(row).getByRole("button", { name: "Load without colormap.png", exact: true }),
+        );
         await waitFor(() => {
             assert.isFalse(row.isConnected, "colormap.png is no longer asked for");
         });

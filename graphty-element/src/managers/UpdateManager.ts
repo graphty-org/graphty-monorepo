@@ -25,6 +25,7 @@ import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
+import { prepareOverlayShader } from "../meshes/overlayMaterial";
 import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { pulledEdgesDefault } from "../meshes/PulledLineBatch";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
@@ -44,7 +45,7 @@ import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import { LabelDeclutter } from "./LabelDeclutter";
-import type { LayoutManager } from "./LayoutManager";
+import { type LayoutManager, layoutManagerInternals } from "./LayoutManager";
 import { MINIMUM_PAINT_BATCH, minimumWorkPerFrame } from "./minimumWork";
 import { attachPendingWork, PendingWork } from "./PendingWork";
 import type { StatsManager } from "./StatsManager";
@@ -3628,6 +3629,8 @@ export class UpdateManager implements Manager {
         }
         this.nodesDrawn = true;
         this.eventManager.emit("graph-first-frame", { frames: this.frameCount });
+        // A node drawn now may be selected next: have its halo's shader ready before it is, but after this frame.
+        prepareOverlayShader(this.graphContext.getScene());
     }
 
     /**
@@ -4090,8 +4093,12 @@ export class UpdateManager implements Manager {
             this.steppedEngine = new WeakRef(layoutEngine);
         }
 
+        // NOR WHILE A 2D DRAWING RISES INTO 3D. Its rise is RISE_STEPS steps, and a slow frame that
+        // caught up twelve of them showed most of the rise in one frame: the reader saw the drawing
+        // jump into depth rather than rise (issue #9372). One step a frame draws every step of it;
+        // where the drawing ends is the same, since the rise moves by steps, not by frames.
         const rounds =
-            accelerated || fresh || minimumWorkPerFrame()
+            accelerated || fresh || minimumWorkPerFrame() || layoutManagerInternals.rising(this.layoutManager)
                 ? 1
                 : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
         const started = rounds > 1 ? performance.now() : 0;

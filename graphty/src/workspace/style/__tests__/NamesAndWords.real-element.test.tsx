@@ -49,8 +49,8 @@ async function openScene(): Promise<GraphSession> {
  * "+" > Layer, then Escape: a new layer, selected, its Style tab open.
  */
 async function newLayer(): Promise<void> {
-    await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+    await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: "Layer", exact: true }));
     await screen.findByRole("textbox", { name: "Layer name" });
     await userEvent.keyboard("{Escape}");
 }
@@ -59,8 +59,8 @@ describe("names and words", () => {
     it("names the rename box for a layer and a folder, never 'Row name'", async () => {
         await openScene();
         await newLayer();
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Folder" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Folder", exact: true }));
         await screen.findByRole("textbox", { name: "Folder name" });
         assert.isNull(screen.queryByRole("textbox", { name: "Row name" }));
         await userEvent.keyboard("{Escape}");
@@ -73,37 +73,45 @@ describe("names and words", () => {
         await newLayer();
         const tree = screen.getByRole("tree", { name: "Style layers" });
         await userEvent.keyboard("{Control>}");
-        await userEvent.click(within(tree).getByRole("treeitem", { name: /^Layer 1, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Layer 1, / }));
         await userEvent.keyboard("{/Control}");
         if (screen.queryByRole("group", { name: "Which nodes" }) === null) {
-            await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+            await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
         }
         const region = await screen.findByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await userEvent.click(
+            page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+        );
         await screen.findByLabelText("Find an attribute");
         await screen.findByRole("listbox", { name: "Attributes" });
         // The fact on the row is part of its name, as in the Vary by list.
-        const degree = await screen.findByRole("option", { name: "Degree, 1 to 36" });
+        const degree = page.getByRole("option", { name: "Degree, 1 to 36", exact: true });
         await userEvent.click(degree);
 
         // A text card's match menu speaks one case: "Contains" beside "Has a value".
         await within(region).findByRole("group", { name: /^Degree(,|$)/ });
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
+        await userEvent.click(
+            page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: /^name(,|$)/ }));
         // The menu and the box are named for what they choose, beside the column they read.
         within(region).getByRole("combobox", { name: "name: text to match" });
-        await userEvent.click(await within(region).findByRole("combobox", { name: "name: how to match" }));
+        await userEvent.click(
+            page.elementLocator(region).getByRole("combobox", { name: "name: how to match", exact: true }),
+        );
         await screen.findByRole("option", { name: "Contains" });
         await screen.findByRole("option", { name: "Has a value" });
         await userEvent.keyboard("{Escape}");
 
         // A column that is a condition already says so in its name.
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await userEvent.click(
+            page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+        );
         await screen.findByRole("option", { name: /^Degree, 1 to 36, already a condition$/ });
         await userEvent.keyboard("{Escape}");
 
         // Folded, the row names its rule.
-        await userEvent.click(within(region).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(region).getByRole("button", { name: "Done", exact: true }));
         const folded = await screen.findByRole("button", { name: /^Which nodes, / });
         assert.include(folded.getAttribute("aria-label") ?? "", "Degree");
     });
@@ -112,9 +120,9 @@ describe("names and words", () => {
         await openScene();
         await newLayer();
         const tab = await screen.findByTestId("style-tab", {});
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        const vary = await screen.findByRole("button", { name: "Node size by attribute" });
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Size", exact: true }));
+        const vary = page.getByRole("button", { name: "Node size by attribute", exact: true });
         await userEvent.click(vary);
         await screen.findByRole("dialog", { name: "Node size by attribute" });
         await screen.findByRole("combobox", { name: "Find an attribute" });
@@ -125,7 +133,7 @@ describe("names and words", () => {
         const toolbar = await screen.findByRole("toolbar", { name: "Canvas tools" });
         within(toolbar).getByRole("button", { name: /^Mode, (2D|3D)$/ });
 
-        await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Analyze", exact: true }));
         // The badge is part of the description, never of the name.
         const louvain = await screen.findByRole("option", { name: "Louvain" });
         assert.isNotEmpty(louvain.getAttribute("aria-description") ?? "");

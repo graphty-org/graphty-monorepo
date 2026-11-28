@@ -5,7 +5,7 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -92,8 +92,8 @@ describe("the selection editor on 50,000 nodes", () => {
             }
             return answer;
         };
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Layer", exact: true }));
         await screen.findByRole("textbox", { name: "Layer name" });
         const tab = await screen.findByTestId("style-tab");
         const edit = await within(tab).findByRole("button", { name: /^Style Nodes\.\.\./ });

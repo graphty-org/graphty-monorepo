@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { ranOptionWords } from "../../analyze/words";
@@ -247,7 +247,7 @@ describe("a grouping run's Values on the real element", () => {
             store.set({ inspected: { kind: "run-row", id }, tabs: { "run-row": "values" } });
         });
         const madeWith = await inspector().findByRole("group", { name: "Made with" });
-        await userEvent.click(within(madeWith).getByRole("button", { name: /^Advanced run settings/ }));
+        await userEvent.click(page.elementLocator(madeWith).getByRole("button", { name: /^Advanced run settings/ }));
         const dialog = await screen.findByRole("dialog");
         assert.isNotEmpty(within(dialog).queryAllByRole("spinbutton").concat(within(dialog).queryAllByRole("textbox")));
     });
@@ -271,7 +271,7 @@ describe("a grouping run's Values on the real element", () => {
         assert.match(over.textContent, /team: (red|blue)/i);
 
         const summary = inspector().getByRole("group", { name: "Summary" });
-        await userEvent.click(within(summary).getByRole("button", { name: /^Size/ }));
+        await userEvent.click(page.elementLocator(summary).getByRole("button", { name: /^Size/ }));
         await waitFor(() => {
             assert.lengthOf(session.selection.nodes, size);
         });
@@ -358,7 +358,7 @@ describe("the graph's Overview on the real element", () => {
         const row = await inspector().findByRole("group", { name: "Largest component" });
         assert.equal(row.querySelector("[data-testid=data-row-value]")?.textContent, "4 nodes");
 
-        await userEvent.click(within(row).getByRole("button"));
+        await userEvent.click(page.elementLocator(row).getByRole("button"));
         await waitFor(() => {
             assert.sameMembers(session.selection.nodes.map(String), ["a", "b", "c", "d"]);
         });

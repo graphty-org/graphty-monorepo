@@ -67,9 +67,9 @@ async function newCard(): Promise<void> {
     const plus = screen.getAllByRole("button", { name: "Add filter" }).at(-1);
     assert.isDefined(plus);
     if (plus !== undefined) {
-        await userEvent.click(plus);
+        await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }).last());
     }
-    await userEvent.click(await screen.findByRole("button", { name: "Value" }));
+    await userEvent.click(page.getByRole("button", { name: "Value", exact: true }));
 }
 
 /**
@@ -78,7 +78,7 @@ async function newCard(): Promise<void> {
  */
 async function newCardOn(name: string): Promise<void> {
     await newCard();
-    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
+    await userEvent.click(page.getByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
 }
 
 /**
@@ -87,7 +87,9 @@ async function newCardOn(name: string): Promise<void> {
 async function done(): Promise<void> {
     const open = document.querySelector<HTMLElement>(".sel-ws");
     assert.isNotNull(open, "the card is open in the selection workspace");
-    await userEvent.click(within(open ?? document.body).getByRole("button", { name: "Done" }));
+    await userEvent.click(
+        page.elementLocator(open ?? document.body).getByRole("button", { name: "Done", exact: true }),
+    );
     // Done closes the workspace once graphty-element has painted the result, a frame or more after
     // the click.
     await waitFor(() => {
@@ -132,7 +134,7 @@ describe("picking nodes by a condition card from the Data place", () => {
     it("keeps the nodes a number card's range holds", async () => {
         const session = await openWithGraph();
         await newCardOn("group");
-        const from = await screen.findByRole("textbox", { name: "group from, number" });
+        const from = page.getByRole("textbox", { name: "group from, number", exact: true });
         await userEvent.clear(from);
         await userEvent.type(from, "3{Enter}");
         await done();
@@ -171,7 +173,7 @@ describe("picking nodes by a condition card from the Data place", () => {
 
         await newCardOn("Data source");
         const loads = await screen.findByRole("group", { name: "Data source values" });
-        await userEvent.click(within(loads).getByRole("checkbox", { name: /^people\.json, 4 nodes$/ }));
+        await userEvent.click(page.elementLocator(loads).getByRole("checkbox", { name: /^people\.json, 4 nodes$/ }));
         await done();
 
         await waitFor(() => {
@@ -238,7 +240,7 @@ describe("picking nodes by a condition card from the Data place", () => {
 
         await newCardOn("Data source");
         const loads = await screen.findByRole("group", { name: "Data source values" });
-        await userEvent.click(within(loads).getByRole("checkbox", { name: /^sites\.json/ }));
+        await userEvent.click(page.elementLocator(loads).getByRole("checkbox", { name: /^sites\.json/ }));
         await done();
 
         await waitFor(() => {

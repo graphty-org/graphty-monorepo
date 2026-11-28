@@ -9,10 +9,10 @@
 import "@graphty/graphty-element";
 
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { sampleTile } from "../../../test/samples-dialog";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -21,7 +21,7 @@ describe("opened: an open's whole run", () => {
     it("settles once the sample is read as one undo step and focus is on its heading", async () => {
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
-        await userEvent.click(screen.getByRole("button", { name: sampleTile("Les Miserables") }));
+        await userEvent.click(page.getByRole("button", { name: sampleTile("Les Miserables"), exact: true }));
         const { opened } = store.get();
         assert.instanceOf(opened, Promise, "the click started an open the workspace tracks");
         await opened;
@@ -35,15 +35,15 @@ describe("opened: an open's whole run", () => {
     it("keeps the Network data panel open and says why when a file at an address cannot be read", async () => {
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
-        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        await userEvent.click(page.getByRole("button", { name: "Open network data", exact: true }));
         const chooser = await screen.findByRole("dialog", { name: "Open network data" });
-        await userEvent.click(within(chooser).getByRole("button", { name: /^Load from URL/ }));
+        await userEvent.click(page.elementLocator(chooser).getByRole("button", { name: /^Load from URL/ }));
         const form = await screen.findByRole("form", { name: "Network data" });
         await userEvent.type(
-            within(form).getByRole("textbox", { name: "URL" }),
+            page.elementLocator(form).getByRole("textbox", { name: "URL", exact: true }),
             new URL("/no-such-sample.graphml", location.href).href,
         );
-        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
         const failure = await waitFor(() => {
             const chip = form.querySelector("[data-code]");
             assert.isNotNull(chip, "the form shows why the load failed");

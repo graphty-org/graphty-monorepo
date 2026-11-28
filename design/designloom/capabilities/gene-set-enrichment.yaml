@@ -1,0 +1,25 @@
+id: gene-set-enrichment
+name: Gene set enrichment
+category: analysis
+description: Over-representation and region-level enrichment of node sets (clusters, modules, layout neighborhoods)
+    against loaded gene sets, with an explicit and recorded background, FDR, and gene-set size limits.
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 15 (Must)."
+algorithms: []
+used_by_workflows:
+    - W21
+    - W22
+    - W241
+    - W252
+    - W1054
+    - W1126
+    - W3102
+    - W3103
+implemented_by_components: []
+requirements:
+    - "Must: Enrichment with explicit, recorded background"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+          requirement 15)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: partly covered (W21)"

@@ -2,20 +2,18 @@ import "./export.css";
 
 import { PageList } from "@graphty/compact-mantine";
 import { Modal, Text } from "@mantine/core";
-import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
+import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { CameraImageOutput } from "./CameraImageOutput";
 import {
     type CameraImageChoices,
     type DataChoices,
-    DEFAULT_CAMERA_IMAGE,
-    DEFAULT_DATA,
-    DEFAULT_REPORT,
-    DEFAULT_TOUR_VIDEO,
+    EXPORT_START,
+    type ExportDraft,
     type OutputId,
     type RecentExport,
-    type ReportChoices,
     type TourVideoChoices,
 } from "./choices";
 import { DataOutput } from "./DataOutput";
@@ -38,6 +36,46 @@ const OUTPUTS: readonly { id: OutputId; name: string }[] = [
 /** How many files Recent lists. */
 const RECENT_MAX = 5;
 
+/** A setter of one part of the kept draft: it takes a value, or a change to the value. */
+type DraftSetter<K extends keyof ExportDraft> = (
+    next: ExportDraft[K] | ((now: ExportDraft[K]) => ExportDraft[K]),
+) => void;
+
+/**
+ * The setters of each part of the workspace's kept exportDraft.
+ * @param store - the workspace store.
+ * @returns a setter per part.
+ */
+function draftSetters(store: WorkspaceStore): { readonly [K in keyof ExportDraft]: DraftSetter<K> } {
+    const keep =
+        <K extends keyof ExportDraft>(key: K): DraftSetter<K> =>
+        (next) => {
+            store.set((state) => {
+                const now = state.exportDraft ?? EXPORT_START;
+                const value = typeof next === "function" ? next(now[key]) : next;
+                return { exportDraft: { ...now, [key]: value } };
+            });
+        };
+    return {
+        output: keep("output"),
+        cameraImage: keep("cameraImage"),
+        tourVideo: keep("tourVideo"),
+        data: keep("data"),
+        report: keep("report"),
+        recent: keep("recent"),
+        opening: keep("opening"),
+    };
+}
+
+/**
+ * Closes the dialog: the next opening sets it up again.
+ * @param state - the workspace state.
+ * @returns the change.
+ */
+function closed(state: WorkspaceState): Partial<WorkspaceState> {
+    return { dialog: null, exportDraft: state.exportDraft && { ...state.exportDraft, opening: null } };
+}
+
 /**
  * The app's one Export dialog: Image (`captureScreenshot`), Video (`captureAnimation`), Data
  * (`exportGraph` with a format, scope and columns), Report (a Markdown write-up of the
@@ -59,37 +97,43 @@ export function ExportDialog(): React.JSX.Element {
     const exportSource = useWorkspaceState((state) => state.exportSource);
     const exportTour = useWorkspaceState((state) => state.exportTour);
     const exportView = useWorkspaceState((state) => state.exportView);
+    // on reload: fresh: in flight: a video recording, which a reload ends
     const [recording, setRecording] = useState(false);
-    const [output, setOutput] = useState<OutputId>("image");
-    const [cameraImage, setCameraImage] = useState<CameraImageChoices>(DEFAULT_CAMERA_IMAGE);
-    const [tourVideo, setTourVideo] = useState<TourVideoChoices>(DEFAULT_TOUR_VIDEO);
-    const [data, setData] = useState<DataChoices>(DEFAULT_DATA);
-    const [report, setReport] = useState<ReportChoices>(DEFAULT_REPORT);
-    const [recent, setRecent] = useState<readonly RecentExport[]>([]);
-
+    // The output and every output's choices live in the workspace's kept exportDraft, so a reload
+    // reopens the dialog on what the reader picked and typed.
+    const draft = useWorkspaceState((state) => state.exportDraft) ?? EXPORT_START;
+    const { output, cameraImage, tourVideo, data, report, recent } = draft;
+    const set = useMemo(() => draftSetters(store), [store]);
     useEffect(() => {
         if (!opened) {
             return;
         }
+        // Each opening sets the dialog up once. A dialog a reload reopens was set up for its
+        // opening already: the kept draft names it.
+        const opening = JSON.stringify([exportOn, exportSource, exportTour, exportView]);
+        if (store.get().exportDraft?.opening === opening) {
+            return;
+        }
+        set.opening(opening);
         // Every opening writes the whole graph, but a source row's own Export..., which writes
         // that source's records for this opening only (when there is more than one to tell apart).
         const several = (session?.data.sources().length ?? 0) > 1;
         const scope: DataChoices["scope"] = exportSource !== null && several ? `source:${exportSource}` : "all";
         if (exportOn === "image" || exportOn === "video") {
-            setOutput(exportOn);
+            set.output(exportOn);
             if (exportOn === "video" && exportTour !== null) {
                 // A tour's Export video...: Video with that tour chosen.
-                setTourVideo((choices) => ({ ...choices, camera: "tour", tour: exportTour }));
+                set.tourVideo((choices) => ({ ...choices, camera: "tour", tour: exportTour }));
             }
             if (exportOn === "image" && exportView !== null) {
                 // A camera's Export image...: Image from that camera.
-                setCameraImage((choices) => ({ ...choices, view: exportView }));
+                set.cameraImage((choices) => ({ ...choices, view: exportView }));
             }
-            setData((choices) => ({ ...choices, scope }));
+            set.data((choices) => ({ ...choices, scope }));
         } else {
-            setOutput("data");
+            set.output("data");
             // A table is showing, or a source row asked: the plain CSV of the table.
-            setData((choices) => ({
+            set.data((choices) => ({
                 ...choices,
                 format: "csv",
                 variant: "csv",
@@ -97,10 +141,10 @@ export function ExportDialog(): React.JSX.Element {
                 scope,
             }));
         }
-    }, [opened, exportOn, exportSource, exportTour, exportView, session]);
+    }, [opened, exportOn, exportSource, exportTour, exportView, session, store, set]);
 
     const close = (): void => {
-        store.set({ dialog: null });
+        store.set(closed);
     };
     // While a video records, Escape and the close button stop it and the dialog stays open; the
     // next one closes it.
@@ -120,6 +164,7 @@ export function ExportDialog(): React.JSX.Element {
      * @param message - the notice.
      * @param file - the file's name, when a file was saved.
      */
+    // on reload: fresh: pointer: a settings popover opened for a look
     const [settingsOpen, setSettingsOpen] = useState(false);
     // A press outside closes the settings on its way down, so the click it ends in is judged by what
     // was open when it began: one click on the backdrop closes the settings alone.
@@ -135,22 +180,22 @@ export function ExportDialog(): React.JSX.Element {
     const done = (message: string, file?: string): void => {
         if (file !== undefined) {
             const choices = latest.current[output as "image" | "video" | "data"];
-            setRecent((list) =>
+            set.recent((list) =>
                 [{ output, name: file, choices }, ...list.filter((entry) => entry.name !== file)].slice(0, RECENT_MAX),
             );
         }
-        store.set({ dialog: null, notice: { message } });
+        store.set((state) => ({ ...closed(state), notice: { message } }));
     };
 
     const reopen = (index: number): void => {
         const entry = recent[index];
-        setOutput(entry.output);
+        set.output(entry.output);
         if (entry.output === "image") {
-            setCameraImage(entry.choices as CameraImageChoices);
+            set.cameraImage(entry.choices as CameraImageChoices);
         } else if (entry.output === "video") {
-            setTourVideo(entry.choices as TourVideoChoices);
+            set.tourVideo(entry.choices as TourVideoChoices);
         } else if (entry.output === "data") {
-            setData(entry.choices as DataChoices);
+            set.data(entry.choices as DataChoices);
         }
     };
 
@@ -171,7 +216,7 @@ export function ExportDialog(): React.JSX.Element {
                 return (
                     <CameraImageOutput
                         choices={cameraImage}
-                        onChange={setCameraImage}
+                        onChange={set.cameraImage}
                         onCancel={close}
                         onDone={done}
                         heading={!single}
@@ -181,7 +226,7 @@ export function ExportDialog(): React.JSX.Element {
                 return (
                     <TourVideoOutput
                         choices={tourVideo}
-                        onChange={setTourVideo}
+                        onChange={set.tourVideo}
                         onCancel={close}
                         onDone={done}
                         onRecording={setRecording}
@@ -191,7 +236,7 @@ export function ExportDialog(): React.JSX.Element {
                 return (
                     <DataOutput
                         choices={data}
-                        onChange={setData}
+                        onChange={set.data}
                         onCancel={close}
                         onSettingsOpen={setSettingsOpen}
                         onDone={done}
@@ -200,7 +245,7 @@ export function ExportDialog(): React.JSX.Element {
             case "report":
                 return (
                     <Suspense fallback={null}>
-                        <ReportOutput choices={report} onChange={setReport} onCancel={close} onDone={done} />
+                        <ReportOutput choices={report} onChange={set.report} onCancel={close} onDone={done} />
                     </Suspense>
                 );
             default:
@@ -238,7 +283,7 @@ export function ExportDialog(): React.JSX.Element {
                         current={output}
                         label="What to export"
                         onCurrentChange={(id) => {
-                            setOutput(id as OutputId);
+                            set.output(id as OutputId);
                         }}
                     />
                     {recentShown.length > 0 ? (

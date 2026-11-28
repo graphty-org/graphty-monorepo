@@ -1195,6 +1195,8 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     stepCounts: READ,
     // Opening a draft writes nothing; its commit is `addCondition` or `updateCondition`.
     draft: READ,
+    draftOf: READ,
+    openDrafts: READ,
 };
 
 /**
@@ -1368,8 +1370,10 @@ const SHADERS_API: Readonly<Record<string, Door>> = {
 
 const STYLES_API: Readonly<Record<string, Door>> = {
     showBranches: exempt("a picking view: it suspends the stack's picture while a reader picks, never the stack"),
+    showDraft: exempt("a preview view: it suspends the stack's picture while a source draft is drawn, never the stack"),
     showingBranches: READ,
     shownBranches: READ,
+    shownDraft: READ,
     list: READ,
     get: READ,
     validate: READ,
@@ -1730,6 +1734,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getNodes: READ,
             getNodeIds: READ,
             getEdges: READ,
+            getEdgeIds: READ,
             getNodeCount: READ,
             getEdgeCount: READ,
             selectNode: SELECTION,
@@ -2061,6 +2066,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ...CAPTURE_DOORS,
             planTour: READ,
             replaceTour: CAMERA,
+            tourPlace: READ,
+            resumeTour: CAMERA,
             applyCaptureCamera: CAMERA,
             getCameraState: READ,
             setCameraState: CAMERA,
@@ -2100,6 +2107,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getNodes: READ,
             getNodeIds: READ,
             getEdges: READ,
+            getEdgeIds: READ,
             render: RENDER,
             enableAiControl: ASSISTANT,
             disableAiControl: ASSISTANT,
@@ -2157,6 +2165,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinOnDrag: INPUT,
             size: RENDER,
             shapeType: RENDER,
+            // Whether a style hides the node: read by the pulled edges at its ends.
+            hiddenByStyle: READ,
+            // Whether a style layer states where the node's label goes: read by the label declutter.
+            labelPlaced: READ,
             update: RENDER,
             setMeshPosition: RENDER,
             updateStyle: RENDER,
@@ -2196,6 +2208,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             borderReachAlong: READ,
             screenBorder: READ,
             framingBounds: READ,
+            framingReach: READ,
             drawnHalfExtents: READ,
             surfaceIsBox: READ,
             surfaceIsClosedForm: READ,
@@ -2228,11 +2241,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnBoundingInfo: READ,
             paintedSourceMesh: READ,
             drawnByRowScan: READ,
+            selectionShowsOnlyHalo: READ,
             drawnInBatch: READ,
             togglesOwnMeshes: READ,
             walksEachFrame: READ,
             drawInBatch: RENDER,
-            holdOffBatch: RENDER,
+            drawnHeld: READ,
             drawnRayHit: READ,
             drawnScale: RENDER,
             // How the node's drawn size follows the camera, as its style sets it (`node.sizeSpace`).
@@ -2286,6 +2300,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnCenter: READ,
             drawnCentre: READ,
             drawnCaps: READ,
+            drawnHeadPosition: READ,
+            // Draws a pulled edge again when a style hid or showed one of its ends.
+            redrawPulledOffEnds: RENDER,
             arrowHeadStackCaps: READ,
             arrowTailStackCaps: READ,
             drawnGradient: READ,
@@ -2414,6 +2431,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             takeLateEdgeRows: RENDER,
             notePainted: RENDER,
             notePaintDrawn: RENDER,
+            notePaintQueued: RENDER,
             drawHeld: READ,
             addNode: calls([{ id: "door-c" }], [addNodes({ id: "door-c" })]),
             addNodes: calls([[{ id: "door-d" }]], [addNodes({ id: "door-d" })]),
@@ -2426,6 +2444,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getEdge: READ,
             getEdgesBetween: READ,
             drawnBundle: READ,
+            edgeSetChangesSince: READ,
+            // May freeze the snapshot first, as getSnapshot does.
+            builtEdgesOfPairs: LANE,
             edgeDirected: READ,
             incidentEdgeIds: READ,
             // Called while no edge is drawn: the one the row above added waits for its endpoint.
@@ -2510,6 +2531,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getStats: READ,
             hasLayoutEngine: READ,
             updatePositions: TRANSPORT,
+            // The frame's own publish of a stale static layout, reporting a refusal as updatePositions does.
+            publishOrReport: TRANSPORT,
+            // Waits for an asynchronous layout's answer and publishes it then, as the next frame would.
+            answered: TRANSPORT,
             onRest: RENDER,
             onMotion: RENDER,
             checkMotion: RENDER,
@@ -2540,6 +2565,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
     {
         name: "SupportPoints",
         file: "src/meshes/supportPoints.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        // The renumberings of edge rows the data manager keeps, so each `Edge` brings its row forward when read: a
+        // record of what the store already renumbered, which changes nothing a project saves.
+        name: "RowRenumbering",
+        file: "src/managers/RowRenumbering.ts",
         half: "renderer",
         whole: RENDER,
     },
@@ -2883,6 +2916,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edits: READ,
             ref: READ,
             nodeRef: READ,
+            typeOf: READ,
             stage: SOURCE_STEPS_WRITE,
             declareType: SOURCE_STEPS_WRITE,
             removeEdit: SOURCE_STEPS_WRITE,
@@ -3110,6 +3144,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             },
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
+            prepared: READ,
             joins: READ,
             editJoinReport: READ,
             matchesSource: READ,
@@ -3303,6 +3338,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             structureValue: READ,
             histogram: READ,
             valueCounts: READ,
+            kinds: READ,
             overRepresented: READ,
             groupTable: READ,
             // The column commands, each one batch.
@@ -3671,6 +3707,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             merge: DRAFT_ACT,
             connect: DRAFT_ACT,
             extract: DRAFT_ACT,
+            link: DRAFT_ACT,
             moveColumns: DRAFT_ACT,
             renameColumn: DRAFT_ACT,
             declareType: DRAFT_ACT,
@@ -3679,10 +3716,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             editStep: DRAFT_ACT,
             removeStep: DRAFT_ACT,
             moveStep: DRAFT_ACT,
+            replaceStep: DRAFT_ACT,
             removeSource: DRAFT_ACT,
             removeEdit: DRAFT_ACT,
             setMapping: DRAFT_ACT,
             undo: DRAFT_ACT,
+            redo: DRAFT_ACT,
+            canUndo: READ,
+            canRedo: READ,
             steps: READ,
             types: READ,
             edits: READ,
@@ -3695,6 +3736,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clearPicks: DRAFT_ACT,
             exclude: DRAFT_ACT,
             include: DRAFT_ACT,
+            batch: DRAFT_ACT,
+            suggestMatches: READ,
+            sideFields: READ,
+            joinRows: READ,
+            joinOutcomes: READ,
+            spaces: READ,
+            columns: READ,
             commit: SOURCE_STEPS_WRITE,
             dispose: exempt("closes the draft, writing nothing"),
             displayed: READ,
@@ -3716,6 +3764,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             source: READ,
             summary: READ,
             profile: READ,
+            rows: READ,
         },
     },
     {
@@ -3737,6 +3786,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             rows: READ,
             elements: READ,
             cells: READ,
+            marks: READ,
+            ids: READ,
+            made: READ,
         },
     },
     {
@@ -3876,7 +3928,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     kind: "call",
                     args: ["set_door-kept"],
                     // A set a rule names keeps its record once removed, so it can be restored.
-                    around: async (target) => {
+                    around: (target) => {
                         const sets = target as {
                             create(definition: unknown, options: { name: string }): string;
                             remove(id: string): void;
@@ -3951,6 +4003,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             status: READ,
             authors: READ,
             tags: READ,
+            savedTarget: READ,
             counts: READ,
             toDocument: READ,
             mergeDocument: calls(
@@ -4302,6 +4355,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             read: READ,
             generation: READ,
             changes: READ,
+            relocations: READ,
             moved: LANE,
             write: LANE,
             fillUnplaced: LANE,
@@ -4317,6 +4371,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             owedRowsRead: READ,
             keeps: READ,
             unsettledView: READ,
+            // The rows written since a count of changes, so a reader places only those; reads, writes nothing.
+            rowsChangedSince: READ,
         },
     },
     {
@@ -4423,6 +4479,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ...STYLES_API,
             compiled: READ,
             modelUrlFromCode: READ,
+            refreshDraftView: READ,
         },
     },
     {
@@ -4483,6 +4540,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             publishedBounds: READ,
             // The size a "screen"-sized node of size 1 is drawn against (`node.sizeSpace`).
             nodeScreenReference: READ,
+            // How many edges it holds, counted with no sweep of the list; the frame loop reads it.
+            edgeCount: READ,
         },
     },
     {
@@ -4674,6 +4733,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             shaderPasses: READ,
             shaderPicturePending: READ,
             applyLighting: RENDER,
+            relightBatches: RENDER,
             getRenderStats: READ,
             ticks: READ,
             canvasInView: READ,

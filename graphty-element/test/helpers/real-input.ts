@@ -12,7 +12,7 @@
  * `releaseKey` only name the hold and the release.
  */
 
-import { cdp, userEvent } from "vitest/browser";
+import { cdp, commands, server, userEvent } from "vitest/browser";
 
 /** A point in CSS pixels from an element's top-left corner. */
 export interface Point {
@@ -46,6 +46,24 @@ type Send = (method: string, params?: Record<string, unknown>) => Promise<unknow
  * @returns A function sending one protocol command.
  */
 function send(): Send {
+    if (server.browser !== "chromium") {
+        // WebKit has no DevTools protocol: the interactions-webkit project's dispatchMouseEvent command makes
+        // the mouse events with Playwright instead (vitest.config.ts). Wheel, touch and the device pixel ratio
+        // are Chromium only.
+        const { dispatchMouseEvent } = commands as unknown as {
+            dispatchMouseEvent?: (params?: Record<string, unknown>) => Promise<unknown>;
+        };
+        return async (method, params) => {
+            if (method !== "Input.dispatchMouseEvent" || dispatchMouseEvent === undefined) {
+                throw new Error(`${method} needs the DevTools protocol, which ${server.browser} has not got`);
+            }
+
+            // Sent on the whole pixel `reachable` names, so the pointer lands where the test says it does.
+            const { x, y } = params as { x: number; y: number };
+            return dispatchMouseEvent({ ...params, x: Math.round(x), y: Math.round(y) });
+        };
+    }
+
     const session = cdp() as unknown as { send: Send };
     return (method, params) => session.send(method, params);
 }
@@ -55,9 +73,19 @@ function send(): Send {
  * @param element - The element the point is on.
  * @param point - The point, in CSS pixels from the element's top-left corner.
  * @returns The same point in the top page's CSS pixels.
+ * @throws When the point is off the test page: input there reaches nothing, and the element only sees
+ *     `pointerleave`, so a test sending it would pass or fail for the wrong reason.
  */
 export function toPage(element: Element, point: Point): Point {
     const rect = element.getBoundingClientRect();
+    const onPage = { x: rect.left + point.x, y: rect.top + point.y };
+    if (onPage.x < 0 || onPage.y < 0 || onPage.x >= window.innerWidth || onPage.y >= window.innerHeight) {
+        throw new Error(
+            `point (${point.x}, ${point.y}) on the element is (${onPage.x}, ${onPage.y}) on the page, ` +
+                `outside the ${window.innerWidth} x ${window.innerHeight} px test page`,
+        );
+    }
+
     const frame = window.frameElement;
     if (frame === null) {
         return { x: rect.left + point.x, y: rect.top + point.y };
@@ -70,6 +98,36 @@ export function toPage(element: Element, point: Point): Point {
     return {
         x: box.left + frame.clientLeft * scale + (rect.left + point.x) * scale,
         y: box.top + frame.clientTop * scale + (rect.top + point.y) * scale,
+    };
+}
+
+/**
+ * Where the pointer really lands when sent to a point. Chromium's protocol takes fractional pixels, so that is the
+ * point itself. Playwright's WebKit mouse drops the fraction of the top page's coordinate, and the test frame is
+ * scaled, so there the pointer lands up to a pixel over the frame's scale short of the point: a test that reads
+ * `elementAt` or `screenToWorld` beside a pointer event asks them about this point.
+ * @param element - The element the point is on.
+ * @param point - The point asked for, in CSS pixels from the element's top-left corner.
+ * @returns The point the browser's pointer events will report, on the same element.
+ */
+export function reachable(element: Element, point: Point): Point {
+    if (server.browser === "chromium") {
+        return point;
+    }
+
+    const at = toPage(element, point);
+    const page = { x: Math.round(at.x), y: Math.round(at.y) };
+    const rect = element.getBoundingClientRect();
+    const frame = window.frameElement;
+    if (frame === null) {
+        return { x: page.x - rect.left, y: page.y - rect.top };
+    }
+
+    const box = frame.getBoundingClientRect();
+    const scale = box.width / window.innerWidth;
+    return {
+        x: (page.x - box.left - frame.clientLeft * scale) / scale - rect.left,
+        y: (page.y - box.top - frame.clientTop * scale) / scale - rect.top,
     };
 }
 
@@ -114,6 +172,8 @@ function modifierBits(modifiers: Modifiers = {}): number {
  * @param timestamp - When the event happened, in seconds since the epoch; the browser stamps it
  *     with the time it arrives when this is left out.
  * @param button - Which button.
+ * @param clickCount - The press's click count.
+ * @param pointerType - The pointer: a mouse, or a pen (the protocol sends a pen as a mouse event).
  */
 async function mouseEvent(
     type: "mouseMoved" | "mousePressed" | "mouseReleased",
@@ -124,6 +184,7 @@ async function mouseEvent(
     timestamp?: number,
     button: Button = "left",
     clickCount = 1,
+    pointerType: "mouse" | "pen" = "mouse",
 ): Promise<void> {
     const at = toPage(element, point);
     await send()("Input.dispatchMouseEvent", {
@@ -134,8 +195,31 @@ async function mouseEvent(
         buttons: buttons === 0 ? 0 : BUTTON_BITS[button],
         clickCount: type === "mouseMoved" ? 0 : clickCount,
         modifiers: modifierBits(modifiers),
+        pointerType,
         ...(timestamp === undefined ? {} : { timestamp }),
     });
+}
+
+/**
+ * Move a pen hovering over the screen, its tip not touching it.
+ * @param element - The element the point is on.
+ * @param point - Where to.
+ */
+export async function penHover(element: Element, point: Point): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 0, undefined, undefined, "left", 1, "pen");
+}
+
+/**
+ * Touch a pen to one point and lift it, the touch and the lift sent together, as `click` sends its press and release.
+ * @param element - The element the point is on.
+ * @param point - Where.
+ */
+export async function penTap(element: Element, point: Point): Promise<void> {
+    await penHover(element, point);
+    await Promise.all([
+        mouseEvent("mousePressed", element, point, 1, undefined, undefined, "left", 1, "pen"),
+        mouseEvent("mouseReleased", element, point, 0, undefined, undefined, "left", 1, "pen"),
+    ]);
 }
 
 /**
@@ -237,34 +321,52 @@ export async function pressFor(
 }
 
 /**
- * Move the mouse to a point and press the left button there, holding it.
+ * Move the mouse to a point and press a button there, the left by default, holding it.
  * @param element - The element the point is on.
  * @param point - Where.
  * @param modifiers - Modifier keys held.
+ * @param button - Which button.
  */
-export async function press(element: Element, point: Point, modifiers?: Modifiers): Promise<void> {
+export async function press(
+    element: Element,
+    point: Point,
+    modifiers?: Modifiers,
+    button: Button = "left",
+): Promise<void> {
     await mouseEvent("mouseMoved", element, point, 0, modifiers);
-    await mouseEvent("mousePressed", element, point, 1, modifiers);
+    await mouseEvent("mousePressed", element, point, 1, modifiers, undefined, button);
 }
 
 /**
- * Move the mouse in one step with the left button held, as after `press`.
+ * Move the mouse in one step with a button held, the left by default, as after `press`.
  * @param element - The element the point is on.
  * @param point - Where to.
  * @param modifiers - Modifier keys held.
+ * @param button - Which button is held.
  */
-export async function moveHeld(element: Element, point: Point, modifiers?: Modifiers): Promise<void> {
-    await mouseEvent("mouseMoved", element, point, 1, modifiers);
+export async function moveHeld(
+    element: Element,
+    point: Point,
+    modifiers?: Modifiers,
+    button: Button = "left",
+): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 1, modifiers, undefined, button);
 }
 
 /**
- * Release the left button at a point, as after `press`.
+ * Release a button, the left by default, at a point, as after `press`.
  * @param element - The element the point is on.
  * @param point - Where.
  * @param modifiers - Modifier keys held.
+ * @param button - Which button.
  */
-export async function release(element: Element, point: Point, modifiers?: Modifiers): Promise<void> {
-    await mouseEvent("mouseReleased", element, point, 0, modifiers);
+export async function release(
+    element: Element,
+    point: Point,
+    modifiers?: Modifiers,
+    button: Button = "left",
+): Promise<void> {
+    await mouseEvent("mouseReleased", element, point, 0, modifiers, undefined, button);
 }
 
 /**

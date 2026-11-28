@@ -96,6 +96,11 @@ class CountingEdge {
         this.updates += 1;
         this.placed = true;
     }
+
+    /** A selection change places the edge again; nothing is cached here to measure again. */
+    invalidatePositionCache(): void {
+        // Nothing cached.
+    }
 }
 
 /** The renderer over a session, and what it counts. */
@@ -138,7 +143,12 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
     const dataManager = {
         nodes: new Map(nodes.map((node) => [graph.ids.idOf(node.index), node])),
         // Every node is built here, as under renderPath "objects"; the mask walk reads the built ones.
-        nodeMap: { built: () => nodes.values(), builtView: () => new Map(nodes.map((node) => [node.index, node])) },
+        nodeMap: {
+            built: () => nodes.values(),
+            builtView: () => new Map(nodes.map((node) => [node.index, node])),
+            builtOf: (id: string) => nodes[graph.ids.indexOf(id)],
+        },
+        nodeIdAtRow: (row: number) => graph.ids.idOf(row),
         lateNodeVersions: 0,
         edges: new Map(edges.map((edge) => [edge.index, edge])),
         // Every edge is built too; the mask walk reads the built ones.
@@ -148,6 +158,8 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
         nodeVersion: 0,
         edgeVersion: 0,
         drawHeld: false,
+        // The edge pass holds the store's direction setting while it places edges; this graph has no setting to hold.
+        store: { withSettingHeld: <T>(work: () => T): T => work() },
         supportPoints: {
             update: () => false,
             hasEdges: false,
@@ -158,6 +170,7 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
     const newBabylon = (): BabylonScene =>
         ({
             onAfterRenderObservable: observable,
+            onBeforeRenderObservable: observable,
             onBeforeDrawPhaseObservable: observable,
             onNewMeshAddedObservable: observable,
             onMeshRemovedObservable: observable,

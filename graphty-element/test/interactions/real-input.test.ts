@@ -21,6 +21,7 @@ import {
     click,
     doubleClick,
     drag,
+    holdPinch,
     hover,
     nextFrame,
     pinch,
@@ -434,6 +435,22 @@ describe("the mouse", () => {
             const now = at(element, "a");
             assert.closeTo(now.x, to.x, 3, "a drag with Shift held still moves the node");
             assert.closeTo(now.y, to.y, 3);
+        });
+
+        it.each([
+            ["Ctrl", { ctrl: true }],
+            ["Cmd", { meta: true }],
+        ])("%s-click adds a node to the selection, and takes it out again", async (_name, modifier) => {
+            const element = await mounted(viewMode);
+
+            await click(element, at(element, "a"));
+            await click(element, at(element, "b"), modifier);
+            await applied(element);
+            assert.sameMembers([...element.session.selection.nodes], ["a", "b"], "the click added b to a");
+
+            await click(element, at(element, "a"), modifier);
+            await applied(element);
+            assert.sameMembers([...element.session.selection.nodes], ["b"], "a second click took a out");
         });
 
         it("a click on empty canvas is published, with or without a selection", async () => {
@@ -983,6 +1000,34 @@ describe("touch", () => {
         assert.closeTo(end.y - start.y, -80, 3, "the drawing followed the finger up");
     });
 
+    // The browser sends no touchmove until a finger passes its touch slop (about 15 px), but it does
+    // send pointer moves: a short drag must pan with its first move.
+    it("a finger's first 10 px move pans the 2D view, inside the browser's touch slop", async () => {
+        const element = await mounted("2d");
+        const start = at(element, "a");
+
+        await touchDrag(element, EMPTY, { x: EMPTY.x + 10, y: EMPTY.y }, 1);
+        await applied(element);
+
+        const end = at(element, "a");
+        assert.closeTo(end.x - start.x, 10, 2, "the drawing followed the finger's one short move");
+        assert.closeTo(end.y - start.y, 0, 2, "and did not move up or down");
+    });
+
+    it("after a pinch, a one-finger drag pans the 2D view by its own move, without a jump", async () => {
+        const element = await mounted("2d");
+        const lift = await holdPinch(element, { x: WIDTH / 2, y: HEIGHT / 2 }, 120, 90);
+        await lift();
+        const start = at(element, "a");
+
+        await touchDrag(element, EMPTY, { x: EMPTY.x + 30, y: EMPTY.y + 20 }, 3);
+        await applied(element);
+
+        const end = at(element, "a");
+        assert.closeTo(end.x - start.x, 30, 3, "the drawing followed the finger across");
+        assert.closeTo(end.y - start.y, 20, 3, "the drawing followed the finger down");
+    });
+
     it("spreading two fingers zooms the 2D view in", async () => {
         const element = await mounted("2d");
         const gap = spread(element);
@@ -1136,6 +1181,27 @@ describe("a high-DPI screen", () => {
             });
         },
     );
+
+    // Issue #10198: a ratio change with no resize, as when a window moves to another screen.
+    it('with pixel-ratio="device", a ratio change that comes without a resize redraws the canvas at the new ratio', async () => {
+        const element = await mounted("3d");
+        element.setAttribute("pixel-ratio", "device");
+        await element.updateComplete;
+        const { canvas } = element.graph;
+        assert.strictEqual(canvas.width, canvas.clientWidth * window.devicePixelRatio, "drawn at the first ratio");
+        const resized = vi.fn();
+        window.addEventListener("resize", resized);
+        cleanups.push(() => {
+            window.removeEventListener("resize", resized);
+        });
+
+        await withDevicePixelRatio(window.devicePixelRatio * 2, async () => {
+            while (canvas.width !== canvas.clientWidth * window.devicePixelRatio) {
+                await nextFrame();
+            }
+        });
+        assert.strictEqual(resized.mock.calls.length, 0, "the ratio changed with no resize");
+    });
 });
 
 /**

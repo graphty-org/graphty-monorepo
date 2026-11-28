@@ -120,6 +120,8 @@ export type {
     AgreementOptions,
     BranchesView,
     DefaultPalettes,
+    DraftRing,
+    DraftView,
     DrawnValue,
     ElementLayerSpec,
     HighlightSpec,

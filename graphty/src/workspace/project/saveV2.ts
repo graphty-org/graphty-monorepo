@@ -1,5 +1,5 @@
 /**
- * Version 2 save files in the app (the "save-files-v2" experiment): the questions the Save as and
+ * Version 2 save files in the app: the questions the Save as and
  * Open dialogs ask, and the report shown after. graphty-element says what a save would write
  * (`project.describe`), what a file holds before it opens (`project.inspect`) and what each save
  * or open reported; this file only holds the reader's answers and hands them to the element.
@@ -14,12 +14,15 @@ import type {
     SourceStorage,
 } from "@graphty/graphty-element/session";
 
-import type { WorkspaceStore } from "../state/store";
+import { askingDialog, type WorkspaceStore } from "../state/store";
 import { type ReportLine, reportLines } from "./saveV2Words";
 
-/** The dialog ids this file opens in the workspace's one dialog slot. */
-export const OPEN_V2_DIALOG = "open-v2";
-export const REPORT_V2_DIALOG = "report-v2";
+/**
+ * The dialog ids this file opens in the workspace's one dialog slot. Both are about a file being
+ * opened, held only by this page, so a reload does not reopen them.
+ */
+export const OPEN_V2_DIALOG = askingDialog("open-v2");
+export const REPORT_V2_DIALOG = askingDialog("report-v2");
 
 /** What the reader chose in the version 2 Save as dialog. */
 export interface SaveV2Choices {

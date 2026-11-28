@@ -5,6 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { isGraphtyError } from "../../../src/errors";
 import { createGraphSession, type GraphSession } from "../../../src/session";
 
 const CSV = "source,target,w\na,b,2\na,b,5\n";
@@ -15,7 +16,10 @@ const CSV = "source,target,w\na,b,2\na,b,5\n";
  * @param repeatedEdges - The graph's `repeatedEdges`.
  * @returns The session.
  */
-async function loaded(steps: boolean, repeatedEdges: "sum" | "min" | "max" | "first" | "last"): Promise<GraphSession> {
+async function loaded(
+    steps: boolean,
+    repeatedEdges: "sum" | "min" | "max" | "first" | "last" | "error",
+): Promise<GraphSession> {
     const session = createGraphSession({
         ...(steps ? { features: ["source-steps"] } : {}),
         config: { data: { knownFields: { repeatedEdges, edgeWeightPath: "w" } } },
@@ -51,4 +55,24 @@ describe("repeatedEdges under source-steps", () => {
             on.dispose();
         });
     }
+
+    it("error refuses the repeat with E_DUPLICATE_EDGE and the same parameters, as with the experiment off (#9693)", async () => {
+        const refusal = async (steps: boolean): Promise<unknown> => {
+            try {
+                await loaded(steps, "error");
+            } catch (error) {
+                return error;
+            }
+            return null;
+        };
+        const off = await refusal(false);
+        const on = await refusal(true);
+        assert.ok(isGraphtyError(off) && isGraphtyError(on), "both paths refuse the load");
+        assert.strictEqual(on.code, "E_DUPLICATE_EDGE");
+        assert.strictEqual(on.code, off.code);
+        assert.strictEqual(on.message, off.message);
+        const ends = (e: typeof on): unknown[] => [e.details.source, e.details.target];
+        assert.deepStrictEqual(ends(on), ["a", "b"]);
+        assert.deepStrictEqual(ends(on), ends(off));
+    });
 });

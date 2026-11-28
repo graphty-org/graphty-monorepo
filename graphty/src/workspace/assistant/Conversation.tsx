@@ -403,6 +403,8 @@ interface TurnViewProps {
     readonly turn: Turn;
     /** The status, on the newest turn only. */
     readonly status: AiStatus | null;
+    /** Whether a request of this turn's run waits on the reader, on the newest turn only. */
+    readonly waiting: boolean;
     readonly provider: string;
     readonly late: boolean;
     readonly onAgain: ((reader: ReaderMessage) => void) | null;
@@ -510,6 +512,7 @@ function TurnEffects({ turn, effects, onMore }: Readonly<TurnEffectsProps>): Rea
  * @param props - Component props
  * @param props.turn - the turn
  * @param props.status - the status, on the newest turn
+ * @param props.waiting - whether a request waits on the reader, on the newest turn
  * @param props.provider - the provider's id
  * @param props.late - whether the working dots show
  * @param props.onAgain - sends a message again, on the newest turn
@@ -519,6 +522,7 @@ function TurnEffects({ turn, effects, onMore }: Readonly<TurnEffectsProps>): Rea
 function ReplyRows({
     turn,
     status,
+    waiting,
     provider,
     late,
     onAgain,
@@ -527,7 +531,8 @@ function ReplyRows({
     const { session } = useWorkspace();
     const lastEnded = useWorkspaceState((state) => state.assistantEnded);
     const news = useWorkspaceState((state) => state.assistantEnded?.news === true);
-    // Open while it runs, so steps show as they happen; then closed, unless the reader chose.
+    // Open while it runs or waits on the reader, so steps show as they happen and still show when a
+    // reload brings a waiting request back with no run going (#9977); then closed, unless the reader chose.
     const [chosen, setChosen] = useState<boolean | null>(null);
     const running = isRunning(status);
     const prose = proseOf(turn, status);
@@ -539,7 +544,7 @@ function ReplyRows({
     if (!running && prose === "" && steps.length === 0 && words === null) {
         return null;
     }
-    const stepsOpen = chosen ?? running;
+    const stepsOpen = chosen ?? (running || waiting);
     return (
         <>
             <h3 className="ws-assistant-who">{WORDS["assistant.turn.assistant"]}</h3>
@@ -615,6 +620,8 @@ function TurnView(props: Readonly<TurnViewProps>): React.JSX.Element {
 interface ConversationProps {
     readonly conversation: AiConversationSnapshot | null;
     readonly status: AiStatus | null;
+    /** Whether a request waits on the reader. */
+    readonly waiting: boolean;
     readonly choice: AssistantChoice;
 }
 
@@ -625,10 +632,16 @@ interface ConversationProps {
  * @param props - Component props
  * @param props.conversation - the open conversation
  * @param props.status - the status
+ * @param props.waiting - whether a request waits on the reader
  * @param props.choice - the provider and model
  * @returns The log
  */
-export function Conversation({ conversation, status, choice }: Readonly<ConversationProps>): React.JSX.Element {
+export function Conversation({
+    conversation,
+    status,
+    waiting,
+    choice,
+}: Readonly<ConversationProps>): React.JSX.Element {
     const { element, session, store } = useWorkspace();
     const log = useRef<HTMLElement>(null);
     const rows = useRef<HTMLDivElement>(null);
@@ -725,6 +738,7 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
                                 key={turn.reader?.id ?? index}
                                 turn={turn}
                                 status={newest ? status : null}
+                                waiting={newest && waiting}
                                 provider={choice.provider}
                                 late={late}
                                 onAgain={newest ? again : null}

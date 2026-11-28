@@ -1,0 +1,24 @@
+id: coordination-detection
+name: Coordinated behavior detection
+category: analysis
+description: "Build a coordination network from object id, account id, content id and share timestamp: accounts sharing
+    the same object within a time window, with minimum participation and an edge-weight threshold defaulting to the
+    median."
+status: planned
+notes: "Research trace: investigative-journalism-and-osint.md section 10, requirement R12 (Should)."
+algorithms: []
+used_by_workflows:
+    - W209
+    - W93
+    - W94
+implemented_by_components: []
+requirements:
+    - "Should: Co-action network builder from the four-column input (object_id, account_id, content_id,
+      timestamp_share): same object within a time window, minimum participation, edge-weight threshold defaulting to the
+      median"
+    - "Must: Time-windowed co-action edges (window in seconds, minimum repetitions, support minimum per account), top-percentile or minimum-weight edge filtering, component extraction, and a sensitivity view of group membership as thresholds move."
+sources:
+    - title: Investigative journalists, OSINT investigators and trust-and-safety teams (section 10, requirement R12)
+      url: design/user-research/investigative-journalism-and-osint.md
+      summary: "Should in the research (the document says: Should (driven by disinformation researchers)). Covered by
+          Designloom when researched: Not covered"

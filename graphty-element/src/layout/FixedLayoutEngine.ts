@@ -7,7 +7,7 @@ import type { Node } from "../Node";
 import { GRAPHVIZ_TIME_BUDGET_MS } from "./graphviz/engines";
 import { POINTS_PER_UNIT } from "./graphviz/toDot";
 import type { LaidRoute } from "./GraphvizLayoutEngine";
-import { type EdgePosition, SimpleLayoutConfig } from "./LayoutEngine";
+import { edgeEndsFollowNodes, type EdgePosition, SimpleLayoutConfig } from "./LayoutEngine";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
@@ -287,6 +287,12 @@ export class FixedLayout extends SnapshotLayoutEngine {
             this.depthFromData(input, positions);
         }
 
+        // A 2D view draws every node on the plane, on every run: a data Z kept here was drawn by the objects
+        // path but flattened by the batched row table, so the two paths drew different pictures (issue #10039).
+        if (this.config.dim === 2) {
+            flatten(positions);
+        }
+
         return positions;
     }
 
@@ -394,3 +400,15 @@ function median(values: number[]): number | undefined {
     values.sort((a, b) => a - b);
     return values[values.length >> 1];
 }
+
+/**
+ * Put every row on the Z = 0 plane, keeping its X and Y.
+ * @param positions - three coordinates per row, written in place
+ */
+function flatten(positions: F32): void {
+    for (let i = 2; i < positions.length; i += 3) {
+        positions[i] = 0;
+    }
+}
+
+edgeEndsFollowNodes(FixedLayout);

@@ -289,7 +289,7 @@ describe("the row scan on each kind", () => {
         );
     });
 
-    it("gives an exact tie to the lower row, even once a restyle has moved its mesh in scene.meshes", async () => {
+    it("gives an exact tie to the lower row, even where scene.meshes lists the higher row first", async () => {
         const element = await mounted("2d");
         await drawn(element, { "node.shape": "rectangle" }, 3);
         const { graph } = element;
@@ -302,7 +302,11 @@ describe("the row scan on each kind", () => {
         const rows = graph.scene.meshes
             .map((mesh) => (mesh.metadata as { graphNode?: { index: number } } | null)?.graphNode?.index)
             .filter((row) => row !== undefined);
-        assert.strictEqual(rows.at(-1), NODES - 2, "the rebuilt mesh went to the end of scene.meshes");
+        assert.deepEqual(
+            rows,
+            [...rows].sort((a, b) => a - b),
+            "the rebuilt mesh is listed in its row",
+        );
         for (const node of graph.getNodes()) {
             if (node.index < NODES - 2) {
                 node.setRenderState("hidden");
@@ -310,6 +314,15 @@ describe("the row scan on each kind", () => {
         }
 
         await settled(element);
+        // The element keeps its instances in row order, so list the two tied meshes out of it: a scan
+        // that broke the tie by scene.meshes order would now give it to the higher row, as scene.pick does.
+        const { meshes } = graph.scene;
+        const at = (row: number): number =>
+            meshes.findIndex(
+                (mesh) => (mesh.metadata as { graphNode?: { index: number } } | null)?.graphNode?.index === row,
+            );
+        const [low, high] = [at(NODES - 2), at(NODES - 1)];
+        [meshes[low], meshes[high]] = [meshes[high], meshes[low]];
         const screen = graph.worldToScreen(graph.getNode(lower)?.drawnWorldPosition ?? Vector3.Zero());
         const scaling = graph.scene.getEngine().getHardwareScalingLevel();
         const x = screen.x * scaling;

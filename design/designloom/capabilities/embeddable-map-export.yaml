@@ -1,0 +1,18 @@
+id: embeddable-map-export
+name: Embeddable interactive map
+category: export
+description: Publish a map with precomputed positions, clusters and labels as data plus embed code, without
+    recomputation on load, and import or export VOSviewer map, network and JSON files.
+status: planned
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 24 (Should)."
+algorithms: []
+used_by_workflows:
+    - W50
+    - W58
+implemented_by_components: []
+requirements:
+    - "Should: VOSviewer map, network and JSON import and export"
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 24)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

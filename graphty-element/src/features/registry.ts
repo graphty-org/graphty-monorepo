@@ -10,14 +10,7 @@
 
 /** The id of an experiment, as `features="..."` and `createGraphSession({ features })` take it. */
 export type FeatureId =
-    | "assistant"
-    | "data-management"
-    | "location-map"
-    | "cosmograph"
-    | "file-styles"
-    | "source-steps"
-    | "source-references"
-    | "save-files-v2";
+    "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references";
 
 /** One experiment this build can switch on. */
 export interface FeatureDescriptor {
@@ -33,7 +26,6 @@ export interface FeatureDescriptor {
 
 /** Every experiment this build can switch on. */
 export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
-    { id: "assistant", plainName: "Assistant", issue: 2000, since: "2026-11-04" },
     // The graphty app's use of batched drawing and the long-edge fade and blending options;
     // graphty-element's `renderPath`, edge styles and layout options are not gated.
     { id: "cosmograph", plainName: "Cosmograph-inspired rendering", issue: 3247, since: "2026-11-06" },
@@ -44,10 +36,6 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // design/data/multiple-data-sources-design.md, stage 1); off, loads, joins and saved files are
     // as before. `all` does not switch it on (features/resolve.ts); name it to try it.
     { id: "source-steps", plainName: "Sources and steps", issue: 8928, since: "2026-11-18" },
-    // Version 2 save files (spec/README.md): `project.save` with `format: 2` and `project.open` of a
-    // version 2 full or section file. Off, `format: 2` is refused and version 2 files are read as
-    // before (refused as a newer version); version 1 files are written and read exactly as before.
-    { id: "save-files-v2", plainName: "Save files version 2", issue: 8029, since: "2026-11-14" },
     // `session.data.setCopy`: saving a URL or sample load as a reference that an open reads again.
     // Opening a file that holds references works with it off; only choosing one is gated.
     { id: "source-references", plainName: "Source references", issue: 8813, since: "2026-11-17" },
@@ -59,4 +47,6 @@ export const GRADUATED_FEATURES: readonly string[] = Object.freeze([
     "timeline",
     "selection-workspace",
     "node-models",
+    "assistant",
+    "save-files-v2",
 ]);

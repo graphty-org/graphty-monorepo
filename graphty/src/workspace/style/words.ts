@@ -36,6 +36,7 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
+import { sourceName } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
 import { formatCount } from "../settings/numberFormat";
@@ -79,6 +80,11 @@ export interface SectionSpec {
     readonly items?: readonly { readonly id: string; readonly name: string; readonly channels: readonly Channel[] }[];
     /** Properties drawn together: once the row sets one, the others show, waiting for a value. */
     readonly together?: readonly Channel[];
+    /**
+     * The Shaders section's option tiles: what each option says it is, by property ("Effects
+     * option"); absent, the tab's words ({@link OPTION_TILE_WORDS}).
+     */
+    readonly optionWords?: Readonly<Partial<Record<Channel, string>>>;
 }
 
 /** A model's channels: what the Shape field names, and what Model settings sets. */
@@ -401,10 +407,12 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelFont": "Label font",
     "node.labelWeight": "Label weight",
     "node.labelItalic": "Label italic",
+    "node.labelUnderline": "Label underline",
     "node.labelWrapWidth": "Label wrap width",
     "node.labelLetterSize": "Label letter size",
     "node.labelWrapTrailingSpace": "Label wraps with a trailing space",
     "node.labelWrapSkipEndSpace": "Label wraps without an end space",
+    "node.labelWrapUnkerned": "Label wraps unkerned",
     "node.labelMinScreenSize": "Label smallest size on screen",
     "node.labelOnTop": "Label drawn on top",
     "node.labelDeclutter": "Label overlap order",
@@ -437,6 +445,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.planar": "Planar",
     "node.zIndex": "Z-index",
     "node.drawOrder": "Draw order",
+    "node.onTop": "On top",
     "node.borderColor": "Border color",
     "node.borderWidth": "Border width",
     "node.borderScreenWidth": "Border width on screen",
@@ -489,6 +498,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.animationSpeed": "Dash motion",
     "edge.label": "Label",
     "edge.labelStyle": "Label style",
+    "edge.tooltip": "Tooltip",
+    "edge.tooltipStyle": "Tooltip style",
+    "edge.tooltipSize": "Tooltip size",
+    "edge.tooltipColor": "Tooltip color",
+    "edge.tooltipBackground": "Tooltip background",
     "edge.labelSize": "Label size",
     "edge.labelColor": "Label color",
     "edge.labelBackground": "Label background",
@@ -501,6 +515,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelFont": "Label font",
     "edge.labelWeight": "Label weight",
     "edge.labelItalic": "Label italic",
+    "edge.labelUnderline": "Label underline",
     "node.shaders": "Shaders",
     "edge.shaders": "Shaders",
     "edge.taper": "Taper",
@@ -510,6 +525,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelLetterSize": "Label letter size",
     "edge.labelWrapTrailingSpace": "Label wraps with a trailing space",
     "edge.labelWrapSkipEndSpace": "Label wraps without an end space",
+    "edge.labelWrapUnkerned": "Label wraps unkerned",
     "edge.labelMinScreenSize": "Label smallest size on screen",
     "edge.labelOnTop": "Label drawn on top",
     "edge.labelRotation": "Label rotation",
@@ -948,7 +964,8 @@ export function groupRank(session: GraphSession, path: string, value: unknown): 
 
 /**
  * What one value of a value is called, as the key calls it: the name the reader gave it (the
- * element's value label), else a run's group by its rank ("Group 3"), else the value as it is.
+ * element's value label), else a run's group by its rank ("Group 3"), a source by its name, else the
+ * value as it is.
  * @param session - the element's session.
  * @param path - the value's path.
  * @param value - one of its values.
@@ -960,7 +977,26 @@ export function valueName(session: GraphSession, path: string, value: unknown): 
         return named;
     }
     const rank = groupRank(session, path, value);
-    return rank === undefined ? String(value) : `Group ${String(rank)}`;
+    return rank === undefined ? (sourceValue(session, path, value) ?? String(value)) : `Group ${String(rank)}`;
+}
+
+/**
+ * The name of the source a value names: the load an element came from, or the ids it is named among
+ * (the source-steps experiment), which the element keeps by the source's key.
+ * @param session - the element's session.
+ * @param path - the value's path.
+ * @param value - one of its values.
+ * @returns the source's name, or undefined for any other value.
+ */
+function sourceValue(session: GraphSession, path: string, value: unknown): string | undefined {
+    let key: unknown;
+    if (path === "graphty.load") {
+        key = value;
+    } else if (path === "graphty.space") {
+        key = session.data.spaces().find((row) => row.space === value)?.ownedBy;
+    }
+    const named = key === undefined ? undefined : session.data.sources().find((each) => each.key === key);
+    return named === undefined ? undefined : sourceName(named);
 }
 
 /**
@@ -1580,6 +1616,13 @@ export const OPTION_TILE_WORDS: Readonly<Record<"node" | "edge", string>> = {
     node: "Shape option",
     edge: "Line option",
 };
+
+/**
+ * What a tile from the tab's own style options says it is, by the section it is added in.
+ * @param section - the section's title, such as "Effects".
+ * @returns the words: "Effects option".
+ */
+export const optionTileWord = (section: string): string => `${section} option`;
 
 /** The shader editor's words, each as a reader sees it. */
 export const EDITOR_WORDS = {

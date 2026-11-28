@@ -125,7 +125,15 @@ export interface ReadSource {
  * needs both ends. Plain data, safe to import in Node.
  */
 export const LOAD_ROLES: Readonly<
-    Record<"nodes" | "edges", { readonly takes: readonly ColumnRole[]; readonly requires: readonly ColumnRole[] }>
+    Record<
+        "nodes" | "edges",
+        {
+            /** Every role a column of a table of this kind may be given. */
+            readonly takes: readonly ColumnRole[];
+            /** The roles a table of this kind must have a column for before it can load. */
+            readonly requires: readonly ColumnRole[];
+        }
+    >
 > = Object.freeze({
     nodes: Object.freeze({
         takes: Object.freeze(["key", "label", "time", "kind"] as const),
@@ -195,6 +203,23 @@ const FORMAT_LABEL = "label";
 
 /** The id a row-numbered node is given, as the CSV reader numbers them. */
 const ROW_ID = "id";
+
+/**
+ * How the rows held read their node ids: the key column, or the row numbers stamped for want of one.
+ * @param key - The key column, or null when the rows name none.
+ * @param rows - The node rows as read, before any number was stamped.
+ * @returns The id expression, and whether it reads a column the rows did not hold.
+ */
+function heldKey(
+    key: string | null,
+    rows: readonly Readonly<Record<string, unknown>>[],
+): Pick<HeldRows, "idPath" | "numbered"> {
+    if (key !== null) {
+        return { idPath: keyExpression(key) };
+    }
+    const own = rows.length === 0 || rows.some((row) => ROW_ID in row);
+    return { idPath: ROW_ID, ...(own ? {} : { numbered: true }) };
+}
 
 /**
  * A refusal of a choice the draft cannot carry out.
@@ -290,15 +315,15 @@ function withIdText(
     graph?: ReadonlySet<unknown>,
 ): readonly Record<string, unknown>[] {
     const named = new Set(columns.filter((column): column is string => typeof column === "string"));
-    return rows.map((row) => {
-        const entries = Object.entries(row);
-        return Object.fromEntries([
-            ...entries.filter(([column]) => !named.has(column)),
-            ...entries
-                .filter(([column]) => named.has(column))
-                .map(([column, value]): [string, unknown] => [column, idText(value, graph)]),
-        ]);
-    });
+    // Each column where it was, so a row keeps the file's column order.
+    return rows.map((row) =>
+        Object.fromEntries(
+            Object.entries(row).map(([column, value]): [string, unknown] => [
+                column,
+                named.has(column) ? idText(value, graph) : value,
+            ]),
+        ),
+    );
 }
 
 /**
@@ -1453,7 +1478,7 @@ export class Draft implements LoadDraft {
             declaredDirection: readGephiTypeColumn(edges),
             errors: read.errors,
             errorLimit: read.errorLimit,
-            ...(key === null ? { idPath: ROW_ID } : { idPath: keyExpression(key) }),
+            ...heldKey(key, nodeRows),
             ...(edgeRoles?.source === undefined ? {} : { source: keyExpression(edgeRoles.source.column) }),
             ...(edgeRoles?.target === undefined ? {} : { target: keyExpression(edgeRoles.target.column) }),
             ...(edgeRoles === undefined ? {} : { weight: edgeRoles.weight ?? null }),

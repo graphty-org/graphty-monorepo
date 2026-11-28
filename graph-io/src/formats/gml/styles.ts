@@ -80,6 +80,7 @@ import { gephiRules } from "../gexf/styles.js";
 import {
     configurationOutline,
     FONT_STYLES,
+    putLostYedHeads,
     putOutline,
     putRaisedBorder,
     putYedEdgeLabel,
@@ -1298,17 +1299,87 @@ function readElement(
     if (lg !== null && lg !== undefined) {
         readLabelGraphics(lg, writer, target === "node", putLabel, at);
     }
-    if (!text && labelKeyDrawn(target, writer, isRec(g) || lg !== undefined) && label !== null && label !== undefined) {
-        put(
-            "label",
-            writer.vocabulary === "graphviz" ? graphvizText(label, at("label")) : canonText(label, at("label")),
-        );
-        // the GML draft names no place for a node's label; a plain GML file's is centered on its node, as OGDF and
-        // Cytoscape draw it (yEd's GML keeps its own label models, in LabelGraphics)
-        if (target === "node" && writer.tool === null && writer.vocabulary === "graphlet") {
-            put("labelPosition", "center");
-        }
+    if (!text && labelKeyDrawn(target, writer, isRec(g) || lg !== undefined)) {
+        readLabelKey(target, label, writer, put, at);
     }
+}
+
+/**
+ * Reads the `label` key of an element whose program draws it.
+ * @param target - nodes or edges
+ * @param label - the `label` key's value
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readLabelKey(target: StyleTarget, label: unknown, writer: GmlWriter, put: Put, at: At): void {
+    if (label === null || label === undefined) {
+        return;
+    }
+    if (writer.vocabulary === "ogdf" && readOgdfLabelMarkup(label, writer, put, at)) {
+        return;
+    }
+    put("label", writer.vocabulary === "graphviz" ? graphvizText(label, at("label")) : canonText(label, at("label")));
+    // the GML draft names no place for a node's label; a plain GML file's is centered on its node, as OGDF and
+    // Cytoscape draw it (yEd's GML keeps its own label models, in LabelGraphics)
+    if (target === "node" && writer.tool === null && writer.vocabulary === "graphlet") {
+        put("labelPosition", "center");
+    }
+}
+
+/** A label OGDF's writer kept as rich text markup: `<label font="Arial,10,..." textColor="ff000000">text</label>`. */
+const OGDF_LABEL_MARKUP = /^\s*<label\b([^>]*)>([\s\S]*)<\/label>\s*$/;
+
+/**
+ * Puts a label kept as rich text markup by an editor built on OGDF: its text, color and font.
+ * @param raw - the `label` key's value
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns whether the label was markup
+ */
+function readOgdfLabelMarkup(raw: unknown, writer: GmlWriter, put: Put, at: At): boolean {
+    const markup = ogdfLabelMarkup(raw);
+    if (markup === null) {
+        return false;
+    }
+    put("label", canonText(markup.text, at("label")));
+    readColor(markup.color, "labelColor", "labelOpacity", writer, put, at);
+    put("labelFont", markup.font);
+    put("labelSize", markup.size);
+    return true;
+}
+
+/**
+ * Reads a label kept as rich text markup by an editor built on OGDF (the files in OGDF's own examples, such as
+ * doc/examples/layout/ERDiagram.gml): the text between the tags, its color from `textColor` (Qt's ARGB hex) and its
+ * font from `font` (Qt's QFont::toString: family, then point size).
+ * @param raw - the `label` key's value
+ * @returns the text, color, font family and size, or null when the label is plain text
+ */
+function ogdfLabelMarkup(
+    raw: unknown,
+): { text: string; color: string | undefined; font: string | null; size: number | null } | null {
+    const match = typeof raw === "string" ? OGDF_LABEL_MARKUP.exec(raw) : null;
+    if (match === null) {
+        return null;
+    }
+    const attribute = (name: string): string | undefined =>
+        new RegExp(String.raw`\b${name}\s*=\s*"([^"]*)"`).exec(match[1])?.[1];
+    const argb = /^[0-9a-f]{8}$/i.exec(attribute("textColor") ?? "")?.[0];
+    const [family, points] = (attribute("font") ?? "").split(",");
+    const size = Number(points);
+    return {
+        text: match[2]
+            .replaceAll("&lt;", "<")
+            .replaceAll("&gt;", ">")
+            .replaceAll("&quot;", '"')
+            .replaceAll("&amp;", "&"),
+        // ARGB to the CSS spelling, #RRGGBBAA
+        color: argb === undefined ? undefined : `#${argb.slice(2)}${argb.slice(0, 2)}`,
+        font: family ? family.trim() : null,
+        size: Number.isFinite(size) && size > 0 ? size : null,
+    };
 }
 
 /**
@@ -1449,6 +1520,8 @@ function sizeOf(snapshot: GraphSnapshot, i: number): BendPoint {
  * @param bendsOnly - whether the points are the bends alone (OGDF)
  * @param put - receives the values
  * @param arcs - whether a yEd arc edge's one bend is its arc's control point (`yedArc`)
+ * @param drawnByYed - whether yEd drew it, so a head whose bend sits on its port is lost (`putLostYedHeads`); graphty
+ * writes yEd's vocabulary too, but draws every head it wrote
  */
 function readLineRoute(
     snapshot: GraphSnapshot,
@@ -1457,6 +1530,7 @@ function readLineRoute(
     bendsOnly: boolean,
     put: (property: string, value: string) => void,
     arcs = false,
+    drawnByYed = false,
 ): void {
     const raw = isRec(g) && isRec(g.Line) ? g.Line.point : undefined;
     const list = isRec(raw) ? [raw] : raw;
@@ -1487,8 +1561,35 @@ function readLineRoute(
         put("bends", bends);
     }
     if (!bendsOnly) {
-        putLinePort(snapshot, "sourcePort", s, anchored[0] ?? all[0], put);
-        putLinePort(snapshot, "targetPort", t, anchored[1] ?? all.at(-1) ?? all[0], put);
+        putLineEnds(snapshot, [s, t], anchored, all, drawnByYed, control, put);
+    }
+}
+
+/**
+ * Puts where a `Line` attaches to its two nodes (`edgeAnchor`'s ports, else its first and last points), and takes off
+ * the heads yEd loses (`putLostYedHeads`).
+ * @param snapshot - the graph
+ * @param nodes - its source and target nodes
+ * @param anchored - each end's `edgeAnchor` port, or null
+ * @param line - the Line's points: its ends, and its bends between them
+ * @param drawnByYed - whether yEd drew it
+ * @param control - its arc's control point, or null for a polyline, whose heads yEd aims from its bends
+ * @param put - receives the values
+ */
+function putLineEnds(
+    snapshot: GraphSnapshot,
+    nodes: readonly [number, number],
+    anchored: readonly (BendPoint | null)[],
+    line: readonly BendPoint[],
+    drawnByYed: boolean,
+    control: readonly BendPoint[] | null,
+    put: (property: string, value: string) => void,
+): void {
+    const ends: [BendPoint, BendPoint] = [anchored[0] ?? line[0], anchored[1] ?? line.at(-1) ?? line[0]];
+    putLinePort(snapshot, "sourcePort", nodes[0], ends[0], put);
+    putLinePort(snapshot, "targetPort", nodes[1], ends[1], put);
+    if (drawnByYed && control === null) {
+        putLostYedHeads(ends, line.slice(1, -1), put);
     }
 }
 
@@ -1919,6 +2020,7 @@ function readValues(
                         out.put(i, property, value);
                     },
                     writer.vocabulary === "yed",
+                    writer.tool === "yed",
                 );
             }
         }

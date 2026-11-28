@@ -29,7 +29,7 @@
  * the work on the CPU.
  */
 
-import type { GpuAccelerator } from "@graphty/webgpu-graph-algorithms";
+import type { calibrateLayout, createAccelerator, GpuAccelerator } from "@graphty/webgpu-graph-algorithms";
 import type {
     AcceleratorDeclined,
     acquireAccelerator,
@@ -38,7 +38,12 @@ import type {
 
 import { GraphtyError } from "../errors";
 import { GraphtyLogger } from "../logging/GraphtyLogger";
-import type { AcceleratorFactory, AcceleratorFactoryOptions, GraphAccelerator } from "./types";
+import type {
+    AcceleratorExactMaxNodes,
+    AcceleratorFactory,
+    AcceleratorFactoryOptions,
+    GraphAccelerator,
+} from "./types";
 
 /**
  * The device the accelerator got and each step of its work: adapter, limits, uncaptured errors and
@@ -96,6 +101,10 @@ export interface WebGpuPeerRoot {
     readonly EXACT_MAX_NODES: number;
     /** The peer's own version; a peer released before it exported one has none. */
     readonly VERSION?: string;
+    /** Times the device's layout tiers; without it (and `createAccelerator`) the device is never measured. */
+    readonly calibrateLayout?: typeof calibrateLayout;
+    /** Builds an accelerator on a context; used to re-tune one to a measured ceiling. */
+    readonly createAccelerator?: typeof createAccelerator;
 }
 
 /** What the factory needs from the peer's `/browser` module. */
@@ -118,11 +127,12 @@ export const WEBGPU_ACCELERATOR_NAME = "webgpu-graph-algorithms";
  * minor of it -- is forwarded by name, which is what keeps this file from needing an edit each
  * time the peer ports another algorithm.
  *
- * `verify` is named although the peer has no such member today: the device was already checked
+ * `calibrate` and `exactMaxNodes` are written below too, so the element's measurement stays the
+ * one that re-tunes this accelerator. `verify` is named although the peer has no such member today: the device was already checked
  * when it was acquired, and a future peer member of that name must not become a second check
  * that reports something other than `E_DEVICE_INCORRECT`.
  */
-const NOT_FORWARDED = new Set(["kind", "ctx", "options", "dispose", "verify"]);
+const NOT_FORWARDED = new Set(["kind", "ctx", "options", "dispose", "verify", "calibrate", "exactMaxNodes"]);
 
 /** A forwarded member of the peer's accelerator, typed as loosely as the boundary allows. */
 type ForwardedMember = (...args: readonly unknown[]) => unknown;
@@ -220,19 +230,76 @@ function declineFailure(declined: AcceleratorDeclined): GraphtyError {
 }
 
 /**
+ * The sizes `calibrateLayout` probes. Every one is at or below the peer's own `EXACT_MAX_NODES`
+ * (32,768), so a measured ceiling never exceeds what the factory accepts, and the small rungs
+ * find the crossover a desktop card has between 1k and 4k nodes. The peer's default probe starts
+ * at 8k, which is above that crossover on every card measured so far.
+ */
+const CALIBRATE_SIZES: readonly number[] = [1024, 2048, 4096, 8192, 16_384, 32_768];
+
+/** Whether the page asked for the exact-tier ceiling to be measured. Off unless `configureWebGpu` says so. */
+let measureExactMaxNodes = false;
+
+/**
+ * Turns measuring the exact-tier ceiling on or off for accelerators built from now on, whichever
+ * entry point loaded the peer. `configureWebGpu` in `./webgpu` is the public way in.
+ * @param measure - Whether to measure.
+ */
+export function setMeasureExactMaxNodes(measure: boolean): void {
+    measureExactMaxNodes = measure;
+}
+
+/**
+ * The exact-tier ceiling measured on each device this page has calibrated, keyed by
+ * {@link deviceKey}. Kept for the page's lifetime only: a new accelerator on the same device (a
+ * second element, or the one built after a device loss) starts with the measured value instead
+ * of measuring again.
+ */
+const measuredExactMaxNodes = new Map<string, number>();
+
+/**
+ * The key a device's calibration is cached under.
+ * @param accelerator - The peer's accelerator.
+ * @returns The adapter's vendor, architecture, device and description, joined.
+ */
+function deviceKey(accelerator: GpuAccelerator): string {
+    const { vendor, architecture, device, description } = accelerator.ctx.caps;
+    return [vendor, architecture, device, description].join("|");
+}
+
+/**
+ * Builds a peer accelerator on the same context with a different exact-tier ceiling. Cheap: the
+ * peer's accelerator is a record of closures over the context, and simulations already running
+ * keep the tuning they were created with.
+ * @param create - The peer's `createAccelerator`.
+ * @param accelerator - The accelerator to copy the options of.
+ * @param exactMaxNodes - The new ceiling.
+ * @returns The new accelerator.
+ */
+function retuned(create: typeof createAccelerator, accelerator: GpuAccelerator, exactMaxNodes: number): GpuAccelerator {
+    const { options } = accelerator;
+    return create(accelerator.ctx, { ...options, layout: { ...options.layout, exactMaxNodes } });
+}
+
+/**
  * Wraps the peer's accelerator as the element's, keeping every GPU type on this side.
  * @param accelerator - The peer's accelerator, already checked against its device.
  * @param release - Releases the device; the element calls it through `dispose`.
  * @param version - The peer's own version, or undefined for a peer that states none.
+ * @param tuning - The exact-tier ceiling it was built with, and where that number came from.
+ * @param root - The peer's root module, for `calibrateLayout` and `createAccelerator`.
  * @returns The accelerator the element attaches.
  */
 function toGraphAccelerator(
     accelerator: GpuAccelerator,
     release: () => void,
     version: string | undefined,
+    tuning: AcceleratorExactMaxNodes,
+    root: WebGpuPeerRoot,
 ): GraphAccelerator {
     const { ctx } = accelerator;
     const { caps } = ctx;
+    let exactMaxNodes = tuning;
     const wrapped: GraphAccelerator = {
         name: WEBGPU_ACCELERATOR_NAME,
         backend: "webgpu",
@@ -251,7 +318,30 @@ function toGraphAccelerator(
         // the controller ignores a loss reported for an accelerator it has already released.
         lost: ctx.lost.then((info) => ({ reason: info.message === "" ? info.reason : info.message })),
         dispose: release,
+        get exactMaxNodes(): AcceleratorExactMaxNodes {
+            return exactMaxNodes;
+        },
     };
+
+    // Offered only when the page opted in (configureWebGpu) and the ceiling is the shipped one:
+    // the element then measures this device after its first accelerated work and re-tunes the
+    // layouts built from then on. A failure (a lost or disposed device) rejects and changes nothing.
+    // Never on a software adapter: its probes take tens of seconds of processor time, and its
+    // speed says nothing a layout could use. The peer's members are read only when measuring, so a
+    // peer without them is never asked for them.
+    const measuring = measureExactMaxNodes && !caps.software && tuning.basis === "default";
+    const calibrateDevice = measuring ? root.calibrateLayout : undefined;
+    const create = measuring ? root.createAccelerator : undefined;
+    const { EXACT_MAX_NODES } = root;
+    if (calibrateDevice !== undefined && create !== undefined) {
+        wrapped.calibrate = async (): Promise<void> => {
+            const calibration = await calibrateDevice(ctx, { sizes: CALIBRATE_SIZES });
+            const measured = Math.min(calibration.suggestedExactMaxNodes, EXACT_MAX_NODES);
+            measuredExactMaxNodes.set(deviceKey(accelerator), measured);
+            forwardMembers(retuned(create, accelerator, measured), wrapped);
+            exactMaxNodes = { value: measured, basis: "measured" };
+        };
+    }
 
     forwardMembers(accelerator, wrapped);
     return wrapped;
@@ -289,14 +379,26 @@ export function createWebGpuFactory(root: WebGpuPeerRoot, browser: WebGpuPeerBro
             throw declineFailure(result);
         }
 
-        const unwatch = watchDevice(result.accelerator);
+        let { accelerator } = result;
+        let tuning: AcceleratorExactMaxNodes = { value: EXACT_MAX_NODES, basis: "default" };
+        const measured = measureExactMaxNodes ? measuredExactMaxNodes.get(deviceKey(accelerator)) : undefined;
+        if (exactMaxNodes !== undefined) {
+            tuning = { value: exactMaxNodes, basis: "configured" };
+        } else if (measured !== undefined && root.createAccelerator !== undefined) {
+            accelerator = retuned(root.createAccelerator, accelerator, measured);
+            tuning = { value: measured, basis: "measured" };
+        }
+
+        const unwatch = watchDevice(accelerator);
         return toGraphAccelerator(
-            result.accelerator,
+            accelerator,
             () => {
                 unwatch();
                 gpu.dispose();
             },
             VERSION,
+            tuning,
+            root,
         );
     };
 }

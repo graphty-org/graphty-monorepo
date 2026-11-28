@@ -1,14 +1,12 @@
-/** Add on a staged source (design 5.1): its button shows it, and the command binds it. */
-export const ADD_KEY = "Shift+D";
-/** Join on a staged source, the Sources header and the inspector (design 5.2). */
-export const JOIN_KEY = "J";
-/** Preview on the Join card (design 5.3). */
-export const PREVIEW_KEY = "Shift+P";
-/** Commit on a source card. */
-export const COMMIT_KEY = "Enter";
-/** Before / After over the canvas while a draft is drawn (design 5.3). */
+/** Before / After in the join workspace: which side of the commit its preview draws. */
 export const SIDE_KEY = "B";
-/** Delete on a Steps row or a reader edit (design 7.13, 7.17). */
+/** Delete on a reader edit in the join workspace. */
 export const DELETE_KEY = "Delete";
-/** The Reader edits list (design 7.17). */
+/** The join workspace's Reader edits list: opens and closes it. */
 export const READER_EDITS_KEY = "R";
+/** The join workspace: opens it from Join + in the Data place, and adds a card inside it (issue #9796). */
+export const JOIN_WORKSPACE_KEY = "Shift+J";
+/** Undo inside the join workspace: takes back the draft's newest change. */
+export const WORKSPACE_UNDO_KEY = "Mod+Z";
+/** Redo inside the join workspace: makes again the change Undo last took back. */
+export const WORKSPACE_REDO_KEY = "Mod+Shift+Z";

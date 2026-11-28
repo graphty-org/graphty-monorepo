@@ -83,6 +83,11 @@ export interface JoinedLineOptions {
     /** The fewest screen pixels wide the line is drawn at any zoom (`line.minScreenWidth`); default 0. */
     minScreenWidth?: number;
     /**
+     * The share of the line's drawn width, down its middle, left undrawn (`EDGE_HOLLOW`), 0 to 1: a
+     * casing around another line drawn there. Default 0, a solid line.
+     */
+    hollow?: number;
+    /**
      * Fade by the edge's length on screen (`line.fade`, `EDGE_FADE`), read from the whole edge's
      * length, which only a widened batch carries; so it implies `widened`.
      */
@@ -157,6 +162,16 @@ function setPattern(material: ShaderMaterial, options: JoinedLineOptions): void 
     const dash = (i: number): number => dashes?.[i] ?? 0;
     material.setVector4("dashA", new Vector4(dash(0), dash(1), dash(2), dash(3)));
     material.setVector4("dashB", new Vector4(dash(4), dash(5), dash(6), dash(7)));
+    if (options.pulled === true && options.pulledCurve !== true) {
+        // the spacing rule a pulled piece's shader runs for its own length (`patternSpacing`): element length, count
+        // and gap (-1 for none), and 1 for a pattern
+        material.setVector4(
+            "pulledPattern",
+            pattern === undefined
+                ? new Vector4(0, -1, -1, 0)
+                : new Vector4(pattern.elementLength, pattern.count ?? -1, pattern.gap ?? -1, 1),
+        );
+    }
 }
 
 /**
@@ -193,6 +208,7 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.program === undefined ? [] : ["#define EDGE_SHADED"]),
         ...(options.fade === undefined ? [] : ["#define EDGE_FADE"]),
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
+        ...((options.hollow ?? 0) > 0 ? ["#define EDGE_HOLLOW"] : []),
         ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
         ...(options.pulled === true && options.pulledCurve === true ? ["#define EDGE_PULLED_CURVE"] : []),
         ...(options.pulled === true && options.pulledCurve !== true ? leanDefines(options) : []),
@@ -280,10 +296,11 @@ function joinedLineSamplers(options: JoinedLineOptions): string[] {
     }
 
     const tables = ["rowPosition", "edgeRows", "edgeHidden", "edgeOrder"];
-    // a straight piece stops at a translucent row's outline (`PULLED_TRIM_GLSL`)
+    // a straight piece stops at a translucent row's outline (`PULLED_TRIM_GLSL`); both read whether a hidden row has a
+    // place (`ROW_END_GLSL`)
     return options.pulledCurve === true
-        ? [...tables, "edgeRoutes", "edgeSlots"]
-        : [...tables, "rowExtent", "rowOutline"];
+        ? [...tables, "edgeRoutes", "edgeSlots", "rowExtent"]
+        : [...tables, "rowExtent", "rowOutline", "edgeEnds"];
 }
 
 interface LineGeometry {
@@ -638,8 +655,10 @@ void main(void) {
                     "dashA",
                     "dashB",
                     ...(options.pulled === true ? ["edgeOrdered"] : []),
+                    ...(options.pulled === true && options.pulledCurve !== true ? ["endsPlaced", "pulledPattern"] : []),
                     ...(widened ? ["edgeReach"] : []),
                     ...(fade === undefined ? [] : ["edgeFade"]),
+                    ...((options.hollow ?? 0) > 0 ? ["hollow"] : []),
                     ...(program?.uniforms ?? []),
                 ],
                 samplers: [...joinedLineSamplers(options), ...(program?.samplers ?? [])],
@@ -682,6 +701,7 @@ void main(void) {
         material.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
         material.setFloat("width", options.width);
         material.setFloat("minWidth", options.minScreenWidth ?? 0);
+        material.setFloat("hollow", options.hollow ?? 0);
         material.setFloat("opacity", opacity);
         material.setFloat("miterLimit", EDGE_MITER_LIMIT);
         setPattern(material, options);

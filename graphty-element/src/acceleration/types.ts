@@ -191,6 +191,27 @@ export interface GraphAccelerator {
      * @returns Resolves when the accelerator is fit to be given work.
      */
     verify?(): Promise<void>;
+    /**
+     * The node count up to which this accelerator's layouts compute every pair of nodes exactly,
+     * and where that number came from. Above it they switch to an approximation that is faster on
+     * large graphs. Read again after {@link GraphAccelerator.calibrate} resolves, because
+     * calibrating can change it. A backend with no such ceiling omits it.
+     */
+    readonly exactMaxNodes?: AcceleratorExactMaxNodes;
+    /**
+     * Measures this device and re-tunes the accelerator to it -- for the WebGPU backend, where its
+     * layouts' exact computation stops being faster than the approximation, which becomes
+     * {@link GraphAccelerator.exactMaxNodes}.
+     *
+     * The element calls it once per attached accelerator whose ceiling is the shipped default,
+     * after the first accelerated work on it has finished, so the measurement never delays the
+     * first frame or the first layout. It does not count as work and does not move the published
+     * state. A failure rejects and leaves the accelerator as it was. A backend with nothing to
+     * measure omits it, and so does the WebGPU backend unless the page asked for a measured
+     * ceiling (`configureWebGpu({ exactMaxNodes: "measured" })` from `@graphty/graphty-element/webgpu`).
+     * @returns Resolves when the measurement is taken and applied.
+     */
+    calibrate?(): Promise<void>;
     /** Releases the hardware resources. Called by the element when it detaches this accelerator. */
     dispose?(): void;
     /**
@@ -202,6 +223,23 @@ export interface GraphAccelerator {
      * member. Both are feature-tested the same way, so neither has to pretend to be the other.
      */
     [algorithmOrLayout: string]: unknown;
+}
+
+/**
+ * Where an accelerator's exact-computation ceiling came from.
+ *
+ * - `"measured"` -- this device was timed by {@link GraphAccelerator.calibrate}.
+ * - `"default"` -- the backend's shipped number, measured on one desktop GPU; not measured here yet.
+ * - `"configured"` -- the factory was given a number ({@link AcceleratorFactoryOptions.exactMaxNodes}).
+ */
+export type ExactMaxNodesBasis = "measured" | "default" | "configured";
+
+/** An accelerator's exact-computation ceiling and where it came from. */
+export interface AcceleratorExactMaxNodes {
+    /** The largest node count its layouts compute exactly. */
+    readonly value: number;
+    /** Where the number came from. */
+    readonly basis: ExactMaxNodesBasis;
 }
 
 /** What the element tells a factory before the factory builds anything. */
@@ -281,6 +319,16 @@ export interface AccelerationStatus {
     readonly architecture?: string;
     /** The device description, when the backend reported one. Absent otherwise, never `""`. */
     readonly device?: string;
+    /**
+     * The attached accelerator's exact-computation ceiling for layouts, when it reports one:
+     * graphs up to this many nodes compute every pair exactly, larger ones approximate.
+     */
+    readonly exactMaxNodes?: number;
+    /**
+     * Where {@link AccelerationStatus.exactMaxNodes} came from: `"default"` until the element has
+     * measured this device, then `"measured"`. Present exactly when `exactMaxNodes` is.
+     */
+    readonly exactMaxNodesBasis?: ExactMaxNodesBasis;
     /** Why acceleration is unavailable or has stopped, in a sentence a person can read. */
     readonly reason?: string;
     /** Why acceleration is unavailable or has stopped, in a string a `switch` can take. */
@@ -294,6 +342,15 @@ export interface AccelerationStatus {
      * @since 3.31.0
      */
     readonly params?: Readonly<Record<string, CodedFactParam>>;
+    /**
+     * Present, and `true`, while the element is attaching a fresh accelerator after a device loss
+     * or a run that got no answer; absent otherwise. A status is published when it ends, whichever
+     * way: `state` then reads `"idle"` or `"active"` when an accelerator came back, or stays
+     * `"error"` when the recovery budget (`maxRecoveryAttempts`) is spent or recovery is off, and
+     * nothing will try again until the policy changes or a backend is registered.
+     * @since 3.61.0
+     */
+    readonly recovering?: true;
 }
 
 /**

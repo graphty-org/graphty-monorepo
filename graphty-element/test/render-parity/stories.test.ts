@@ -12,6 +12,18 @@
  * object loads with a third that pulls edges from the row table (`pulledEdgesDefault`) instead of
  * one on `"batched"`. `VITE_PARITY_ANTIALIAS=false` builds every load without multisampling, so the
  * batched load draws straight pulled lines with the lean program (design/rendering/cosmos-gap.md, G12).
+ *
+ * Pictures in motion. A story that sets `layoutTransition` is held part way through its move
+ * (`layoutTransition.hold`), so both paths draw the same mid-move picture: `VITE_PARITY_HOLD` is the
+ * progress, 0.5 unless it says otherwise, and `off` compares the landed picture instead, where a timed
+ * transition is not stable between two loads (`unstable-landed.json`). A story that holds its own
+ * pose keeps it. A simulation story pre-steps or computes its layout before its second drawn
+ * frame, so it has no mid-run picture to compare here: feature-matrix.test.ts compares a seeded
+ * simulation part way through its run.
+ *
+ * How to run, from graphty-element:
+ *   npx vitest run --project=render-parity test/render-parity/stories.test.ts
+ *   VITE_PARITY_STORIES=LayoutTransitions npx vitest run --project=render-parity test/render-parity/stories.test.ts
  */
 
 import "../../src/algorithms/index";
@@ -26,8 +38,9 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { renderPathDefault } from "../../src/meshes/NodeBatch";
 import { antialiasDefault, pulledEdgesDefault } from "../../src/meshes/PulledLineBatch";
-import { type CanvasFrame, pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
+import { assertSameFrame, type CanvasFrame, readCanvas } from "../helpers/whole-canvas";
 import unstable from "./unstable.json";
+import unstableLanded from "./unstable-landed.json";
 import unstableWebgpu from "./unstable-webgpu.json";
 import unstableWebkit from "./unstable-webkit.json";
 
@@ -45,8 +58,13 @@ const PULLED = (import.meta.env as Record<string, string | undefined>).VITE_PARI
 const ANTIALIAS = (import.meta.env as Record<string, string | undefined>).VITE_PARITY_ANTIALIAS !== "false";
 /** Whether this run draws in WebKit (GRAPHTY_PARITY_BROWSER=webkit, vitest.config.ts). */
 const WEBKIT = (import.meta.env as Record<string, string | undefined>).GRAPHTY_PARITY_BROWSER === "webkit";
+/** The progress a transition is held at, or undefined to compare the landed picture. */
+const HOLD = ((value) => (value === "off" ? undefined : Number(value ?? "0.5")))(
+    (import.meta.env as Record<string, string | undefined>).VITE_PARITY_HOLD,
+);
 const UNSTABLE: Readonly<Record<string, string>> = {
     ...unstable,
+    ...(HOLD === undefined ? unstableLanded : {}),
     ...(RENDERER === "webgpu" ? unstableWebgpu : {}),
     ...(WEBKIT ? unstableWebkit : {}),
 };
@@ -72,11 +90,30 @@ const ANNOTATIONS = {
 
         for (const element of built.querySelectorAll<Graphty>("graphty-element")) {
             element.renderer = RENDERER;
+            if (HOLD !== undefined) {
+                holdTransition(element, HOLD);
+            }
         }
 
         canvas.replaceChildren(built);
     },
 };
+
+/**
+ * Hold the element's layout transition, once the story's own setting is in, at a progress: the move
+ * then draws the same picture every frame, which is a final picture. Writes after the story's own
+ * `config.set`, which the session applies first.
+ * @param element - The element.
+ * @param hold - The progress, 0 to 1.
+ */
+function holdTransition(element: Graphty, hold: number): void {
+    void element.session.config.set({}).then(async () => {
+        const transition = element.session.config.layoutTransition;
+        if (transition !== undefined && transition.hold === undefined) {
+            await element.session.config.set({ layoutTransition: { ...transition, hold } });
+        }
+    });
+}
 
 // Read when an element builds its engine, which a story's own bindings can do before the renderer is set.
 antialiasDefault.value = ANTIALIAS;
@@ -126,6 +163,10 @@ async function picture(story: Composed, path: "objects" | "batched", pulled = fa
     }
 
     const frame = await readCanvas(element.graph);
+    if (HOLD !== undefined && element.session.config.layoutTransition !== undefined) {
+        assert.isDefined(element.session.config.layoutTransition.hold, "the transition was not held");
+    }
+
     assert.equal(element.graph.renderPath, path);
     assert.equal(
         element.graph.leansLines(),
@@ -137,16 +178,12 @@ async function picture(story: Composed, path: "objects" | "batched", pulled = fa
     return frame;
 }
 
-// Its first story never finishes its objects load here, so it says nothing about a batch.
-const HANGS = /LabelStyles/;
 // Opening WebGPU swaps the first scene for its own (#5971), and any shader these stories were loading on
 // the first one rejects with "The graph was disposed", on either path.
 const SWAP_REJECTS = /shaders\/Scene(Drawing|Presets)/;
 const files = Object.keys(modules).filter(
     (file) =>
-        !HANGS.test(file) &&
-        !(RENDERER === "webgpu" && SWAP_REJECTS.test(file)) &&
-        (narrowed === "" || new RegExp(narrowed).test(file)),
+        !(RENDERER === "webgpu" && SWAP_REJECTS.test(file)) && (narrowed === "" || new RegExp(narrowed).test(file)),
 );
 
 describe.each(files)("%s", async (file) => {
@@ -174,13 +211,9 @@ describe.each(files)("%s", async (file) => {
 
         const again = await picture(story, "objects");
         assert.isNotNull(again);
-        assert.equal(overBar(objects, again), 0, `${id} is not stable between two loads`);
+        assertSameFrame(objects, again, `${id} is not stable between two loads`);
         const third = PULLED ? await picture(story, "objects", true) : await picture(story, "batched");
         assert.isNotNull(third);
-        assert.equal(
-            overBar(objects, third),
-            0,
-            `${id} differs ${PULLED ? "with edges pulled" : "on the batched path"}`,
-        );
+        assertSameFrame(objects, third, `${id} differs ${PULLED ? "with edges pulled" : "on the batched path"}`);
     });
 });

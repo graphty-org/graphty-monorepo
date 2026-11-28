@@ -136,6 +136,11 @@
             "accepts": "boolean"
         },
         {
+            "channel": "node.labelUnderline",
+            "target": "node",
+            "accepts": "boolean"
+        },
+        {
             "channel": "node.labelWrapWidth",
             "target": "node",
             "accepts": "number",
@@ -151,6 +156,12 @@
         },
         {
             "channel": "node.labelWrapSkipEndSpace",
+            "target": "node",
+            "accepts": "boolean",
+            "experimental": "file-styles"
+        },
+        {
+            "channel": "node.labelWrapUnkerned",
             "target": "node",
             "accepts": "boolean",
             "experimental": "file-styles"
@@ -616,6 +627,11 @@
             "max": 100,
             "step": 0.1,
             "experimental": "file-styles"
+        },
+        {
+            "channel": "node.onTop",
+            "target": "node",
+            "accepts": "boolean"
         },
         {
             "channel": "node.borderColor",
@@ -1988,7 +2004,7 @@
             "channel": "edge.bendCurve",
             "target": "edge",
             "accepts": "enum",
-            "values": ["corners", "midpoints", "bezier", "arc"],
+            "values": ["corners", "midpoints", "midpoints-headroom", "bezier", "arc"],
             "experimental": "file-styles"
         },
         {
@@ -2741,6 +2757,16 @@
             "accepts": "labelStyle"
         },
         {
+            "channel": "edge.tooltip",
+            "target": "edge",
+            "accepts": "text"
+        },
+        {
+            "channel": "edge.tooltipStyle",
+            "target": "edge",
+            "accepts": "labelStyle"
+        },
+        {
             "channel": "edge.labelTextAlign",
             "target": "edge",
             "accepts": "enum",
@@ -2820,6 +2846,24 @@
             "accepts": "color"
         },
         {
+            "channel": "edge.tooltipSize",
+            "target": "edge",
+            "accepts": "number",
+            "min": 1,
+            "step": 1,
+            "perWorldUnit": 48
+        },
+        {
+            "channel": "edge.tooltipColor",
+            "target": "edge",
+            "accepts": "color"
+        },
+        {
+            "channel": "edge.tooltipBackground",
+            "target": "edge",
+            "accepts": "color"
+        },
+        {
             "channel": "edge.arrowHeadTextBackground",
             "target": "edge",
             "accepts": "color"
@@ -2854,6 +2898,11 @@
             "accepts": "boolean"
         },
         {
+            "channel": "edge.labelUnderline",
+            "target": "edge",
+            "accepts": "boolean"
+        },
+        {
             "channel": "edge.labelWrapWidth",
             "target": "edge",
             "accepts": "number",
@@ -2869,6 +2918,12 @@
         },
         {
             "channel": "edge.labelWrapSkipEndSpace",
+            "target": "edge",
+            "accepts": "boolean",
+            "experimental": "file-styles"
+        },
+        {
+            "channel": "edge.labelWrapUnkerned",
             "target": "edge",
             "accepts": "boolean",
             "experimental": "file-styles"

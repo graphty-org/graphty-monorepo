@@ -8,6 +8,7 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
+import { upgradeStorePaths } from "../storePaths";
 import type { GraphSession } from "../types";
 import { projectMemory, watchBoundaries } from "./memory";
 import { migrateSection } from "./migration";
@@ -429,7 +430,10 @@ function readSection(
         return { hold: { value, reason: "extension" } };
     }
 
-    return { load: { header, body: bodyOf(name, value, pointer, codec, problems), pointer } };
+    // A path at an older address (`graphty.notes.count`) is read at its current one. Not the data
+    // section's: a column may carry any name.
+    const body = bodyOf(name, value, pointer, codec, problems);
+    return { load: { header, body: name === "data" ? body : upgradeStorePaths(body), pointer } };
 }
 
 /**

@@ -1,5 +1,5 @@
 /**
- * The version 2 save and open dialogs (the "save-files-v2" experiment): Save as with its sections,
+ * The version 2 save and open dialogs: Save as with its sections,
  * presets, copy or reference per source and file form; Open with its sections, runs, referenced
  * sources and binding; and the report either shows after. Every fact comes from graphty-element
  * (`project.describe`, `project.inspect`, the save and open reports); the words are the app's.
@@ -35,7 +35,8 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import type { WorkspaceStore } from "../state/store";
+import { useSessionEvents } from "../sessionEvents";
+import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import type { saveProjectAsV2 } from "./actions";
 import { NameField } from "./NameField";
@@ -127,6 +128,7 @@ export function ReportTable({
     onRefresh?: (source: string) => Promise<string | null>;
 }>): React.JSX.Element {
     // Each refreshed source: running, done, or why it failed.
+    // on reload: fresh: in flight: refreshes under way in a report, which a reload does not reopen
     const [refreshed, setRefreshed] = useState<ReadonlyMap<string, RefreshState>>(new Map());
     const refreshes = onRefresh !== undefined && lines.some((line) => line.refresh !== undefined);
     const refresh = (source: string): void => {
@@ -261,6 +263,7 @@ function SourcesChoice({
     storage: Readonly<Record<string, SourceStorage>>;
     onChange: (next: Record<string, SourceStorage>) => void;
 }>): React.JSX.Element {
+    // on reload: fresh: pointer: each source's own choice opened for a look
     const [each, setEach] = useState(false);
     const referable = sources.filter((source) => source.referable);
     const all: Keep =
@@ -348,6 +351,9 @@ function cannotDescribe(store: WorkspaceStore): void {
     });
 }
 
+/** The events after which Save as asks graphty-element again what a save would write. */
+const PROJECT_EVENTS = ["project:changed"] as const;
+
 /** What the workspace hands the lazily loaded dialogs, so they import nothing of actions.ts. */
 export interface SaveFilesV2DialogsProps {
     /** The dialog id Save as opens. */
@@ -357,7 +363,7 @@ export interface SaveFilesV2DialogsProps {
 }
 
 /**
- * Save as... with version 2 files on (`#/project-menu/save-as`): the name, a preset per use case,
+ * Save as... (`#/project-menu/save-as`): the name, a preset per use case,
  * the sections with what each holds, copy or reference for the sources, and the file's form. The
  * whole project is kept in this browser, as Save as keeps it; anything else downloads as a copy.
  * @param props - the dialog id and the save.
@@ -370,17 +376,27 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
     const { session } = workspace;
     const opened = useWorkspaceState((state) => state.dialog === saveAsDialog);
     const current = useWorkspaceState((state) => state.project?.name ?? "");
+    // What the reader chose is kept in the workspace's saveAsDraft as it changes, and read back
+    // as the dialog opens, so a reload reopens Save as on it.
+    // on reload: fresh: derived: read from the kept saveAsDraft as the dialog opens
     const [name, setName] = useState(current);
+    // on reload: fresh: read: read again from graphty-element as the dialog opens
     const [facts, setFacts] = useState<ProjectSaveFacts | null>(null);
+    // on reload: fresh: derived: read from the kept saveAsDraft as the dialog opens
     const [chosen, setChosen] = useState<DocumentSection[]>([...DOCUMENT_SECTIONS]);
+    // on reload: fresh: derived: graphty-element's default for each source, under the kept saveAsDraft's
     const [storage, setStorage] = useState<Record<string, SourceStorage>>({});
+    // on reload: fresh: derived: read from the kept saveAsDraft as the dialog opens
     const [form, setForm] = useState<"full" | "section">("full");
+    // on reload: fresh: in flight: a save under way
     const [saving, setSaving] = useState(false);
     // Whether the reader asked to save (Save or Enter) before graphty-element answered: the save
     // then runs once it does, and Save shows it is waiting.
+    // on reload: fresh: in flight: a save asked for before graphty-element answered
     const [pending, setPending] = useState(false);
     // Whether the save chosen is the project or a copy, as graphty-element says, and for which
     // choice: a verdict for an earlier choice is no verdict, so Save waits for the current one.
+    // on reload: fresh: read: asked of graphty-element again for the choice now
     const [verdict, setVerdict] = useState<{
         readonly chosen: readonly DocumentSection[];
         readonly form: "full" | "section";
@@ -393,19 +409,28 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
     useEffect(() => {
         if (!opened || session === null) {
             left.current = true;
-            return undefined;
+            return;
         }
-        setName(workspace.store.get().project?.name ?? "");
-        setChosen([...DOCUMENT_SECTIONS]);
-        setForm("full");
+        const kept = workspace.store.get().saveAsDraft;
+        setName(kept?.name ?? workspace.store.get().project?.name ?? "");
+        setChosen([...(kept?.chosen ?? DOCUMENT_SECTIONS)]);
+        setForm(kept?.form ?? "full");
         setFacts(null);
         setPending(false);
+    }, [opened, session, workspace.store]);
+
+    // Asked again as the project changes: a reload reopens the dialog before its work is back in.
+    const changes = useSessionEvents(opened ? session : null, PROJECT_EVENTS, true);
+    useEffect(() => {
+        if (!opened || session === null) {
+            return undefined;
+        }
         let live = true;
         session.project.describe().then(
             (described) => {
                 if (live) {
                     setFacts(described);
-                    setStorage(storageOf(described));
+                    setStorage({ ...storageOf(described), ...workspace.store.get().saveAsDraft?.storage });
                 }
             },
             () => {
@@ -417,7 +442,7 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
         return () => {
             live = false;
         };
-    }, [opened, session, workspace.store]);
+    }, [opened, session, workspace.store, changes]);
 
     const presets = savePresets(DOCUMENT_SECTIONS);
     const matched = presets.find(
@@ -453,7 +478,11 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
     const whole = verdict?.chosen === chosen && verdict.form === fileForm ? verdict.project : null;
     const trimmed = name.trim();
     const close = (): void => {
-        workspace.store.set({ dialog: null });
+        workspace.store.set({ dialog: null, saveAsDraft: null });
+    };
+    // Each change is kept as the reader makes it, so a reload reopens Save as on it.
+    const keep = (next: Partial<NonNullable<WorkspaceState["saveAsDraft"]>>): void => {
+        workspace.store.set({ saveAsDraft: { name, chosen, form, storage, ...next } });
     };
     const blocked = trimmed === "" || chosen.length === 0;
     const ready = facts !== null && whole !== null;
@@ -495,7 +524,13 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
                 }}
             >
                 <Stack gap="sm">
-                    <NameField value={name} onChange={setName} />
+                    <NameField
+                        value={name}
+                        onChange={(next) => {
+                            setName(next);
+                            keep({ name: next });
+                        }}
+                    />
                     <Select
                         label="Preset"
                         placeholder="Custom"
@@ -505,6 +540,7 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
                             const next = presets.find((preset) => preset.value === value);
                             if (next !== undefined) {
                                 setChosen([...next.sections]);
+                                keep({ chosen: [...next.sections] });
                             }
                         }}
                     />
@@ -512,7 +548,10 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
                         <SectionChecks
                             sections={facts.sections}
                             chosen={chosen}
-                            onChange={setChosen}
+                            onChange={(next) => {
+                                setChosen(next);
+                                keep({ chosen: next });
+                            }}
                             summary={(section) =>
                                 facts.sections.find((each) => each.section === section.section)?.saved === false
                                     ? `${sectionSummary(section)} . off by default`
@@ -521,9 +560,23 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
                         />
                     )}
                     {facts !== null && chosen.includes("data") && facts.sources.length > 0 ? (
-                        <SourcesChoice sources={facts.sources} storage={storage} onChange={setStorage} />
+                        <SourcesChoice
+                            sources={facts.sources}
+                            storage={storage}
+                            onChange={(next) => {
+                                setStorage(next);
+                                keep({ storage: next });
+                            }}
+                        />
                     ) : null}
-                    <FileForm sectionFile={sectionFile} oneSection={one !== null} onChange={setForm} />
+                    <FileForm
+                        sectionFile={sectionFile}
+                        oneSection={one !== null}
+                        onChange={(next) => {
+                            setForm(next);
+                            keep({ form: next });
+                        }}
+                    />
                     {whole === false ? (
                         <Text size="sm" ff="monospace" c={SECONDARY}>
                             {projectFileName(trimmed, sectionFile ? { section: one } : {})}
@@ -811,6 +864,7 @@ function AddSectionDialog({
     onCancel: () => void;
     onAdd: () => void;
 }>): React.JSX.Element {
+    // on reload: fresh: in flight: the open asked about, which a reload ends (its dialog is not reopened)
     const [mapping, setMapping] = useState(false);
     const label = SECTION_LABELS[adds.section];
     const addButton = (
@@ -876,7 +930,7 @@ function loadable(facts: ProjectFileFacts | undefined): DocumentSection[] {
 }
 
 /**
- * Open with version 2 files on: a version 2 file is asked about before it opens -- a warning per
+ * Open: a version 2 file is asked about before it opens -- a warning per
  * held section, the sections to load, each run rerun or restored, its referenced sources (fetching
  * one is the reader's click) and whether sections written on other data bind by key. A section
  * file other than data is added to the project, so it shows what it is, what it adds and what it
@@ -888,14 +942,22 @@ function OpenV2Dialog(): React.JSX.Element {
     const opened = useWorkspaceState((state) => state.dialog === OPEN_V2_DIALOG);
     const question = opened ? openQuestion(store) : undefined;
     const facts = question?.facts;
+    // The Open dialog asks about a file being opened, which a reload ends: it is not reopened.
+    // on reload: fresh: in flight: the open asked about, which a reload ends
     const [chosen, setChosen] = useState<DocumentSection[]>([]);
+    // on reload: fresh: in flight: the open asked about, which a reload ends
     const [restore, setRestore] = useState<ReadonlySet<string>>(new Set());
+    // on reload: fresh: in flight: the open asked about, which a reload ends
     const [fetch, setFetch] = useState(false);
+    // on reload: fresh: in flight: the open asked about, which a reload ends
     const [bind, setBind] = useState(false);
+    // on reload: fresh: in flight: the open asked about, which a reload ends
     const [files, setFiles] = useState<Record<string, File>>({});
     // The column mapping of a section file added to the project.
+    // on reload: fresh: in flight: the open asked about, which a reload ends
     const [columns, setColumns] = useState<ColumnMap>({});
     // How each bound section would bind with the sections chosen, as graphty-element says.
+    // on reload: fresh: read: asked of graphty-element again
     const [bound, setBound] = useState<ProjectFileFacts | undefined>(undefined);
 
     useEffect(() => {

@@ -144,6 +144,13 @@ export interface ToolDefaults {
      */
     readonly layoutScatterSide?: ToolDefaultValue<number>;
     /**
+     * The gap, in `units`, the program's own layout leaves between the circles round two joined nodes of a file that
+     * stores no positions: its ideal edge length is this gap plus the two nodes' half-diagonals, so the spacing it
+     * leaves is the gap plus twice the file's median half-diagonal. Absent for a program whose layout spaces nodes
+     * whatever their size (`layoutSpacing`, `layoutScatterSide`).
+     */
+    readonly layoutNodeGap?: ToolDefaultValue<number>;
+    /**
      * How the program draws each dashed or dotted line style: the length of a dash as drawn (its caps included) and
      * the clear gap after it, in `units`, for a line of a width. Not an edge default: the pattern follows from two
      * properties, the line style and the width, so no rule carries it. Absent for a program, or a line style, whose
@@ -305,10 +312,13 @@ const CYTOSCAPE_ARROWHEAD: ToolArrowhead = {
  * Cytoscape desktop draws a node's outline its size less its border's width across and strokes the border along it,
  * so the border's outer edge is the node's size: a 40 x 40 HEXAGON with a border of 1 is a 39-wide path.
  */
-/** Cytoscape desktop draws a curved edge through its handles, and the loops it adds itself, through their midpoints. */
+/**
+ * Cytoscape desktop draws a curved edge through its handles, and the loops it adds itself, through their midpoints,
+ * the control next to an arrowhead kept at least the head's length behind the line's end.
+ */
 const CYTOSCAPE_BEND_CURVE = v(
-    "midpoints",
-    "cytoscape-impl ding-presentation-impl GraphGraphics.java computeCubicPolyEdgePath (cubic pieces between the handles' midpoints, controls pulled toward each handle by CURVE_ELLIPTICAL)",
+    "midpoints-headroom",
+    "cytoscape-impl ding-presentation-impl GraphGraphics.java computeCubicPolyEdgePath (cubic pieces between the handles' midpoints, controls pulled toward each handle by CURVE_ELLIPTICAL; next to an arrowhead, per axis, that control or one 2 * arrowSize behind the line's end, whichever is further from the tip)",
 );
 
 /**
@@ -450,6 +460,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                         true,
                         `${MEASURED}cx-ndex-90f78bcd: each word is measured with the space after it), Cytoscape 3.10.5`,
                     ),
+                    labelWrapUnkerned: v(
+                        true,
+                        `${MEASURED}cx2-us-returned-students: Java measures a line unkerned), Cytoscape 3.10.5`,
+                    ),
                     labelPosition: v("center", `${CY} 380`),
                     labelPadding: CYTOSCAPE_LABEL_PADDING,
                     labelLineHeight: CYTOSCAPE_LABEL_LINE_HEIGHT,
@@ -512,6 +526,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelWrapTrailingSpace: v(
                         true,
                         `${MEASURED}cx-ndex-90f78bcd: each word is measured with the space after it), Cytoscape 3.10.5`,
+                    ),
+                    labelWrapUnkerned: v(
+                        true,
+                        `${MEASURED}cx2-us-returned-students: Java measures a line unkerned), Cytoscape 3.10.5`,
                     ),
                     labelPosition: v("center", `${CYL} 205`),
                     labelPadding: CYTOSCAPE_LABEL_PADDING,
@@ -664,6 +682,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     // ARROW_LENGTH 10 and the normal arrow's half width 0.35 of its length
                     length: (size) => 10 * size,
                     aspect: 0.7,
+                    // arrow_type_normal0 widens the triangle with a pen past 4 points (0.35 * penwidth / 4), its
+                    // length unchanged: 7 x 10 at penwidth 4, 12.25 x 10 at 7 (Graphviz 16.1.0 -Tsvg)
+                    width: (size, width) => 7 * size * Math.max(1, width / 4),
                     // each arrow type's length factor and the half width its arrow_type_* function draws
                     shapes: {
                         tee: { length: 0.2, aspect: 5 },
@@ -681,7 +702,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                         "other:curve": { length: 0.5, aspect: 2 },
                         "other:inv-curve": { length: 0.5, aspect: 2 },
                     },
-                    source: "graphviz lib/common/arrows.c (ARROW_LENGTH 10, Arrowtypes lenfact, arrow_type_normal 0.35, arrow_type_crow 0.45, arrow_type_tee, arrow_type_box 0.4, arrow_type_diamond 1/3, arrow_type_dot, arrow_type_curve)",
+                    source: "graphviz lib/common/arrows.c (ARROW_LENGTH 10, Arrowtypes lenfact, arrow_type_normal 0.35 widened by penwidth / 4 past 4, arrow_type_crow 0.45, arrow_type_tee, arrow_type_box 0.4, arrow_type_diamond 1/3, arrow_type_dot, arrow_type_curve)",
                 },
                 node: {
                     fillOpacity: v(0, `${GV}/style/ (default "", not filled)`),
@@ -1092,6 +1113,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "ogdf master 1a40505ac006",
                 units: "px",
                 roundedCornerRadius: cornerCap("ogdf"),
+                layoutNodeGap: v(
+                    20,
+                    `${OGDF} FMMMLayout.cpp resetOptions (unitEdgeLength LayoutStandards::defaultNodeSeparation() 20, ` +
+                        "edgeLengthMeasurement BoundingCircle: an edge's ideal length is 20 plus both nodes' " +
+                        "half-diagonals, init_ind_ideal_edgelength and set_radii)",
+                ),
                 // GraphIO::drawSVG's stroke-dasharray, in line widths (Dash "12,6" and Dot "3,6" at width 3); its
                 // dash-dot patterns hold two dash lengths, which one dash and gap cannot say
                 dashes: {

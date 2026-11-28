@@ -125,6 +125,8 @@ export const RichTextStyle = z.strictObject({
     wrapTrailingSpace: z.boolean().optional(),
     /** With `wrapTrailingSpace`, whether a line's last word is measured without a space after it; unset, with one. */
     wrapSkipEndSpace: z.boolean().optional(),
+    /** Whether a line is measured against `wrapWidth` without kerning; unset, kerned. */
+    wrapUnkerned: z.boolean().optional(),
     /** Whether a line wider than `wrapWidth` is cut to fit with an ellipsis after it, in place of wrapping. */
     wrapEllipsis: z.boolean().optional(),
     /** Whether a line may break between any two letters, not only at its spaces. */
@@ -145,6 +147,8 @@ export const RichTextStyle = z.strictObject({
     fontWeight: z.string().default("normal").optional(),
     /** The font style. Default "normal". */
     fontStyle: z.enum(["normal", "italic"]).default("normal").optional(),
+    /** Whether a line is drawn under the words, in their color, as long as each line of them; unset, none. */
+    underline: z.boolean().optional(),
     /** The height of one line, as a multiple of what `lineBox` measures. Default 1.2. */
     lineHeight: z.number().default(1.2).optional(),
     /**
@@ -276,10 +280,11 @@ export const RichTextStyle = z.strictObject({
     onTop: z.boolean().optional(),
     /**
      * Let a click on a node's label count as a click on that node. Off (unset) by default: the
-     * label plane takes the pick and answers no node, so a click on a name selects nothing and a
-     * label drawn over its sphere hides that part of it from the pointer. On, every pointer
-     * handler and `elementAt` resolve the label to the node it labels. No effect on an edge's
-     * label.
+     * label lets the pointer through to whatever is drawn under it, so a label drawn over its own
+     * node picks that node and one drawn beside it picks the edge or background beneath. On, every
+     * pointer handler and `elementAt` resolve the label to the node it labels. No effect on an
+     * edge's label. Unset on a node drawn only as text (shape "none" with no image and no glyph), it
+     * is on: the words are the node.
      */
     pickable: z.boolean().optional(),
 

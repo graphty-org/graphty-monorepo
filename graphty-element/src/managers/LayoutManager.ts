@@ -18,7 +18,7 @@ import { z } from "zod";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { resolveLayoutWeight } from "../algorithms/input/weight";
-import { LAYOUT_DESCRIPTORS, layoutAlias, layoutDescriptor } from "../catalog/layouts";
+import { layoutAlias, layoutDescriptor } from "../catalog/layouts";
 import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor, Scope, ScopeInput } from "../catalog/types";
 import type { GraphLayoutBehavior } from "../config/GraphBehavior";
@@ -38,6 +38,7 @@ import {
     LayoutEngine,
     layoutEngineInternals,
     type LayoutEngineStatics,
+    laysEdgeRoutes,
     simpleLayoutInternals,
     StaticLayoutEngine,
 } from "../layout/LayoutEngine";
@@ -58,6 +59,7 @@ import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
 import type { RowExtent as TableExtent } from "../render/RowTable";
+import { unknownLayout } from "../session/commands/layout";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
 import type { LayoutMotion } from "../session/types";
@@ -161,6 +163,13 @@ const FORCE_ACCELERATED_CAPABILITY = SIMULATION_CAPABILITY[SpringElectricalLayou
  * benchmark of the small end of the curve has to be able to reach the device.
  */
 const FORCE_ACCELERATED_MIN_NODES = 2000;
+
+/** Where a node starts. */
+interface Place {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+}
 
 /**
  * Every option any of the three simulation layouts publishes, once Zod has applied its defaults.
@@ -444,28 +453,6 @@ function ignoredOptions(
     return options.length > 0 ? { options, available } : undefined;
 }
 
-/**
- * The refusal for a layout name nothing answers to.
- *
- * It used to be a bare `TypeError` whose message a consumer had to read to find out what had gone
- * wrong, and which said nothing about what could have been asked for instead.
- * @param type - The name that was asked for.
- * @returns The error to throw.
- */
-function unknownLayout(type: string): GraphtyError {
-    return new GraphtyError({
-        code: "E_UNKNOWN_LAYOUT",
-        message: `no layout named "${type}" is registered`,
-        source: "layout",
-        details: {
-            layout: type,
-            available: [
-                ...new Set([...LayoutEngine.getRegisteredTypes(), ...LAYOUT_DESCRIPTORS.map((entry) => entry.id)]),
-            ],
-        },
-    });
-}
-
 /** How one engine build is carried out. */
 interface BuildOptions {
     /** 2 or 3: the dimension options the engine is built with. */
@@ -554,6 +541,17 @@ export const layoutManagerInternals = {} as {
     setLayout(manager: LayoutManager, type: string, opts?: object, scope?: ScopeInput): Promise<void>;
     /** Take the members a scoped layout built over an empty graph owes; see `LayoutManager.takeOwedMembers`. */
     takeOwedMembers(manager: LayoutManager): void;
+    /**
+     * Hold some nodes where they are, whatever the layout runs over, or let them go with null; see
+     * `LayoutManager.holdDraft`.
+     */
+    holdDraft(manager: LayoutManager, ids: ReadonlySet<NodeIdType> | null, wake: boolean): void;
+    /** Where the next nodes of these ids start; see `LayoutManager.seedPlaces`. */
+    seedPlaces(manager: LayoutManager, places: ReadonlyMap<NodeIdType, Place>): void;
+    /** The nodes a draft's preview holds, or null; see `LayoutManager.holdDraft`. */
+    draftHeld(manager: LayoutManager): ReadonlySet<NodeIdType> | null;
+    /** Put some of a held preview's other nodes somewhere and hold them there; see `LayoutManager.holdDraftAt`. */
+    holdDraftAt(manager: LayoutManager, places: ReadonlyMap<NodeIdType, Place>): void;
     /** The styles the manager reads now; see `LayoutManager.updateStyles`. */
     styles(manager: LayoutManager): Styles;
     /** Install an engine, or none, as a standalone test's stand-in for a build. */
@@ -736,6 +734,16 @@ export class LayoutManager implements Manager {
         layoutManagerInternals.takeOwedMembers = (manager) => {
             manager.takeOwedMembers();
         };
+        layoutManagerInternals.holdDraft = (manager, ids, wake) => {
+            manager.holdDraft(ids, wake);
+        };
+        layoutManagerInternals.seedPlaces = (manager, places) => {
+            manager.seedPlaces(places);
+        };
+        layoutManagerInternals.draftHeld = (manager) => manager.draftHeld;
+        layoutManagerInternals.holdDraftAt = (manager, places) => {
+            manager.holdDraftAt(places);
+        };
         layoutManagerInternals.setEngine = (manager, engine) => {
             manager.engine = engine;
         };
@@ -797,7 +805,8 @@ export class LayoutManager implements Manager {
 
     /**
      * Set while the running layout's arrangement is the layout's own work: it was built, forward,
-     * and nothing but its own steps has placed a node since -- no `positions.set`, no restore.
+     * and nothing but its own steps has placed a node since -- no `positions.set`, no restore, no
+     * node removed.
      * While it holds, a seeded layout starts over when data arrives. See
      * {@link LayoutManager.restartsForNewData}.
      */
@@ -905,6 +914,15 @@ export class LayoutManager implements Manager {
      */
     private members: ReadonlySet<NodeIdType> | null = null;
 
+    /**
+     * The nodes a source draft's preview holds still (`draft.display(true, { hold: true })`), or null
+     * when it holds none. Apart from {@link LayoutManager.members}, which stays the reader's own scope.
+     */
+    private draftHeld: ReadonlySet<NodeIdType> | null = null;
+
+    /** Where the next nodes of these ids start, instead of where the layout would drop them. */
+    private seeds = new Map<NodeIdType, Place>();
+
     /** The engine and the rows {@link syncFollowers} last handed it. */
     private followersOf: LayoutEngine | null = null;
     private followersKey = "";
@@ -984,6 +1002,7 @@ export class LayoutManager implements Manager {
         const resting = !next && this._running;
         this._running = next;
         if (resting) {
+            this.#endLossHold();
             this.onRest?.();
         }
 
@@ -1043,6 +1062,11 @@ export class LayoutManager implements Manager {
 
     /** How to stop listening to the controller. */
     private unsubscribeAcceleration: (() => void) | null = null;
+    /**
+     * Releases the `wait` token held while a layout a device loss interrupted is still owed its run, or null. See
+     * {@link LayoutManager.holdThroughLoss}.
+     */
+    #lossHold: (() => void) | null = null;
 
     /** How to stop listening for a new snapshot. */
     private unsubscribeSnapshot: (() => void) | null = null;
@@ -1066,6 +1090,17 @@ export class LayoutManager implements Manager {
         const observer = this.eventManager.onGraphEvent.add((event) => {
             if (event.type === "snapshot-replaced") {
                 this.onSnapshotReplaced(event);
+                if (this.seeds.size > 0) {
+                    this.takeSeeds();
+                }
+            }
+
+            // A node removed ends the arrangement being the layout's own: a seeded start over places
+            // bodies from the seed in row order, so each node after the removed one would take the
+            // place drawn for the node before it (issue #9918). Data arriving later is placed around
+            // the nodes where they are.
+            if (event.type === "elements-removed" && event.nodes.length > 0) {
+                this.ownArrangement = false;
             }
         });
         this.unsubscribeSnapshot = (): void => {
@@ -1102,6 +1137,11 @@ export class LayoutManager implements Manager {
      * next transition that attaches an accelerator brings it back.
      */
     private onAccelerationChange(): void {
+        // Every transition, including a failed reattach that rebuilds nothing.
+        if (this.acceleration !== null) {
+            this.releaseLossHoldIfAbandoned(this.acceleration);
+        }
+
         // FIRST, because an accelerator arriving or leaving can change WHICH ENGINE draws the
         // default force arrangement, and that is a rebuild rather than a new simulation inside the
         // engine that is running. Below it, the engine stays and only its simulation moves.
@@ -1119,13 +1159,61 @@ export class LayoutManager implements Manager {
             return;
         }
 
+        const wasRunning = this.running;
         try {
-            engine.replaceSimulation();
-            this.running = !this.restoring();
+            // A layout that had settled stays settled, where it is drawn: only a layout that was
+            // still running resumes on the new accelerator (issue #9929).
+            engine.replaceSimulation(true);
+            if (!engine.isSettled) {
+                this.running = !this.restoring();
+            }
+            this.holdThroughLoss(controller, wasRunning && !engine.isSettled);
         } catch (error) {
             this.running = false;
             this.reportSimulationFailure(error);
+            this.holdThroughLoss(controller, wasRunning);
         }
+    }
+
+    /**
+     * Keep `waitForSettled()` waiting for a layout a device loss interrupted, until it has settled on the accelerator
+     * brought back (or on the CPU, under `"auto"`), as it would have without the loss (issue #9988). Without this, under
+     * `"required"` the layout has no simulation at all between the loss and the reattach, reads settled and counts as
+     * no work, so the wait ended there and the layout then resumed and ran on.
+     *
+     * Taken only at a loss (state `"error"`) that stopped a running layout. Released when the layout stops running
+     * (it settled, or the consumer paused it), when the manager is disposed, and when the controller has stopped
+     * trying to bring an accelerator back while no simulation runs: nothing would end the wait then.
+     * @param controller - The acceleration controller.
+     * @param interrupted - Whether this transition left a layout that was running owed the rest of its run.
+     */
+    private holdThroughLoss(controller: AccelerationController, interrupted: boolean): void {
+        if (this.#lossHold === null && interrupted && controller.status.state === "error") {
+            const scene = this.graphContext?.getScene();
+            const record = scene === undefined ? undefined : pendingWorkOf(scene);
+            this.#lossHold = record?.begin("layout", WHAT_RECOVERY_IS, "wait") ?? null;
+            // A reattach starts in the same call that published the loss, after its listeners: ask once it has.
+            queueMicrotask(() => {
+                this.releaseLossHoldIfAbandoned(controller);
+            });
+        }
+    }
+
+    /**
+     * End the loss hold when nothing is running and the controller is not bringing an accelerator back.
+     * @param controller - The acceleration controller.
+     */
+    private releaseLossHoldIfAbandoned(controller: AccelerationController): void {
+        if (!this.running && controller.accelerator === null && controller.status.recovering !== true) {
+            this.#endLossHold();
+        }
+    }
+
+    /** Release the loss hold, if one is held. */
+    #endLossHold(): void {
+        const release = this.#lossHold;
+        this.#lossHold = null;
+        release?.();
     }
 
     /**
@@ -1300,6 +1388,10 @@ export class LayoutManager implements Manager {
      * @param event - The freeze, carrying the snapshot every consumer must switch to.
      */
     private onSnapshotReplaced(event: GraphSnapshotReplacedEvent): void {
+        if (event.report.nodeRemap !== null || event.next.nodeCount !== event.previous?.nodeCount) {
+            this.#rowSets++;
+        }
+
         // A FREEZE IS WHERE THE GRAPH GETS ITS SIZE. The element's default layout is set before any
         // data arrives, over an empty graph, so this -- not `setLayout` -- is where a graph crosses
         // the size at which the default force arrangement is worth accelerating, in either
@@ -1312,8 +1404,8 @@ export class LayoutManager implements Manager {
 
         // A FREEZE RENUMBERS THE ROWS the hold mask indexes, so it is rebuilt from the captured
         // members -- before a simulation reloads, so that its reload packs the new mask.
-        if (engine !== undefined && this.members !== null) {
-            engine.setHoldMask(...this.holdMaskOf(this.members));
+        if (engine !== undefined && (this.members !== null || this.draftHeld !== null)) {
+            this.applyHoldMask(engine);
         }
 
         // AND THE ROWS THE WORKING GRAPH COVERS: the engine is handed the view of the new snapshot,
@@ -1401,6 +1493,7 @@ export class LayoutManager implements Manager {
         this.onMotion = null;
         this.runningDriver = undefined;
         this.running = false;
+        this.#endLossHold();
     }
 
     /**
@@ -1574,8 +1667,8 @@ export class LayoutManager implements Manager {
             this.replayPins(engine, nodeArray);
             this.members = members;
             this.membersOwed = members !== null && nodeArray.length === 0;
-            if (members !== null) {
-                this.applyHold(engine, members, nodeArray);
+            if (members !== null || this.draftHeld !== null) {
+                this.applyHold(engine, nodeArray);
             }
 
             // Update DataManager with new layout engine
@@ -1890,6 +1983,7 @@ export class LayoutManager implements Manager {
                 this.warnLayout(type, warning);
             },
             fail: (error) => {
+                this.#flushAnswered(built, false);
                 if (this.layoutEngine === built) {
                     this.running = false;
                 }
@@ -1913,8 +2007,54 @@ export class LayoutManager implements Manager {
                 if (this.layoutEngine === built && !this.restoring()) {
                     this.running = true;
                 }
+
+                this.#flushAnswered(built, true);
             },
         });
+    }
+
+    /** Who waits on {@link LayoutManager.answered}, by the engine whose answer they wait for. */
+    readonly #answerWaiters = new Map<LayoutEngine, (() => void)[]>();
+
+    /**
+     * Settles once the layout in force has put its answer in the position array: at once unless it
+     * is still computing one asynchronously, else once that answer arrives (published then, without
+     * waiting for a frame) or the run fails. A replaced engine's waiters are left unsettled.
+     * @returns Settles, never rejecting.
+     * @internal
+     */
+    answered(): Promise<void> {
+        const engine = this.layoutEngine;
+        if (!(engine instanceof StaticLayoutEngine) || !simpleLayoutInternals.waiting.has(engine)) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            const waiters = this.#answerWaiters.get(engine) ?? [];
+            waiters.push(resolve);
+            this.#answerWaiters.set(engine, waiters);
+        });
+    }
+
+    /**
+     * Settle whoever waits on an engine's answer.
+     * @param engine - The engine whose run ended.
+     * @param arrived - Whether its answer arrived, to be published now for them.
+     */
+    #flushAnswered(engine: LayoutEngine, arrived: boolean): void {
+        const waiters = this.#answerWaiters.get(engine);
+        if (waiters === undefined) {
+            return;
+        }
+
+        this.#answerWaiters.delete(engine);
+        if (arrived && this.layoutEngine === engine && !this.restoring()) {
+            this.publishOrReport();
+        }
+
+        for (const resolve of waiters) {
+            resolve();
+        }
     }
 
     /**
@@ -2025,7 +2165,7 @@ export class LayoutManager implements Manager {
             };
         }
 
-        if (!placesLateRows(engine) || readsEdges(engine)) {
+        if (!placesLateRows(engine) || laysEdgeRoutes(engine)) {
             return null;
         }
 
@@ -2319,20 +2459,25 @@ export class LayoutManager implements Manager {
      * @param nodes - every node in the graph, which is what was just added to that engine
      */
     private replayPins(engine: LayoutEngine, nodes: readonly Node[]): void {
-        const { positions } = this.dataManager;
-        const placed = { x: 0, y: 0, z: 0 };
-
         for (const node of nodes) {
-            if (!positions.isPinned(node.index)) {
-                continue;
+            if (this.dataManager.positions.isPinned(node.index)) {
+                this.handPlace(engine, node);
+                layoutEngineInternals.pin(engine, node);
             }
+        }
+    }
 
-            if (positions.isPlaced(node.index)) {
-                positions.read(node.index, placed);
-                layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
-            }
-
-            layoutEngineInternals.pin(engine, node);
+    /**
+     * Tell an engine where a placed node is, as it can hold it.
+     * @param engine - The engine.
+     * @param node - The node.
+     */
+    private handPlace(engine: LayoutEngine, node: Node): void {
+        const { positions } = this.dataManager;
+        if (positions.isPlaced(node.index)) {
+            const placed = { x: 0, y: 0, z: 0 };
+            positions.read(node.index, placed);
+            layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
         }
     }
 
@@ -2614,8 +2759,9 @@ export class LayoutManager implements Manager {
      * @param byReader - Whether the reader asked for the restore (undo, redo, a history jump);
      *     false for a rollback of another command's writes, after which a driver rebuild the
      *     restore landed on resumes the layout. Defaults to `restoring`.
+     * @returns False when the engine already held the lane as it is, and nothing was handed over.
      */
-    loadArrangement(restoring: boolean, wrote = false, byReader = restoring): void {
+    loadArrangement(restoring: boolean, wrote = false, byReader = restoring): boolean {
         // Coordinates written over a drawing rising into 3D end the rise where they put it.
         this.#rise = null;
         if (restoring) {
@@ -2630,12 +2776,37 @@ export class LayoutManager implements Manager {
 
         const engine = this.layoutEngine;
         if (engine === undefined) {
-            return;
+            return false;
+        }
+
+        // An undo of a value edit writes no coordinate: the engine took the lane when nothing in it has
+        // moved since, and handing every node over again was a walk of a 100,000-node graph (issue #9164).
+        // Only a static engine: a simulation's load also stops what it would move on its own, so one that
+        // stepped since its last load (between a source draft's sides) went on moving the nodes.
+        const lane = this.dataManager[WRITABLE_LANE];
+        const agreed = this.#agreed;
+        if (
+            !wrote &&
+            engine instanceof StaticLayoutEngine &&
+            agreed?.engine === engine &&
+            agreed.changes === lane.changes &&
+            agreed.rows === this.#rowSets
+        ) {
+            engine.keepArrangement();
+            return false;
         }
 
         engine.loadArrangement();
         this.putOnPlane(engine);
+        this.#agreed = { engine, changes: lane.changes, rows: this.#rowSets };
+        return true;
     }
+
+    /** The engine, the lane's `changes` and the row set when the engine last took the lane; see {@link loadArrangement}. */
+    #agreed: { engine: LayoutEngine; changes: number; rows: number } | null = null;
+
+    /** Moves whenever a freeze adds, removes or renumbers node rows, which the engine takes again on a restore. */
+    #rowSets = 0;
 
     /**
      * Under a 2D engine, move every placed node with a Z onto the Z = 0 plane, keeping its X and Y.
@@ -2653,20 +2824,39 @@ export class LayoutManager implements Manager {
             return;
         }
 
-        // Walked by row, so a row stored with no `Node` (renderPath "batched") gets one only when it has a Z to drop.
-        const { positions } = this.dataManager;
+        // Walked by row. Under a static engine, a row stored with no `Node` (renderPath "batched") is flattened in
+        // the array and the engine takes it by row: getting its `Node` built one for every row with a Z (issue
+        // #10031). Any other engine is handed the row's `Node`, as before: reloading a simulation for it restarts
+        // its run, and under one only a pinned or held row keeps a Z past its own 2D publish.
+        const takesRows = engine instanceof StaticLayoutEngine;
+        const lane = this.dataManager[WRITABLE_LANE];
         const { ids, nodeCount } = wholeGraph(this.dataManager);
         const placed = { x: 0, y: 0, z: 0 };
-        for (let row = 0; row < Math.min(positions.count, nodeCount); row++) {
-            if (!positions.isPlaced(row)) {
+        let rowsWritten = false;
+        for (let row = 0; row < Math.min(lane.count, nodeCount); row++) {
+            if (!lane.isPlaced(row)) {
                 continue;
             }
 
-            positions.read(row, placed);
-            const node = placed.z === 0 ? undefined : this.dataManager.nodes.get(ids.idOf(row));
+            lane.read(row, placed);
+            if (placed.z === 0) {
+                continue;
+            }
+
+            const id = ids.idOf(row);
+            const node = takesRows
+                ? dataManagerInternals.builtNode(this.dataManager, id)
+                : this.dataManager.nodes.get(id);
             if (node !== undefined) {
                 layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
+            } else if (this.dataManager.nodes.has(id)) {
+                lane.write(row, placed.x, placed.y, 0);
+                rowsWritten = true;
             }
+        }
+
+        if (rowsWritten && takesRows) {
+            engine.takeRows();
         }
     }
 
@@ -2730,7 +2920,10 @@ export class LayoutManager implements Manager {
         }
 
         this.members = null;
-        this.layoutEngine?.setHoldMask(null, 0);
+        if (this.layoutEngine !== undefined) {
+            this.applyHoldMask(this.layoutEngine);
+        }
+
         this.running = true;
     }
 
@@ -2803,18 +2996,109 @@ export class LayoutManager implements Manager {
     }
 
     /**
-     * The hold mask for the graph as it stands: every row whose node is not a member.
-     * @param members - The captured members.
+     * Hold some nodes where they are, or let them go: a source draft's preview, so what the draft adds
+     * is laid out round the graph the reader has, which stays put. The reader's own scope is untouched.
+     * The arrangement is no longer the layout's alone to start over: a seeded start would move them.
+     * @param ids - The nodes, or null.
+     * @param wake - Whether there are nodes to lay out round them: a layout at rest steps again. One that
+     *     settled while a new row waited for its mask would leave it where the engine dropped it.
+     */
+    private holdDraft(ids: ReadonlySet<NodeIdType> | null, wake: boolean): void {
+        if (ids === null && this.draftHeld === null) {
+            return;
+        }
+
+        this.draftHeld = ids;
+        this.ownArrangement = false;
+        if (this.layoutEngine !== undefined) {
+            this.applyHoldMask(this.layoutEngine);
+        }
+
+        if (wake) {
+            this.takeSeeds();
+            this.layoutEngine?.wakeForLift();
+            this.running = true;
+        }
+    }
+
+    /**
+     * Put some nodes a held preview does not hold where they are given, and hold them there too: a node the
+     * draft adds, moved off one the graph holds, is not laid back over it. A later `holdDraft` lets them go.
+     * @param places - The places by id.
+     */
+    private holdDraftAt(places: ReadonlyMap<NodeIdType, Place>): void {
+        if (this.draftHeld === null || places.size === 0) {
+            return;
+        }
+
+        this.seeds = new Map([...this.seeds, ...places]);
+        this.holdDraft(new Set([...this.draftHeld, ...places.keys()]), true);
+    }
+
+    /**
+     * Say where the next nodes of some ids start.
+     * @param places - The places by id; empty for nowhere in particular.
+     */
+    private seedPlaces(places: ReadonlyMap<NodeIdType, Place>): void {
+        this.seeds = new Map(places);
+    }
+
+    /** Put each seeded node the graph now holds where it starts, once. */
+    private takeSeeds(): void {
+        const engine = this.layoutEngine;
+        if (engine === undefined) {
+            return;
+        }
+
+        for (const [id, place] of this.seeds) {
+            const node = this.dataManager.nodes.get(id);
+            if (node === undefined || !validRow(node.index)) {
+                continue;
+            }
+
+            try {
+                layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane({ ...place }));
+                this.seeds.delete(id);
+            } catch {
+                // An engine not told of the node yet takes its place at the next pass.
+            }
+        }
+    }
+
+    /**
+     * Whether the layout may not move a node: it is outside the running scope, or a draft's preview holds it.
+     * @param id - The node.
+     * @returns True when it may not.
+     */
+    private holdsNode(id: NodeIdType): boolean {
+        return (this.members !== null && !this.members.has(id)) || this.draftHeld?.has(id) === true;
+    }
+
+    /**
+     * Hand an engine the rows it may not move, as the graph now stands: the ones outside the running
+     * scope and the ones a draft's preview holds; none when there is neither.
+     * @param engine - The engine.
+     */
+    private applyHoldMask(engine: LayoutEngine): void {
+        if (this.members === null && this.draftHeld === null) {
+            engine.setHoldMask(null, 0);
+        } else {
+            engine.setHoldMask(...this.holdMaskOf());
+        }
+    }
+
+    /**
+     * The hold mask for the graph as it stands.
      * @returns The mask and the rows it covers.
      */
-    private holdMaskOf(members: ReadonlySet<NodeIdType>): [NodeMask, number] {
+    private holdMaskOf(): [NodeMask, number] {
         // Batched: by row from the snapshot, since iterating the nodes builds a `Node` for every
         // row, each read through an engine that does not hold it yet.
         if (this.dataManager.renderLimits?.batched() === true) {
             const { ids, nodeCount } = wholeGraph(this.dataManager);
             const held = makeMask(nodeCount);
             for (let row = 0; row < nodeCount; row++) {
-                if (!members.has(ids.idOf(row))) {
+                if (this.holdsNode(ids.idOf(row))) {
                     maskSet(held, row, true);
                 }
             }
@@ -2831,7 +3115,7 @@ export class LayoutManager implements Manager {
 
         const mask = makeMask(rows);
         for (const node of this.dataManager.nodes.values()) {
-            if (validRow(node.index) && !members.has(node.id)) {
+            if (validRow(node.index) && this.holdsNode(node.id)) {
                 maskSet(mask, node.index, true);
             }
         }
@@ -2848,8 +3132,8 @@ export class LayoutManager implements Manager {
      */
     private holdBeforeInit(engine: LayoutEngine, members: ReadonlySet<NodeIdType> | null): void {
         this.members = members;
-        if (members !== null) {
-            engine.setHoldMask(...this.holdMaskOf(members));
+        if (members !== null || this.draftHeld !== null) {
+            this.applyHoldMask(engine);
         }
     }
 
@@ -2859,20 +3143,57 @@ export class LayoutManager implements Manager {
      * Placed first for the reason `replayPins` places before it pins: a live simulation's own idea
      * of where a node is starts wherever its initialization put it, and d3 fixes a node at that.
      * @param engine - The engine about to become current.
-     * @param members - The members it lays out.
-     * @param nodes - Every node in the graph.
+     * @param nodes - The nodes the engine was handed (`nodesWithBodies`); a row stored with no `Node` is placed by row.
      */
-    private applyHold(engine: LayoutEngine, members: ReadonlySet<NodeIdType>, nodes: readonly Node[]): void {
-        const { positions } = this.dataManager;
-        const placed = { x: 0, y: 0, z: 0 };
+    private applyHold(engine: LayoutEngine, nodes: readonly Node[]): void {
         for (const node of nodes) {
-            if (!members.has(node.id) && positions.isPlaced(node.index)) {
-                positions.read(node.index, placed);
-                layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
+            if (this.holdsNode(node.id)) {
+                this.handPlace(engine, node);
             }
         }
 
-        engine.setHoldMask(...this.holdMaskOf(members));
+        if (this.members === null && this.draftHeld === null) {
+            engine.setHoldMask(null, 0);
+            return;
+        }
+
+        const [held, rows] = this.holdMaskOf();
+        this.holdRowsOnPlane(engine, held, rows);
+        // A simulation's held rows with no `Node` are placed by row as the mask holds them (`holdRowBodies`).
+        engine.setHoldMask(held, rows);
+    }
+
+    /**
+     * Under a 2D static engine, put each held row stored with no `Node` (renderPath "batched") on the plane in the
+     * array and have the engine take it by row, as {@link putOnPlane} does: getting its `Node` would build one for
+     * every held row (issue #10052). A simulation places its held rows itself as it holds them.
+     * @param engine - The engine about to become current.
+     * @param held - The hold mask ({@link holdMaskOf}): the rows the layout may not move.
+     * @param rows - The rows the mask covers.
+     */
+    private holdRowsOnPlane(engine: LayoutEngine, held: NodeMask, rows: number): void {
+        if (this.engineDimension !== 2 || !(engine instanceof StaticLayoutEngine)) {
+            return;
+        }
+
+        const lane = this.dataManager[WRITABLE_LANE];
+        const placed = { x: 0, y: 0, z: 0 };
+        let rowsWritten = false;
+        for (let row = 0; row < Math.min(lane.count, rows); row++) {
+            if (!maskTest(held, row) || !lane.isPlaced(row)) {
+                continue;
+            }
+
+            lane.read(row, placed);
+            if (placed.z !== 0 && dataManagerInternals.builtNodeAtRow(this.dataManager, row) === undefined) {
+                lane.write(row, placed.x, placed.y, 0);
+                rowsWritten = true;
+            }
+        }
+
+        if (rowsWritten) {
+            engine.takeRows();
+        }
     }
 
     /**
@@ -3014,7 +3335,7 @@ export class LayoutManager implements Manager {
      * same seed draws over the same data in one write.
      *
      * Only while the arrangement is the layout's own work: once a consumer has placed nodes, or a
-     * restore has, newcomers are placed around them. Only a SEEDED layout, which is the one that
+     * restore has, or a node was removed, newcomers are placed around them. Only a SEEDED layout, which is the one that
      * promises a picture; an unseeded one keeps the graph the reader has been watching. Not while
      * pre-steps are owed, because the first frame spends them over everything there is by then.
      * Not while a new layout waits its turn, which is built over the whole graph anyway, nor while
@@ -3199,6 +3520,9 @@ export class LayoutManager implements Manager {
             live: () => this.#generation === generation,
             explicitScope: false,
             fromSeed: true,
+            // Every node already drawn gets a new place: it travels there under `layoutTransition`
+            // like any other new layout, not in one frame (issue #9424).
+            transition: true,
         });
         this.#applying = rebuild.catch(() => undefined);
         try {
@@ -3224,11 +3548,8 @@ export class LayoutManager implements Manager {
 
         this.membersOwed = false;
         this.members = this.captureMembers(true, false);
-        if (this.members === null) {
-            engine.setHoldMask(null, 0);
-        } else {
-            this.applyHold(engine, this.members, [...this.dataManager.nodes.values()]);
-        }
+        // The nodes a build hands the engine: every `Node` only where the engine takes no rows (issue #10052).
+        this.applyHold(engine, this.members === null ? [] : this.nodesWithBodies(engine));
     }
 
     /**
@@ -3745,6 +4066,27 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Publish the running engine's answer, reporting a refusal as {@link LayoutManager.updatePositions} does
+     * instead of throwing it into the frame that asked (planar's E_NOT_PLANAR between a batch's writes).
+     * @returns False when the engine refused the graph, and so placed nothing.
+     * @internal
+     */
+    publishOrReport(): boolean {
+        const engine = this.layoutEngine;
+        if (engine === undefined) {
+            return true;
+        }
+
+        try {
+            engine.publishPositions();
+            return true;
+        } catch (error) {
+            this.reportLayoutFailure(engine.type, error, "stepped");
+            return false;
+        }
+    }
+
+    /**
      * Settle nodes that reached the graph after this layout was already running.
      *
      * Still hands back a promise, because a plugin that has to fetch or recompute something to
@@ -3805,6 +4147,14 @@ export class LayoutManager implements Manager {
         // whatever part of the graph has arrived -- the nodes without their edges, when the edges
         // come in a later pass -- and start the pre-steps from a different arrangement: the same
         // data and seed then settled somewhere else than when the layout was built over it.
+        // Batched: a row drawn with no `Node` reaches a static engine only through the freeze, which
+        // marks it stale; with no freeze here the engine published its old answer and the add's
+        // placement -- and a refusal of it, such as bfs over a disconnected graph -- fell to a later
+        // frame, after the awaited add had resolved. Objects told it by `addNode` and keeps master's path.
+        if (this.dataManager.renderLimits?.batched() === true) {
+            wholeGraph(this.dataManager);
+        }
+
         try {
             if (!this.preStepsOwed) {
                 this.layoutEngine.updatePositions(nodes);
@@ -3831,6 +4181,9 @@ export interface GroupBox {
     readonly half: { readonly x: number; readonly y: number; readonly z: number };
 }
 
+/** What a wait names while a layout a device loss interrupted is still owed the rest of its run. */
+const WHAT_RECOVERY_IS = "the layout is resuming after the device it ran on was lost";
+
 /** What a wait names while a layout over what the filter shows is being built. */
 const WHAT_RELAYOUT_IS = "the layout is being run again over what is shown";
 
@@ -3841,22 +4194,6 @@ const WHAT_RELAYOUT_IS = "the layout is being run again over what is shown";
  */
 function validRow(index: number): boolean {
     return Number.isInteger(index) && index >= 0 && index !== INVALID_INDEX;
-}
-
-/**
- * Whether an engine that lays out by row still builds its structure from the `Edge`s it holds:
- * Graphviz, and `fixed` when it routes edges through Graphviz, read `_edges` and key their routes
- * by `Edge`, so an edge stored under them with no `Edge` would be laid out as absent.
- * @param engine - The engine, or none.
- * @returns True for an engine that needs an `Edge` for every edge.
- */
-function readsEdges(engine: LayoutEngine | undefined): boolean {
-    if (engine instanceof FixedLayout) {
-        return engine.config.edgeRoutes === "graphviz";
-    }
-
-    const type = (engine?.constructor as { type?: unknown } | undefined)?.type;
-    return typeof type === "string" && type.startsWith("graphviz-");
 }
 
 /**

@@ -32,7 +32,7 @@ import type { Graph } from "../../src/Graph";
 import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
 import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import { JOIN_FLOATS_PER_PIECE } from "../../src/meshes/edgeJoinShader";
-import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
+import { type EdgeLineBatch, type EdgeLineMeta, patternSpacing } from "../../src/meshes/EdgeLineBatch";
 import { readLabelTable } from "../../src/meshes/labelTable";
 import { pointLists } from "../../src/meshes/nodeDecoration";
 import type { NodeDecorationPiece } from "../../src/meshes/NodeDecorationMesh";
@@ -484,6 +484,8 @@ export interface DrawnLabel {
     outline: { color: string; opacity: number; width: number } | null;
     /** The outlines of the cells of the table the label is laid out as (`label.table`), on screen; empty for none. */
     cells?: { x0: number; y0: number; x1: number; y1: number }[];
+    /** The lines drawn under the words (`underline`), on screen; empty for none. */
+    underlines?: { x0: number; y0: number; x1: number; y1: number }[];
     /** The box drawn behind the words, or null when none shows. */
     background: {
         box: { x0: number; y0: number; x1: number; y1: number };
@@ -698,6 +700,7 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
         tall: label.textRuns.map((line) => line.length > 0),
         align,
         cells: label.tableFrames.map((f) => onScreen(f.x, f.y, f.width, f.height)),
+        underlines: label.underlines.map((u) => onScreen(u.x, u.y, u.width, u.height)),
         outline:
             outlineCss === null || outlineCss.alpha <= 0 || !((opt.textOutlineWidth ?? 0) > 0)
                 ? null
@@ -839,6 +842,11 @@ export interface DrawnBorder {
     screen: boolean;
     /** The opacity it is drawn at: its material's alpha times the ring's visibility. */
     opacity: number;
+    /**
+     * A ring cut into dashes or dots: each piece's length and the gap after it, in turn, in render pixels, as drawn
+     * (`ringDashesPx`); absent for a ring in one piece.
+     */
+    dashPx?: number[];
 }
 
 /**
@@ -959,14 +967,88 @@ function readBorder(node: Node, p: Projector): DrawnBorder | null {
     const waved = NodeMesh.waveOf(drawnStyle?.border, 1) !== undefined && (style === "zigzag" || style === "sinewave");
     const lineWidthPx = waved ? frontThickness(source) * Math.abs(border.absoluteScaling.x) * p.pxPerWorld(at) : null;
     const material = materialColor(source.material);
+    const widthPx = drawnWidthPx(node, border, waved || MARK_RINGS.has(style) ? "marks" : style, p);
+    const dashPx = DASHED_RINGS.has(style) ? ringDashesPx(border, p, widthPx) : null;
     return {
         color: material ? hex(material.rgb) : null,
-        widthPx: drawnWidthPx(node, border, waved || MARK_RINGS.has(style) ? "marks" : style, p),
+        widthPx,
         lineWidthPx,
         style,
         screen: drawnStyle?.border?.screenWidth !== undefined,
         opacity: (material?.alpha ?? 1) * border.visibility,
+        ...(dashPx === null ? {} : { dashPx }),
     };
+}
+
+/** Border styles drawn as a ring cut into dashes or dots, whose pieces `ringDashesPx` measures. */
+const DASHED_RINGS: ReadonlySet<string> = new Set(["dashed", "dotted", "dash-dot"]);
+
+/**
+ * The dashes and gaps a ring cut into pieces is drawn with, on screen: its front face split where no triangle joins
+ * another, each piece as long as its area on screen over the ring's width (its length along the middle of the ring,
+ * however it bends, where a chord would read a square dot as long as its diagonal), and each gap as wide as the
+ * nearest two corners of a piece and the next round the ring.
+ * @param ring - the border ring
+ * @param p - the projector
+ * @param widthPx - the ring's width on screen, in render pixels
+ * @returns each piece's length and the gap after it, in turn, in render pixels; null for a ring in fewer than two pieces
+ */
+function ringDashesPx(ring: Placed, p: Projector, widthPx: number): number[] | null {
+    const { triangles } = frontFace(sourceOf(ring));
+    const keyOf = (q: Xyz): string => `${q[0].toFixed(5)},${q[1].toFixed(5)}`;
+    // the pieces: triangles joined by a shared corner, found with a union-find over the corners
+    const parent = new Map<string, string>();
+    const find = (k: string): string => {
+        let r = k;
+        while (parent.get(r) !== r) {
+            r = parent.get(r) ?? r;
+        }
+        parent.set(k, r);
+        return r;
+    };
+    const corners = new Map<string, Xyz>();
+    for (const tri of triangles) {
+        const keys = tri.map(keyOf);
+        tri.forEach((q, i) => {
+            corners.set(keys[i], q);
+            if (!parent.has(keys[i])) {
+                parent.set(keys[i], keys[i]);
+            }
+        });
+        parent.set(find(keys[1]), find(keys[0]));
+        parent.set(find(keys[2]), find(keys[0]));
+    }
+    const groups = new Map<string, Xyz[]>();
+    for (const [k, q] of corners) {
+        const root = find(k);
+        groups.set(root, [...(groups.get(root) ?? []), q]);
+    }
+    if (groups.size < 2 || widthPx <= 0) {
+        return null;
+    }
+    const area = new Map<string, number>();
+    for (const tri of triangles) {
+        const [a, b, c] = onScreen(ring, tri, p);
+        const root = find(keyOf(tri[0]));
+        area.set(root, (area.get(root) ?? 0) + Math.abs(twiceArea([a, b, c])) / 2);
+    }
+    const roots = [...groups.keys()];
+    const pieces = roots.map((root) => onScreen(ring, groups.get(root) ?? [], p));
+    const lengths = new Map(pieces.map((piece, i) => [piece, (area.get(roots[i]) ?? 0) / widthPx]));
+    const all = pieces.flat();
+    const [cx, cy] = [all.reduce((a, q) => a + q[0], 0) / all.length, all.reduce((a, q) => a + q[1], 0) / all.length];
+    const angleOf = (qs: readonly Xy[]): number =>
+        Math.atan2(
+            qs.reduce((a, q) => a + q[1], 0) / qs.length - cy,
+            qs.reduce((a, q) => a + q[0], 0) / qs.length - cx,
+        );
+    pieces.sort((a, b) => angleOf(a) - angleOf(b));
+    const far = (qs: readonly Xy[], rs: readonly Xy[], pick: (a: number, b: number) => number, start: number): number =>
+        qs.reduce((best, q) => rs.reduce((b, r) => pick(b, Math.hypot(q[0] - r[0], q[1] - r[1])), best), start);
+    return pieces.flatMap((piece, i) => [
+        lengths.get(piece) ?? 0,
+        far(piece, pieces[(i + 1) % pieces.length], Math.min, Infinity),
+    ]);
 }
 
 /**
@@ -1889,6 +1971,31 @@ function joinedDashes(
 }
 
 /**
+ * A pulled line's dashes or dots on screen ({@link joinedDashes} for a line drawn from the row table): each element is
+ * `elementLength` long and the elements sit `patternSpacing` apart along the line, as its shader spaces them.
+ * @param pattern - the batch's pattern, or undefined for a solid line
+ * @param world - the line's ends in the world
+ * @param p - the projector
+ * @returns element and gap lengths in pixels, or null for a solid line
+ */
+function pulledDashes(pattern: EdgeLineMeta["pattern"], world: readonly Vector3[], p: Projector): number[] | null {
+    if (pattern === undefined || world.length < 2) {
+        return null;
+    }
+    const [from, to] = [world[0], world[world.length - 1]];
+    const spacing = patternSpacing(pattern, Vector3.Distance(from, to));
+    if (!(spacing > 0)) {
+        return null;
+    }
+    const k = p.pxPerWorld(Vector3.Center(from, to));
+    const { dashes } = pattern as { dashes?: readonly number[] };
+    if (dashes !== undefined) {
+        return dashes.map((d) => d * k);
+    }
+    return [pattern.elementLength * k, Math.max(0, spacing - pattern.elementLength) * k];
+}
+
+/**
  * A patterned line's elements on screen, from their own drawn outlines: each element's extent along the line and the
  * gap to the next one, alternating, the last element's followed by the median gap. A billboarded element has no
  * outline to read, and then nothing is read.
@@ -2060,17 +2167,33 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         color = cssColor(fields.color).hex;
         ({ opacity } = fields);
         dashPx = elementDashes(pm.elements, p);
-    } else if (internal.pulled?.curve === false) {
+    } else if (internal.pulled !== null) {
         // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centers, stopped at
         // a translucent end's outline as its shader stops it (`PULLED_TRIM_GLSL`, the object line's bare ends), in the
         // color, opacity and width its piece carries (`PulledLineBatch.setLook`): the batched path's plain lines
+        // A line under a head pulled with it stops at the head's back (`lineInWorld`), and its dashes or dots are its
+        // pattern's, spaced along it as the shader spaces them (`patternSpacing`)
+        // A pulled curve runs through the points its pieces are placed at (`Edge.drawnCurve`), in 3D and, since #10083,
+        // in 2D, in the look its first piece carries
         const [src, dst] = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];
-        world = [edgeInternals.bareEnd(edge, "source", src, dst), edgeInternals.bareEnd(edge, "target", dst, src)];
+        if (internal.pulled.curve) {
+            world = edge.drawnCurve ?? [];
+            kind = "curve";
+        } else {
+            world = edgeInternals.lineInWorld(edge) ?? [
+                edgeInternals.bareEnd(edge, "source", src, dst),
+                edgeInternals.bareEnd(edge, "target", dst, src),
+            ];
+        }
         const { batch, piece } = internal.pulled;
         const look = batch as unknown as { rows: Float32Array; pieceFloats: number };
         const at = piece * look.pieceFloats;
-        const meta = batch.mesh.metadata as { joinedLine?: boolean } | null;
-        thicknessPx = lineThickness(batch.mesh, Vector3.Center(world[0], world[1]), p, look.rows[at + 2]);
+        const meta = batch.mesh.metadata as { joinedLine?: boolean; pattern?: EdgeLineMeta["pattern"] } | null;
+        pattern = meta?.pattern?.kind ?? null;
+        dashPx = pulledDashes(meta?.pattern, world, p);
+        const mid =
+            world.length === 2 ? Vector3.Center(world[0], world[1]) : (world[Math.floor(world.length / 2)] ?? src);
+        thicknessPx = lineThickness(batch.mesh, mid, p, look.rows[at + 2]);
         screenFloored = thicknessPx > 0 && thicknessPx <= screenFloorOf(batch.mesh);
         color = hex({ r: look.rows[at + 4], g: look.rows[at + 5], b: look.rows[at + 6] });
         opacity = look.rows[at + 3] * (meta?.joinedLine === true ? 1 : batch.mesh.visibility);
@@ -2086,7 +2209,12 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
             ? cap.position.clone()
             : null;
     const tail = tip(edge.arrowTailCap, internal.drawnStyle?.arrowTail?.position);
-    const head = tip(edge.arrowCap, internal.drawnStyle?.arrowHead?.position);
+    // a head pulled from the row table with its line has no cap of its own: its tip is on the target's outline
+    const pulledTip =
+        edge.arrowCap === null && internal.pulled !== null && edge.drawnCaps.some((c) => c.end === "arrowHead")
+            ? (edge.getInterceptPoints().dstPoint?.clone() ?? null)
+            : null;
+    const head = tip(edge.arrowCap, internal.drawnStyle?.arrowHead?.position) ?? pulledTip;
     const [lineFrom, lineTo] = [world.at(0), world.at(-1)];
     if (world.length >= 2 && tail !== null) {
         world = [tail, ...world.slice(1)];

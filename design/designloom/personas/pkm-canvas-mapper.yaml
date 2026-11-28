@@ -1,0 +1,65 @@
+id: pkm-canvas-mapper
+name: PKM Canvas Mapper
+roster_persona: personal-knowledge-gardener
+tier: A
+scope: in-scope
+role: UX Researcher and Workshop Facilitator who thinks spatially
+quote: Where I put a card means something. Don't move it.
+bio: >-
+    Maren is a UX researcher and workshop facilitator who abandoned the force-directed graph because the layout moves and
+    she cannot pin a node where she put it. She thinks on canvases: 20 to 40 Obsidian Canvas files, each with 30 to 200
+    cards -- note cards that point at vault files, text cards, web links, groups drawn as labeled regions -- connected by
+    labeled arrows such as "causes" and "contradicts". Positions are hers and carry meaning (a timeline left to right,
+    a cluster in one corner). She has also tried Heptabase whiteboards and sketches in Excalidraw. Her frustration is
+    that the canvas and the note graph never meet: the arrows she draws are not links, so they never reach backlinks or
+    the graph view, and text cards stay invisible until she converts them to files. This persona is a composite; the
+    frustrations are sourced.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: novice
+    domain_knowledge: advanced
+motivations:
+    - Lay out an argument or a research synthesis by hand with labeled relations and regions
+    - See which canvases a note appears on
+    - Turn a sketch into real linked notes without redrawing it
+    - Keep her placements fixed while the rest of the material is arranged automatically
+behaviors:
+    - Creates a canvas per project and drags notes and whole folders onto it
+    - Draws arrows from card sides and labels them with a verb
+    - Groups cards into labeled regions and uses background color for visual partition
+    - Promotes text cards to notes with Convert to file once an idea firms up
+    - Embeds canvases in notes and shares them as screenshots
+frustrations:
+    - Arrows drawn on a canvas never appear in backlinks or the graph view
+    - Text cards do not appear in backlinks until converted to files
+    - No view mixes her hand placement with automatic layout of everything else
+    - Force-directed graphs move every time, so spatial memory is lost
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - tablet
+    voluntary: true
+workflows:
+    - W329
+    - W330
+sources:
+    - title: Obsidian Help - Canvas
+      url: https://obsidian.md/help/plugins/canvas
+      summary: Card types, connecting and labeling, groups, Convert to file; text-only cards do not appear in backlinks
+    - title: JSON Canvas 1.0 specification
+      url: https://jsoncanvas.org/spec/1.0/
+      summary: Nodes (text, file, link, group) with positions and sizes; edges with sides, ends, color and label
+    - title: Obsidian quirks - Canvas file links
+      url: https://saberzero1.github.io/obsidian-extended-metadatacache/obsidian-quirks/canvas-file-links
+      summary: File cards create resolvedLinks entries but edges between cards do not
+    - title: Obsidian forum - Visual and spatial note-taking (whiteboard, mind map, concept map)
+      url: https://forum.obsidian.md/t/visual-spatial-note-taking-whiteboard-mind-map-concept-map/32346/70
+      summary: Wants the canvas as post-it, kanban, timeline and topic view with background lines and areas for visual partition
+    - title: Fabric - Heptabase vs Obsidian (competing vendor)
+      url: https://developers.fabric.so/comparison/heptabase-vs-obsidian
+      summary: Third-party comparison describing Heptabase as canvas-first with the graph secondary
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

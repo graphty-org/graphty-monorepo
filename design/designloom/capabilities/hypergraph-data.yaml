@@ -1,0 +1,26 @@
+id: hypergraph-data
+name: Group Interactions (Hypergraphs)
+category: analysis
+description: Import hyperedges (HIF, XGI-DATA, bipartite edge lists, timestamped simplices) and keep them as groups with
+    incidence attributes; hyperedge-size distribution, s-walk components and centralities, hypergraph modularity; hull
+    drawing plus a bipartite or rows-and-lines view for many hyperedges.
+status: planned
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R31 (Should)."
+algorithms: []
+used_by_workflows:
+    - W3055
+    - W3054
+    - W49
+    - W294
+implemented_by_components: []
+requirements:
+    - "Should: Group interactions as a data model: import hyperedges (HIF, XGI-DATA, bipartite edge lists, timestamped
+      simplices) and keep them as groups with incidence attributes; projection and its weighting a recorded step (R18);
+      hyperedge-size distribution, s-walk components and centralities, hypergraph modularity; hull drawing plus a
+      bipartite or PAOH-style view for many hyperedges"
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R31)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Should in the research. Covered by Designloom when researched: No: graph-io's hyperedges import option
+          offers only error, skip (the default), star or clique (graph-io/src/types.ts), so a group survives only as a hub
+          node or as pairs"

@@ -9,8 +9,8 @@ import { useAssistantSendsTo } from "./useAssistantSendsTo";
 /**
  * The privacy chip (tier1-design.md section 2.1): "Local only", or "Usage data on, content
  * masked" once the reader has said Share; opens Settings > Privacy. The status bar and the start
- * screen both draw it. Its tooltip says what is sent and where the chip leads. With the assistant
- * experiment on and a provider saved it reads "Sends to {provider}" and opens AI provider.
+ * screen both draw it. Its tooltip says what is sent and where the chip leads. With a provider
+ * saved it reads "Sends to {provider}" and opens AI provider.
  * @returns The chip
  */
 export function PrivacyChip(): React.JSX.Element {

@@ -1,12 +1,14 @@
-import { MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { MeshBuilder, NullEngine, Quaternion, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import {
+    centeringWork,
     type FramingSpot,
     OrbitCameraController,
     type OrbitConfig,
     turningFitDistance,
 } from "../../src/cameras/OrbitCameraController";
+import { assertScalesLinearly } from "../helpers/cost";
 
 /**
  * Mock canvas element for NullEngine testing.
@@ -388,6 +390,212 @@ describe("OrbitCameraController", () => {
                 assert.strictEqual(controller.cameraDistance, distance);
                 assert.deepEqual(controller.pivot.position.asArray(), pivot.asArray(), `at ${String(shorter)} px`);
             }
+        });
+
+        describe("centering a fit of many nodes (issue #9420)", () => {
+            /**
+             * Spots scattered through a ball of radius 50 by a seeded generator, with the box around them.
+             * @param count - How many spots.
+             * @returns The spots and the box.
+             */
+            function ball(count: number): { spots: FramingSpot[]; min: Vector3; max: Vector3 } {
+                let seed = 9420;
+                const random = (): number => {
+                    seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+                    return seed / 2_147_483_648;
+                };
+                const spots: FramingSpot[] = [];
+                const min = new Vector3(Infinity, Infinity, Infinity);
+                const max = new Vector3(-Infinity, -Infinity, -Infinity);
+                while (spots.length < count) {
+                    const pos = new Vector3(random() * 100 - 50, random() * 100 - 50, random() * 100 - 50);
+                    if (pos.length() <= 50) {
+                        spots.push({ pos, half: 0.5 });
+                        min.minimizeInPlace(pos.subtractFromFloats(0.5, 0.5, 0.5));
+                        max.maximizeInPlace(pos.add(new Vector3(0.5, 0.5, 0.5)));
+                    }
+                }
+
+                return { spots, min, max };
+            }
+
+            /**
+             * Spots in one of several shapes, by a seeded generator, with the box around them.
+             * @param shape - How they lie: through a ball, on its shell, on a flat disk, along a line, in blobs.
+             * @param count - How many spots.
+             * @param seed - The generator's seed.
+             * @returns The spots and the box.
+             */
+            function shaped(
+                shape: "ball" | "shell" | "disk" | "line" | "blobs",
+                count: number,
+                seed: number,
+            ): { spots: FramingSpot[]; min: Vector3; max: Vector3 } {
+                let state = seed;
+                const random = (): number => {
+                    state = (state * 1_103_515_245 + 12_345) % 2_147_483_648;
+                    return state / 2_147_483_648;
+                };
+                const spots: FramingSpot[] = [];
+                const min = new Vector3(Infinity, Infinity, Infinity);
+                const max = new Vector3(-Infinity, -Infinity, -Infinity);
+                for (let i = 0; i < count; i++) {
+                    const around = new Vector3(random() * 2 - 1, random() * 2 - 1, random() * 2 - 1).normalize();
+                    const place = {
+                        ball: () => around.scale(40 * Math.cbrt(random())),
+                        shell: () => around.scale(40),
+                        disk: () => new Vector3(around.x * 60, around.y * 25, 0),
+                        line: () => new Vector3(random() * 90, random(), random() * 2),
+                        blobs: () =>
+                            new Vector3((i % 3) * 30 + random() * 8, random() * 8, (i % 2) * 20 + random() * 8),
+                    };
+                    const pos = place[shape]().addInPlaceFromFloats(7, -3, 11);
+                    const half = i % 3 === 0 ? 0 : random() * 2;
+                    spots.push({ pos, half });
+                    min.minimizeInPlace(pos.subtractFromFloats(half, half, half));
+                    max.maximizeInPlace(pos.add(new Vector3(half, half, half)));
+                }
+
+                return { spots, min, max };
+            }
+
+            /**
+             * Each shape, the camera's turn, and the fit the centering framed it with before it walked every node in
+             * plain numbers and pruned in two rounds (issue #10154): the pivot's x, y and z, then the distance.
+             */
+            const FITS = [
+                {
+                    shape: "ball",
+                    count: 3_000,
+                    seed: 1,
+                    turn: [0.3, 0.8, 0],
+                    fit: [7.091783123635539, -3.782067213317573, 10.382702109664685, 150.29996343084753],
+                },
+                {
+                    shape: "shell",
+                    count: 3_000,
+                    seed: 2,
+                    turn: [0.5, -0.4, 0.2],
+                    fit: [7.120423927919578, -3.439389441012167, 10.54480244109925, 163.2667077469572],
+                },
+                {
+                    shape: "disk",
+                    count: 2_000,
+                    seed: 3,
+                    turn: [1.1, 0.2, 0],
+                    fit: [4.001682325308984, -1.7793052439906343, 13.746510564749176, 100.11794846960116],
+                },
+                {
+                    shape: "line",
+                    count: 1_000,
+                    seed: 4,
+                    turn: [0, 0.7, 0.3],
+                    fit: [33.62459601543908, -1.443154723000803, 27.140603168450816, 45.0550329573386],
+                },
+                {
+                    shape: "blobs",
+                    count: 1_500,
+                    seed: 5,
+                    turn: [-0.6, 2.4, 0],
+                    fit: [34.53759191125225, 7.920852366719475, 24.756841442199047, 61.31430103796188],
+                },
+                {
+                    shape: "ball",
+                    count: 40,
+                    seed: 6,
+                    turn: [0.2, 0.1, 0],
+                    fit: [4.331587759700685, -2.103111291294739, 10.978488798051682, 117.98628253450264],
+                },
+            ] as const;
+
+            test("frames every shape exactly as before, to the last bit", () => {
+                for (const { shape, count, seed, turn, fit } of FITS) {
+                    const { spots, min, max } = shaped(shape, count, seed);
+                    controller.pivot.position.setAll(0);
+                    controller.pivot.rotationQuaternion = Quaternion.FromEulerAngles(turn[0], turn[1], turn[2]);
+                    controller.zoomToBoundingBox(min, max, spots);
+
+                    assert.deepEqual(
+                        [...controller.pivot.position.asArray(), controller.cameraDistance],
+                        [...fit],
+                        `${shape} of ${String(count)}`,
+                    );
+                }
+            });
+
+            test("walks every node at most nine times a fit, not once per direction and edge", () => {
+                // before: once to cut the spots, then on each axis once to place them, 16 times to find the outermost
+                // in each direction and once against the polygon -- 37 walks; now 8, and two more over the few left
+                for (const shape of ["ball", "shell", "disk"] as const) {
+                    const count = 8_000;
+                    const { spots, min, max } = shaped(shape, count, 10154);
+                    centeringWork.walked = 0;
+                    controller.zoomToBoundingBox(min, max, spots);
+                    assert.isAtLeast(centeringWork.walked, 8 * count, shape);
+                    assert.isAtMost(centeringWork.walked, 9 * count, shape);
+                }
+            });
+
+            test("weighs about as many corners whatever the node count, not all of them every halving", async () => {
+                await assertScalesLinearly(
+                    (count) => {
+                        const { spots, min, max } = ball(count);
+                        centeringWork.corners = 0;
+                        controller.zoomToBoundingBox(min, max, spots);
+                        return centeringWork.corners;
+                    },
+                    { sizes: [2_000, 8_000], growth: "constant", counter: "corners weighed while centering" },
+                );
+            });
+
+            test("works out the corners of the outermost nodes only, not all eight of every node", () => {
+                const count = 8_000;
+                const { spots, min, max } = ball(count);
+                centeringWork.outlined = 0;
+                controller.zoomToBoundingBox(min, max, spots);
+                // two axes, eight corners a node: all of them was 128,000; about 1,800 are left
+                assert.isAbove(centeringWork.outlined, 0);
+                assert.isBelow(centeringWork.outlined, (count * 8 * 2) / 20);
+            });
+
+            test("a moving graph's fit does the same work whatever the node count (issue #10154)", async () => {
+                await assertScalesLinearly(
+                    (count) => {
+                        const { spots, min, max } = ball(count);
+                        centeringWork.walked = 0;
+                        centeringWork.outlined = 0;
+                        centeringWork.corners = 0;
+                        controller.zoomToBoundingBox(min, max, spots, true);
+                        return centeringWork.walked + centeringWork.outlined + centeringWork.corners;
+                    },
+                    { sizes: [2_000, 8_000], growth: "constant", counter: "nodes and corners walked" },
+                );
+            });
+
+            test("the fit a moving graph settles on is the one it gets without moving first", () => {
+                const { spots, min, max } = shaped("blobs", 3_000, 10154);
+                controller.zoomToBoundingBox(min, max, spots);
+                const settled = [...controller.pivot.position.asArray(), controller.cameraDistance];
+
+                controller.zoomToBoundingBox(min, max, spots, true);
+                // the same distance while moving; the drawing is centered on its box instead
+                assert.strictEqual(controller.cameraDistance, settled[3]);
+                controller.zoomToBoundingBox(min, max, spots);
+                assert.deepEqual([...controller.pivot.position.asArray(), controller.cameraDistance], settled);
+            });
+
+            test("nodes well inside the others change the fit not at all", () => {
+                const { spots, min, max } = ball(500);
+                controller.zoomToBoundingBox(min, max, spots);
+                const pivot = controller.pivot.position.asArray();
+                const distance = controller.cameraDistance;
+
+                const inner = ball(2_000).spots.map(({ pos, half }) => ({ pos: pos.scale(0.2), half }));
+                controller.zoomToBoundingBox(min, max, [...spots, ...inner]);
+
+                assert.strictEqual(controller.cameraDistance, distance);
+                assert.deepEqual(controller.pivot.position.asArray(), pivot);
+            });
         });
 
         test("should adjust camera distance based on bounding box size", () => {

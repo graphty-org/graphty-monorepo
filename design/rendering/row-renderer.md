@@ -169,6 +169,12 @@ and syncs the node with `NodeBatches`; `batchableIn` answers false while the fla
 the next flush and stays one, through repaints and render-path changes. Setting `mesh` does not set the flag. Its source
 group then leaves the batch, since hiding is still all or nothing per source until the proxies go. Tests that look at
 internals read `drawnPickMesh`, which does not set it.
+Later (issue #9185): a held row keeps its mesh on its look's shared source, which the batch hides, and stays in its slot.
+Each camera's frame, `NodeBatches.mirror` writes that slot's matrix from the mesh's world matrix (zero scale while the
+mesh is hidden or disabled), and the slot's `graphtyRow` is written `-row - 2`, which the row-pull shader reads as "drawn
+from its own matrix; only the table's hidden flag applies". So a read row draws in its objects-path place among its look
+in the look's one draw call, a scattered read costs one matrix and no mesh or draw, and what a consumer does to the mesh
+shows. It still counts as an object row in `rowCounts`.
 The `local/node-mesh-funnel` lint rule covers `stories/**` and `test/helpers/*.ts` too, so no play function or shared
 helper sets the flag and turns a batched render-parity or forced-batched run into an objects one. Individual files under
 `test/browser` and `test/interactions` still read `Node.mesh` (365 reads in 109 files when this was written); each such test
@@ -444,7 +450,7 @@ As built (stage G3 of `cosmos-gap.md`): a plain solid straight 2D line is pulled
 mesh as the 2D line's joined program (`worldWidth`, a piece's width `edge.width / 40`, as `Simple2DLineRenderer` takes it), and
 the view keys the batch (`|2d`), so a 2D/3D switch builds another. Correction to `cosmos-gap.md` section 3.3 item 1, which drops
 the `drawsFlat` refusal whole: two refusals stay in 2D. A 2D curve (`EdgeMesh.pullsCurve`) stays an object edge, since no parity
-case covers a pulled 2D curve yet; and `Edge.pullsLine` now refuses an end at a node drawn behind every edge
+case covers a pulled 2D curve yet (since lifted, #10083: see "As built (issue #9201)" below); and `Edge.pullsLine` now refuses an end at a node drawn behind every edge
 (`Node.isDrawnBehindEdges`, which a 2D node below z-index 0 is, not only a group), because that line ends at the node's outline
 (`Edge.groupEnd`) where a pulled line runs to its center. `test/browser/pulled-edges-batched.test.ts` holds 2D to the objects
 picture, 0 pixels, at rest, after a mouse drag, across a 2D/3D switch and at a sub-pixel width. One `lean-m` run under
@@ -510,6 +516,35 @@ away, where the pass starts at the center. So the pass beats the CPU path at a m
 nearer the exact ray, which also means that on large coordinates it can differ from the `"objects"` path, which casts the
 CPU's ray, by that path's own error (5e-3 world units here, far below a pixel at the harness's zoom).
 
+As built (issue #9467, on by default on `"batched"`): a straight line's head is drawn from the row table
+(`meshes/pulledHead.ts`) for a row line (`EdgeRowLines`) and for an `Edge`'s pulled line, so a directed graph's default
+look and an arrowhead restyle leave no object edge; the line stops at the head's back in the join shader
+(`pulledCapTrim`). Only a billboarded head of one material, with no words, gap, stack or position, between two round
+rows drawn in a node batch. In 2D the same batch shader lies the head flat in the graph's plane, turned only about Z
+(`CAP_FLAT`, a batch keyed `|flat`), as `ArrowCap.place2D` turns a 2D cap's mesh, at the 2D cap's full size (a scale
+factor of 1). A translucent 2D head stays an object edge's: the objects path's 2D cap takes its opacity twice, on its
+material and on its mesh's visibility, which a pulled head does not copy. A pulled head is a slot of the same `ArrowCapBatch` an object edge's cap of its shape takes
+(`ArrowCapBatch.setPulled`, `CAP_PULLED`, keyed `|pulled` on a scene drawn `"batched"`, `pulledCapHosts`), so placed and
+pulled caps draw in the order their slots were taken, as `"objects"` draws them. The "one sample at the tip" recorded
+for stage 17 was not float32: the old separate batch had no `arrowClip` buffer, and an unbound attribute reads 0, which
+clipped every pulled cap at its tip. A batch that pulls caps hands out its lowest free slot, so caps keep their edges'
+order through a restyle. A pulled cap adds one vertex buffer to the cap batch (`capPull`: its rows, its stand-back
+and its length), since WebGPU draws from at most eight and a billboarded cap reads seven; with a ninth, WebGPU drew an
+empty frame with no error. The line under a head and the head itself are trimmed in their shaders by the round-ends
+arithmetic written out (`pulledCapTrim`), not through `edgeTrimEnds`, whose struct-returning call also left WebGPU's
+frame empty. Once the rows rest (no `RowTable.drawnWrites` for a frame and a settled layout), the CPU
+places each pulled head and the ends of every capped or patterned pulled line by the object path's own float64
+arithmetic (`meshes/restPlacement.ts`; heads into the slot's matrix, line ends and pattern spacing into
+`PulledLineBatch`'s `edgeEnds` table), so a still graph draws the objects picture to the pixel; a frame that moves a row
+hands both back to the shader. `drawnWrites` counts only a write that changes a value: a layout transition held at its
+pose writes every row again each frame with the value it holds, and those rows rest. A row held off its lane (a
+transition's pose) is placed from its node's own float64 place (`RowTable.restingPlaceOf`), which `rowPosition` keeps
+only to 32 bits; a lane row's place is float32 on both paths. In 2D the objects path draws its caps in one batch per
+color, the later color on top where two heads meet, so 2D pulled heads are batched by color too, up to 64 colors.
+Dash, dot, box, diamond and star lines and dash arrays are pulled too: a patterned pulled
+batch draws the joined line's pattern with world width, and the shader runs `patternSpacing` for its own length
+(`pulledSpacing`), in 3D and in 2D.
+
 Correction from stage 20: the section 7 pixel bar cannot be run on the pass yet, so it is not adopted. No shader reads a
 trimmed end on master: a pulled line has no cap and no gap (`Edge.pullsLine`), so it runs center to center and needs no
 reach, and the trim include is still read only by its CPU mirror. The two floats per pulled edge first have a reader in a
@@ -530,7 +565,7 @@ Correction: the plan cached the two floats at rest for a shader to read; nothing
 measured end is placed straight into the cap and line, and keeping the floats waits for their reader. An end that
 moves while another drag rests is measured with the rest of the set: one quiet stretch of passes measures them all.
 
-As built (stage 17, dark): `PulledCapBatch` (`meshes/PulledCapBatch.ts`) draws 3D billboarded caps with `CAP_PULLED` in
+Superseded by issue #9467 (above): `PulledCapBatch` is gone, its caps are `ArrowCapBatch` slots. As built (stage 17, dark): `PulledCapBatch` (`meshes/PulledCapBatch.ts`) drew 3D billboarded caps with `CAP_PULLED` in
 the cap shader (`FilledArrowRenderer.applyPulledShader`): a cap is its two rows, head end last (a tail is the head of its edge
 turned round), its gaps and how far its center sits behind its tip, and the shader stands it where `Edge.placeArrowHead` would
 over `EDGE_TRIM_GLSL`'s ends, reading `rowExtent` for scale, round radius and border. Where the ends meet nothing (overlapping
@@ -810,6 +845,36 @@ a capped curve stays one with the capped straight line, and a pulled curve cap i
 route table, only once that change is made. With that, every curve kind without caps is pulled on `"batched"`: lone and
 fanned curves, `fanSpacing`, `arcRadius`, gaps, raised and great-circle routes, the layout's routes, self-loop
 teardrops, support points and bends. The stage's 40 ms target stays missed by about 6 ms (ninth pull request).
+
+As built (issue #9201): a plain straight pulled line (no head, neither end seen through, not patterned, animated or
+lean) is drawn from the curve batch of its batch key (minimum screen width and pass, and in 2D the width) whenever that
+batch exists, so curves and straight lines draw in the order their pieces were taken, as the object path's one line
+batch draws them. Before, the straight batch and the curve batch drew one after the other, so where a curve crossed a
+straight line in one plane the curve's batch was on top whatever the rows' order. When a key's curve batch is made, the
+straight batch's plain lines move into it first, in that batch's draw order and before the new curve takes a piece
+(`EdgeMesh.pulledBatch`, `PulledLineBatch.moveStraightInto`; the `Edge`s and `EdgeRowLines` holding them are told their
+new batch and piece), so every plain line of the key is in one batch and widths and `edge.drawOrder` are ranked among
+all of them. A straight line in a curve batch is drawn with a one-piece straight span (`pulledCurve.STRAIGHT_SPAN`,
+`PulledLineBatch.drawStraight`): a flat raised arc between the two centers, which no move rewrites. Left in the straight
+batch: a line with a head, a patterned, animated or lean one, and one with an end it is seen through, which the straight
+program stops at the outline; beside curves these draw from their own batch, ranked apart from the plain lines. A row
+that turns seen through or opaque counts in `RowTable.roundWrites`, so a straight line in a curve batch whose end turned
+seen through is painted again and takes the straight batch (`EdgeRowLines.rowsOffEnds`, `Edge.redrawPulledOffEnds`);
+its order against the curves is then the two batches'. A curve takes the rest of its draw slots when it is first placed,
+on both paths, so a straight line added in the same write as the curve is under it and one added once it is drawn is
+over it. `test/browser/curve-crossing-draw-order.test.ts` holds both orders, a partly curved bundle, mixed widths and
+draw orders, a curve between two straight lines of one width (in one write and with the last added later), a restyle
+and a node turned translucent after its lines were drawn at 0 pixels against `"objects"`.
+
+As built (issue #10083): the 2D view follows the same rule. A 2D curve is pulled too, into a flat curve batch (the 2D
+joined program with `EDGE_PULLED_CURVE`, its width in world units, keyed by width, `|curve|2d`), so a plain straight 2D
+line of that width and pass is drawn from it as in 3D. Before, `Edge.pullsLine` refused a 2D curve, which stayed in the
+2D line batch of its width, and the pulled straight batch drew just after that batch, so `"batched"` drew a straight line
+over a crossing curve in either order while `"objects"` drew the curve over it (its slots taken at placement). A 2D line
+an `Edge` pulls also makes the object line batch of its width first and draws where it does (`pulledLineSortsWith`), as
+a row line already did, so widths stack in the order the objects path made their batches. The test file above runs every
+case in the 2D view too, and checks on both paths that a straight line added once the curve is drawn, or one with a
+higher `edge.drawOrder`, is drawn over it.
 
 Correction from stage 22 (code read at origin/master 8593e8751a): the row's "fragment scroll" cannot ride the join shader.
 A straight animated line (`line.animationSpeed`, 3D only: in 2D `EdgeMesh` draws it flat and unanimated before it asks)
@@ -1790,11 +1855,10 @@ Labels
 
 **Optional, for the owner after stage 38; none blocks a stage:**
 
-| Change                                                         | Why it cannot be additive                                                                                                                                                                                                            | Without it                      |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
-| Default `renderPath` to `"batched"`                            | `scene.meshes`, per-node action managers and Babylon move picks change for a consumer who set nothing                                                                                                                                | A consumer sets one attribute   |
-| Default `renderCeiling` to 1,000,000, `edgesDrawn` as measured | It changes what today refuses                                                                                                                                                                                                        | A consumer sets `limits`        |
-| Turn pulled caps on (`pulledCapsOn`, stage 17)                 | A pulled cap places in float32 on the GPU and differs from the placed cap by one anti-aliasing sample at a cap's tip (3 pixels in 30 caps; [picture](pulled-caps-one-sample.png): circled, then placed and pulled side by side, 16x) | Caps stay objects on every path |
+| Change                                                         | Why it cannot be additive                                                                             | Without it                    |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Default `renderPath` to `"batched"`                            | `scene.meshes`, per-node action managers and Babylon move picks change for a consumer who set nothing | A consumer sets one attribute |
+| Default `renderCeiling` to 1,000,000, `edgesDrawn` as measured | It changes what today refuses                                                                         | A consumer sets `limits`      |
 
 ## 11. Alternatives rejected
 

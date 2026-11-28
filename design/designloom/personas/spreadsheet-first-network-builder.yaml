@@ -1,0 +1,75 @@
+id: spreadsheet-first-network-builder
+name: Spreadsheet-First Network Builder
+roster_persona: explorer-elena
+tier: A
+scope: in-scope
+role: Graduate Student or Nonprofit Program Officer Mapping a Coalition
+quote: I have one Excel sheet with a Partners column full of names separated by semicolons. Why won't this just turn into a map?
+bio: >-
+    Radhika Raman is a master's student in public policy who also works part time as a program officer at a nonprofit.
+    For a course project and a funder report she is mapping a coalition of 50 to 300 organizations. She is comfortable
+    in Excel and Google Sheets and has never written code. Her data is one sheet with one row per organization and a
+    "Partners" column holding several names separated by semicolons, typed inconsistently ("Food Bank of X", "X Food
+    Bank"). She learned Gephi at a one-hour library workshop and also tries Kumu because it opens a spreadsheet in the
+    browser. Most of her time goes into reshaping the sheet into a node table and an edge table the tool will accept,
+    then working out why edges did not attach. Once it loads, she wants a readable map, a count of who is most
+    connected and a figure for a slide.
+characteristics:
+    expertise: novice
+    time_pressure: medium
+    graph_literacy: none
+    domain_knowledge: advanced
+motivations:
+    - Turn a spreadsheet she already maintains into a readable network map without learning to code
+    - Show a funder or a class which organizations are most connected and which are on the edge
+    - Get a slide-ready figure the same week the data is collected
+    - Fix the data once and load it again when the coalition list changes
+behaviors:
+    - Starts in Excel with one sheet, one row per organization, and a multi-value Partners column separated by semicolons
+    - Follows a library tutorial step by step, building a node sheet with Id and Label and an edge sheet with Source and Target
+    - Saves as .xlsx first, then learns the tool wanted .csv and that a CSV keeps only the active worksheet
+    - Accepts the import dialog defaults (Directed, Create missing nodes) without knowing they were choices
+    - Checks the node count against the number of rows in her sheet, if the tool shows it
+    - Runs a force-directed layout because the first view is unreadable, then sizes nodes by degree
+    - Fixes name variants by hand in the spreadsheet and re-imports
+frustrations:
+    - The tool rejects .xlsx or reads only the first worksheet
+    - A comma inside an organization name splits the row into extra columns
+    - Edges do not attach because names in the edge sheet differ from node ids, with no list of which ones failed
+    - Duplicate nodes appear because Create missing nodes stayed checked while nodes were already loaded
+    - Near-duplicate organization names become separate nodes and split each organization's ties
+    - The first view after import is a hairball until she finds the layout panel
+    - No idea whether Directed or Undirected was right for "partners with"
+context:
+    frequency: monthly
+    devices:
+        - laptop
+    voluntary: true
+workflows:
+    - W01
+    - W18
+    - W291
+    - W294
+    - W298
+sources:
+    - title: Brown University Library - Gephi LibGuide
+      url: https://libguides.brown.edu/gephi
+      summary: Workshop-level introduction that is often a student's first exposure; notes the CSV single-sheet issue
+    - title: Kumu - Importing data
+      url: https://docs.kumu.io/guides/import/import
+      summary: Spreadsheet import in the browser; pipe-separated values in a To cell draw one connection per element
+    - title: seinecle - Importing CSV data in Gephi
+      url: https://seinecle.github.io/gephi-tutorials/generated-html/importing-csv-data-in-gephi-en.html
+      summary: Node table must have Id and Label; quote labels containing commas; create missing nodes for edge-only files
+    - title: Bowdoin - Excel data and Gephi Data Laboratory
+      url: https://research.bowdoin.edu/digital-computational-studies/digital-computational-studies/excel-data-and-gephi-data-laboratory
+      summary: Source and Target refer to node Ids; Excel saves .xlsx by default and a CSV keeps one worksheet
+    - title: Martin Grandjean - Introduction to network visualization with Gephi
+      url: https://www.martingrandjean.ch/introduction-to-network-visualization-gephi/
+      summary: Uncheck Create missing nodes when nodes are already loaded; first view is completely unreadable until a layout runs
+    - title: Graphty user research - Data preparation, import and first assessment
+      url: https://github.com/graphty-org/graphty-monorepo/blob/master/design/user-research/data-preparation-and-import.md
+      summary: Composite persona section 2.1 and the two-table Gephi workflow in section 4.1
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

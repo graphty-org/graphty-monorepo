@@ -821,6 +821,43 @@ function clipCut(el: Element, root: SVGSVGElement, m: DOMMatrix, shape: PBox): P
 }
 
 /**
+ * The box of the clip an element is drawn through, in the root's pixels: vis-network's circular image draws its whole
+ * picture clipped to the node's circle, so a picture wider than the circle (circularImage of a 48 x 24 image,
+ * vis-network-specimen-images-charts) shows only the circle's width.
+ * @param el - the element
+ * @param root - the SVG
+ * @param rootInverse - the root's inverse screen matrix
+ * @returns the clip's box, or null when it is drawn unclipped
+ */
+function clipBoxOf(el: Element, root: SVGSVGElement, rootInverse: DOMMatrix): PBox | null {
+    const holder = el.closest<SVGGraphicsElement>("[clip-path]");
+    const ref = /url\(\s*["']?#([^"')]+)["']?\s*\)/.exec(holder?.getAttribute("clip-path") ?? "");
+    // ponytail: the clip's first shape in user space; a clip of several shapes or in objectBoundingBox units reads as that one
+    const clip = ref === null ? null : root.querySelector<SVGGraphicsElement>(`clipPath[id="${ref[1]}"] > *`);
+    const m = holder === null || clip === null ? null : matrixOf(holder, rootInverse);
+    return m === null || clip === null ? null : boxThrough(m, clip.getBBox());
+}
+
+/**
+ * A box cut to a clip's box, where they overlap.
+ * @param box - the box
+ * @param clip - the clip's box, or null for none
+ * @returns the part kept
+ */
+function clippedTo(box: PBox, clip: PBox | null): PBox {
+    if (clip === null) {
+        return box;
+    }
+    const kept = {
+        x0: Math.max(box.x0, clip.x0),
+        y0: Math.max(box.y0, clip.y0),
+        x1: Math.min(box.x1, clip.x1),
+        y1: Math.min(box.y1, clip.y1),
+    };
+    return kept.x0 < kept.x1 && kept.y0 < kept.y1 ? kept : box;
+}
+
+/**
  * The part of a picture that draws anything: the box round its pixels that are not wholly transparent, in the image
  * element's own units. A picture's PNG is often larger than what it paints: yEd draws a node's soft shadow in a PNG as
  * wide as the node and its labels, so a 35 by 55 artifact's shadow in `graphml-galaxy-lcms-workflow` is a 113 by 76
@@ -1028,6 +1065,10 @@ const JAVA_FACES: Readonly<Record<string, string>> = {
     // where Carlito's or the browser's stand-in's would; every PostScript style of it (`Calibri-Italic`) is looked up
     // by its family
     calibri: "DejaVu Sans",
+    // ArialMT, which it lacks too: cx2-wp1449-tlr's "(anti-viral compounds)" at 7.61 px starts 43.2 px left of its
+    // node's middle, half its DejaVu Sans width (86.4 px), where the browser's stand-in draws it 70.3 px wide and so
+    // 8 px left of center
+    arialmt: "DejaVu Sans",
     // Tahoma, which JFreeChart asks for in Cytoscape desktop's charts and the oracles' Java lacks: the two "..."
     // category names of images-charts-p7's line chart start 21.37 units apart at 20 units, their DejaVu Sans width
     // (19.07) and a 2.3-unit gap, not the browser's stand-in's
@@ -1430,6 +1471,23 @@ function inUndrawnBranch(el: Element): boolean {
 }
 
 /**
+ * The elements of a `<g>`, and of the `<g>` beside it when that one is its twin (the same attributes): ySVG writes a
+ * label's underline in the label's own `<g>`, or in a twin `<g>` of its own right after it (`graphml-synthetic-nodes`'s
+ * rectangle).
+ * @param g - the group
+ * @param side - which neighbor may be its twin
+ * @returns the elements
+ */
+function besideInTwinGroup(g: Element, side: "previous" | "next"): Element[] {
+    const other = side === "previous" ? g.previousElementSibling : g.nextElementSibling;
+    const same = (a: Element, b: Element): boolean =>
+        a.localName === b.localName &&
+        a.attributes.length === b.attributes.length &&
+        [...a.attributes].every((x) => b.getAttribute(x.name) === x.value);
+    return [...g.children, ...(other !== null && same(g, other) ? [...other.children] : [])];
+}
+
+/**
  * Whether a line is a text's underline: yEd (ySVG) writes a label of `underlinedText="true"` as each line's `<text>`
  * followed by a level `<line>` a few units under its baseline, in the label's own `<g>` (`graphml-stm32-func`'s `CS`
  * labels: baseline 193.333, line at 196.635). Read as a line of the drawing, each underline beside a node's border read
@@ -1444,13 +1502,41 @@ function underlineOfText(el: SVGLineElement): boolean {
         return false;
     }
     const size = Number.parseFloat(getComputedStyle(el).fontSize);
-    return [...el.parentElement.children].some((t) => {
+    return besideInTwinGroup(el.parentElement, "previous").some((t) => {
         if (t.localName !== "text") {
             return false;
         }
         const below = y - Number.parseFloat(t.getAttribute("y") ?? "NaN");
         return below > 0 && below <= size * 0.5;
     });
+}
+
+/**
+ * Whether a text is drawn underlined: its `text-decoration` says so (yEd Live), or ySVG drew a level line a few units
+ * under its baseline in its own `<g>` (yEd's `underlinedText`, `underlineOfText`).
+ * @param el - a `<text>`
+ * @param cs - its computed style
+ * @param ySvg - whether yEd's ySVG wrote the drawing
+ * @returns whether it is underlined
+ */
+function underlined(el: SVGTextElement, cs: CSSStyleDeclaration, ySvg: boolean): boolean {
+    if (cs.textDecorationLine.includes("underline")) {
+        return true;
+    }
+    const y = Number.parseFloat(el.getAttribute("y") ?? "NaN");
+    const size = Number.parseFloat(cs.fontSize);
+    return (
+        ySvg &&
+        el.parentElement !== null &&
+        besideInTwinGroup(el.parentElement, "next").some((l) => {
+            if (l.localName !== "line") {
+                return false;
+            }
+            const line = l as unknown as SVGLineElement;
+            const below = line.y1.baseVal.value - y;
+            return line.y1.baseVal.value === line.y2.baseVal.value && below > 0 && below <= size * 0.5;
+        })
+    );
 }
 
 /** What is defined for later use or not drawn at all, not drawn where it stands. */
@@ -1748,6 +1834,9 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                     continue;
                 }
                 const text = textOf(el as SVGTextElement, m, cs, opacity, scale);
+                if (text !== null && underlined(el as SVGTextElement, cs, ySvg)) {
+                    text.underline = true;
+                }
                 const outline = pendingOutlines.get(key);
                 if (text !== null && outline !== undefined) {
                     text.outline ??= outline;
@@ -1790,7 +1879,7 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                     index: i,
                     tag,
                     kind: "image",
-                    box: boxThrough(m, b),
+                    box: clippedTo(boxThrough(m, b), clipBoxOf(el, root, rootInverse)),
                     quad: [
                         at(m, b.x, b.y),
                         at(m, b.x + b.width, b.y),

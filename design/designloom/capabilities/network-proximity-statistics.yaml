@@ -1,0 +1,20 @@
+id: network-proximity-statistics
+name: Network Proximity and Module Statistics
+category: analysis
+description: Set-to-set closest distance and separation with a degree-matched random null returning z and p, largest
+    component significance of a node set, and seed-based module expansion (DIAMOnD-style, random walk with restart).
+status: planned
+notes: "Research trace: network-medicine-and-biomedical-knowledge-graphs.md section 10, requirement R20 (Could); a Could in the research, so it is built after every Must and Should."
+algorithms: []
+used_by_workflows:
+    - W08
+    - W256
+    - W257
+implemented_by_components: []
+requirements:
+    - "Could: Seed-based module expansion (DIAMOnD-style, random walk with restart)"
+sources:
+    - title: Network Medicine, Drug Discovery and Biomedical Knowledge Graph Researchers (section 10, requirement R20)
+      url: design/user-research/network-medicine-and-biomedical-knowledge-graphs.md
+      summary: "Could in the research. Covered by Designloom when researched: Drugst.One and NeDRex show demand for
+          in-browser runs by non-coders"

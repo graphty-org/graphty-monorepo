@@ -151,6 +151,12 @@ export interface AcceleratorDeviceInfo {
 }
 
 // @public
+export interface AcceleratorExactMaxNodes {
+    readonly basis: ExactMaxNodesBasis;
+    readonly value: number;
+}
+
+// @public
 export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promise<GraphAccelerator | null>;
 
 // @public
@@ -215,7 +221,6 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static readonly loadedWeightByDefault: boolean;
     // @internal
     mixedDirection(): boolean | null;
-    // (undocumented)
     static namespace: string;
     get namespace(): string;
     protected nodeIndex(snapshot: GraphSnapshot, option: string, id: NodeId_2): number;
@@ -230,12 +235,10 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     reachedAccelerator: GraphAccelerator | null;
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
-    // (undocumented)
     abstract run(g: AlgorithmHost): Promise<void>;
     protected get schemaOptions(): TOptions;
     protected _schemaOptions: TOptions;
     static scopeInput?: ScopeInputDeclaration;
-    // (undocumented)
     static type: string;
     get type(): string;
     // @internal
@@ -358,13 +361,10 @@ export interface AlgorithmStatics {
     // @deprecated (undocumented)
     hasOptions(): boolean;
     hasZodOptions(): boolean;
-    // (undocumented)
     namespace: string;
-    // (undocumented)
     optionsSchema: OptionsSchema;
     scopeInput?: ScopeInputDeclaration;
     suggestedName?: (options: Readonly<Record<string, unknown>>) => SuggestedName | undefined;
-    // (undocumented)
     type: string;
     version?: string;
     zodOptionsSchema?: OptionsSchema_2;
@@ -439,6 +439,7 @@ export interface BaseDataSourceConfig {
     graphIndex?: number;
     graphName?: string;
     layout?: "recommended" | "placed" | "keep";
+    pins?: "data" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -815,6 +816,7 @@ export class Edge {
     }[];
     // @internal
     get drawnGradient(): readonly string[];
+    get drawnHeadPosition(): Vector3 | null;
     get drawnLine(): {
         name: string;
         length: number;
@@ -860,6 +862,8 @@ export class Edge {
     // (undocumented)
     ray: Ray;
     // @internal
+    redrawPulledOffEnds(): boolean;
+    // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
     refreshShaderPaint(): void;
@@ -894,10 +898,9 @@ export { EdgeMask }
 // @public
 export function edgeMetricFields(value: MetricValueName): readonly FieldDescriptor[];
 
-// @public (undocumented)
+// @public
 export interface EdgePosition {
     bends?: readonly number[];
-    // (undocumented)
     dst: Position;
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
@@ -910,7 +913,6 @@ export interface EdgePosition {
         readonly source: readonly [along: number, across: number];
         readonly target: readonly [along: number, across: number];
     };
-    // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];
     xlabelAt?: readonly [along: number, across: number];
@@ -955,6 +957,9 @@ export interface ErrorSummary {
     primaryCategory?: string;
     totalErrors: number;
 }
+
+// @public
+export type ExactMaxNodesBasis = "measured" | "default" | "configured";
 
 // @public
 export interface ExpandBehavior {
@@ -1089,8 +1094,10 @@ export interface FormatWriterRegistration {
 export interface GraphAccelerator {
     [algorithmOrLayout: string]: unknown;
     readonly backend: "webgpu" | (string & {});
+    calibrate?(): Promise<void>;
     readonly device?: AcceleratorDeviceInfo;
     dispose?(): void;
+    readonly exactMaxNodes?: AcceleratorExactMaxNodes;
     readonly lost?: Promise<{
         reason: string;
     }>;
@@ -1681,11 +1688,12 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
-* A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
-* GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
-* lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
-* `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
-* leaves empty. Reported as `graph-error`.
+* A shader could not be built, under WebGPU usually because a name or a built-in in it is legal
+* GLSL that WGSL or the compilers in between do not take; under WebGL because the driver's
+* compiler refused it. A refused shader never draws and can lose every frame it is part of, so
+* `rendererStatus.drawing` turns false. `details.stage` names the step that gave up
+* (`"compiler"`, `"translator"` or `"device"`) and `details.messages` carry what it said,
+* which the translator leaves empty. Reported as `graph-error`.
 */
 | "E_SHADER_REFUSED"
 /**
@@ -1696,6 +1704,13 @@ export type GraphtyErrorCode =
 * stays in 3D and the next attempt starts clean. Recoverable: asking again can succeed.
 */
 | "E_XR_SESSION_FAILED"
+/**
+* Something run for one frame of an immersive session threw: Babylon.js's own XR input, or
+* code observing the frame. The session keeps drawing; the step that threw is skipped for that
+* frame. `details.mode` is `"vr"` or `"ar"` and `cause` carries what was thrown. Reported once
+* per session for each distinct message, as `graph-error` (context `"xr"`), never thrown.
+*/
+| "E_XR_FRAME_FAILED"
 /**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
@@ -2228,14 +2243,14 @@ export abstract class LayoutEngine {
     protected config?: Record<string, unknown>;
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
+    // @internal
+    get edgeCount(): number;
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
     abstract get edges(): Iterable<Edge>;
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
     static get(type: string, opts?: object): LayoutEngine | null;
     static getClass(type: string): (LayoutEngineClass & LayoutEngineStatics) | null;
-    // (undocumented)
     abstract getEdgePosition(e: Edge): EdgePosition;
-    // (undocumented)
     abstract getNodePosition(n: Node_2): Position;
     getNodeXlabelOffset(_n: Node_2): readonly [right: number, down: number] | undefined;
     static getOptionsForDimension(dimension: 2 | 3): object | null;
@@ -2250,22 +2265,18 @@ export abstract class LayoutEngine {
     static honorsWeights: boolean;
     // @deprecated
     static readonly honoursWeights?: boolean;
-    // (undocumented)
     abstract init(): Promise<void>;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
     isNodeXlabelLeftOut(_n: Node_2): boolean;
-    // (undocumented)
     abstract get isSettled(): boolean;
     // @internal
     protected keepInPublishedBox(n: Node_2 | ElementPositions | undefined, rows: ReadonlySet<number>): void;
     // @internal
     protected lastPublishedBox(): Readonly<Float64Array> | null;
     loadArrangement(): void;
-    // (undocumented)
     static maxDimensions: number;
     get nodePositions(): ReadonlyElementPositions;
-    // (undocumented)
     abstract get nodes(): Iterable<Node_2>;
     get nodeScreenReference(): number | null;
     // @deprecated
@@ -2311,11 +2322,9 @@ export abstract class LayoutEngine {
     protected get shownView(): WorkingView | null;
     // @internal
     get spacesBySize(): boolean;
-    // (undocumented)
     abstract step(): void;
     // @internal
     storeRowOf: ((id: NodeIdType) => number) | null;
-    // (undocumented)
     static type: string;
     get type(): string;
     protected abstract unpin(n: Node_2): void;
@@ -2335,9 +2344,7 @@ export abstract class LayoutEngine {
 // @public
 export interface LayoutEngineStatics {
     descriptor?: AuthoredLayoutDescriptor;
-    // (undocumented)
     getZodOptionsSchema(): OptionsSchema_2;
-    // (undocumented)
     hasZodOptions(): boolean;
     honorsWeights?: boolean;
     // @deprecated
@@ -2345,7 +2352,6 @@ export interface LayoutEngineStatics {
     maxDimensions: number;
     scoped?: boolean;
     type: string;
-    // (undocumented)
     zodOptionsSchema?: OptionsSchema_2;
 }
 
@@ -2446,6 +2452,8 @@ class Node_2 implements ModelUser {
         z: number;
     }>;
     // @internal
+    get drawnHeld(): boolean;
+    // @internal
     get drawnInBatch(): boolean;
     // @internal
     get drawnInstanceColor(): Rgba | null;
@@ -2486,6 +2494,8 @@ class Node_2 implements ModelUser {
         min: Vector3;
         max: Vector3;
     };
+    // @internal
+    framingReach(): number;
     getPosition(): {
         x: number;
         y: number;
@@ -2496,9 +2506,9 @@ class Node_2 implements ModelUser {
     get groupDrawnForAnotherCamera(): boolean;
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
-    hideTooltip(): void;
     // @internal
-    holdOffBatch(): void;
+    get hiddenByStyle(): boolean;
+    hideTooltip(): void;
     readonly id: NodeIdType;
     // @internal
     imageDrawn(): BaseTexture | null;
@@ -2513,6 +2523,8 @@ class Node_2 implements ModelUser {
     isPinned(): boolean;
     isSelected(): boolean;
     label?: RichTextLabel;
+    // @internal
+    get labelPlaced(): boolean;
     // @internal
     get layoutRadius(): number;
     // @internal
@@ -2558,6 +2570,8 @@ class Node_2 implements ModelUser {
     get roundRadius(): number | null;
     // @internal
     get screenBorder(): boolean;
+    // @internal
+    get selectionShowsOnlyHalo(): boolean;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
@@ -2865,13 +2879,10 @@ export interface PlainLogRecord {
 // @public
 export type Point = readonly [number, number] | readonly [number, number, number];
 
-// @public (undocumented)
+// @public
 export interface Position {
-    // (undocumented)
     x: number;
-    // (undocumented)
     y: number;
-    // (undocumented)
     z?: number;
 }
 
@@ -3169,19 +3180,19 @@ export type ShorthandValue<S> = S extends number ? number : S extends boolean ? 
     }[];
 } ? V : string;
 
-// @public (undocumented)
+// @public
 export const SimpleLayoutConfig: z.ZodObject<{
     scalingFactor: z.ZodDefault<z.ZodNumber>;
 }, z.core.$loose>;
 
-// @public (undocumented)
+// @public
 export type SimpleLayoutConfigType = z.infer<typeof SimpleLayoutConfig>;
 
 // @public @deprecated
 export abstract class SimpleLayoutEngine extends StaticLayoutEngine {
 }
 
-// @public (undocumented)
+// @public
 export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
 
 // @public

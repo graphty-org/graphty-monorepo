@@ -1,5 +1,5 @@
 /**
- * With the assistant experiment on, on the REAL graphty-element, by real clicks and keys: the rail
+ * The Assistant door, on the REAL graphty-element, by real clicks and keys: the rail
  * button and Mod+I open and close the panel, focus goes to the composer and back to where it was,
  * and the panel keeps a width of its own.
  */
@@ -10,19 +10,15 @@ import "@graphty/graphty-element";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceState, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { writeAssistantChoice } from "../provider";
 
-/** The experiment on, as a site.json that lists it. */
-const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
-
 const MOD_I = "{Control>}i{/Control}";
 
 /**
- * The workspace, once its element has reported the experiment on.
+ * The workspace, once its rail shows the Assistant.
  * @param state - chrome state to start from.
  * @returns the store.
  */
@@ -58,17 +54,14 @@ async function panelGone(): Promise<void> {
     });
 }
 
-describe("the Assistant with its experiment on", () => {
+describe("the Assistant door", () => {
     beforeEach(async () => {
-        resetSiteConfig();
-        await loadSiteConfig(SITE);
         await page.viewport(1440, 900);
         // The mock provider needs no key, so these reach the composer with nothing to set up.
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
     });
 
     afterEach(() => {
-        resetSiteConfig();
         writeAssistantChoice(null);
     });
 

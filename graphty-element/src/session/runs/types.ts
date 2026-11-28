@@ -203,7 +203,7 @@ export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
 export interface RunWindow {
     /** The attribute the window read. */
     readonly attribute: string;
-    /** Where the window starts, inclusive: epoch milliseconds, or an ordinal value. */
+    /** Where the window starts, inclusive, in the attribute's units (epoch milliseconds for a date). */
     readonly from: number;
     /** Where the window ends, exclusive, in the same units as `from`. */
     readonly to: number;
@@ -584,12 +584,12 @@ export type RunStyle =
     | boolean
     | {
           /**
-           * Also size by the run's value: `true` for the default range (node size 1 to 3, or edge
-           * width 1 to 2 times the default), `[min, max]` for a range of your own in the channel's units,
-           * `false` or left off for no size. Applies to node and edge measurements only.
+           * Also encode the run's value as node size (a node measurement) or edge width (an edge
+           * measurement): `true` for the default range, `[min, max]` for a range in the channel's own
+           * units. Left off or `false`, no size is added.
            */
           readonly size?: boolean | readonly [min: number, max: number];
-          /** What to call the layers the run adds, in place of the run's label. */
+          /** What to call the layers the run adds, in place of the run's label. Left off, the label. */
           readonly name?: string;
           /**
            * `"layers"`: a run that partitions the nodes (shape `"community"`: Louvain, Leiden, label
@@ -1040,13 +1040,13 @@ export type RunReader =
     | {
           /** A style layer whose selector reads the run. */
           readonly kind: "layer";
-          /** The layer's id; look it up live with `styles.get(id)`. */
+          /** The layer's id, for `styles.get`. */
           readonly id: LayerId;
       }
     | {
           /** A visibility filter condition whose rule reads the run. */
           readonly kind: "filter";
-          /** The filter condition's id, as the visibility API lists it. */
+          /** The condition's id in the visibility filter. */
           readonly id: string;
       };
 
@@ -1061,7 +1061,7 @@ export type SuggestionOutcome =
     | {
           /** The suggestion was added to the style stack. */
           readonly outcome: "added";
-          /** The style suggestion the run made, as its algorithm declared it. */
+          /** The suggestion this outcome is about, as the run made it. */
           readonly suggestion: StyleSuggestion;
           /** The layers it added: one for an encoding, one per half for a mark or a highlight. */
           readonly layerIds: readonly LayerId[];
@@ -1074,7 +1074,7 @@ export type SuggestionOutcome =
     | {
           /** Not added: a hand-written layer already drives this channel on every element. */
           readonly outcome: "suppressed";
-          /** The style suggestion the run made, as its algorithm declared it. */
+          /** The suggestion this outcome is about, as the run made it. */
           readonly suggestion: StyleSuggestion;
           /** That layer. */
           readonly byLayerId: LayerId;
@@ -1082,7 +1082,7 @@ export type SuggestionOutcome =
     | {
           /** Not added: a later member of the same batch suggested the same channel. */
           readonly outcome: "superseded";
-          /** The style suggestion the run made, as its algorithm declared it. */
+          /** The suggestion this outcome is about, as the run made it. */
           readonly suggestion: StyleSuggestion;
           /** The batch member whose suggestion for this channel was used instead. */
           readonly byRunId: RunId;
@@ -1090,7 +1090,7 @@ export type SuggestionOutcome =
     | {
           /** Not added: the style stack refused it. The same error went to `style:problem`. */
           readonly outcome: "refused";
-          /** The style suggestion the run made, as its algorithm declared it. */
+          /** The suggestion this outcome is about, as the run made it. */
           readonly suggestion: StyleSuggestion;
           /** The code of that error. */
           readonly code: GraphtyErrorCode;
@@ -1291,7 +1291,8 @@ export interface RunsApi {
      * suggestion the run made.
      *
      * Readable as soon as `await run` returns. A re-run keeps the first decision, because a
-     * re-run does not repaint. `"added"` means the layers went on the stack, not that they show:
+     * re-run does not repaint, unless every layer the run added was removed: then it puts them
+     * back. `"added"` means the layers went on the stack, not that they show:
      * a layer added later may cover it, which `styles.legend()` shows.
      * @param id - The run id.
      * @returns The decision, or undefined when this session holds no run with that id.

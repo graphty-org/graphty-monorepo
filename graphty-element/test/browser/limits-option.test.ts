@@ -160,6 +160,20 @@ describe("the limits option", () => {
         assert.strictEqual(element.rowCounts.batchedNodes, 200_000);
     });
 
+    it("holds a load draft's report to the ceiling in force, as the load is (#10365)", async () => {
+        const element = await mounted("batched");
+        element.limits = { renderCeiling: 2 };
+        const source = { type: "csv", config: { data: "id,name\na,A\nb,B\nc,C\n" } };
+
+        const draft = await element.session.data.prepare(source);
+        const report = await draft.report();
+        assert.deepStrictEqual(report.tooLarge, { limit: 2, count: 3, of: "nodes", graph: { nodes: 0, edges: 0 } });
+
+        const error = await refusal(draft.load());
+        assert.strictEqual(error.code, "E_TOO_LARGE");
+        assert.deepStrictEqual(error.details, { ...report.tooLarge });
+    });
+
     it("reports the limits in force, and a change of render path changes them", async () => {
         const element = await mounted("batched");
         const changes: number[] = [];
@@ -212,10 +226,10 @@ describe("the limits option", () => {
         await element.session.data.addNodes(nodes(31));
         await element.session.data.addEdges(Array.from({ length: 30 }, (_, i) => ({ src: "n0", dst: `n${i + 1}` })));
         await element.session.styles.add({
-            name: "arrowed",
+            name: "tailed",
             target: "edge",
             selector: { match: "everything" },
-            set: { "edge.arrowHead": "normal" },
+            set: { "edge.arrowTail": "normal" },
         } as never);
         await operationQueueOf(element.graph).waitForCompletion();
         await element.waitForStableFrame();
@@ -255,10 +269,10 @@ describe("the limits option", () => {
         const seen = heard(element);
         element.limits = { objectEdges: 5 };
         await element.session.styles.add({
-            name: "arrowed",
+            name: "tailed",
             target: "edge",
             selector: { match: "everything" },
-            set: { "edge.arrowHead": "normal" },
+            set: { "edge.arrowTail": "normal" },
         } as never);
 
         for (let load = 0; load < 2; load++) {

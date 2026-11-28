@@ -19,10 +19,12 @@ import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import type { ModelTemplate } from "../models/ModelCache";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { addGradientStops } from "./edgeGradient";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
+import { moveInstance } from "./moveInstance";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh, sceneLighting } from "./NodeLighting";
 import {
     bodilessSlab,
@@ -34,6 +36,8 @@ import {
     ringVertexData,
     setLabelBox,
 } from "./NodeShapeGeometry";
+import { prepareOverlayShader } from "./overlayMaterial";
+import { ON_TOP_RENDERING_GROUP } from "./RichTextLabel";
 import {
     borderRing,
     convexHull,
@@ -46,6 +50,7 @@ import {
     type Point2,
     type RingPiece,
     sharpTwinOf,
+    silhouetteOutline,
     type WaveShape,
 } from "./shapeOutlines";
 
@@ -53,6 +58,12 @@ interface NodeMeshOptions {
     styleId: string;
     is2D: boolean;
     size: number;
+    /**
+     * The shortest one width of a dashed, dotted or dash-dot border's pattern is drawn, in scene units (a screen pixel
+     * at the node's zoom, `borderRing`); unset, the pattern is measured in the border's own width. The style id
+     * names it, since the ring is cached under that id.
+     */
+    dashUnit?: number;
 }
 
 interface NodeMeshCreateOptions {
@@ -81,9 +92,61 @@ const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellip
  * @param texture - The style's texture.
  * @returns The opacity, 1 when the style names none.
  */
-export function styleOpacity(texture: NodeStyleConfig["texture"]): number {
+function styleOpacity(texture: NodeStyleConfig["texture"]): number {
     const color = texture?.color;
     return typeof color === "object" && "opacity" in color ? (color.opacity ?? 1) : 1;
+}
+
+/**
+ * The opacity a style paints a node's body at, as a line's end reads it: `node.opacity`, or 0 for a wireframe body,
+ * which hides nothing between its lines, so a plain line stops at its outline as at a translucent one (issue #10374).
+ * @param style - The resolved style.
+ * @returns The opacity.
+ */
+export function paintedBodyOpacity(style: Pick<NodeStyleConfig, "texture" | "effect"> | null | undefined): number {
+    return style?.effect?.wireframe === true ? 0 : styleOpacity(style?.texture);
+}
+
+/**
+ * Where a node body's source draws in the blended pass (Babylon draws a lower `alphaIndex` first),
+ * plus its look's place ({@link lookPlace}): after the node surfaces (`NodeBillboardBatch`, 1e8) and the edges with an
+ * index (about 1e9), before every mesh that keeps the default, as the sources' distance once put
+ * them. The place orders translucent looks among themselves by when each was first made, on both render
+ * paths and after any history of instances: a source parks at one place whose distance its
+ * geometry's bounds shift, and ties fell to whichever look's instance `scene.meshes` met first,
+ * so removing and adding back a node could reorder whole looks (issues #10029, #10030).
+ */
+const NODE_BODY_ALPHA_INDEX = 1e12;
+
+/** The `uniqueId` each look's first source had, by what the look draws, per scene. */
+const lookPlaces = new WeakMap<Scene, Map<string, number>>();
+
+/**
+ * A look's place among translucent looks: the `uniqueId` of the first source made for it. A source
+ * no node wears is pruned and made again with a higher id (and often under another cache key, as
+ * the style interner numbers a look again), which would move the look over every look made in
+ * between; it takes its first place back instead.
+ * @param mesh - The new source.
+ * @param key - What the look draws: its view, picture and style.
+ * @returns The place.
+ */
+function lookPlace(mesh: Mesh, key: string): number {
+    const scene = mesh.getScene();
+    let places = lookPlaces.get(scene);
+    if (places === undefined) {
+        places = new Map();
+        lookPlaces.set(scene, places);
+    }
+
+    // ponytail: one entry per distinct look the scene ever drew, never dropped; drop entries with the
+    // scene's sources if a graph cycles through unbounded looks.
+    let place = places.get(key);
+    if (place === undefined) {
+        place = mesh.uniqueId;
+        places.set(key, place);
+    }
+
+    return place;
 }
 
 /** How deep a node drawn flat is, as a fraction of its smaller side: thin, but never zero. */
@@ -138,6 +201,11 @@ function nearestDrawing(ring: Mesh, view: Matrix, ahead: number, at: Vector3): T
  * @param is2D - Whether the graph is drawn in 2D.
  */
 function placeByZIndex(mesh: Mesh, shape: NodeStyleConfig["shape"], is2D: boolean): void {
+    // `node.onTop`: drawn after the graph with the depth cleared, so no edge or other node covers it in any view.
+    if (shape?.onTop === true) {
+        mesh.renderingGroupId = ON_TOP_RENDERING_GROUP;
+    }
+
     const zIndex = shape?.zIndex ?? 0;
     if (zIndex >= 0) {
         if (is2D) {
@@ -419,6 +487,43 @@ export class NodeMesh {
     }
 
     /**
+     * Draw an instance {@link NodeMesh.create} built from the source it would build now, as a new
+     * instance of it starts: the 2D/3D switch keeps every node's instance (`keepNodeMeshForDimension`)
+     * rather than dispose it and build another. Only the instance's own transform and buffers are
+     * reset; the caller builds everything that hangs from it again.
+     * @param instance - The instance, off every source.
+     * @param cache - As for {@link NodeMesh.create}.
+     * @param options - As for {@link NodeMesh.create}.
+     * @param createOptions - As for {@link NodeMesh.create}.
+     * @param scene - As for {@link NodeMesh.create}.
+     * @returns The instance.
+     */
+    static reuse(
+        instance: InstancedMesh,
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        createOptions: NodeMeshCreateOptions,
+        scene?: Scene,
+    ): InstancedMesh {
+        const name = this.cacheKeyOf(options);
+        const source = cache.sourceFor(name, () => this.createSource(options, createOptions, scene));
+        instance.name = name;
+        // What Babylon's constructor and instance factory take from the source.
+        instance.position.copyFrom(source.position);
+        instance.rotation.copyFrom(source.rotation);
+        instance.scaling.copyFrom(source.scaling);
+        instance.rotationQuaternion = source.rotationQuaternion?.clone() ?? null;
+        instance.infiniteDistance = source.infiniteDistance;
+        instance.setPivotMatrix(source.getPivotMatrix());
+        if (source.instancedBuffers) {
+            instance.instancedBuffers = { ...source.instancedBuffers };
+        }
+
+        moveInstance(instance, source);
+        return instance;
+    }
+
+    /**
      * The source mesh {@link NodeMesh.create} instances, with no instance of it: what a row with
      * no `Node` is drawn from by its batch.
      * @param cache - The mesh cache.
@@ -455,6 +560,10 @@ export class NodeMesh {
     private static createSource(options: NodeMeshOptions, createOptions: NodeMeshCreateOptions, scene?: Scene): Mesh {
         const mesh = this.createMeshWithoutCache(options, createOptions, scene);
         placeByZIndex(mesh, createOptions.shape, options.is2D);
+        // The file's draw order, which the row scan reads off a row's source to honor it in 3D (PickService).
+        if (createOptions.shape?.drawOrder !== undefined) {
+            mesh.metadata = { drawOrder: createOptions.shape.drawOrder };
+        }
 
         // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
         // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
@@ -467,6 +576,8 @@ export class NodeMesh {
 
         const material = this.createMaterial(createOptions, options.is2D, scene);
         mesh.material = material;
+        // A node drawn now may be selected next: have its halo's shader ready before it is.
+        prepareOverlayShader(mesh.getScene());
         if (isNodeMaterial(material)) {
             outlineNodeMesh(mesh, sceneLighting(scene));
         }
@@ -479,6 +590,9 @@ export class NodeMesh {
             mesh.visibility = styleOpacity(createOptions.texture);
         }
 
+        const { picture, ...look } = createOptions;
+        mesh.alphaIndex =
+            NODE_BODY_ALPHA_INDEX + lookPlace(mesh, JSON.stringify([options.is2D, picture?.name ?? null, look]));
         return mesh;
     }
 
@@ -510,16 +624,68 @@ export class NodeMesh {
             part.instancedBuffers.color = new Color4(1, 1, 1, 1);
         }
 
-        const perSize = this.extentPerSize(shape);
-        const size = Math.max(shape?.size ?? 1, MIN_NODE_SIZE);
-        if (shape?.modelFit === "stretch") {
-            const axis = (value: number | undefined): number => Math.max(value ?? size, MIN_NODE_SIZE) * perSize;
-            root.scaling.set(axis(shape.width), axis(shape.height), axis(shape.depth));
-        } else {
-            root.scaling.setAll(size * perSize);
-        }
+        root.scaling.set(...this.modelScaling(shape));
 
         return root;
+    }
+
+    /**
+     * The scale a model node is built at ({@link NodeMesh.createModelInstance}): its largest extent the extent a
+     * built-in shape of the same `size` and `sizeMode` is drawn at, or under `modelFit: "stretch"` its width, height
+     * and depth.
+     * @param shape - The node's shape block.
+     * @returns The scale on x, y and z.
+     */
+    private static modelScaling(shape: NodeStyleConfig["shape"]): [number, number, number] {
+        const perSize = this.extentPerSize(shape);
+        const size = Math.max(shape?.size ?? 1, MIN_NODE_SIZE);
+        if (shape?.modelFit !== "stretch") {
+            return [size * perSize, size * perSize, size * perSize];
+        }
+
+        const axis = (value: number | undefined): number => Math.max(value ?? size, MIN_NODE_SIZE) * perSize;
+        return [axis(shape.width), axis(shape.height), axis(shape.depth)];
+    }
+
+    /**
+     * A ring's cache key: its kind, the node's style and view, and for a model node its first group, so a node of
+     * one style drawn as its shape while its model loads, then as the model, gets a ring round each rather than the
+     * shape's round the model.
+     * @param kind - The ring's kind ("node-border", "node-outer-border").
+     * @param options - The node's mesh options.
+     * @param fill - The node's own mesh.
+     * @returns The key.
+     */
+    private static ringKey(kind: string, options: NodeMeshOptions, fill: AbstractMesh): string {
+        const groups = this.modelGroups(fill);
+        const model = groups === null ? "" : `-model-${String(groups[0].uniqueId)}`;
+        return `${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}${model}`;
+    }
+
+    /**
+     * A model node's groups: the source meshes of its own instance and of every part instanced under it, which
+     * together draw the model (issue #10376: a ring round the first alone missed the model's other parts). Null
+     * for any other node.
+     * @param fill - The node's own mesh.
+     * @returns The groups, or null.
+     */
+    private static modelGroups(fill: AbstractMesh): Mesh[] | null {
+        const isGroup = (mesh: AbstractMesh): mesh is Mesh =>
+            mesh instanceof Mesh &&
+            (mesh.metadata as { graphtyModelGroup?: string } | null)?.graphtyModelGroup !== undefined;
+        const sourceOf = (mesh: AbstractMesh): AbstractMesh => (mesh as { sourceMesh?: Mesh }).sourceMesh ?? mesh;
+        const own = sourceOf(fill);
+        if (!isGroup(own)) {
+            return null;
+        }
+
+        return [
+            own,
+            ...fill
+                .getChildMeshes(true)
+                .map((child) => sourceOf(child))
+                .filter((mesh): mesh is Mesh => isGroup(mesh)),
+        ];
     }
 
     /**
@@ -559,6 +725,9 @@ export class NodeMesh {
         const extents = this.fillExtents(sized, inset);
         const mesh = creator(size, scene, createOptions.shape.detail);
         if (!this.isFitted(createOptions.shape)) {
+            // keeping its own proportions, the solid still draws its fill in by the inset of a border centered on or
+            // inside its outline, so the ring ends where the plain solid would (#10403)
+            NodeMesh.insetOutline(mesh, inset);
             return mesh;
         }
 
@@ -793,12 +962,13 @@ export class NodeMesh {
         }
 
         const flat = isFlatShape(shape.type);
-        const instance = cache.get(`node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
+        const instance = cache.get(this.ringKey("node-border", options, fill), () => {
             const extents = this.fillExtents(sized, inset);
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
-            const piecesOf = (round: Point2[]): RingPiece[] => borderRing(round, width, border?.style ?? "solid", wave);
+            const piecesOf = (round: Point2[]): RingPiece[] =>
+                borderRing(round, width, border?.style ?? "solid", wave, options.dashUnit);
             const color = border?.color ?? "#000000";
 
             const ring = { outline, depth, piecesOf, flat, color, opacity };
@@ -849,7 +1019,7 @@ export class NodeMesh {
         // out past the border's outer edge, wherever the border is drawn (a border at opacity 0 still takes its room)
         const gap = ring + (outerBorder?.offset ?? 0) * perSize;
         const flat = isFlatShape(shape.type);
-        const instance = cache.get(`node-outer-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
+        const instance = cache.get(this.ringKey("node-outer-border", options, fill), () => {
             const extents = this.fillExtents(sized, inset);
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
@@ -860,7 +1030,7 @@ export class NodeMesh {
                     const at = gap + i * step;
                     // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
                     const base = at > 0 ? mitredEdges(round, [at])[0] : round;
-                    return borderRing(base, width, outerBorder?.style ?? "solid");
+                    return borderRing(base, width, outerBorder?.style ?? "solid", undefined, options.dashUnit);
                 }).flat();
             const color = outerBorder?.color ?? "#000000";
             const ring = { outline, depth, piecesOf, flat, color, opacity };
@@ -884,7 +1054,7 @@ export class NodeMesh {
      * cached under the node's style key as its outer border is.
      * @param cache - The mesh cache the node's own mesh came from.
      * @param options - The node's mesh options.
-     * @param shape - The node's shape block.
+     * @param createOptions - The node's shape, and its border, whose inset a solid's fill is drawn in by.
      * @param halo - The underlay or overlay.
      * @param kind - Which of the two.
      * @param fill - The node's own mesh, whose outline and depth it follows.
@@ -894,12 +1064,13 @@ export class NodeMesh {
     static createHalo(
         cache: MeshCache,
         options: NodeMeshOptions,
-        shape: NodeStyleConfig["shape"],
+        createOptions: Pick<NodeMeshCreateOptions, "shape" | "border">,
         halo: NodeStyleConfig["underlay"],
         kind: "underlay" | "overlay",
         fill: AbstractMesh,
         scene?: Scene,
     ): InstancedMesh | null {
+        const { shape, border } = createOptions;
         const opacity = halo?.opacity ?? 0;
         if (shape?.type === undefined || opacity <= 0) {
             return null;
@@ -909,6 +1080,9 @@ export class NodeMesh {
         const pad = (halo?.padding ?? 0) * perSize;
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
+        // a fitted solid's fill is drawn in by a centered or inside border (createMeshWithoutCache); grow its outline
+        // back out to the box first
+        const reach = flat || !this.isFitted(shape) ? pad : pad + this.borderFit(shape, border, sized).inset;
         const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
             const own = halo?.shape;
             const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
@@ -927,7 +1101,7 @@ export class NodeMesh {
                 );
             } else {
                 const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
-                outline = offsetOutline(nodeOutline, pad);
+                outline = offsetOutline(nodeOutline, reach);
             }
             fill.computeWorldMatrix(true);
             const box = fill.getBoundingInfo().boundingBox;
@@ -945,7 +1119,7 @@ export class NodeMesh {
                 mesh.refreshBoundingInfo();
             }
             if (!ownOutline && !flat && !options.is2D) {
-                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, pad)));
+                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, reach)));
             }
             mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
 
@@ -1054,6 +1228,7 @@ export class NodeMesh {
      * @param extents.z - Its depth.
      * @param is2D - Whether the view is 2D.
      * @param scene - The scene.
+     * @param dashUnit - The shortest one width of a patterned border is drawn, in scene units ({@link borderRing}).
      * @returns The ring, or null when the style draws no border.
      */
     static createGroupBorder(
@@ -1061,6 +1236,7 @@ export class NodeMesh {
         extents: { x: number; y: number; z: number },
         is2D: boolean,
         scene?: Scene,
+        dashUnit?: number,
     ): Mesh | null {
         const { border, shape } = createOptions;
         const width = (border?.width ?? 0) * this.extentPerSize(shape);
@@ -1069,7 +1245,12 @@ export class NodeMesh {
         }
 
         const outline = this.flatOutline(shape, { across: Math.max(extents.x, extents.y), ...extents });
-        const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), extents.z, scene);
+        const mesh = ringSlab(
+            "node-border",
+            borderRing(outline, width, border?.style ?? "solid", undefined, dashUnit),
+            extents.z,
+            scene,
+        );
         placeByZIndex(mesh, shape, is2D);
         mesh.isPickable = false;
 
@@ -1265,17 +1446,46 @@ export class NodeMesh {
         fill: AbstractMesh,
         scene?: Scene,
     ): Mesh {
-        const mesh = ringSlab(name, ring.piecesOf(ring.outline), ring.depth, scene);
+        // A model is drawn scaled from its own unit box (createModelInstance), and its ring with it, so the ring is
+        // built round the outline at the model's drawn size, in world units like its width, then scaled back.
+        const unit = this.modelGroups(fill) === null ? undefined : this.modelScaling(shape);
+        const outline =
+            unit === undefined ? ring.outline : ring.outline.map(([x, y]): Point2 => [x * unit[0], y * unit[1]]);
+        const mesh = ringSlab(name, ring.piecesOf(outline), ring.depth, scene);
+        if (unit !== undefined) {
+            mesh.bakeTransformIntoVertices(Matrix.Scaling(1 / unit[0], 1 / unit[1], 1 / unit[2]));
+        }
         placeByZIndex(mesh, shape, options.is2D);
         if (!ring.flat && !options.is2D) {
-            this.followView(mesh, fill, ring.depth, ring.piecesOf);
+            this.followView(mesh, fill, ring.depth, ring.piecesOf, unit);
         }
         mesh.material = this.createBorderMaterial(ring.color, ring.opacity, scene);
 
         return mesh;
     }
 
-    private static solidOutline(fill: AbstractMesh, view?: Matrix, at?: Vector3): Point2[] {
+    private static solidOutline(
+        fill: AbstractMesh,
+        view?: Matrix,
+        at?: Vector3,
+        groups = this.modelGroups(fill),
+    ): Point2[] {
+        if (groups !== null) {
+            // a model is seldom convex (a person's arms and legs): its outline is its triangles' own, every part's
+            const points: Point2[] = [];
+            const triangles: number[] = [];
+            for (const group of groups) {
+                const base = points.length;
+                points.push(...projectedVertices(group, view, at));
+                const indices = group.getIndices() ?? [];
+                for (const index of indices) {
+                    triangles.push(base + index);
+                }
+            }
+
+            return silhouetteOutline(points, triangles);
+        }
+
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
 
         return convexHull(projectedVertices(source, view, at));
@@ -1295,15 +1505,19 @@ export class NodeMesh {
      * @param fill - The node's mesh, whose source's vertices the outline is the hull of.
      * @param depth - How deep the ring is along z.
      * @param piecesOf - The ring's pieces round an outline of the solid.
+     * @param unit - A model's scale (see borderSlab): the ring is built at it and scaled back.
      */
     private static followView(
         mesh: Mesh,
         fill: AbstractMesh,
         depth: number,
         piecesOf: (outline: Point2[]) => RingPiece[],
+        unit?: readonly [number, number, number],
     ): void {
         const scene = mesh.getScene();
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
+        // a model's parts, found once: the node they were found under may go while others still draw the ring
+        const groups = this.modelGroups(fill);
         const [toView, turn] = [new Matrix(), new Matrix()];
         const [scale, at] = [new Vector3(), new Vector3()];
         const quaternion = new Quaternion();
@@ -1340,9 +1554,9 @@ export class NodeMesh {
                 // looking into the ring, its inner wall is seen down to the face away from the camera, drawn smaller
                 // than the node's middle by as much: that face's inner edge is put on the solid's outline
                 const back = (at.z + (ahead > 0 ? box.maximum.z : box.minimum.z)) / at.z;
-                outline = this.solidOutline(source, toView, at).map(([x, y]): Point2 => [x * back, y * back]);
+                outline = this.solidOutline(fill, toView, at, groups).map(([x, y]): Point2 => [x * back, y * back]);
             } else {
-                outline = this.solidOutline(source, toView);
+                outline = this.solidOutline(fill, toView, undefined, groups);
             }
             const same =
                 outline.length === drawn.length &&
@@ -1353,14 +1567,19 @@ export class NodeMesh {
 
             drawn = outline;
             // kept at the depth it was placed at (behind the node, by z-index)
-            const shift = box.minimum.z + depth / 2;
-            const data = ringVertexData(piecesOf(outline), depth);
+            const [ux, uy, uz] = unit ?? [1, 1, 1];
+            const shift = box.minimum.z + depth / uz / 2;
+            const data = ringVertexData(piecesOf(outline.map(([x, y]): Point2 => [x * ux, y * uy])), depth);
             const positions = data.positions ?? [];
-            for (let z = 2; z < positions.length; z += 3) {
-                positions[z] += shift;
+            for (let i = 0; i + 2 < positions.length; i += 3) {
+                positions[i] /= ux;
+                positions[i + 1] /= uy;
+                positions[i + 2] = positions[i + 2] / uz + shift;
             }
             data.applyToMesh(mesh, true);
             mesh.refreshBoundingInfo();
+            // A new submesh: a frozen list of what is drawn holds the old one, whose counts overrun these buffers.
+            (scene.metadata as GraphSceneMetadata | null)?.thawActiveMeshes?.();
         });
         mesh.onDisposeObservable.addOnce(() => {
             scene.onBeforeRenderObservable.remove(observer);
@@ -1383,6 +1602,22 @@ export class NodeMesh {
         mat.freeze();
 
         return mat;
+    }
+
+    /**
+     * Shrinks a mesh drawn at its own proportions so its outline across the view comes in by `inset` on every
+     * side: the fill of a solid whose border sits centered on or inside its size.
+     * @param mesh - The mesh a shape creator returned.
+     * @param inset - How far in, on each side, in world units.
+     */
+    private static insetOutline(mesh: Mesh, inset: number): void {
+        mesh.computeWorldMatrix(true);
+        const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+        const across = Math.max(max.x - min.x, max.y - min.y);
+        if (inset > 0 && across > 0) {
+            mesh.scaling.scaleInPlace(Math.max(across - 2 * inset, MIN_NODE_SIZE) / across);
+            mesh.bakeCurrentTransformIntoVertices();
+        }
     }
 
     /**

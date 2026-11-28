@@ -1,0 +1,134 @@
+id: W1156
+name: Bacterial Assembly Graph Check for Closed Replicons, Plasmids and Repeats
+category: analysis
+validated: false
+personas:
+    - bacterial-assembly-finisher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - import-report
+    - graph-rendering
+    - layout-force-directed
+    - component-analysis
+    - cycle-detection
+    - structural-checks
+    - visual-encoding-nodes
+    - legend-display
+    - metric-histograms
+    - node-selection
+    - details-on-demand
+    - basic-statistics
+    - export-image
+    - headless-image-rendering
+    - gfa-sequence-graph-import
+    - bidirected-edge-model
+    - sequence-length-node-geometry
+    - dead-end-detection
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - statistics-panel
+    - cluster-table
+    - visual-encoding-panel
+    - gradient-editor
+    - histogram
+    - legend-panel
+    - node-details-panel
+    - image-export-dialog
+starting_state:
+    data_type: GFA 1.x assembly graph from Unicycler, SPAdes, Flye or Miniasm (segments with length and depth, bidirected links, optional paths)
+    node_count: 3-3,000 segments
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Open the assembly graph of one bacterial isolate and decide whether the genome is finished: the
+    chromosome and every plasmid closed into circles with no dead ends, and any remaining tangles explained.
+
+
+    **Mental Model**: "Each piece is a molecule." A connected component is a replicon; a segment linked end to its own
+    start is a complete circle; depth relative to the chromosome is copy number; a segment with several links at each
+    end is a repeat.
+
+
+    **Task Phases**:
+
+    1. **Summarize** - Read node count, edge count, total length, dead ends and N50 before drawing
+
+    2. **Draw the whole graph** - Load the GFA, draw both strands of each segment as one node, node length
+    proportional to sequence length
+
+    3. **Read the components** - List components by total length; mark which are closed circles and which have
+    dead ends
+
+    4. **Read depth** - Color or widen nodes by depth normalized to the chromosome; read each plasmid's depth as
+    an approximate copies-per-cell figure
+
+    5. **Find repeats** - Pick out segments with more than one link at an end and read their depth as copy number
+
+    6. **Save** - Export the graph image and the per-component table for the isolate report
+
+
+    **Decision Points**:
+
+    - Is a short circular component a plasmid, a phage or a spike-in control such as phiX?
+
+    - Is a multi-copy segment a chromosomal repeat or sequence shared with a plasmid?
+
+    - Is the assembly finished, or would more long reads bridge the remaining repeats?
+
+
+    **Information Needs**:
+
+    - Per-component total length, segment count, mean depth and whether it is a closed circle
+
+    - Dead ends listed by segment and end (start or end of the segment)
+
+    - Depth histogram and the median used for normalization
+
+    - Links at each end of a selected segment, with orientation
+
+
+    **Pain Points**:
+
+    - The standard viewer gets little development and runs only on the desktop
+
+    - Depth has to be read node by node to judge plasmid copy number
+
+    - A generic graph tool would draw links between node centers and lose which end of a segment they join
+
+
+    **Data Flow**:
+
+    - Input: assembly.gfa (S lines with sequence or LN and a depth tag, L lines with orientations and overlaps)
+
+    - Transformations: bidirected import, component and cycle detection, dead-end check, depth normalization
+
+    - Output: graph image, per-component table (length, depth, circular yes or no)
+success_criteria:
+    - metric: Completeness verdict
+      target: User can state for each component whether it is a closed circle and list its dead ends
+    - metric: Orientation fidelity
+      target: Every link is drawn at the segment end it joins in the GFA
+    - metric: Time from GFA to verdict
+      target: Under 5 minutes for a few-thousand-segment graph (design goal; no source measures it)
+sources:
+    - title: Unicycler README
+      url: https://github.com/rrwick/Unicycler
+      summary: No dead ends in an ideal bacterial graph; depth normalized to the median; repeat structure; depth color scheme
+    - title: Unicycler paper (Wick et al. 2017)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5481147
+      summary: Completed replicon is a single contig linked end to start; three contigs for chromosome and two plasmids
+    - title: Bandage wiki - Command line
+      url: https://github.com/rrwick/Bandage/wiki/Command-line
+      summary: Bandage info prints node count, edge count, total length, dead ends and N50; Bandage image renders headlessly
+    - title: Bandage wiki - Single vs double node style
+      url: https://github.com/rrwick/Bandage/wiki/Single-vs-double-node-style
+      summary: One drawn node for both strands, or both drawn with arrowheads at 3' ends
+    - title: Galaxy Training - plasmid metagenomics
+      url: https://training.galaxyproject.org/topics/microbiome/tutorials/plasmid-metagenomics-nanopore/tutorial.html
+      summary: Circular assemblies indicate the full plasmid sequence was resolved
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

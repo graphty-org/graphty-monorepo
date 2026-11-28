@@ -275,7 +275,9 @@ describe("a picture taken back out while it downloads", () => {
         const element = await mount();
         const { assets } = element.session;
         const heard = new Promise<AssetRecord>((resolve) => {
-            void assets.add(`${base}cube.gltf`, { onWaiting: resolve });
+            // The other pictures still download when the test ends: removing the element stops
+            // them, and that stop rejects this add (#10329).
+            assets.add(`${base}cube.gltf`, { onWaiting: resolve }).catch(() => undefined);
         });
         const early = await heard;
         const first = early.problems.find((p) => p.code === "E_MODEL_MISSING_FILE");
@@ -879,7 +881,14 @@ describe("model load progress", () => {
         const fetched = new Promise<void>((resolve) => {
             opened = resolve;
         });
-        const spy = vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
+        // Only the model's own request is answered here; any other request goes out as it would.
+        const original = globalThis.fetch.bind(globalThis);
+        let requests = 0;
+        const spy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            if ((input instanceof Request ? input.url : String(input)) !== url) {
+                return original(input, init);
+            }
+            requests++;
             const body = new ReadableStream<Uint8Array>({
                 start(controller) {
                     // A real fetch fails its body when its signal aborts: the idle limit's abort.
@@ -888,6 +897,11 @@ describe("model load progress", () => {
                     });
                     opened();
                     send = (chunk) => {
+                        // A stopped body takes nothing more: the add's record then says why.
+                        if (init?.signal?.aborted === true) {
+                            return;
+                        }
+
                         if (chunk === null) {
                             controller.close();
                         } else {
@@ -904,11 +918,47 @@ describe("model load progress", () => {
             spy.mockRestore();
         });
         const element = await mount();
-        const idle = DEFAULT_MODEL_LIMITS.fetchTimeoutMs;
-        // The product's own idle timer, stepped on a fake clock: no wall-clock wait.
-        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        // An idle limit no other timer of the page shares, so the stand-in below takes the download's
+        // idle timer alone: one keyed on the default 30 s also took any other 30 s timer started meanwhile.
+        const idle = DEFAULT_MODEL_LIMITS.fetchTimeoutMs + 1;
+        element.session.assets.setLimits({ fetchTimeoutMs: idle });
+        // Only the download's idle timer is stepped, on a clock of the test's own: no wall-clock wait.
+        // Every other timer stays real. A fake clock for the whole page dropped Babylon.js's scene
+        // readiness poll when real timers came back, and the scene then never reported ready again.
+        let now = 0;
+        const idleTimers = new Map<number, { due: number; fire: () => void }>();
+        let nextIdleId = 2 ** 31;
+        const realSetTimeout = globalThis.setTimeout;
+        const realClearTimeout = globalThis.clearTimeout;
+        const setSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+            handler: () => void,
+            ms?: number,
+            ...rest: unknown[]
+        ) => {
+            if (ms !== idle) {
+                return realSetTimeout(handler, ms, ...rest);
+            }
+            const id = nextIdleId++;
+            idleTimers.set(id, { due: now + ms, fire: handler });
+            return id;
+        }) as typeof setTimeout);
+        const clearSpy = vi.spyOn(globalThis, "clearTimeout").mockImplementation((id) => {
+            if (!idleTimers.delete(Number(id))) {
+                realClearTimeout(id);
+            }
+        });
+        const advance = (ms: number): void => {
+            now += ms;
+            for (const [id, timer] of idleTimers) {
+                if (timer.due <= now) {
+                    idleTimers.delete(id);
+                    timer.fire();
+                }
+            }
+        };
         cleanups.push(() => {
-            vi.useRealTimers();
+            setSpy.mockRestore();
+            clearSpy.mockRestore();
         });
         const received: number[] = [];
         let heard: () => void = () => undefined;
@@ -929,23 +979,32 @@ describe("model load progress", () => {
                     }
                 };
             });
-        await fetched;
+        // A download that stops ends the add and is heard no more: each wait ends with the add too,
+        // and fails with its record instead of waiting forever.
+        const unlessSettled = async (step: Promise<void>, before: string): Promise<void> => {
+            const ended = await Promise.race([step, adding]);
+            if (ended !== undefined) {
+                assert.fail(
+                    `settled ${ended.state} before ${before}, having heard ${JSON.stringify(received)} of ${String(bytes.length)} bytes: ${JSON.stringify(ended.problems)}`,
+                );
+            }
+        };
+        await unlessSettled(fetched, "its request was made");
         // Four chunks, each after most of the idle limit: more than twice the limit in all.
         const quarter = Math.ceil(bytes.length / 4);
         for (let at = 0; at < bytes.length; at += quarter) {
             const chunk = bytes.slice(at, at + quarter);
             const arrived = heardUpTo(at + chunk.length);
-            vi.advanceTimersByTime(idle * 0.6);
+            advance(idle * 0.6);
             send(chunk);
-            await arrived;
+            await unlessSettled(arrived, `${String(at + chunk.length)} bytes were heard`);
         }
-        // Every byte has arrived, so the idle timer has nothing left to test. Babylon.js polls a scene's
-        // readiness on setTimeout while its shaders compile, so the model is drawn on the real clock.
-        vi.useRealTimers();
+        assert.strictEqual(idleTimers.size, 1, "the idle timer is armed again after the last chunk");
         send(null);
         const record = await adding;
         assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
         assert.strictEqual(received.at(-1), bytes.length);
+        assert.strictEqual(requests, 1, "one request for the model");
     });
 
     it("stops a download when its only caller's signal aborts, and fetches it again on the next add", async () => {

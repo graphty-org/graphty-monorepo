@@ -1,0 +1,153 @@
+id: W163
+name: From Field Observations to a Plotted Bipartite Web and Index Table
+category: analysis
+validated: false
+personas:
+    - pollination-network-ecologist
+    - ecological-network-synthesis-researcher
+requires_capabilities:
+    - label-overlap-removal
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - degree-analysis
+    - basic-statistics
+    - statistics-panel
+    - details-on-demand
+    - export-image
+    - data-export
+    - bipartite-layout
+    - matrix-view
+    - matrix-import
+    - bipartite-metrics
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - node-merge-dialog
+    - graph-canvas
+    - heatmap-panel
+    - visual-encoding-panel
+    - legend-panel
+    - statistics-panel
+    - data-table-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: long observation table (date, site, plant, pollinator, count) or a wide plants-by-pollinators matrix
+    node_count: 30-210 (10-60 plants plus 20-150 pollinators per site)
+    edge_density: moderate
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn a season of field records of who visited whom into one weighted two-mode network per site, draw
+    it as the standard two-row bipartite figure and as a shaded matrix, and compute the index table that goes into
+    the paper. This is Figure 1 of nearly every plant-pollinator, seed-dispersal or host-parasite study.
+
+
+    **Mental Model**: "Plants on the bottom row, animals on the top row, links as thick as the number of visits." The
+    network is a matrix first (rows are plants, columns are animals, cells are counts) and a drawing second.
+
+
+    **Task Phases**:
+
+    1. **Load** - Open a wide matrix with species names in the first row and column, or a long table with
+    one row per observation, and choose which columns hold the lower level, higher level, site and count
+
+    2. **Split by site** - Produce one network per site or season, optionally padded to a shared species list
+    so all sites have the same rows and columns; drop species never seen at a site
+
+    3. **Clean names** - Find spelling variants and morphospecies codes that should be one species and merge
+    them; decide whether to keep singleton interactions
+
+    4. **Draw the two-row web** - Lower level as bars along the bottom, higher level along the top, bar width by
+    total interactions, link width by count, ordered by totals or by an ordering that reduces link crossings;
+    optionally add independent floral abundance to bar widths; italic species names without overlap
+
+    5. **Draw the matrix** - Shaded adjacency matrix sorted by row and column totals, where nestedness shows
+    as a filled triangle
+
+    6. **Compute indices** - Network level (connectance, linkage density, weighted nestedness, H2',
+    interaction evenness), group level and species level (degree, strength, d'), preferring quantitative versions
+
+    7. **Hand off** - Vector figure, index table per site, and the matrices for Dryad or Web of Life
+
+
+    **Decision Points**:
+
+    - Wide matrix or long table, and which columns are the two levels?
+
+    - Pad all sites to one species list or keep each site's own species?
+
+    - Which names are variants of the same species, and are singletons kept?
+
+    - Order species by totals, by a crossing-reducing ordering, or by module?
+
+    - Binary or quantitative indices?
+
+
+    **Information Needs**:
+
+    - Count of species per level and interactions per site after splitting
+
+    - List of near-duplicate names with their counts before merging
+
+    - Per-species total interactions and degree, visible on hover
+
+    - Index values per site in one table that can be exported
+
+    - Legend stating what bar width and link width encode
+
+
+    **Pain Points**:
+
+    - Graph tools expect an edge list, not a matrix with names in the first row and column
+
+    - R converts spaces in species names to dots on import
+
+    - Spelling variants silently become separate species when the table is split
+
+    - Labels overlap on webs with more than a few dozen species
+
+    - Twenty site figures with twenty different species orders
+
+    - Static output that must be touched up in a vector editor
+
+
+    **Data Flow**:
+
+    - Input: Long observation table or wide CSV/Excel matrix; optional floral abundance table
+
+    - Transformations: Split into one weighted bipartite network per site, name merging, ordering, index computation
+
+    - Output: Two-row bipartite figures, sorted matrix plots, index table, cleaned matrices
+success_criteria:
+    - metric: Time from field spreadsheet to a two-row figure per site
+      target: Under 30 minutes for 20 sites (design goal; no source measures it)
+    - metric: Label readability
+      target: No overlapping species labels on a 60 by 150 web
+    - metric: Cross-site consistency
+      target: The same species appear in the same order in every site figure when padding is chosen
+sources:
+    - title: bipartite package - Intro2bipartite vignette
+      url: https://cran.r-project.org/web/packages/bipartite/vignettes/Intro2bipartite.pdf
+      summary: Wide and long data entry, read.csv name fixes, networklevel, grouplevel and specieslevel; all indices for 22 webs take about 10 minutes
+    - title: bipartite package - Plotting with bipartite vignette
+      url: https://biometry.r-universe.dev/bipartite/doc/PlottingWithBipartite.html
+      summary: plotweb sorting options, abundance bars, curved links and the newer plotting functions
+    - title: bipartite frame2webs help page
+      url: https://search.r-project.org/CRAN/refmans/bipartite/html/frame2webs.html
+      summary: Splitting a long table into one web per site, output as a list or a padded array, dropping unseen species
+    - title: PolliNet plant-pollinator network monitoring protocol
+      url: https://www.inaturalist.org/projects/pollinator-network-monitoring-pollinet/journal/78288-plant-pollinator-network-monitoring-protocol
+      summary: 10-minute watches of one plant species in calm, clear weather
+    - title: Dormann et al. 2009 - Indices, graphs and null models for analyzing bipartite ecological networks
+      url: https://www.biometrie.uni-freiburg.de/Dateien/PDF/dormann2009openecolj.pdf
+      summary: Data cleaning choices such as merging morphospecies and handling singletons
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

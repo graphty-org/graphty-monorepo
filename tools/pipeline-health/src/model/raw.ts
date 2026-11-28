@@ -7,6 +7,7 @@ import {
     copyKey,
     type CursorItem,
     cursorKey,
+    DAILY_READ_LIMIT,
     DAILY_ROW_LIMIT,
     DAY,
     dirtyKey,
@@ -14,12 +15,15 @@ import {
     homeKey,
     indexKeys,
     KEEP_DAYS,
+    MIN,
+    type QuotaItem,
     quotaKey,
     type RawItem,
     type SourceItem,
     sourceKey,
     TIME_FIELDS,
     ttlAt,
+    utcDay,
 } from "./items.js";
 import type { BatchOp, Condition, Item, Key, Store } from "./store.js";
 
@@ -240,13 +244,74 @@ export async function takeQuota(store: Store, rows: number, nowMs: number, limit
 }
 
 /**
- * Rows counted against today's write budget.
+ * Rows written and read request units spent today, against the write and read budgets.
  * @param store - the table
  * @param nowMs - current time, which picks the day
- * @returns the rows written today, 0 when none
+ * @returns the day's rows and reads, 0 when none
  */
-export async function quotaUsed(store: Store, nowMs: number): Promise<number> {
-    return ((await store.get(quotaKey(nowMs)))?.rows as number | undefined) ?? 0;
+export async function quotaUsed(store: Store, nowMs: number): Promise<{ rows: number; reads: number }> {
+    const q = (await store.get(quotaKey(nowMs))) as QuotaItem | undefined;
+    return { rows: q?.rows ?? 0, reads: q?.reads ?? 0 };
+}
+
+/** A warm Lambda's view of today's read budget (readMeter). */
+export interface ReadMeter {
+    /** True once today's budget is spent. The first call of a day reads the count (one get). Never throws. */
+    spent(store: Store, nowMs: number): Promise<boolean>;
+    /** Adds units; writes what is pending to today's count once a minute, or sooner past `flushUnits`. Never throws. */
+    charge(store: Store, units: number, nowMs: number): Promise<void>;
+}
+
+/**
+ * The daily read budget for a Lambda that serves public reads: units are counted in memory and written to the
+ * day's QUOTA item at most once a minute per warm instance, so the counter costs one write a minute, not one per
+ * request. Instances learn the day's total when they write, so the budget can be passed by what each instance
+ * serves in its minute (5 reserved instances per Lambda bound that).
+ * @param limit - the day's read request units
+ * @param flushUnits - pending units that write at once
+ * @returns the meter
+ */
+export function readMeter(limit = DAILY_READ_LIMIT, flushUnits = 5_000): ReadMeter {
+    let day: string | undefined;
+    let total = 0;
+    let pending = 0;
+    let flushedAt = 0;
+    return {
+        async spent(store, nowMs) {
+            if (day !== utcDay(nowMs)) {
+                // ponytail: units pending from yesterday are charged to today; at most a minute's worth.
+                try {
+                    total = (await quotaUsed(store, nowMs)).reads;
+                    day = utcDay(nowMs);
+                    flushedAt = nowMs;
+                } catch (error) {
+                    // A table that cannot be read fails the request itself; the budget does not add a refusal.
+                    console.error(JSON.stringify({ readBudget: "unread", error: String(error) }));
+                    return false;
+                }
+            }
+            return total + pending >= limit;
+        },
+        async charge(store, units, nowMs) {
+            pending += units;
+            if (pending <= 0 || (nowMs - flushedAt < MIN && pending < flushUnits)) {
+                return;
+            }
+            const add = pending;
+            pending = 0;
+            flushedAt = nowMs;
+            try {
+                const item = (await store.update(quotaKey(nowMs), {
+                    add: { reads: add },
+                    set: { ttl: ttlAt(nowMs + 8 * DAY) },
+                })) as QuotaItem | undefined;
+                total = item?.reads ?? total + add;
+            } catch (error) {
+                total += add;
+                console.error(JSON.stringify({ readBudget: "unwritten", units: add, error: String(error) }));
+            }
+        },
+    };
 }
 
 /**

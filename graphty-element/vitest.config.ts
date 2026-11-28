@@ -95,12 +95,17 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/label-declutter.test.ts",
     "test/browser/label-declutter-dense.test.ts",
     "test/browser/curves-rest-the-same-however-frames-split.test.ts",
+    "test/browser/view-switch-draws-every-node.test.ts",
     "test/browser/node-gap-rests-the-same-however-frames-split.test.ts",
     "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
     "test/browser/a-layer-added-later-paints.test.ts",
     "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",
     "test/browser/label-textures-fit-across-frames.test.ts",
+    "test/browser/label-texture-uploads-once.test.ts",
     "test/browser/branches-view-scaling.test.ts",
+    "test/browser/edges-follow-running-layout.test.ts",
+    "test/browser/edges-follow-through-a-transition.test.ts",
+    "test/browser/edges-follow-steps-mid-layout.test.ts",
 ];
 
 /**
@@ -192,6 +197,9 @@ const MODEL_CHUNK = [
     "@babylonjs/core/ShadersWGSL/rgbdDecode.fragment.js",
     "@babylonjs/core/Shaders/postprocess.vertex.js",
     "@babylonjs/core/ShadersWGSL/postprocess.vertex.js",
+    "@babylonjs/core/Shaders/ShadersInclude/pbrDirectLightingSetupFunctions.js",
+    "@babylonjs/core/ShadersWGSL/ShadersInclude/pbrDirectLightingSetupFunctions.js",
+    "@babylonjs/core/Misc/brdfTextureTools.js",
     "@babylonjs/core/Misc/tools.js",
     "@babylonjs/core/Materials/Textures/Loaders/envTextureLoader.js",
     "@babylonjs/core/Materials/Textures/cubeTexture.js",
@@ -242,6 +250,8 @@ const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...AI_FRAMEWOR
 /** The tests that run real immersive sessions: the "xr" project runs them, "browser" and "interactions" do not. */
 const XR_BROWSER_TESTS = [
     "test/browser/node-batch-xr.test.ts",
+    "test/browser/xr-eye-plane.test.ts",
+    "test/interactions/xr/xr-batched-rows.test.ts",
     "test/browser/xr-session.test.ts",
     "test/browser/XRUIManager.test.ts",
     "test/browser/NodeBehavior-xr-compatibility.test.ts",
@@ -256,6 +266,29 @@ const XR_BROWSER_TESTS = [
     "test/interactions/unit/deadzone.test.ts",
     "test/browser/xr-drag-amplification.test.ts",
 ];
+
+/**
+ * The files the "browser" project runs, which "forced-batched" runs again under "batched". A literal
+ * `include: [...]`, so tools/check-test-integrity.mjs sees an entry dropped from it, and
+ * test/contracts/forced-batched-honesty.test.ts reads it from this file's text.
+ */
+const BROWSER_FILES = {
+    include: [
+        "test/browser/**/*.test.ts",
+        "test/managers/DataManager.test.ts",
+        "test/managers/LayoutManager.test.ts",
+        "test/managers/LifecycleManager.test.ts",
+        "test/managers/UpdateManager.test.ts",
+        "test/managers/SelectionManager.test.ts",
+        "test/mesh-testing/real-mesh-simple.test.ts",
+        "test/performance/**/*.test.ts",
+        "test/examples/**/*.test.ts",
+        // Edge tests require browser (hammerjs dependency)
+        "test/Edge.bezier.test.ts",
+        "test/edge-cases/**/*.test.ts",
+        "test/integration/Edge.integration.test.ts",
+    ],
+};
 
 /** The files "forced-batched" leaves out, each with its reason. */
 const forcedBatchedSkips = JSON.parse(
@@ -395,6 +428,69 @@ const PICTURE_TYPES: Readonly<Record<string, string>> = {
  * shares one context across its files, and the map tile guard must keep seeing its own requests).
  */
 const refusedPictures = new WeakMap<object, string[] | null>();
+
+/** A Chrome DevTools `Input.dispatchMouseEvent`, as test/helpers/real-input.ts builds it. */
+interface MouseEventParams {
+    type: "mouseMoved" | "mousePressed" | "mouseReleased";
+    x: number;
+    y: number;
+    button: "none" | "left" | "middle" | "right";
+    clickCount: number;
+    modifiers: number;
+}
+
+/** The DevTools modifier bits and the keys Playwright presses for them. */
+const MODIFIER_KEYS: readonly (readonly [bit: number, key: string])[] = [
+    [1, "Alt"],
+    [2, "Control"],
+    [4, "Meta"],
+    [8, "Shift"],
+];
+
+/** Per page: the modifier keys the mouse command holds down. */
+const mouseState = new WeakMap<object, { held: Set<string> }>();
+
+/**
+ * The mouse in a browser with no DevTools protocol (WebKit, the iPad path): test/helpers/real-input.ts sends each
+ * `Input.dispatchMouseEvent` here, and Playwright's own mouse and keyboard make it, so the browser's input pipeline
+ * (hit testing, pointer events, the canvas's listeners) runs as it does for a person.
+ *
+ * EACH EVENT IS SENT AS SOON AS IT ARRIVES, never after the one before it was handled. WebKit stamps a mouse event
+ * when Playwright's message reaches it, and the element tells a click from a long press by those stamps (300 ms,
+ * NodeBehavior.ts pointerEventTime). Waiting for the press, and the move before it, to be handled before sending the
+ * release put the page's handling time between the stamps: on a loaded machine a press and release sent together read
+ * 350 ms and more apart, and the click selected nothing (issue #10350). Every Playwright call is made synchronously in
+ * arrival order, so the messages still go out in that order, as the protocol delivers them.
+ * @param ctx - the browser command context
+ * @param event - the event, in the top page's CSS pixels
+ * @returns once the event is made
+ */
+const dispatchMouseEvent: BrowserCommand<[event: MouseEventParams]> = (ctx, event) => {
+    const { page } = ctx;
+    const state = mouseState.get(page) ?? { held: new Set<string>() };
+    mouseState.set(page, state);
+    const sent: Promise<void>[] = [];
+    const want = new Set(MODIFIER_KEYS.filter(([bit]) => (event.modifiers & bit) !== 0).map(([, key]) => key));
+    for (const key of [...state.held].filter((k) => !want.has(k))) {
+        sent.push(page.keyboard.up(key));
+        state.held.delete(key);
+    }
+
+    for (const key of [...want].filter((k) => !state.held.has(k))) {
+        sent.push(page.keyboard.down(key));
+        state.held.add(key);
+    }
+
+    sent.push(page.mouse.move(event.x, event.y));
+    const button = event.button === "none" ? "left" : event.button;
+    if (event.type === "mousePressed") {
+        sent.push(page.mouse.down({ button, clickCount: event.clickCount }));
+    } else if (event.type === "mouseReleased") {
+        sent.push(page.mouse.up({ button, clickCount: event.clickCount }));
+    }
+
+    return Promise.all(sent).then(() => undefined);
+};
 
 /**
  * Emulate the reader's reduced-motion preference, or clear it (test/browser/reduced-motion.test.ts). In the `browser`
@@ -843,8 +939,8 @@ const config = defineConfig({
                 // tools/, nx.json or project.json referenced. Under it these 601 cases ran only when
                 // somebody typed `npm run test:mesh` by hand; the 542 that drove mocks also ran inside
                 // "default", in an environment with no document, which is the split that made the one
-                // file driving real classes the one file no gate ran. One home now: --project=mesh, the
-                // pre-push gate (tools/prepush.sh), and CI's graphty-element-default shard.
+                // file driving real classes the one file no gate ran. One home now: --project=mesh, run by
+                // CI's graphty-element-default shard.
                 //
                 // test/mesh-testing/real-mesh-simple.test.ts deliberately ALSO runs in the "browser"
                 // project. Here its canvas is the polyfill, whose measureText is text.length * 8; there it
@@ -1062,22 +1158,8 @@ const config = defineConfig({
                 test: {
                     name: "browser",
                     setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
-                    include: [
-                        "test/browser/**/*.test.ts",
-                        "test/managers/DataManager.test.ts",
-                        "test/managers/LayoutManager.test.ts",
-                        "test/managers/LifecycleManager.test.ts",
-                        "test/managers/UpdateManager.test.ts",
-                        "test/managers/SelectionManager.test.ts",
-                        "test/mesh-testing/real-mesh-simple.test.ts",
-                        "test/performance/**/*.test.ts",
-                        "test/examples/**/*.test.ts",
-                        // Edge tests require browser (hammerjs dependency)
-                        "test/Edge.bezier.test.ts",
-                        "test/edge-cases/**/*.test.ts",
-                        "test/integration/Edge.integration.test.ts",
-                        // Interaction tests moved to dedicated 'interactions' project
-                    ],
+                    // "forced-batched" runs the same files. Interaction tests have their own project.
+                    include: BROWSER_FILES.include,
                     exclude: [
                         // Interaction tests have their own project
                         "test/interactions/**/*.test.ts",
@@ -1127,7 +1209,8 @@ const config = defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "gpu-loss",
-                    setupFiles: ["./test/setup.ts"],
+                    // fresh-gpu-process.ts restarts the GPU process before each test (issue #9731)
+                    setupFiles: ["./test/setup.ts", "./test/gpu-loss/fresh-gpu-process.ts"],
                     include: ["test/gpu-loss/**/*.test.ts"],
                     fileParallelism: false,
                     browser: {
@@ -1219,7 +1302,9 @@ const config = defineConfig({
                 test: {
                     name: "forced-batched",
                     setupFiles: [MAP_TILES_SETUP, "./test/setup.ts", "./test/forced-batched/setup.ts"],
-                    include: ["test/browser/**/*.test.ts", "test/interactions/**/*.test.ts"],
+                    // Every file "browser" runs, and the interaction suite: test/contracts/forced-batched-honesty.test.ts
+                    // reads the same lists to check each file really draws batched rows.
+                    include: [...BROWSER_FILES.include, "test/interactions/**/*.test.ts"],
                     exclude: [
                         "test/browser/**/*.bench.test.ts",
                         ...forcedBatchedSkips.map(({ file }) => file),
@@ -1267,6 +1352,37 @@ const config = defineConfig({
                         "./test/setup-minimum-work.ts",
                     ],
                     include: MINIMUM_WORK_TESTS,
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        commands: { ...mapTileCommands, ...heldRequestCommands, ...samplePictureCommands },
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [browserInstance()],
+                    },
+                },
+            },
+            {
+                // "minimum-work" again with "batched" as the default render path: work split across
+                // frames is where the row table, the batches and the landings differ from objects.
+                // Runs in the forced-batched shards (tools/ci-test-matrix.mjs).
+                define: { ...define },
+                plugins: [rawModelWorkers()],
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
+                resolve: { alias: OWN_ENTRY_POINTS },
+                test: {
+                    name: "minimum-work-batched",
+                    setupFiles: [
+                        MAP_TILES_SETUP,
+                        "./test/setup.ts",
+                        "./test/setup-minimum-work.ts",
+                        "./test/forced-batched/setup.ts",
+                    ],
+                    include: MINIMUM_WORK_TESTS,
+                    exclude: forcedBatchedSkips.map(({ file }) => file),
                     fileParallelism: false,
                     browser: {
                         enabled: true,
@@ -1357,6 +1473,46 @@ const config = defineConfig({
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
+                        instances: [{ browser: "webkit" }],
+                    },
+                },
+            },
+            {
+                // Hover, click and edges in motion in WebKit's WebGL2 (the iPad path), on both render paths: batched
+                // picking reads a pixel back from an ID render target, and WebKit's readPixels formats, integer
+                // targets and antialias resolve differ from Chromium's. A subset of three Chromium files, by test name
+                // (package.json test:interactions-webkit): pick-parity's nodes and edges at rest with selection, and
+                // edges-follow's ngraph and glide cases.
+                // The mouse comes from Playwright (dispatchMouseEvent), as WebKit has no DevTools protocol. Full run
+                // only (tools/ci-test-matrix.mjs, graphty-element-interactions-webkit); v8 coverage cannot instrument
+                // WebKit, so it runs without. How to run: test/interactions/README.md.
+                define: { ...define },
+                plugins: [rawModelWorkers()],
+                resolve: {
+                    alias: {
+                        "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
+                    },
+                },
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: PREBUNDLED, force: true },
+                test: {
+                    name: "interactions-webkit",
+                    setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
+                    include: [
+                        "test/interactions/pick-parity.test.ts",
+                        "test/browser/edges-follow-running-layout.test.ts",
+                        "test/browser/edges-follow-through-a-transition.test.ts",
+                    ],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        commands: { ...mapTileCommands, dispatchMouseEvent },
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        // A runner page wide enough that the test frame is not scaled down: WebKit's mouse lands on
+                        // whole pixels of this page, so each is then one pixel of the frame (real-input.ts reachable).
+                        provider: playwright({ contextOptions: { viewport: { width: 1600, height: 1200 } } }),
                         instances: [{ browser: "webkit" }],
                     },
                 },

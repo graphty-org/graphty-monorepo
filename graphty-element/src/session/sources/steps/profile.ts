@@ -6,10 +6,11 @@
  */
 
 import { GraphtyError } from "../../../errors/GraphtyError";
+import { isSourceFactKey } from "../ids";
 import { sourceOf } from "./acts";
 import { isDate, isEmpty, isNumber, normalize, ownSpace, tableRows } from "./build";
 import { buildOf, type Copies, copyMap, type SourceSteps, type StepsSource } from "./project";
-import type { CellValue, Row, TableName } from "./types";
+import type { CellValue, Row, TableName, Value } from "./types";
 
 /** How many distinct values a profile lists as samples. */
 const SAMPLES = 5;
@@ -72,6 +73,15 @@ interface MappingSummary {
 }
 
 /**
+ * The column a source's rows are keyed by because they were numbered under it: the file never had it.
+ * @param src - The source.
+ * @returns The column, or undefined for a source keyed by a column of its own or by none.
+ */
+export function numberedKey(src: StepsSource): string | undefined {
+    return src.numbered !== undefined && src.numbered === src.mapping.nodes?.key ? src.numbered : undefined;
+}
+
+/**
  * What a source's rows are for. A node space reads only once it was named, since unset Add proposes
  * the type; an end's space reads unless it is the source's own.
  * @param src - The source.
@@ -90,7 +100,7 @@ function mappingSummary(src: StepsSource): MappingSummary {
     return {
         rows,
         ...defined({
-            key: nodes?.key,
+            key: numberedKey(src) === undefined ? nodes?.key : undefined,
             space: src.spacePicked === true ? nodes?.space : undefined,
             type: src.stagedType ?? undefined,
             edges:
@@ -130,7 +140,7 @@ function kindOf(v: CellValue): ProfileKind {
  * @param cells - The cells, one per row.
  * @returns The profile.
  */
-function profileOf(cells: Iterable<CellValue | undefined>): ColumnProfile {
+export function profileOf(cells: Iterable<CellValue | undefined>): ColumnProfile {
     let rows = 0;
     let empty = 0;
     const kinds: Record<ProfileKind, number> = { text: 0, number: 0, date: 0, boolean: 0 };
@@ -191,18 +201,33 @@ function rowsOf(
 }
 
 /**
- * The columns of some rows, in the order first read.
+ * The columns of some rows, in the order the rows hold them, without the element's own `_source.`
+ * facts. A row leaves out its empty cells, so a column first met in a later row goes in beside the ones
+ * that row holds round it.
  * @param rows - The rows.
+ * @param numbered - The column the rows' key was numbered under, left out too.
  * @returns The column names.
  */
-function columnsOf(rows: readonly Row[]): string[] {
-    const out = new Set<string>();
+export function columnsOf(rows: readonly Row[], numbered: string | undefined): string[] {
+    const known = new Set<string>();
+    const out: string[] = [];
     for (const row of rows) {
-        for (const k of Object.keys(row)) {
-            out.add(k);
+        const keys = Object.keys(row).filter((k) => !isSourceFactKey(k) && k !== numbered);
+        if (keys.every((k) => known.has(k))) {
+            continue;
+        }
+        let at = 0;
+        for (const k of keys) {
+            if (known.has(k)) {
+                at = out.indexOf(k) + 1;
+            } else {
+                known.add(k);
+                out.splice(at, 0, k);
+                at++;
+            }
         }
     }
-    return [...out];
+    return out;
 }
 
 /**
@@ -236,21 +261,66 @@ function sourceProfile(
 }
 
 /**
- * The profile of the keys of the nodes one id space holds in a build: Field 1's Key.
+ * The profile of the keys of the nodes one id space holds in a build (Field 1's Key), or of a column
+ * they carry, each value of a list apart.
  * @param value - The value.
  * @param copies - The rows as read.
  * @param space - The space.
+ * @param field - The column; absent, the keys.
  * @returns The profile; every count 0 for a space no node lives in.
  */
-export function spaceProfile(value: SourceSteps, copies: Copies, space: string): ColumnProfile {
-    const keys = function* (): Generator<string> {
+export function spaceProfile(value: SourceSteps, copies: Copies, space: string, field?: string): ColumnProfile {
+    const cells = function* (): Generator<CellValue | undefined> {
         for (const n of buildOf(value, copies).nodes.values()) {
-            if (n.space === space) {
-                yield n.key;
+            if (n.space !== space) {
+                continue;
+            }
+            const v = field === undefined ? n.key : n.values[field];
+            if (Array.isArray(v)) {
+                yield* v as CellValue[];
+            } else {
+                yield v as CellValue | undefined;
             }
         }
     };
-    return profileOf(keys());
+    return profileOf(cells());
+}
+
+/** One column the nodes of a space carry. */
+interface SpaceColumn {
+    readonly name: string;
+    readonly kind: ProfileKind | "list";
+    readonly filled: number;
+}
+
+/**
+ * The columns the nodes of one id space carry in a build, the ones merges brought included.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param space - The space.
+ * @returns The columns, in the order first met.
+ */
+export function spaceColumns(value: SourceSteps, copies: Copies, space: string): readonly SpaceColumn[] {
+    const cells = new Map<string, Value[]>();
+    for (const n of buildOf(value, copies).nodes.values()) {
+        for (const [name, v] of n.space === space ? Object.entries(n.values) : []) {
+            // a source's own value of a clash is no column of the space
+            if (!isEmpty(v) && !isSourceFactKey(name) && n.clashColumns?.[name] === undefined) {
+                const held = cells.get(name) ?? [];
+                held.push(v);
+                cells.set(name, held);
+            }
+        }
+    }
+    return Object.freeze(
+        [...cells].map(([name, held]) =>
+            Object.freeze({
+                name,
+                kind: held.some((v) => Array.isArray(v)) ? ("list" as const) : profileOf(held as CellValue[]).kind,
+                filled: held.length,
+            }),
+        ),
+    );
 }
 
 /**
@@ -266,7 +336,7 @@ function sourceSummary(value: SourceSteps, copies: Copies, source: string): Sour
     const map = copyMap(copies);
     const tables = (["nodes", "edges"] as const).flatMap((table): TableSummary[] => {
         const rows = tableRows(src, map, table);
-        return rows === null ? [] : [{ table, rows: rows.length, columns: columnsOf(rows) }];
+        return rows === null ? [] : [{ table, rows: rows.length, columns: columnsOf(rows, numberedKey(src)) }];
     });
     return {
         tables,
@@ -284,22 +354,43 @@ export interface TableHandle {
     readonly source: string;
     summary(): SourceSummary;
     profile(column: string, options?: { readonly table?: TableName }): ColumnProfile;
+    rows(options?: RowsQuery): { readonly total: number; readonly rows: readonly Row[] };
+}
+
+/** Which of a source's rows to read. */
+interface RowsQuery {
+    readonly table?: TableName;
+    readonly offset?: number;
+    readonly limit?: number;
 }
 
 /**
  * A handle on one source's rows, reading the value and copies `now` gives at each call.
  * @param now - The value and copies now.
  * @param source - The source.
+ * @param loadedAt - When it was read, when the source itself holds no record of it (after a reopen).
  * @returns The handle.
  * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source.
  */
-export function tableHandle(now: () => { value: SourceSteps; copies: Copies }, source: string): TableHandle {
+export function tableHandle(
+    now: () => { value: SourceSteps; copies: Copies },
+    source: string,
+    loadedAt?: string,
+): TableHandle {
     sourceOf(now().value, source);
     return Object.freeze({
         source,
         summary: () => {
             const { value, copies } = now();
-            return sourceSummary(value, copies, source);
+            return { ...(loadedAt === undefined ? {} : { loadedAt }), ...sourceSummary(value, copies, source) };
+        },
+        rows: ({ table, offset = 0, limit }: RowsQuery = {}) => {
+            const { value, copies } = now();
+            const src = sourceOf(value, source);
+            const own = table ?? (src.mapping.nodes === undefined ? "edges" : "nodes");
+            const all = tableRows(src, copyMap(copies), own) ?? [];
+            const from = Math.max(0, offset);
+            return { total: all.length, rows: all.slice(from, from + Math.max(0, limit ?? all.length)) };
         },
         profile: (column: string, options: { readonly table?: TableName } = {}) => {
             const { value, copies } = now();

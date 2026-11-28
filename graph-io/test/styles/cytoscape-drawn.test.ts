@@ -216,6 +216,34 @@ describe("reading Cytoscape files as Cytoscape draws them", () => {
         expect(shown("group-collapsed", "B58")).not.toContain(false);
     });
 
+    it.each([
+        ["cx", corpus("cx/fidelity/syn-bypass.cx"), 10],
+        ["cx2", corpus("cx2/fidelity/syn-bypass.cx2"), 10],
+        // display: none on the target hides the edge; visibility: hidden on the target keeps it drawn
+        [
+            "json",
+            new Uint8Array(
+                readFileSync(
+                    resolve(import.meta.dirname, "../fidelity/specimens/cytoscapejs/specimen-edges-lines-p2.json"),
+                ),
+            ),
+            1,
+        ],
+    ] as const)("draws no edge of a node the program hides (%s)", async (format, bytes, count) => {
+        const { snapshot, styles } = await importGraph(bytes, { format, styles: true });
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const nodeShown = resolveStyles(styles, "node", "visible", snapshot);
+        const edgeShown = resolveStyles(styles, "edge", "visible", snapshot);
+        const { src, dst } = snapshot.edgeList();
+        const atHidden = Array.from({ length: snapshot.edgeCount }, (_, e) => e).filter(
+            (e) => nodeShown[src[e]] === false || nodeShown[dst[e]] === false,
+        );
+        expect(atHidden).toHaveLength(count);
+        expect(atHidden.map((e) => edgeShown[e])).toEqual(atHidden.map(() => false));
+    });
+
     it("reads a picture annotation's box and address, and readAnnotations still lists it as skipped", async () => {
         const { snapshot } = await importGraph(corpus("cx/fidelity/syn-bypass.cx"), { format: "cx" });
         const [image, ...rest] = readImageAnnotations(snapshot);

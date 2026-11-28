@@ -247,11 +247,13 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.labelTextAlign", plan(text, "labelTextAlign")],
         ["node.labelLocation", plan(text, "labelPosition")],
         ["node.labelItalic", plan(flag, "labelItalic")],
+        ["node.labelUnderline", plan(flag, "labelUnderline")],
         ["node.labelRotation", plan(number, "labelRotation")],
         // The scene's units, written in a node size's, which a file graphty wrote is read back in.
         ["node.labelWrapWidth", plan((value) => scaled(value, 1 / SCENE_PER_UNIT.node), "labelWrapWidth")],
         ["node.labelWrapTrailingSpace", plan(flag, "labelWrapTrailingSpace")],
         ["node.labelWrapSkipEndSpace", plan(flag, "labelWrapSkipEndSpace")],
+        ["node.labelWrapUnkerned", plan(flag, "labelWrapUnkerned")],
         // Screen pixels: never scaled with the file's lengths.
         ["node.labelMinScreenSize", plan(number, "labelMinScreenSize")],
         ["node.labelOnTop", plan(flag, "labelOnTop")],
@@ -261,10 +263,12 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.shape", plan(table(NODE_SHAPES), "shape")],
         ["node.size", plan(number, "width", "height")],
         ["node.opacity", plan(opacity, "opacity")],
+        ["node.visible", plan(flag, "visible")],
     ]),
     edge: new Map([
         ["edge.color", plan(color, "color")],
         ["edge.opacity", plan(opacity, "opacity")],
+        ["edge.visible", plan(flag, "visible")],
         ["edge.width", plan(number, "width")],
         // Screen pixels: never scaled with the file's lengths.
         ["edge.minScreenWidth", plan(number, "minScreenWidth")],
@@ -280,6 +284,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.arrowHeadFillColor", plan(color, "targetArrowFillColor")],
         ["edge.arrowTailFillColor", plan(color, "sourceArrowFillColor")],
         ["edge.label", plan(text, "label")],
+        ["edge.tooltip", plan(text, "tooltip")],
         ["edge.arrowHeadText", plan(text, "targetLabel")],
         ["edge.arrowTailText", plan(text, "sourceLabel")],
         ["edge.xlabel", plan(text, "xlabel")],
@@ -290,6 +295,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.labelTextAlign", plan(text, "labelTextAlign")],
         ["edge.labelLocation", plan(text, "labelPosition")],
         ["edge.labelItalic", plan(flag, "labelItalic")],
+        ["edge.labelUnderline", plan(flag, "labelUnderline")],
         ["edge.labelMinScreenSize", plan(number, "labelMinScreenSize")],
         ["edge.labelOnTop", plan(flag, "labelOnTop")],
     ]),

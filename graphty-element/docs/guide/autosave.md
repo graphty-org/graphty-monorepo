@@ -185,6 +185,36 @@ textarea.value = element.autosaver.stashed("org.example.note-draft") ?? "";
 The value is any small JSON value, under a reverse-domain name. **Never stash API keys, passwords
 or other secrets:** the stash is stored unencrypted in the reader's browser.
 
+## Open filter drafts
+
+A filter condition being edited in a draft (`session.visibility.draft(...)`) is the reader's
+unfinished edit, so autosave keeps every open draft with the work and opens it again after a
+restore, still uncommitted: nothing shown changes until it is committed. Pick it up by the
+condition's id instead of opening a new draft:
+
+```javascript
+await element.autosaver.ready;
+const { visibility } = element.session;
+const draft = visibility.draftOf("c1") ?? visibility.draft("c1");
+// a draft of a new condition comes back too, under the id it was opened with:
+const unwritten = visibility.openDrafts().filter((each) => !visibility.conditions.some((c) => c.id === each.id));
+```
+
+A draft that cannot be opened again (the condition it edited is gone) is dropped, and the restore's
+report lists it as `W_FILTER_DRAFT_DROPPED` with the condition's `id`.
+
+An open draft of the sources and steps (`session.data.draft()`, under the `source-steps`
+experiment) is kept the same way: after a restore it is open again, uncommitted, drawn as it was
+and with its undo history, so pick it up instead of opening a new one:
+
+```javascript
+await element.autosaver.ready;
+const draft = element.session.data.currentDraft() ?? element.session.data.draft();
+```
+
+A draft that cannot be opened again (the experiment is off, or the rows it read are gone) is
+dropped, and the restore's report lists it as `W_SOURCE_DRAFT_DROPPED`.
+
 ## The entries
 
 ```javascript

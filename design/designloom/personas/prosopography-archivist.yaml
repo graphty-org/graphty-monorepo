@@ -1,0 +1,73 @@
+id: prosopography-archivist
+name: Prosopography Archivist and Database Editor
+roster_persona: knowledge-engineer
+tier: B
+scope: in-scope
+role: Archivist and Editor of a Correspondence Catalog and Factoid Prosopography
+quote: A tie is a claim someone made from a source. If the tool throws away who claimed it and from which document, it has thrown away the evidence.
+bio: >-
+    Femke Vos is an archivist responsible for a correspondence catalog and a factoid prosopography, and she contributes
+    records to a union catalog and to Wikidata and FactGrid. Her unit of data is not an edge but a factoid, "a
+    statement by a modern scholar of a thing a source says about a person", with its source, the date the assertion was
+    made as well as the date of the event, a certainty grade, and conflicting claims kept side by side. She works in
+    database tools such as nodegoat and Wikibase, writes SPARQL against Wikidata, and publishes views that readers use
+    to walk from a person to their correspondents to the records behind each tie. She has watched bespoke project
+    websites die when funding ended and wants views that survive staff turnover.
+characteristics:
+    expertise: advanced
+    time_pressure: low
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Readers can navigate person to correspondents to records with provenance on every link
+    - Uncertainty, conflicting claims and date ranges survive into the visualization and the export
+    - Authority ids (VIAF, Q-ids, project ids) stay the node ids so data can be re-run and merged
+    - A published view that lasts longer than the project grant
+behaviors:
+    - Models objects (Person, Letter, Place, Event) with sub-objects such as Birth or Letter-sent, each with date and place
+    - Grades each statement (Primary, Secondary, Inference, Conjecture or a 1-100 score) and filters views by certainty
+    - Stores uncertain dates as ranges or relative statements and uncertain places as polygons
+    - Keeps two-mode charter-witness data and projects it only for metrics
+    - Queries Wikidata or FactGrid and exports result tables to CSV for network tools
+    - Reviews machine-extracted ties from catalog text before they enter the catalog
+frustrations:
+    - Network tools flatten assertions into bare edges with no source, certainty or asserting scholar
+    - Uncertainty and conflicting claims are lost on export
+    - Bespoke D3 or sigma.js project sites decay and are retired
+    - SPARQL is unforgiving of typos and the query service has no network view
+context:
+    frequency: weekly
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W174
+    - W179
+    - W180
+    - W182
+    - W318
+sources:
+    - title: Factoid Prosopography - About (King's College London)
+      url: https://www.kcl.ac.uk/factoid-prosopography/about
+      summary: The factoid model, a scholar's statement about what a source says about a person
+    - title: FactGrid help - How do I feed data into FactGrid
+      url: https://database.FactGrid.de/wiki/Help:How_do_I_feed_data_into_FactGrid%3F
+      summary: Conflicting statements kept side by side with their sources
+    - title: nodegoat - How to store uncertain data
+      url: https://nodegoat.net/blog.s/43/how-to-store-uncertain-data-in-nodegoat-incomplete-source-material
+      summary: Certainty classes, Derived from grades, filtering by score
+    - title: nodegoat - ChronoJSON and EDTF limits
+      url: https://nodegoat.net/blog.p/82.m/go/28
+      summary: Relational date statements that EDTF could not handle
+    - title: Kindred Britain retirement notice (Scott Murray)
+      url: https://scottmurray.org/work/kindred-britain
+      summary: A notable DH network site warning it is not current and will be retired
+    - title: People of Medieval Scotland - closing thoughts
+      url: https://poms.kdl.kcl.ac.uk/documents/91/10-Closing-Thoughts.pdf
+      summary: Charter-witness two-mode data; frequent co-witnessing makes a real tie more probable
+    - title: Programming Historian - Wikidata for Historical Research
+      url: https://programminghistorian.org/en/lessons/wikidata-for-historical-research
+      summary: Query Builder and SPARQL for historians, Q-ids and P-ids, CSV export
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

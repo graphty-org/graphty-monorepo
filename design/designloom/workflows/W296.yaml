@@ -1,0 +1,117 @@
+id: W296
+name: Identifier List to Network via a Public Database
+category: onboarding
+validated: false
+personas:
+    - graph-data-wrangler
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - component-analysis
+    - neighborhood-expansion
+    - search
+    - live-data-source
+suggested_components:
+    - gene-set-import-dialog
+    - data-import-dialog
+    - data-preview-table
+    - attribute-table-join-dialog
+    - statistics-panel
+    - graph-canvas
+starting_state:
+    data_type: List of identifiers with no edges (gene symbols, UniProt accessions, watchlist accounts) plus an optional data table
+    node_count: 50-600 query identifiers
+    edge_density: unknown until queried
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Start from a list of identifiers and get the network among them from a public database, resolving
+    ambiguous matches, then join the user's measurements onto the result. The canonical case is a gene list sent to
+    STRING through Cytoscape's stringApp; downstream analysis of expression data is in W20.
+
+
+    **Mental Model**: "I know the cast; ask the database who knows whom." The edges come from outside; the user's job is
+    to make sure the database understood which things were meant.
+
+
+    **Task Phases** (no source gives step timings):
+
+    1. **Start from a list** - Gene symbols or accessions, often pasted from a spreadsheet
+
+    2. **Protect identifiers from Excel** - Excel turns SEPT2 into a date; 19.6% of papers with Excel gene lists had
+    such errors in 2016 and 30.9% in 2014-2020; since late 2023 Excel can turn automatic data conversion off
+
+    3. **Query the database** - Paste identifiers, choose species, a confidence cutoff (0.4 in a UCSF example) and the
+    maximum number of additional interactors (0 keeps only the query proteins)
+
+    4. **Resolve ambiguity** - A dialog lists terms that match several database entries, first match preselected
+
+    5. **Join the measurements** - Import the data table keyed on the query term rather than the default internal name
+
+    6. **Check** - How many query terms mapped, how many came back isolated, then lay out
+
+
+    **Decision Points**:
+
+    - Which species and confidence cutoff?
+
+    - Add extra interactors to connect the list, or keep only the query set?
+
+    - Which match is right for each ambiguous identifier?
+
+    - Keep isolated query genes or drop them?
+
+
+    **Information Needs**:
+
+    - Count of identifiers found, ambiguous and not found, with the not-found list
+
+    - Identifiers that look date-converted (SEPT2 to 2-Sep) flagged before the query
+
+    - Number of isolates and component sizes after retrieval
+
+    - Join match count keyed on the query term
+
+
+    **Pain Points**:
+
+    - Excel silently converts gene symbols to dates
+
+    - Ambiguous identifiers resolved by a preselected first match the user may not inspect
+
+    - The join defaults to the internal name instead of the query term, so nothing matches
+
+    - Not-found identifiers disappear without a list
+
+
+    **Data Flow**:
+
+    - Input: Identifier list, species, cutoff; optional measurement table
+
+    - Transformations: Identifier check, database query, ambiguity resolution, key-column join
+
+    - Output: Interaction network among the query set (and any added interactors) with joined data and a mapping report
+success_criteria:
+    - metric: Mapping report
+      target: User can state how many identifiers mapped, were ambiguous, or were not found
+    - metric: Identifier safety
+      target: No identifier is coerced to a date or number on the way in
+sources:
+    - title: Jensen lab - stringApp exercises
+      url: https://jensenlab.org/training/stringapp/
+      summary: STRING protein query, species, confidence cutoff, additional interactors, disambiguation dialog
+    - title: Cytoscape App Store - stringApp
+      url: https://apps.cytoscape.org/apps/stringapp
+      summary: Import network from public databases via STRING
+    - title: Ziemann, Eren and El-Osta 2016 - Gene name errors are widespread in the scientific literature
+      url: https://genomebiology.biomedcentral.com/track/pdf/10.1186/s13059-016-1044-7
+      summary: 19.6% of papers with Excel gene lists had gene name conversion errors
+    - title: Abeysooriya et al. 2021 - Gene name errors - lessons not learned
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8357140/
+      summary: 30.9% of papers with Excel gene lists in 2014-2020 had errors
+    - title: TechRepublic - How to control data conversions in Excel
+      url: https://www.techrepublic.com/article/how-to-control-data-conversions-excel/
+      summary: Excel option to turn off automatic data conversion
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

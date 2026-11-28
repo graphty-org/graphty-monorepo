@@ -1,0 +1,21 @@
+id: columnar-table-import
+name: "Parquet and Arrow Table Import"
+category: data
+description: "Read a generic edge table and node table written as Parquet, Arrow IPC or Feather (by pandas, polars, DuckDB, Spark GraphFrames, cuDF or Neo4j APOC), as dropped files in the browser or as Arrow bytes handed over by a notebook widget, with column mapping for id, source, target and weight; keep each column's written type, keep 64-bit integer ids exact, and report row counts, edge endpoints with no node row, and any column not kept. Export a subset back as Parquet keyed by original ids."
+status: planned
+notes: "Research trace: code-first-data-scientists-and-graph-ml.md section 10, table row 2 (Must)."
+algorithms: []
+used_by_workflows:
+    - W1120
+    - W266
+    - W1162
+    - W2066
+    - W2097
+implemented_by_components: []
+requirements:
+    - "Must: Take Parquet, Arrow or Feather edge and node tables, as files or as Arrow bytes from a notebook widget,
+      with typed columns kept"
+sources:
+    - title: Code-First Data Scientists and Graph Machine Learning Engineers (section 10, table row 2)
+      url: design/user-research/code-first-data-scientists-and-graph-ml.md
+      summary: "Must in the research. Covered by Designloom when researched: No (6.1, 5.13)"

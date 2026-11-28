@@ -54,6 +54,10 @@ shipped.
 - `timeline`: the [Timeline](./timeline) is a normal feature. `session.time` and the time
   attributes work with no `features` set, and `features="timeline"` is accepted and changes
   nothing.
+- `assistant`: the [AI assistant](./ai-assistant) is a normal feature. A message's `scope`,
+  `session.selection.peek`, `voice.review` and what a message did (effects, targets, durations,
+  provenance) work with no `features` set, and `features="assistant"` is accepted and changes
+  nothing.
 
 ## The experiments in this build
 
@@ -97,8 +101,10 @@ from an ordered list of steps that add, merge and connect them. Work in progress
   `load()` without a join, a network source) becomes one source plus a step that adds it; a
   replacing load takes every source out first, so opening a file works as before;
 - each source's keys live in an id space: its own unless the load names `space` or `type`, so two
-  loads with no options never merge their nodes. A NodeId is the key when one space holds it, else
-  `<space>:<key>`;
+  loads with no options never merge their nodes. A NodeId is the key; where a node loaded earlier in
+  another space has that key, `<space>:<key>`, or `<source's name>:<key>` in a source's own space. A
+  node keeps its NodeId whatever is loaded, renamed, replaced, turned off or taken out around it, and a
+  saved project holds it, so a direct edit naming a NodeId edits that node;
 - `addNodes` and the other direct edits are the reader's own edits (`data.edits()`,
   `data.removeEdit(id)`); `mergeNodes` is refused with `E_UNSUPPORTED` (`reason: "later"`);
 - `data.stage`, `data.steps`, `data.spaces`, `data.types`, `data.declareType` and `data.ref` read
@@ -136,7 +142,9 @@ for (const issue of report.issues ?? []) {
 To bring a second source in on purpose, stage it (`data.stage` reads it but builds nothing yet),
 then `data.merge` it into the nodes it names or `data.connect` it to them as edges. Where both
 sources hold a value for the same cell, the first one held is kept unless the merge's `clash`
-names another rule per column (`overwrite`, `both`, `min`, `max`, `mean`, `vote`); `min`, `max`
+names another rule per column (`overwrite`, `both`, `min`, `max`, `mean`, `vote`). `both` keeps the
+other value in a column named by the source's id, whose `plainName` in `data.attributes()` names the
+source. Two matches of one source that bring one node two values are settled the same way. `min`, `max`
 and `mean` on a column whose values are not numbers (or dates, for `min` and `max`) are refused
 with `E_CLASH_RULE_TYPE`. `data.conflicts()` lists each cell that differs, each `data.steps()` row
 counts them per column (`W_VALUES_DIFFER` in `valuesDiffer`), and `data.pick` settles one cell as
@@ -165,7 +173,7 @@ off, loads, joins, removal, refresh and saved files are as before.
 A draft tries acts on a copy of the sources and steps, so a reader can see what they would do
 before the graph changes. `data.draft()` opens one; it takes the same acts as the data doors
 (`stage`, `add`, `merge`, `connect`, `extract`, `pick`, `editStep`, `removeSource`, ...) and its
-own `undo()`. `commit()` applies all of them as one undo step, and `dispose()` leaves nothing.
+own `undo()` and `redo()` (`canUndo` and `canRedo` say whether there is anything to). `commit()` applies all of them as one undo step, and `dispose()` leaves nothing.
 
 ```ts
 const session = createGraphSession({ features: ["source-steps"] });
@@ -185,8 +193,12 @@ await draft.commit(); // one undo step: Undo puts the entries back to staged
 
 `matchCounts` (also `data.matchCounts`) hashes the two fields without building anything:
 `matched`, `only1`, `only2`, `repeated1`, `repeated2`, `fanOut`, `textVersusNumber`, and how many
-more would match with `ignoreCase` or `ignoreSpaces` on. `matchValues` lists the values behind
-them, a page at a time.
+more would match with `ignoreCase` or `ignoreSpaces` on. The same by row: `rows`, `matchedRows`,
+`emptyRows`, and the rows that would match with one toggle on, or with both
+(`moreRowsWithIgnoreCase`, `moreRowsWithIgnoreSpaces`, `moreRowsWithBoth`); and by node of the other
+side, where the odd spelling may be: `matchedNodes`, `moreNodesWithIgnoreCase`,
+`moreNodesWithIgnoreSpaces`, `moreNodesWithBoth`. `matchValues` lists the values behind them, a page at
+a time.
 
 Before a join, a staged source can be read and set up without building anything:
 
@@ -202,6 +214,7 @@ Before a join, a staged source can be read and set up without building anything:
 - A staged source named like a committed one lists that source's key in `sameName`.
 - `data.staged()` lists the staged sources, oldest first. They are no part of the graph, so
   `data.sources()` leaves them out; `data.sources({ staged: true })` lists them too, in their place.
+- `data.typeOf(kind, id)` gives the type of a node or an edge (`data.typeOf("node", "B1")`), null for none.
 - `data.nodeRef(id)` gives a node's id space and key (`{ space, key }`), the inverse of `data.ref`:
   what a join on the node's type, or a reader edit naming it, takes.
 - A `data.spaces()` row of a source's own space (its rows keyed with no space named) names that
@@ -222,33 +235,167 @@ session.data.nodeRef("B1"); // once added: { space: "person", key: "B1" }
 session.data.spaces().filter((row) => row.ownedBy !== undefined); // spaces no load named
 ```
 
+A join reads a source's rows whether they are nodes or edges, and a Connect has two options for
+rows that name both ends: `to.keepRow` keeps each row as a node between the two ends, and
+`existing: "merge"` folds a row's columns into the edge that already joins its ends instead of
+adding another (`editStep` takes it too). An edge made of a row carries the row's columns, but for
+the two naming its ends. Where rows are nodes, `unlinked: "drop"` leaves out a row no edge reaches
+when this join made its node; `"remove"` takes the node out when the graph already held it too.
+Merge on rows read as edges folds each row's columns into
+the node it names. `draft.suggestMatches(source)` proposes the fields to match.
+
+```ts
+const doors = await draft.stage(doorsCsv, { edges: { from: { column: "person" }, to: { column: "bldg" } } });
+const ends = {
+    from: { source: doors, field: "person" },
+    into: { space: "person" },
+    to: { field: "bldg", into: { space: "building" } },
+};
+draft.connect({ ...ends, existing: "merge" }); // one edge per entry, or the edge already there
+const at = draft.steps().length - 1;
+draft.replaceStep(at, { act: "connect", options: { ...ends, to: { ...ends.to, keepRow: true } } });
+draft.steps()[at]?.act?.to?.keepRow; // true: each entry is a node between a person and a building
+```
+
+The other end may be named by a column of its nodes (`to.into: { space, field }`), as `into` may. An
+edge carries the columns of the rows it was made of but the two its own step reads its ends from.
+
+The other end may be new nodes: `to.unmatched: "add"` makes a node of every value naming none at that
+end only, in a space that may hold no node yet, and `to.type` declares their type. A join adds the
+staged sources it needs; `removeStep(index, { adds: "remove" })` takes them back with it once no step
+needs their nodes, and `replaceStep` does so when the new act needs them no more.
+
+```ts
+draft.connect({
+    from: { source: doors, field: "person" },
+    into: { space: "person" },
+    to: { field: "bldg", into: { space: "building" }, unmatched: "add", type: "building" },
+}); // an edge from each person to a node per building, unknown people left out
+draft.removeStep(draft.steps().length - 1, { adds: "remove" }); // the whole join taken back
+```
+
+A value several nodes hold, such as one phone of two accounts, joins none of them by default
+(`fanOut` counts its rows). `fanOut: "each"` on `merge` or `connect` joins every one:
+
+```ts
+draft.merge({
+    from: { source: watchlist, field: "value" },
+    into: { space: "account", field: "phone" },
+    unmatchedFrom: "drop",
+    fanOut: "each", // both accounts get the watchlist's columns
+});
+```
+
+`draft.link` links nodes whose rows share a value in a column: an edge per pair of nodes, its
+`shared` attribute the number of values they share, `directed: false` on it, or with `as: "nodes"` one node per value. A value
+more than `maxShared` nodes hold (default 10) links none of them, and a pair must share `minShared`
+values (default 1). For values in rows of their own, `field` names the node holding each row's and
+`into` where those nodes are. `extract` makes nodes of a column's values, joined to the node each row
+is, or to one end of edge rows; `split` makes one node per value of a cell, and `columns` moves
+columns onto the new nodes, which splits one file into several node types. Each step reads its
+options back in `link` or `extract`, and `replaceStep` makes it again with one changed:
+
+```ts
+const accounts = await draft.stage(accountsCsv, { key: "account", type: "account" });
+draft.link({ source: accounts, columns: ["phone", "device"], maxShared: 5 });
+draft.extract(accounts, { column: "tags", split: ";", type: "tag" });
+draft.extract(accounts, { column: "branch_id", type: "branch", columns: ["branch_name"] });
+const step = draft.steps().find((row) => row.link !== null);
+if (step?.link) {
+    draft.replaceStep(step.index, { act: "link", options: { ...step.link, minShared: 2 } });
+    console.log(draft.steps()[step.index]?.buckets?.newEdges); // pairs sharing two values
+}
+```
+
+`draft.columns(space)` lists the columns the nodes of an id space carry as the draft builds them, the
+ones its merges brought included, each with its `kind` (`"list"` for a merged list) and how many nodes
+fill it. `into: { space, field }` matches on one of them, in `merge`, `connect`, `matchCounts` and
+`matchValues`, and a link's `nodes` links the nodes of a space by them. A list matches by each of its
+values, in a column the nodes carry or in a source's own cell, and `profile({ space, field })` profiles
+one:
+
+```ts
+draft.merge({ from: { source: ids, field: "account" }, into: { space: "account" }, aggregate: { "*": "list" } });
+draft.columns("account"); // [..., { name: "device", kind: "list", filled: 63 }]
+const watch = await draft.stage(watchlistCsv, { key: "value" });
+const onDevice = { from: { source: watch, field: "value" }, into: { space: "account", field: "device" } };
+draft.matchCounts(onDevice).matched; // watchlist values some account's device list holds
+draft.merge({ ...onDevice, unmatchedFrom: "drop" });
+draft.link({ source: ids, nodes: "account", columns: ["device"] }); // accounts sharing a device
+```
+
+A file with no key column stages with its rows keyed by their place: `summary().mapping.key` is
+absent, and no column is added to its rows.
+
+Before a reader says how to join two sources, a draft reads them side by side and says what their
+matches can make. `draft.sideFields` lists the fields of a source or an id space with the facts of
+their values, the columns earlier joins brought included. `draft.joinRows` lines up the rows of two
+sides by a match and counts it, and `draft.joinOutcomes` lists what the matches make, each a code
+with the acts that make it, nothing applied. Its matches take fields of two sources in any order, a
+field with itself (nodes sharing a value) and `{ new: true }` (a node per value); given a `step`, it
+reads that step's matches back. `suggestMatches(source, { with: side })` proposes fields of one side.
+
+```ts
+const people = { source: peopleKey, field: "badge" };
+const badges = { source: entriesKey, field: "badge" };
+draft.sideFields({ source: entriesKey }); // [{ name: "badge", from: null, key: false, repeated: {...}, ... }, ...]
+const page = draft.joinRows({
+    a: { source: peopleKey },
+    b: { source: entriesKey },
+    match: { a: people, b: badges },
+    limit: 200,
+});
+page.counts?.matchedRows; // of page.counts.rows rows of side page.rowsOf
+const { outcomes } = draft.joinOutcomes({ matches: [{ a: people, b: badges }] });
+outcomes.map((each) => each.code); // ["fields", "link"]
+const act = outcomes[0]?.acts[0];
+if (act?.act === "merge") draft.merge({ ...act.options, unmatchedFrom: "drop" });
+```
+
 `preview()` compares the draft's graph with the committed one, counted over every row: totals and
 counts per type `before` and `after`; nodes and edges added, removed and changed; and for each
 step its counts (`buckets`) and their change from the committed ones:
 
 | Count                                                  | What it counts                                                           |
 | ------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `merged`                                               | nodes a merge folds into the node they matched                           |
+| `merged`                                               | nodes, or edge rows, a merge folds into the node they matched            |
+| `mergedEdges`                                          | edges a Connect's rows folded into (`existing: "merge"`)                 |
 | `matched`, `unmatched`                                 | rows whose key found the element they write to, or none                  |
-| `fanOut`                                               | rows whose key names several elements, so they are left out              |
+| `fanOut`                                               | rows whose key names several elements, left out but for `fanOut: "each"` |
 | `untouched`                                            | nodes of the merged space no row reached                                 |
 | `typeDiffers`                                          | elements given another type than an earlier step gave them               |
 | `newNodes`, `newEdges`, `newNodeTypes`, `newEdgeTypes` | what the step makes, in all and per type                                 |
 | `namedOnly`                                            | nodes a source's edges name that its own node rows lack                  |
 | `valuesDiffer`                                         | cells, per column, where another source wrote a different value          |
 | `repeated1`, `repeated2`, `rowsDiffer`                 | keys repeated on either side, and those whose rows differ                |
+| `hub`, `pairsBelowMin`                                 | values too many nodes share, and pairs sharing too few, so not linked    |
 | `groups`                                               | how many nodes each merged node was made from, largest first             |
 | `parallelPairs`, `selfLoops`                           | end pairs an earlier edge already joins, and edges from a node to itself |
 | `endsMeet`, `endsMissing`                              | edge ends that found a node, or none, per id space                       |
 
 `preview.rows({ step, bucket })` lists the rows behind a count, with each row as read and the
-element's values before and after; `draft.exclude(step, keys)` leaves those rows out of the step.
+element's values before and after; `draft.exclude(step, rows)` leaves those rows out of the step, each
+by itself, and `draft.exclude(step, keys)` every row of those keys; the step's `except` lists both.
 `preview.cells({ column })` lists the cells where sources disagree, each source's value, the value
 shown and whether a pick decided it; `editStep(step, { clash })` changes a column's rule and
 `pick` or `pickAll` decide cells. `draft.display(true)` draws the draft, where every element reads
 `graphty.draft` (`"merged"`, `"new"`, `"changed"`, `"removed"` or `"unchanged"`) for a style layer
 to show, and `draft.show("before" | "after")` switches between the graph as it is and as the
-commit would leave it. Each change fires `data:draft-changed` with a `reason` (`"opened"`,
+commit would leave it. `draft.display(true, { hold: true })` keeps the nodes the graph has where they
+are while After is drawn: only what the draft adds is laid out, and the commit draws it from there.
+`session.styles.showDraft({ merged, new })` draws the join preview in the
+two colors you pass: a ring on each node the commit would merge, each edge it would fold a row into
+in that color, a dashed border on each node it would add, and each edge it would add dashed; with a
+`removed` color, what it would remove is dashed and dimmed while Before shows. `newSize` draws each
+node it would add at that size on screen (`node.size` in `node.sizeSpace: "screen"`), so it stays in
+sight on a graph framed whole, and `focus: { steps, ring }` rings the merged nodes of those steps (by
+their place in `draft.steps()`) at `ring` times their size over every other ring, so what one step
+merges reads apart from what earlier steps did. Both are off unless passed. It suspends the style layers while it is drawn (they
+stay listed, and it is no undo step), is never saved, and its `end()` takes it off.
+`preview.marks` counts what it marks, in all and as `nodes: { merged, new, untouched, removed }` and
+`edges: { merged, new, removed }`. `draft.spaces()` lists the id spaces as the draft builds them, each
+with the staged source a step of the draft adds into it (`staged`), so a space the draft made can be
+named by its source, and the sources whose own rows are its nodes (`rowsOf`). Each change fires `data:draft-changed` with a `reason` (`"opened"`,
 `"changed"`, `"committed"`, `"discarded"`).
 
 While a draft is open every other data write and `session.undo()` / `redo()` are refused with
@@ -293,7 +440,7 @@ report.problems; // W_SOURCE_UNAVAILABLE or W_SOURCE_CHANGED with { source }, wh
   cannot be read opens with its rows held bare in their places (ids and edge ends, no values), so
   positions, runs, notes and edges that name them stay; the next save writes them and the
   reference back unchanged, and an open that can read it again fills them.
-- With `save-files-v2` too, a version 2 save keeps a load chosen as a reference referenced, and
+- A version 2 save keeps a load chosen as a reference referenced, and
   reports a load that cannot be one as `W_SOURCE_NO_PATH` with the same reason `copies()` gives. A
   version 2 file's referenced sources open kept as references; one that cannot be read opens held,
   with no elements, until `session.data.refresh(load.key)` reads it again.

@@ -3,8 +3,7 @@
 # The paid T4 runs in exactly two places (owner decision, 2026-10-06): the release train, which calls this
 # workflow on the commit it is about to release and publishes nothing unless it passes
 # (release.yml, job "t4"), and a manual dispatch. Pull requests and master pushes never start it; their GPU
-# coverage is CI's software-GPU shards (lavapipe and SwiftShader) and the pre-push gate's run on the developer's
-# own NVIDIA card. A red T4 holds the WHOLE release and opens one "Release held: T4 GPU failed on <sha>" issue;
+# coverage is CI's software-GPU shards (lavapipe and SwiftShader). A red T4 holds the WHOLE release and opens one "Release held: T4 GPU failed on <sha>" issue;
 # the next train that passes the T4 releases everything at once and closes that issue.
 # The full paired benchmark (master's tip against the latest release, every group) is gpu-weekly-paired.yml.
 # The lane is ONE job, and needs a runner that lives longer than 30 minutes. On the free machine.dev plan a runner
@@ -199,7 +198,7 @@ jobs:
                   printf '%s\n' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' 'Acquire::Retries "5";' \
                       > /etc/apt/apt.conf.d/99-ci-timeouts
                   if [ "$HIT" = true ]; then
-                      dpkg -i "$dir"/*.deb
+                      dpkg -i --auto-deconfigure "$dir"/*.deb
                   else
                       # apt downloads into $dir and keeps the files there for the save step below
                       mkdir -p "$dir/partial"
@@ -242,7 +241,7 @@ jobs:
             - name: Fetch the pinned fonts and the GPU screenshot references from Git LFS
               if: ${{ !inputs.files }}
               working-directory: .
-              run: git lfs pull --include "visual-fonts/**,cytoscape-extensions/test/gpu-screenshots/**"
+              run: tools/lfs-pull-retry.sh --include "visual-fonts/**,cytoscape-extensions/test/gpu-screenshots/**"
             # No modprobe: a container cannot load host kernel modules, and it does not need to -- the host has
             # them up before the job starts (run 35922927676: "modprobe exit=0 nvidia modules before=4 after=4"),
             # and --gpus all fails at container creation if the driver is not there. This step records the

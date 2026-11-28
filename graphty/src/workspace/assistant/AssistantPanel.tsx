@@ -199,7 +199,12 @@ function Ready({ choice, view, listing, listId, rows, reload, onCloseList }: Rea
                     <Starters />
                 </div>
             ) : (
-                <Conversation conversation={view.conversation} status={view.status} choice={choice} />
+                <Conversation
+                    conversation={view.conversation}
+                    status={view.status}
+                    waiting={view.approvals.length + view.questions.length > 0}
+                    choice={choice}
+                />
             )}
             <Waiting view={view} choice={choice} />
             <Composer choice={choice} view={view} model={model} />

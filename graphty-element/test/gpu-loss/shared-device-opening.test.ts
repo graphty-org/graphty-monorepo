@@ -25,6 +25,36 @@ describe("the device a graph opens", () => {
         assert.strictEqual(graph.rendererStatus?.layoutDevice, "shared");
     });
 
+    it("is one device under the required policy, as under auto (issue #9986)", async () => {
+        adapterSays("test-hardware");
+        const devices = countDevices();
+
+        const graph = await open("required");
+        await startLayout(graph);
+
+        assert.isTrue(layoutOf(graph).isAccelerated);
+        assert.strictEqual(devices(), 1);
+        assert.strictEqual(graph.rendererStatus?.layoutDevice, "shared");
+    });
+
+    it("says separate for an accelerator that opened its own device before a renderer was on its way", async () => {
+        adapterSays("test-hardware");
+        const devices = countDevices();
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const graph = new Graph(container);
+        mounted.push({ graph, container });
+        graph.setRenderer("webgpu");
+        await graph.acceleration.ready();
+
+        await graph.init();
+
+        assert.isNotNull(graph.acceleration.accelerator);
+        assert.isTrue((graph.engine as RecoveringWebGPUEngine).sharesDevice);
+        assert.strictEqual(devices(), 2);
+        assert.strictEqual(graph.rendererStatus?.layoutDevice, "separate");
+    });
+
     it("is one device for an element, which looks for its accelerator before it opens a renderer", async () => {
         adapterSays("test-hardware");
         const devices = countDevices();

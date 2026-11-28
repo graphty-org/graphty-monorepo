@@ -1,0 +1,130 @@
+id: W375
+name: Confirmatory Models, Bayesian Edge Evidence and Predictability
+category: analysis
+validated: false
+personas:
+    - network-psychometrics-methodologist
+    - symptom-network-researcher
+requires_capabilities:
+    - data-import
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - layout-force-directed
+    - filtering
+    - tooltip-display
+    - details-on-demand
+    - comparison-view
+    - export-image
+    - data-export
+    - signed-edges
+    - uncertainty-encoding
+    - matrix-import
+    - node-ring-glyph
+    - shared-fixed-layout
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - legend-item
+    - node-chart-overlay
+    - node-tooltip
+    - comparison-view
+    - image-export-dialog
+starting_state:
+    data_type: weights matrix plus per-edge inclusion Bayes factors (easybgm, BGGM or JASP) or a pruned confirmatory structure (psychonetrics), and per-node predictability (R squared or normalized accuracy from mgm)
+    node_count: 10-30
+    edge_density: all possible edges carry evidence values; included edges sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Go beyond an exploratory picture: test a network structure on a holdout sample, show for every
+    possible edge whether the data support its inclusion, its exclusion or neither, and show how well each node is
+    predicted by its neighbors.
+
+
+    **Mental Model**: "No edge and not enough data are different claims." Every possible edge falls into one of three
+    states -- evidence for inclusion, evidence for exclusion, inconclusive -- and every node has a bounded share of
+    variance its neighbors can explain.
+
+
+    **Task Phases**:
+
+    1. **Confirmatory GGM** (in R) - Fit, prune at alpha 0.01 with FDR adjustment, model search, then fit the
+    structure to a holdout sample and report SEM-style fit; multi-group models constrain edges equal
+
+    2. **Bayesian edge evidence** (in R or JASP) - Inclusion Bayes factor per possible edge
+
+    3. **Predictability** (in R) - mgm then predict gives R squared or normalized accuracy per node
+
+    4. **Load** - Weights matrix, a per-edge table with the Bayes factor, a node table with predictability
+
+    5. **Draw evidence** - Three-state edge style (included, excluded, inconclusive) with a stated threshold;
+    excluded edges drawn distinctly from inconclusive ones
+
+    6. **Draw predictability** - A ring around each node filled to its 0-1 value
+
+    7. **Compare** - Exploratory vs confirmed structure, or training vs holdout, on one layout
+
+
+    **Decision Points**:
+
+    - Which Bayes factor threshold separates inconclusive from evidence (defaults differ between easybgm's README and
+    its reference)?
+
+    - Show excluded edges at all, or only included and inconclusive?
+
+    - Is a central node also well predicted, and therefore plausibly controllable?
+
+
+    **Information Needs**:
+
+    - Inclusion Bayes factor and its state per possible edge
+
+    - Predictability per node, visible on the node
+
+    - Fit indices of the confirmatory model on the holdout sample
+
+
+    **Pain Points**:
+
+    - Edge evidence colors and default thresholds differ between package documents and versions
+
+    - Standard network drawings cannot show "excluded" vs "inconclusive" for an absent edge
+
+    - Predictability rings exist only in qgraph's pie argument
+
+
+    **Data Flow**:
+
+    - Input: Weights matrix, per-edge evidence table, per-node predictability table
+
+    - Transformations: Classify each edge into three evidence states at a user-set threshold, ring glyph per node
+    from a 0-1 value
+
+    - Output: Edge evidence network, predictability network, comparison of exploratory and confirmatory structures
+success_criteria:
+    - metric: Absence distinguished
+      target: A reader can tell an excluded edge from an inconclusive one in the figure
+    - metric: Predictability on node
+      target: Each node's predictability is readable without a side table
+sources:
+    - title: psychonetrics prune reference
+      url: https://search.r-project.org/CRAN/refmans/psychonetrics/html/prune.html
+      summary: ggm, runmodel, prune at alpha with adjustment, modelsearch
+    - title: easybgm README
+      url: https://cran.rstudio.com/web/packages/easybgm/readme/README.html
+      summary: Edge evidence plot colors and threshold as described in the README
+    - title: easybgm edgeevidence reference
+      url: https://search.r-project.org/CRAN/refmans/easybgm/html/edgeevidence.html
+      summary: Function reference with different colors and default threshold
+    - title: Huth et al. 2023 - Bayesian analysis of cross-sectional networks
+      url: https://pure.amsterdamumc.nl/ws/files/136904501/Bayesian-analysis-of-cross-sectional-networks.pdf
+      summary: Evidence of absence vs absence of evidence
+    - title: Haslbeck and Waldorp - predictability in network models
+      url: https://arxiv.org/pdf/1610.09108
+      summary: Per-node predictability drawn as a pie ring in qgraph
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

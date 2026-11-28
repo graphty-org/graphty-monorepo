@@ -481,7 +481,9 @@ export function WhichPicker({
                     buttonRef={rowButton}
                     regionId={regionId}
                     line={
-                        summary === undefined
+                        // A card some layers hold and others do not is no rule of them all: each
+                        // chip says which layers hold it ("name by layer, 1 of 2 layers").
+                        summary === undefined || shown.some((each) => !each.shared)
                             ? undefined
                             : summary(
                                   session,
@@ -540,7 +542,7 @@ function WhichRow({
     const head = useHead(session, rows, side);
     const words = shown.map((each) => chipWords(session, each, rows.length));
     // Each chip's own count, as it draws it, so the row's name says it too (after Done as before).
-    const [counts, setCounts] = useState<Readonly<Record<string, number | undefined>>>({});
+    const [counts, setCounts] = useState<CardCountMap>({});
     const spoken = shown.map((each, at) => {
         const count = counts[each.key];
         const countWords = count === undefined ? "" : `, ${many(count, side)}`;
@@ -584,17 +586,7 @@ function WhichRow({
                     </Group>
                 </UnstyledButton>
             </Tooltip>
-            {shown.map((each) => (
-                <CardCount
-                    key={each.key}
-                    session={session}
-                    shown={each}
-                    side={side}
-                    onCount={(count) => {
-                        setCounts((now) => (now[each.key] === count ? now : { ...now, [each.key]: count }));
-                    }}
-                />
-            ))}
+            <CardCounts session={session} shown={shown} side={side} onCounts={setCounts} />
         </div>
     );
 }
@@ -673,6 +665,46 @@ function CardCount({
         onCount(count);
     }, [count, onCount]);
     return null;
+}
+
+/** Each card's own count, by card key. */
+type CardCountMap = Readonly<Record<string, number | undefined>>;
+
+/**
+ * Counts what each card keeps alone, into one map by card key; draws nothing.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.shown - the cards as drawn
+ * @param props.side - nodes or edges
+ * @param props.onCounts - the map's state setter
+ * @returns The counters
+ */
+function CardCounts({
+    session,
+    shown,
+    side,
+    onCounts,
+}: Readonly<{
+    session: GraphSession;
+    shown: readonly Shown[];
+    side: Side;
+    onCounts: React.Dispatch<React.SetStateAction<CardCountMap>>;
+}>): React.JSX.Element {
+    return (
+        <>
+            {shown.map((each) => (
+                <CardCount
+                    key={each.key}
+                    session={session}
+                    shown={each}
+                    side={side}
+                    onCount={(count) => {
+                        onCounts((now) => (now[each.key] === count ? now : { ...now, [each.key]: count }));
+                    }}
+                />
+            ))}
+        </>
+    );
 }
 
 /**
@@ -940,9 +972,24 @@ function Cards({
     );
     const head = useHead(session, rows, side);
     const matched = rows.length === 1 ? session.styles.counts(rows[0].layer.id).matched : undefined;
+    // Each card's own count, so Done says which card leaves nothing, or that only together they do.
+    // on reload: fresh: read: each card counts again from the element's session
+    const [counts, setCounts] = useState<CardCountMap>({});
     let why: string | undefined;
-    if (matched === 0 && list.length > 0) {
-        why = list.length === 1 ? `${cardName(list[0].card)} leaves none` : "Each condition leaves some; together none";
+    if (matched === 0 && list.length === 1) {
+        why = `${cardName(list[0].card)} leaves none`;
+    } else if (matched === 0 && list.length > 1) {
+        const empty = list.filter((each) => counts[each.key] === 0).map((each) => cardName(each.card));
+        if (empty.length > 0) {
+            why = `${empty.join(", ")} ${empty.length === 1 ? "leaves" : "leave"} none`;
+        } else if (
+            // A card picked by hand, the Ends card or one not finished has no count of its own.
+            list.every(
+                (each) => isPicked(each.card) || styleLeafOf(each.card) === null || counts[each.key] !== undefined,
+            )
+        ) {
+            why = "Each condition leaves some; together none";
+        }
     }
     const standsAlone = list.some((each) => each.card.type === "fixed" && each.card.leaf === null);
 
@@ -1030,6 +1077,7 @@ function Cards({
                     />
                 ),
             )}
+            <CardCounts session={session} shown={list} side={side} onCounts={setCounts} />
             {!standsAlone && (
                 <AddCondition
                     fields={fields}
@@ -2444,7 +2492,7 @@ function NumberCard({
     );
     // Over the card's base: the whole graph, named, unless it has one.
     const stats = session.data.statistics({ scope: within === "visible" ? "visible" : "all" });
-    const total = side === "node" ? stats.nodeCount : stats.edgeCount;
+    const total = card.field.waiting?.of ?? (side === "node" ? stats.nodeCount : stats.edgeCount);
     const parse = useNumberParser();
     const { store } = useWorkspace();
     const [drafts, setDrafts] = useState<Drafts>({});
@@ -2902,13 +2950,16 @@ function DateCard({
     variant?: CardVariant;
     onChange: OnCard;
 }>): React.JSX.Element {
-    const { name, path, on } = card.field;
+    const { name, path, on, listed: given } = card.field;
     const body = useRef<HTMLDivElement>(null);
     useFocusAfterMode(body, card.match);
     const [drafts, setDrafts] = useState<Partial<Record<DateBox, string>>>({});
     const [refused, setRefused] = useState<DateBox | null>(null);
     const messageId = useId();
-    const counts = useMemo(() => session.data.valueCounts(path, { kind: on, scope: "graph" }), [session, path, on]);
+    const counts = useMemo(
+        () => given ?? session.data.valueCounts(path, { kind: on, scope: "graph" }),
+        [session, path, on, given],
+    );
     // The column's dates as the table writes them, each once, in time order.
     const dates = useMemo(() => {
         const days = counts.values

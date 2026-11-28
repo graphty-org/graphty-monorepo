@@ -79,6 +79,7 @@ describe("explain() merges label styles field by field", () => {
         assert.include(
             explained.channels.map((entry) => entry.channel),
             "node.labelItalic",
+            "node.labelUnderline",
         );
 
         const label = drawnLabel(held, 1);
@@ -114,9 +115,11 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelFont",
                         "node.labelWeight",
                         "node.labelItalic",
+                        "node.labelUnderline",
                         "node.labelWrapWidth",
                         "node.labelWrapTrailingSpace",
                         "node.labelWrapSkipEndSpace",
+                        "node.labelWrapUnkerned",
                         "node.labelWrapEllipsis",
                         "node.labelWrapAnywhere",
                         "node.labelWrapSpaceCount",

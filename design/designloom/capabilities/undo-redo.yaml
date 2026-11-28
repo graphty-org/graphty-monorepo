@@ -1,0 +1,22 @@
+id: undo-redo
+name: Undo and Redo
+category: analysis
+description: Undo and redo every step, including imports, layouts, style mappings, filters and hand edits, so a wrong
+    click or crash never forces starting over. Gephi has none; novices 'had to start over'.
+status: planned
+notes: "Research trace: students-educators-and-first-time-users.md section 9, requirement 3 (Must)."
+algorithms: []
+used_by_workflows:
+    - W14
+    - W231
+    - W232
+    - W240
+    - W1012
+    - W1013
+implemented_by_components: []
+requirements:
+    - "Must: Undo/redo of every step, including hand edits"
+sources:
+    - title: Students, Instructors and First-Time Graph Users (section 9, requirement 3)
+      url: design/user-research/students-educators-and-first-time-users.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

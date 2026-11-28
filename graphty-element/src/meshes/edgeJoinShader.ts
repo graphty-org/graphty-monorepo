@@ -66,7 +66,13 @@
  * it, which is what dashing the center line and then stroking each dash would draw.
  */
 
-import { EDGE_TRIM_GLSL, ROW_EXTENT_ELLIPSE, ROW_EXTENT_ROUND, ROW_EXTENT_SEEN_THROUGH } from "./edgeTrim";
+import {
+    EDGE_TRIM_GLSL,
+    ROW_END_GLSL,
+    ROW_EXTENT_ELLIPSE,
+    ROW_EXTENT_ROUND,
+    ROW_EXTENT_SEEN_THROUGH,
+} from "./edgeTrim";
 import { CURVE_STRIDE, PULLED_CURVE_GLSL } from "./pulledCurve";
 
 /** The longest miter drawn, as a multiple of half the line's width (SVG's and Canvas's limit). */
@@ -189,8 +195,9 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
  * which `JOIN_TEMPLATE_INDICES` turns into its template vertex (#6389). A straight piece between node
  * centers is all this reads, written as `EdgeLineBatch.place` writes it: its neighbors are its
  * own ends and its run is zero. A free piece (rows below 0), a piece flagged in `edgeHidden` (a byte a
- * piece, four to a texel) and a piece with a row of w = 0 (hidden or not placed) get every point at
- * the origin, as a hidden slot does, and draw nothing.
+ * piece, four to a texel) and a piece with a row of w = 0 and no place get every point at the origin, as
+ * a hidden slot does, and draw nothing. A row a style or filter hides keeps its place (`ROW_EXTENT_HIDDEN_PLACED`): its
+ * pieces end at its center, as the objects path draws them.
  * Every line after this is the plain line's, so the two draw the same pixels.
  *
  * A piece takes two texels: (source row, target row, width, opacity), then (red, green, blue). So
@@ -226,6 +233,7 @@ export const PULLED_TRIM_GLSL = `
 uniform highp sampler2D rowExtent;
 uniform highp sampler2D rowOutline;
 ${EDGE_TRIM_GLSL}
+${ROW_END_GLSL}
 
 // one function a table: WebGPU's GLSL takes no sampler as an argument
 vec4 pulledExtent(int i) {
@@ -288,6 +296,39 @@ float pulledReach(int row, float w, vec3 dir) {
     return edgeTrimReach(dir, end) + a.z;
 }
 
+// Edge.transformArrowCap's line under a head pulled from the row table (ArrowCapBatch.setPulled), whose two ends are
+// round rows: trimEnds for two round ends, step for step (a struct-returning trim here left WebGPU's frame empty). The
+// line runs from the source's outline to capBack, at the head's node scale, before the target's; two ends that overlap
+// give the line no ends, and it keeps the centers, as Edge.placeArrowFromCentres leaves it.
+void pulledCapTrim(int fromRow, int toRow, float fromW, float toW, float capBack, inout vec3 head, inout vec3 tail) {
+    vec4 fa = pulledExtent(fromRow * 3);
+    vec4 ta = pulledExtent(toRow * 3);
+    float r1 = fa.y * fromW;
+    float r2 = ta.y * toW;
+    vec3 d = tail - head;
+    float span = length(d);
+    if (span <= r1 + r2) {
+        return;
+    }
+    vec3 dir = d / span;
+    vec3 s = head + dir * r1;
+    vec3 e = tail - dir * r2;
+    // pastBorders
+    vec3 l = e - s;
+    float reached = length(l);
+    if (!((fa.z == 0.0 && ta.z == 0.0) || reached <= fa.z + ta.z)) {
+        vec3 p = l / reached;
+        s += p * fa.z;
+        e -= p * ta.z;
+    }
+    vec3 m = e - s;
+    float len = length(m);
+    vec3 unit = len > 0.0 ? m / len : vec3(0.0);
+    float toScale = ta.x * toW;
+    head = s;
+    tail = e - unit * (capBack * (toScale > 0.0 ? toScale : 1.0));
+}
+
 // Edge.leaveNode at both ends: each moves toward the other by its reach, never past the other center. No name here
 // may be one WGSL reserves ("from"): WebGPU's translation keeps the names, and its pipeline would be invalid.
 void pulledTrim(int fromRow, int toRow, float fromW, float toW, inout vec3 head, inout vec3 tail) {
@@ -346,9 +387,40 @@ ${pulledTexelGlsl("edgeSlots", "pulledSlotsTexel")}
 // set by pullEdge for a slot past its own curve's pieces: the vertex is put outside the clip volume
 bool pulledSkip = false;
 const int PIECE_TEXELS = 4;
+uniform highp sampler2D rowExtent;
+${ROW_END_GLSL}
 #else
 const int PIECE_TEXELS = 2;
 ${PULLED_TRIM_GLSL}
+// A capped piece's ends placed on the CPU at rest (PulledLineBatch.placeEnds, restPlacement.ts), two texels a piece:
+// the source end and 1, then the line's end. Read only while endsPlaced is 1 and the piece's first w is 1.
+uniform highp sampler2D edgeEnds;
+uniform float endsPlaced;
+${pulledTexelGlsl("edgeEnds", "pulledEndsTexel")}
+// A patterned piece's pattern: element length, count and gap (-1 for none), and 1 for a pattern (0 for a solid line).
+uniform vec4 pulledPattern;
+// The spacing a placed piece's end carries (texel 2's w), or -1 for one the shader trims.
+float pulledPlacedSpacing = -1.0;
+// EdgeLineBatch's patternSpacing for a piece of one length, as PatternedLineMesh's discreteMeshCount counts elements.
+float pulledSpacing(float len) {
+    float e = pulledPattern.x;
+    if (pulledPattern.w < 0.5) {
+        return 0.0;
+    }
+    if (pulledPattern.z >= 0.0 && pulledPattern.y < 0.0) {
+        return max(e + pulledPattern.z, 1e-6);
+    }
+    float n;
+    if (pulledPattern.y >= 0.0) {
+        n = min(65536.0, max(2.0, floor(pulledPattern.y)));
+    } else {
+        float dynamicLength = len - 2.0 * e;
+        float period = e + e * 0.5;
+        float minSpacing = period - e;
+        n = dynamicLength < minSpacing ? 1.0 : min(65536.0, 2.0 + max(0.0, floor((dynamicLength - minSpacing) / period)));
+    }
+    return n < 2.0 ? 2.0 * (len + e) : max((len - e) / (n - 1.0), 1e-6);
+}
 #endif
 
 void pullEdge() {
@@ -396,7 +468,7 @@ void pullEdge() {
         vec4 b = pulledRow(int(rows.y + 0.5));
 #ifdef EDGE_PULLED_CURVE
         vec4 end = pulledRowsTexel(texel + 3);
-        if (a.w * b.w != 0.0) {
+        if (rowEnds(a, int(rows.x + 0.5)) && rowEnds(b, int(rows.y + 0.5))) {
             vec4 counts = vec4(span.xyz, end.w);
             vec4 cut = vec4(span.w, end.xyz);
             int prev = j == 0 ? 0 : j - 1;
@@ -422,18 +494,33 @@ void pullEdge() {
         pNext2 = pB;
     }
 #else
-        if (a.w * b.w != 0.0) {
+        if (rowEnds(a, int(rows.x + 0.5)) && rowEnds(b, int(rows.y + 0.5))) {
             pA = a.xyz;
             pB = b.xyz;
-            pulledTrim(int(rows.x + 0.5), int(rows.y + 0.5), a.w, b.w, pA, pB);
+            // a straight piece's spare float: how far it stops before a head drawn from the row table
+            vec4 placedFrom = endsPlaced > 0.5 ? pulledEndsTexel(piece * 2) : vec4(0.0);
+            if (placedFrom.w > 0.5) {
+                vec4 placedTo = pulledEndsTexel(piece * 2 + 1);
+                pA = placedFrom.xyz;
+                pB = placedTo.xyz;
+                pulledPlacedSpacing = placedTo.w;
+            } else if (tint.a > 0.0) {
+                pulledCapTrim(int(rows.x + 0.5), int(rows.y + 0.5), a.w, b.w, tint.a, pA, pB);
+            } else {
+                pulledTrim(int(rows.x + 0.5), int(rows.y + 0.5), a.w, b.w, pA, pB);
+            }
         }
     }
     pPrev = pA;
     pPrev2 = pA;
     pNext = pB;
     pNext2 = pB;
+    // a patterned piece's spacing, as EdgeLineBatch.place gives a straight line's slot; 0 for a solid line
+    run = vec2(0.0, pulledPlacedSpacing >= 0.0 ? pulledPlacedSpacing : pulledSpacing(length(pB - pA)));
 #endif
+#ifdef EDGE_PULLED_CURVE
     run = vec2(0.0);
+#endif
 }
 #endif
 `;
@@ -934,6 +1021,10 @@ uniform vec2 resolution;
 uniform float miterLimit;
 // The viewport's size in the pixels being drawn (the canvas's, or a capture's); 0 when unknown.
 uniform vec2 fragmentSize;
+#ifdef EDGE_HOLLOW
+// The share of the line's drawn width, down its middle, left undrawn: a casing around another line.
+uniform float hollow;
+#endif
 
 #ifdef EDGE_PULLED
 // The piece's own color and opacity (PULLED_EDGE_GLSL).
@@ -1180,6 +1271,17 @@ void main() {
         }
     }
 
+#endif
+#ifdef EDGE_HOLLOW
+    // A casing leaves its middle to the line it surrounds, drawn there at its own depth: the
+    // casing can then stand in front of every other line and still not cover its own.
+    // The middle is that line's drawn half width, a pixel wide at least as a hairline is
+    // (drawnHalfWidth), and takes a pixel whose center is on its edge.
+    float hollowHw = vScreen.w * hollow;
+    hollowHw = hollowHw > 0.0 && hollowHw < 0.5 ? 0.5 : hollowHw;
+    if (abs(dot(x - vOwn.xy, vec2(-vOwn.w, vOwn.z))) <= hollowHw + TIE) {
+        discard;
+    }
 #endif
 #ifdef EDGE_SHADED
     // Where this pixel is on the whole edge: t along it from its source, side across the line's

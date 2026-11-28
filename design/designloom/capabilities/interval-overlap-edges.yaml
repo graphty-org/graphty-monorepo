@@ -1,0 +1,22 @@
+id: interval-overlap-edges
+name: Interval Data and Overlap-Derived Edges
+category: analysis
+description: Treat a stay, a movement or an exposure period as first-class data with a start and an end, and derive
+    edges from overlap in place and time within a configurable window, weighted by the amount of time shared, with the
+    overlap rule visible and adjustable.
+status: planned
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 10, table row 7 (Must)."
+algorithms: []
+used_by_workflows:
+    - W64
+    - W66
+    - W71
+    - W72
+implemented_by_components: []
+requirements:
+    - "Must: Interval data as first-class: a stay or movement with a start and an end, and edges derived from overlap
+      within a configurable window"
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 10, table row 7)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: "Must in the research. Covered by Designloom when researched: NOT covered"

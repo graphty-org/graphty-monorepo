@@ -87,7 +87,7 @@ const ROW_FLOATS = 6;
 const ROW_HEADROOM = 4;
 
 /** What the target reads of the row lines (`EdgeRowLines`). */
-export type IdRowLines = Pick<EdgeRowLines, "forEachShown" | "takeChanged" | "shownEnds">;
+export type IdRowLines = Pick<EdgeRowLines, "forEachShown" | "takeChanged" | "shownEnds" | "shownCurveRows">;
 
 const FRAGMENT = `precision highp float;
 varying float vId;
@@ -855,7 +855,8 @@ export class EdgeIdTarget {
      */
     private named(pixels: Uint8Array, count: number): EdgeCandidates {
         const at = new Set<number>(this.loose);
-        const rows = new Set<number>();
+        // a curve drawn with no `Edge` is not drawn here, as a curved `Edge` is not: measured whatever the window names
+        const rows = new Set<number>(this.host.rowLines()?.shownCurveRows() ?? []);
         for (let i = 0; i < count && !this.disposed; i++) {
             const id = pixels[i * 4] + pixels[i * 4 + 1] * 256 + pixels[i * 4 + 2] * 65536;
             const alpha = pixels[i * 4 + 3];

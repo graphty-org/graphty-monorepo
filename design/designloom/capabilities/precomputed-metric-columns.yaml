@@ -1,0 +1,20 @@
+id: precomputed-metric-columns
+name: Precomputed Metric Columns
+category: analysis
+description: Treat an imported numeric node column as a metric with the same color, size, ranking and legend treatment
+    as a built-in algorithm.
+status: planned
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 16 (Must)."
+algorithms: []
+used_by_workflows:
+    - W289
+    - W290
+    - W1120
+    - W251
+implemented_by_components: []
+requirements:
+    - 'Must: Accept a precomputed node column as a "metric" treated like built-in algorithms'
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 16)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

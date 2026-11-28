@@ -1,0 +1,23 @@
+id: typed-heterogeneous-graphs
+name: Typed Bipartite and Heterogeneous Graphs
+category: analysis
+description: Node and edge types as first-class data (user-item bipartite graphs, heterogeneous recommender and
+    knowledge graphs), with per-type encoding, filtering and per-edge-type explanation masks.
+status: planned
+notes: "Research trace: code-first-data-scientists-and-graph-ml.md section 10, table row 6 (Must)."
+algorithms: []
+used_by_workflows:
+    - W16
+    - W267
+    - W269
+    - W1054
+    - W1084
+    - W251
+    - W3102
+implemented_by_components: []
+requirements:
+    - "Must: Typed bipartite and heterogeneous graphs"
+sources:
+    - title: Code-First Data Scientists and Graph Machine Learning Engineers (section 10, table row 6)
+      url: design/user-research/code-first-data-scientists-and-graph-ml.md
+      summary: "Must in the research. Covered by Designloom when researched: No explicit capability"

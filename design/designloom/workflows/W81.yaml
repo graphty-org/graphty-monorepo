@@ -1,0 +1,180 @@
+id: W81
+name: Why Is This Package Installed and Which Version Wins
+category: exploration
+validated: false
+personas:
+    - software-supply-chain-security-engineer
+    - codebase-dependency-developer
+requires_capabilities:
+    - data-import
+    - search
+    - all-paths-finding
+    - path-highlighting
+    - node-merging
+    - filtering
+    - layout-hierarchical
+    - details-on-demand
+    - visual-encoding-nodes
+    - export-image
+    - dependency-format-import
+    - graph-diff
+    - comparison-view
+    - path-set-diff
+suggested_components:
+    - file-drop-zone
+    - search-input
+    - path-finder-dialog
+    - graph-canvas
+    - node-merge-dialog
+    - node-details-panel
+    - filter-panel
+    - image-export-dialog
+    - comparison-view
+starting_state:
+    data_type: package dependency tree from a lockfile, npm ls --json, Maven or Gradle tree (same package at several versions)
+    node_count: 100-5,000
+    edge_density: sparse, mostly acyclic (npm allows cycles), many repeated subtrees
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Explain why a package is present in a build and which version the resolver chose, make the chosen
+    version win with the ecosystem's override mechanism, and confirm it now wins on every path. Also used to find
+    bloated or forbidden-license dependencies and the parent that pulls them in.
+
+
+    **Mental Model**: "Who asked for this, and did my fix reach every copy?" Each copy of a package has one or more
+    chains back to the project root; conflicts are two chains asking for different versions, and an override is only
+    done when no chain still reaches the old version.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Explain presence** - All chains from the root to each installed copy (npm explain, gradle dependencyInsight
+    "Selection reasons", mvn dependency:tree -Dverbose -Dincludes "omitted for conflict"); repeated subtrees collapsed;
+    Maven picks the nearest definition, then the first declared
+
+    2. **Decide** - Pin, exclude or upgrade the parent; for bloat, remove unused direct or transitive dependencies
+
+    3. **Apply the override** - npm overrides in the root package.json (everywhere, under one parent, or under one
+    parent version); pnpm overrides with version and parent selectors and "-" to remove; Yarn 1 resolutions keyed by
+    path; Gradle constraints (at least this version, with a because reason) or strictly; Maven dependencyManagement or
+    an exclusion on the parent
+
+    4. **Verify on every path** - Rerun the explain step: npm ls marks each copy overridden or invalid; Gradle
+    dependencyInsight says By constraint, By ancestor or Forced; Maven dependency:tree -Dverbose, with the Enforcer
+    dependencyConvergence rule failing the build and listing every path while two versions remain; save the tree
+    before and after and diff it (dependency-tree-diff keeps the ancestors of each changed line)
+
+    5. **Visualize when needed** - Render the tree or graph when text is not enough (npm2dot, dependency-cruiser to DOT,
+    madge, npmgraph)
+
+
+    **Decision Points**:
+
+    - Pin, exclude or upgrade the parent?
+
+    - Which version should win, and which chain must change to get it?
+
+    - Override everywhere, or only under one parent?
+
+    - Is the override complete, or does some path still reach the old version?
+
+
+    **Information Needs**:
+
+    - Every path from the root to the package, deduplicated
+
+    - Versions as distinct nodes, groupable by package name
+
+    - Edge type (runtime, dev, optional, peer) and the resolver's selection reason
+
+    - The same package's path set before and after the override, with paths whose version changed and paths still
+    reaching an unwanted version marked
+
+
+    **Pain Points**:
+
+    - Text trees repeat subtrees and bury the path
+
+    - Checking an override means rerunning a text command and reading it again, or diffing two saved trees; no source
+    found for a tool that shows before and after paths for one package side by side
+
+    - Overrides can silently not apply: npm overrides reported undone by npm dedupe and shown invalid under
+    workspaces or the linked install strategy; Yarn 1 warns nested resolutions may not work; a Gradle constraint does
+    nothing if the module is absent
+
+    - Maven verbose output was removed in plugin 3.0 and restored later (MDEP-644, running on 3.2.0); its
+    documentation is still an open request, and an open report against 3.7.0 says it does not state why an entry was
+    left out
+
+    - Bloat is common: one study found 57% of transitive dependencies bloated
+
+
+    **Data Flow**:
+
+    - Input: `npm ls --json`, lockfiles, Maven or Gradle dependency trees, CycloneDX SBOM; the same tree again after the
+    override
+
+    - Transformations: Root-to-target path enumeration, version grouping, edge-type filter, before and after path-set
+    comparison
+
+    - Output: Override and decision recorded in a pull request; optional diagram
+success_criteria:
+    - metric: Explanation
+      target: User can show every chain from the root to a package copy in one view
+    - metric: Version conflict
+      target: User can see which versions are present and which one was selected
+    - metric: Override verified
+      target: User can show that after the override no path from the root reaches the unwanted version
+sources:
+    - title: npm explain documentation
+      url: https://docs.npmjs.com/cli/v10/commands/npm-explain
+      summary: Each installed copy with its chain to the root
+    - title: Gradle - Viewing and debugging dependencies
+      url: https://docs.gradle.org/current/userguide/viewing_debugging_dependencies.html
+      summary: dependencyInsight selection reasons (conflict resolution, constraint, ancestor, forced); (*) and (c)
+          markers
+    - title: npm package.json - overrides
+      url: https://docs.npmjs.com/cli/v10/configuring-npm/package-json#overrides
+      summary: Overrides in the root package.json only, scoped by parent or parent version
+    - title: pnpm - dependency resolution settings
+      url: https://pnpm.io/settings/dependency-resolution
+      summary: overrides with version and parent selectors, "-" removes a dependency
+    - title: Yarn 1 - selective dependency resolutions
+      url: https://classic.yarnpkg.com/lang/en/docs/selective-version-resolutions/
+      summary: resolutions keyed by path; warnings for invalid or incompatible resolutions
+    - title: Gradle - dependency constraints
+      url: https://docs.gradle.org/current/userguide/dependency_constraints.html
+      summary: constraints with because, strictly, constraints ignored when the module is absent
+    - title: Maven - introduction to the dependency mechanism
+      url: https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html
+      summary: Nearest definition; dependencyManagement wins over mediation for transitive dependencies; exclusions
+    - title: maven-dependency-plugin tree goal
+      url: https://maven.apache.org/plugins/maven-dependency-plugin/tree-mojo.html
+      summary: verbose includes omitted nodes in the tree
+    - title: MDEP-644 - Reintroduce the verbose option for dependency:tree
+      url: https://issues.apache.org/jira/browse/MDEP-644
+      summary: Verbose removed in plugin 3.0, closed as fixed
+    - title: MDEP-962 - Verbose information missing
+      url: https://issues.apache.org/jira/browse/MDEP-962
+      summary: Open report against 3.7.0 that verbose output omits why entries were left out
+    - title: Maven Enforcer - dependencyConvergence
+      url: https://maven.apache.org/enforcer/enforcer-rules/dependencyConvergence.html
+      summary: Fails the build and lists every path while two versions of one artifact remain
+    - title: npm/cli issue 5443 - overrides not updating
+      url: https://github.com/npm/cli/issues/5443
+      summary: npm dedupe reported to replace overridden versions; npm ls showed them invalid
+    - title: dependency-tree-diff
+      url: https://github.com/JakeWharton/dependency-tree-diff
+      summary: Diffs two Gradle dependency trees, keeping the ancestors of each changed line
+    - title: DepClean - bloated dependencies in Maven (Empirical Software Engineering)
+      url: https://link.springer.com/article/10.1007/s10664-020-09914-8
+      summary: 2.7% of direct, 15.4% of inherited and 57% of transitive dependencies bloated
+    - title: dependency-cruiser
+      url: https://www.npmjs.com/package/dependency-cruiser
+      summary: Emits DOT for rendering module dependency graphs
+    - title: madge
+      url: https://github.com/pahen/madge
+      summary: Module dependency graphs and circular import lists
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

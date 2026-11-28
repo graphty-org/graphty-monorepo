@@ -1,0 +1,21 @@
+id: edge-merge-policy
+name: Direction and Parallel-Edge Policy
+category: analysis
+description: "Explicit choice at import of directed, undirected or per-edge direction from a column, and of what
+    repeated source-target rows mean: keep as multi-edges, or merge with count, sum, average, min, max, first or last;
+    never merge across layers silently."
+status: planned
+notes: "Research trace: data-preparation-and-import.md section 9, requirement 3 (Must)."
+algorithms: []
+used_by_workflows:
+    - W18
+    - W291
+    - W293
+    - W303
+implemented_by_components: []
+requirements:
+    - "Must: Parallel-edge policy choice: keep as multi-edges, merge with count, sum, average, min, max, first, last"
+sources:
+    - title: Data Preparation, Import and First Assessment Across All Graph Users (section 9, requirement 3)
+      url: design/user-research/data-preparation-and-import.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap"

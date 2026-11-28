@@ -1,0 +1,123 @@
+id: W392
+name: Median-Joining Network in Network and TCS with tcsBU
+category: analysis
+validated: false
+personas:
+    - phylogeographer-population-geneticist
+    - conservation-geneticist
+requires_capabilities:
+    - data-import
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - component-analysis
+    - export-image
+    - node-glyph-charts
+    - edge-mutation-marks
+    - haplotype-network-inference
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - node-chart-overlay
+    - legend-panel
+    - layout-panel
+    - image-export-dialog
+starting_state:
+    data_type: sequence, STR or binary character data; TCS output graph for tcsBU
+    node_count: 10-300 haplotypes (median-joining becomes too reticulated above a few hundred)
+    edge_density: sparse to moderately reticulated
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Build a median-joining network with the reference implementation (Network by Fluxus) or a statistical
+    parsimony network with TCS, then color it by population, usually in a separate tool.
+
+
+    **Mental Model**: "Connect sequences by the fewest changes, adding hypothetical ancestors where needed." TCS joins
+    at one, two, three changes until all haplotypes connect or the 95% parsimony limit stops it.
+
+
+    **Task Phases**:
+
+    1. **Network: import and weight** - Import sequence, STR or binary data on Windows; optionally weight
+    characters
+
+    2. **Network: compute** - Median-Joining or Reduced Median; Star Contraction for large sets;
+    start at epsilon 0, re-run at higher epsilon accepting longer runtimes; optional MP post-processing removes
+    superfluous median vectors
+
+    3. **Network: draw** - Population coloring and counts need the paid Publisher add-on; Network can estimate
+    ages of ancestral nodes
+
+    4. **TCS: compute** - Join haplotypes until a single network or the 95% connection limit; may produce
+    several disconnected networks
+
+    5. **tcsBU: color** - Load TCS output in a browser, assign groups, draw pie nodes with a force layout,
+    save SVG
+
+
+    **Decision Points**:
+
+    - Median-joining or statistical parsimony?
+
+    - Which epsilon, and whether to run MP post-processing?
+
+    - Accept disconnected TCS networks or relax the connection limit?
+
+    - Pay for Publisher or move to another tool for coloring?
+
+
+    **Information Needs**:
+
+    - Number of median vectors and how many survive post-processing
+
+    - Whether the result is one network or several components
+
+    - Population composition per node
+
+    - Estimated ages of ancestral nodes when computed
+
+
+    **Pain Points**:
+
+    - Network is Windows only; coloring requires a paid add-on
+
+    - TCS spring layout needs manual cleanup
+
+    - Disconnected TCS networks are hard to present together
+
+    - Median-joining networks above a few hundred haplotypes are too complex and fraught with reticulations
+
+
+    **Data Flow**:
+
+    - Input: Aligned sequences or STR data; group assignments
+
+    - Transformations: Median-joining or statistical parsimony inference, post-processing, group coloring, force layout
+
+    - Output: SVG network with pies, optional ancestral node ages
+success_criteria:
+    - metric: Disconnected networks
+      target: All components of a TCS result are drawn together and labeled by component
+    - metric: Coloring without paid add-on
+      target: Population pies applied from a group table in one step
+sources:
+    - title: Fluxus Network features
+      url: https://fluxus-engineering.com/netwinfo.htm
+      summary: Median-joining, reduced median, star contraction, MP post-processing, Publisher add-on, data types
+    - title: Network user guide
+      url: https://www.fluxus-engineering.com/Network4510_user_guide.pdf
+      summary: Epsilon, weighting and post-processing steps (via search summary)
+    - title: TCS (Clement et al. 2000)
+      url: https://bioresearch.byu.edu/tcs
+      summary: Statistical parsimony with a 95% connection limit
+    - title: tcsBU
+      url: https://github.com/sairum/tcsBU
+      summary: Browser tool that colors TCS output by groups with pie nodes and exports SVG
+    - title: EMPOP quasi-median networks
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4020147/
+      summary: Median-joining networks above a few hundred haplotypes become too complex and fraught with reticulations
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

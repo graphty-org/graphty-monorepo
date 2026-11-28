@@ -54,6 +54,7 @@ import {
     sideOf,
     stepCard,
     usedPaths,
+    waitingSource,
     WHILE,
     withReference,
 } from "./values";
@@ -284,7 +285,9 @@ function ValueField({
     return (
         <AddCondition
             // The lists are read only while the picker is open: on a large graph they are not free.
-            fields={open ? pickerFields(session, sideOf(rule), rule.within, perAlgorithm) : []}
+            fields={
+                open ? pickerFields(session, sideOf(rule), rule.within, perAlgorithm, waitingSource(session, rule)) : []
+            }
             used={usedPaths(rule, branch)}
             placeholder="Find attributes, results"
             sections={open ? [...hostPicks, ...pickSections(session, rule, choose, host, perAlgorithm)] : []}
@@ -361,36 +364,21 @@ function LinksChoice({
     where,
     onChoice,
 }: Readonly<{ where: boolean; onChoice: (where: boolean) => void }>): React.JSX.Element {
-    // compact-mantine's SegmentedControl switches on mouse-down, inside the mousedown event (Figma).
-    // Choosing "Edges where ..." closes the settings and focuses the Edge value field before the
-    // browser runs the press's own focus step, which then finds the pressed option gone and clears
-    // focus to the page. A press that makes that choice skips the browser's step, keeping the focus
-    // the choice moves (issue #8920). compact-mantine is locked to Figma, so this sits in its use
-    // until #8927 fixes the control itself; then delete it.
-    const keepMovedFocus = (event: React.MouseEvent<HTMLDivElement>): void => {
-        const option = event.target instanceof Element ? event.target.closest("label")?.control : null;
-        if (!where && option instanceof HTMLInputElement && option.value === "where") {
-            event.preventDefault();
-        }
-    };
     return (
-        // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- not a control: it only keeps the focus a choice below moved
-        <div onMouseDown={keepMovedFocus}>
-            <CaptionedRow>
-                <SegmentedControl
-                    label="Edges"
-                    fullWidth
-                    data={[
-                        { value: "all", label: "All edges" },
-                        { value: "where", label: "Edges where ..." },
-                    ]}
-                    value={where ? "where" : "all"}
-                    onChange={(next) => {
-                        onChoice(next === "where");
-                    }}
-                />
-            </CaptionedRow>
-        </div>
+        <CaptionedRow>
+            <SegmentedControl
+                label="Edges"
+                fullWidth
+                data={[
+                    { value: "all", label: "All edges" },
+                    { value: "where", label: "Edges where ..." },
+                ]}
+                value={where ? "where" : "all"}
+                onChange={(next) => {
+                    onChoice(next === "where");
+                }}
+            />
+        </CaptionedRow>
     );
 }
 
@@ -576,13 +564,14 @@ export function StepPane({
             ?.focus();
     });
     const side: Side = sideOf(rule);
-    const { value } = rowWords(session, step, side, reading);
+    const waiting = waitingSource(session, rule);
+    const { value } = rowWords(session, step, side, reading, waiting);
     // Typing in a box is held and written when committed (Enter, leaving the box): one undo step.
     const [draft, setDraft] = useState<Card | null>(null);
     // Read once per reading, never per render: it reads the step's values and their spread.
     const read = useMemo(
-        () => stepCard(session, step, reading, side, rule.within),
-        [session, step, reading, side, rule.within],
+        () => stepCard(session, step, reading, side, rule.within, waiting),
+        [session, step, reading, side, rule.within, waiting],
     );
     // A Keep or Except step's checklist counts what comes into the step (spec 5); an Add step's
     // counts the base, since what it adds comes from there.

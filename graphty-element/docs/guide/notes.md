@@ -22,10 +22,10 @@ const aboutAda = session.notes.list({ target: { node: "ada" } }); // [{ id, time
 await session.styles.add({
     name: "Notes",
     target: "node",
-    selector: { match: "has", path: "graphty.notes.count" },
-    encode: { "node.label": { by: "graphty.notes.latest" } },
+    selector: { match: "has", path: "store.graphty.notes.count" },
+    encode: { "node.label": { by: "store.graphty.notes.latest" } },
 });
-// Or label it with how many notes name it: { by: "graphty.notes.count" }
+// Or label it with how many notes name it: { by: "store.graphty.notes.count" }
 
 // Save the notes as JSON, and open them again later
 const saved = JSON.stringify(session.notes.toDocument());
@@ -47,7 +47,7 @@ session.notes.mergeDocument(JSON.parse(saved));
 
 The element stores the text exactly as given -- every character, line break and space -- and
 never parses, renders, trims or sanitizes it. Where it draws note text itself, in a label bound to
-`graphty.notes.latest`, it draws the characters: a note reading `**urgent**` shows the ten
+`store.graphty.notes.latest`, it draws the characters: a note reading `**urgent**` shows the ten
 characters `**urgent**`, and one reading `<bold>x</bold>` shows the tags, not bold text.
 
 That leaves each application free to read notes its own way -- as Markdown, as HTML, as plain
@@ -133,6 +133,8 @@ open union: a later release may add kinds, so show a kind you do not know by its
   plus the file's edge id or, for an edge without one, its position among the edges joining the
   same two nodes, counted when you call `toDocument()`, so edges added or removed before then do
   not move the note. An edge your code added without an id is saved by its position too. Give your edges ids when notes about them matter.
+  Element ids are this page's only: to hold a target across a page load (a note still being
+  written), keep `session.notes.savedTarget(target)` instead, which returns that saved form.
 - **An item** is pinned to the run it was written against. Community numbers mean nothing across
   runs, so after a re-run its status says `earlier-run` rather than moving to whatever is
   numbered the same now. Leave out `run` to mean the result's current run.
@@ -307,23 +309,23 @@ join the transaction's one step. See [Undo and History](./undo).
 
 Three values a style layer can read on every node and edge:
 
-| Path                       | Value                                                            |
-| -------------------------- | ---------------------------------------------------------------- |
-| `graphty.notes.count`      | How many notes name this node or edge; **no value** when none do |
-| `graphty.notes.latest`     | The text of the newest of those notes; no value when none        |
-| `graphty.notes.latestTime` | The `time` of the newest of those notes; no value when none      |
+| Path                             | Value                                                            |
+| -------------------------------- | ---------------------------------------------------------------- |
+| `store.graphty.notes.count`      | How many notes name this node or edge; **no value** when none do |
+| `store.graphty.notes.latest`     | The text of the newest of those notes; no value when none        |
+| `store.graphty.notes.latestTime` | The `time` of the newest of those notes; no value when none      |
 
 Only node and edge targets count: a note about a set, an item, a result or the graph counts on
-none of their members. Because an element without notes has no `graphty.notes.count`,
-`{ match: "has", path: "graphty.notes.count" }` selects exactly the noted ones; the expression
-`` graphty.notes.count > `0` `` does the same. There is no built-in notes look: to make noted
+none of their members. Because an element without notes has no `store.graphty.notes.count`,
+`{ match: "has", path: "store.graphty.notes.count" }` selects exactly the noted ones; the expression
+`` store.graphty.notes.count > `0` `` does the same. There is no built-in notes look: to make noted
 elements stand out, add an ordinary layer, as in the quick start.
 
 ```typescript
 await session.styles.add({
     name: "Noted",
     target: "node",
-    selector: { match: "has", path: "graphty.notes.count" },
+    selector: { match: "has", path: "store.graphty.notes.count" },
     set: { "node.color": "#f59e0b" },
 });
 ```
@@ -332,7 +334,7 @@ The paths work in a layer's `selector`, in a binding's `by`, and in `select({ wh
 visibility filter, run scopes and recipes refuse them (`E_BAD_SELECTOR`, reason `notes-path`),
 because a note must not change what a result is computed over.
 
-A label or tooltip bound to a `graphty.notes.*` path is drawn as literal text, never as label
+A label or tooltip bound to a `store.graphty.notes.*` path is drawn as literal text, never as label
 markup. The `graphty.` root is reserved for values the element provides; see
 [Styling](./styling#values-the-element-provides).
 

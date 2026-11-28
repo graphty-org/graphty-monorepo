@@ -1,0 +1,68 @@
+id: analytics-engineer-lineage
+name: Analytics Engineer (Lineage)
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
+role: Analytics Engineer / Data Engineer
+quote: I'm renaming one column in a staging model. Which of our 1,500 models, which dashboards and which owners does that touch?
+bio: >-
+    Ben maintains about 1,500 dbt models on Snowflake, arranged in staging, intermediate and mart layers, with
+    Airflow and Spark jobs around them. His graph is lineage: dbt's `manifest.json` (parent_map, child_map, exposures),
+    OpenLineage run events into Marquez, and DataHub for cross-tool lineage down to BI dashboards. Before merging a pull
+    request he selects the downstream closure of the changed models (`dbt ls --select "my_model+"`), narrows it to the
+    columns that really change, checks exposures and owners, and lets Slim CI build only the affected set. After a test
+    failure he walks upstream column by column, reading the SQL on each edge and the state of each run, to find the
+    source of a bad value. He writes selectors before he drags nodes and expects lineage to read left to right.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Know before merging which downstream models, columns, dashboards and owners a change affects
+    - After a data test fails, trace the bad column upstream to the model, job or source that produced it
+    - Keep CI cost down by building and testing only the affected closure
+    - Notify owners with a precise impact list instead of a broadcast
+behaviors:
+    - Writes dbt graph selectors (my_model+, +my_model, 3+my_model+4, @my_model) and combines them with tags and resource types
+    - Focuses the lineage view on one model and toggles upstream only, downstream only or both
+    - Opens a table to its columns and follows only the downstream columns of the changed column
+    - Filters by layer, materialization and test status, looking for the red region upstream of a failure
+    - Inspects the transformation SQL and run history on lineage edges
+    - Exports impact lists with owners as CSV for the pull request description
+frustrations:
+    - Large DAGs might not render; one dbt docs site downloaded a 58 MB manifest and the lineage graph crashed
+    - Column lineage cannot parse Python models or hard-coded table names, so gaps look like no dependency
+    - DataHub defaults to one degree of lineage and caps CSV export at 10,000 rows
+    - Switching between three or four tools to trace one value upstream
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W79
+    - W80
+sources:
+    - title: dbt - Graph operators
+      url: https://docs.getdbt.com/reference/node-selection/graph-operators
+      summary: Plus, n-plus and at operators select bounded upstream and downstream closures
+    - title: dbt - Explore projects
+      url: https://docs.getdbt.com/docs/explore/explore-projects
+      summary: Lineage focus options; large DAGs might not render
+    - title: dbt - Column-level lineage
+      url: https://docs.getdbt.com/docs/explore/column-level-lineage
+      summary: Column evolution (passthrough, rename, transformed); cannot parse Python models or hard-coded names; failing test may stem from untested column upstream
+    - title: DataHub - Impact analysis
+      url: https://docs.datahub.com/docs/act-on-metadata/impact-analysis
+      summary: Lineage tab with upstream/downstream toggle, degree default 1, facet filters, CSV export capped at 10,000 rows
+    - title: Dagster - dbt docs on React
+      url: https://www.dagster.io/blog/dbt-docs-on-react
+      summary: Manifests of dozens of megabytes; GitLab's 58 MB payload crashed the stock lineage graph
+    - title: OpenLineage - Column lineage dataset facet
+      url: https://openlineage.io/docs/spec/facets/dataset-facets/column_lineage_facet
+      summary: DIRECT versus INDIRECT column inputs on lineage events
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

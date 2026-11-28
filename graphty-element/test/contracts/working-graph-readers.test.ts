@@ -269,6 +269,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.pick()": "writes",
     "data.ref()": "names its target",
     "data.nodeRef()": "names its target",
+    "data.typeOf()": "names its target",
     "data.removeEdit()": "writes",
     "data.removeStep()": "writes",
     "data.resolveStep()": "writes",
@@ -335,6 +336,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.overRepresented()": { view: (s) => s.data.overRepresented("data.type") },
     "data.pendingSourceLoads()": "not the graph",
     "data.prepare()": "writes",
+    "data.prepared()": "not the graph",
     "data.preparePage()": {
         view: async (s) => {
             await s.data.preparePage("node", { sort: { key: "id" } });
@@ -401,6 +403,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
         view: (s) => s.data.valueCounts("data.type"),
         whole: (s) => s.data.valueCounts("data.type", { scope: "graph" }),
     },
+    "data.kinds()": { view: (s) => s.data.kinds() },
     "data.valueLabels()": "not the graph",
     "dispose()": "writes",
     "estimate()": "names its target",
@@ -464,6 +467,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "notes.list()": "not the graph",
     "notes.mergeDocument()": "writes",
     "notes.remove()": "writes",
+    "notes.savedTarget()": "names its target",
     "notes.status()": "not the graph",
     "notes.toDocument()": "not the graph",
     "notes.update()": "writes",
@@ -663,8 +667,10 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "styles.setValueEntry()": "writes",
     "styles.setValueHidden()": "writes",
     "styles.showBranches()": "writes",
+    "styles.showDraft()": "writes",
     "styles.showingBranches": "state",
     "styles.shownBranches": "state",
+    "styles.shownDraft": "state",
     "styles.toDocument()": "not the graph",
     "styles.toFile()": "not the graph",
     "styles.tree()": "not the graph",
@@ -727,6 +733,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "visibility.conditionCounts()": "the filter's own",
     "visibility.conditions": "the filter's own",
     "visibility.draft()": "writes",
+    "visibility.draftOf()": "names its target",
     "visibility.edgeMask()": "the filter's own",
     "visibility.edges": "the filter's own",
     "visibility.filter": "the filter's own",
@@ -736,6 +743,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "visibility.nodeMask()": "the filter's own",
     "visibility.nodes": "the filter's own",
     "visibility.notDrawn": "state",
+    "visibility.openDrafts()": "the filter's own",
     "visibility.removeCondition()": "writes",
     "visibility.set()": "writes",
     "visibility.setConditions()": "writes",
@@ -859,6 +867,7 @@ async function sessionOf(withHidden: boolean, hider: Hider | null): Promise<Grap
     await session.data.addNodes(withHidden ? [...SHOWN, HIDDEN] : SHOWN);
     await session.data.addEdges(withHidden ? [...SHOWN_EDGES, ...HIDDEN_EDGES] : SHOWN_EDGES);
     await session.time.setField({ nodes: { start: "seen" } });
+    await session.data.setRole({ kind: "node", name: "type" }, "kind");
     await session.styles.add({
         name: LAYER,
         target: "node",

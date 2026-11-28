@@ -1,0 +1,23 @@
+id: structural-checks
+name: Structural Completeness Checks
+category: analysis
+description: Neutral results listing nodes with no path to a chosen goal, nodes with no inputs or outputs, and nodes
+    missing a required field (outcomes without indicators).
+status: planned
+notes: "Research trace: systems-and-stakeholder-mapping-civic.md section 9, table row 5 (Should)."
+algorithms: []
+used_by_workflows:
+    - W196
+    - W198
+    - W1156
+    - W1159
+implemented_by_components: []
+requirements:
+    - "Should: Structural checks with neutral results: nodes with no path to a chosen goal, outcomes without indicators,
+      nodes without inputs"
+sources:
+    - title: "Systems Mappers and Civic Power-Mappers: Foundations, NGOs, Evaluators and Organizers (section 9, table
+          row 5)"
+      url: design/user-research/systems-and-stakeholder-mapping-civic.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly.
+          Paths and components exist; these checks are not specified."

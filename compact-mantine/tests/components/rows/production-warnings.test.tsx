@@ -1,23 +1,11 @@
-import { MantineProvider } from "@mantine/core";
-import { render } from "@testing-library/react";
-import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { compactTheme } from "../../../src";
 import { CompoundRow } from "../../../src/components/rows/CompoundRow";
 import { ToggleRow, ToggleRowGroup } from "../../../src/components/rows/ToggleRow";
+import { renderCompact as renderRow } from "../../harness/render";
 
 // These run in jsdom, not the browser project: they switch NODE_ENV at run time, and a browser
 // build has `process.env.NODE_ENV` replaced with a constant before the test starts.
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRow(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
 
 describe("CompoundRow", () => {
     describe("the development warnings", () => {

@@ -1,0 +1,124 @@
+id: W227
+name: Interbank Exposure Network and Contagion
+category: analysis
+validated: false
+personas:
+    - economic-network-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - degree-analysis
+    - centrality-pagerank
+    - basic-statistics
+    - removal-impact-analysis
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - temporal-analysis
+    - comparison-view
+    - export-image
+    - data-export
+    - backbone-extraction
+    - group-collapse
+    - cascade-simulation
+    - redacted-sharing
+    - fixed-node-positions
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - node-merge-dialog
+    - graph-canvas
+    - statistics-panel
+    - ranked-node-table
+    - impact-analysis-dialog
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: quarterly supervisory large-exposure reports turned into a weighted directed bank-to-counterparty matrix
+    node_count: 84-3600
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Map who is exposed to whom across the banking system, describe its core and periphery, and simulate what
+    happens if a bank defaults: which banks fail next and how much capital is lost.
+
+
+    **Mental Model**: "Dominoes with thresholds." A bank falls when its losses pass a share of its capital, and losses
+    spread round by round.
+
+
+    **Task Phases**:
+
+    1. **Pull supervisory reports** - Large exposures (for example 84 institutions in ECB data, 155 in RBA data)
+
+    2. **Resolve counterparties** - Match names without legal entity identifiers (70 percent of cases) across 3,500+
+    counterparties
+
+    3. **Build** - Gross and net exposure edges; roughly 5 to 6 percent of possible links present
+
+    4. **Describe** - Degree, PageRank, interconnectedness scores, average path length (about 2.2 steps), dense core and
+    sparse periphery
+
+    5. **Simulate** - Threshold default cascade (a bank fails past 4.5 percent of risk-weighted assets, rounds repeat) or
+    DebtRank (partial distress, each edge used once)
+
+    6. **Publish** - Whole-network charts with labels hidden or text by group
+
+
+    **Decision Points**:
+
+    - Gross or net exposures?
+
+    - Which default threshold or distress model?
+
+    - How to aggregate so no bank is identifiable in publication?
+
+
+    **Information Needs**:
+
+    - Exposure weight per edge, both directions
+
+    - Cascade rounds and capital lost per round
+
+    - Core membership and how it shifts between quarters
+
+
+    **Pain Points**:
+
+    - Counterparties lack an LEI in most cases
+
+    - Bank-level results cannot be published
+
+    - Quarterly comparisons need a stable layout
+
+
+    **Data Flow**:
+
+    - Input: COREP, FINREP or large-exposure templates
+
+    - Transformations: Counterparty resolution, exposure matrix, descriptive measures, threshold cascade or DebtRank
+
+    - Output: Systemic indicators, cascade results, anonymized network charts
+success_criteria:
+    - metric: Cascade output
+      target: Rounds, failed banks and capital lost reported per scenario
+    - metric: Confidential publication
+      target: Export hides labels or groups nodes
+sources:
+    - title: ECB Macroprudential Bulletin 2018, interbank network
+      url: https://www.ecb.europa.eu/press/financial-stability-publications/macroprudential-bulletin/html/ecb.mpbu201804_01.sv.html
+      summary: 84 institutions, 70 percent without LEI, about 11.5 trillion euro gross, 6.3 percent density, 4.5 percent RWA default threshold
+    - title: RBA Bulletin June 2013, interbank network
+      url: https://www.rba.gov.au/publications/bulletin/2013/jun/6.html
+      summary: Large exposures from 155 institutions; results by group
+    - title: Battiston et al., DebtRank (2012)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/3412322
+      summary: Partial distress propagation with each edge used once
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

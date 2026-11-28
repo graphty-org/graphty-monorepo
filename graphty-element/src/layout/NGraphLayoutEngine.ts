@@ -19,7 +19,14 @@ import {
     sameCommunities,
 } from "./clusterForce";
 import type { D3RowSource, RowExtent } from "./D3GraphLayoutEngine";
-import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
+import {
+    edgeEndsFollowNodes,
+    EdgePosition,
+    type EdgeRow,
+    heldEdgeProblems,
+    LayoutEngine,
+    Position,
+} from "./LayoutEngine";
 import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 import { seedSchema } from "./seedOption";
 
@@ -202,6 +209,15 @@ export class NGraphEngine extends LayoutEngine {
     edgeMapping = new Map<Edge, NGraphLink>();
     /** The link carrying each edge stored with no `Edge`, by edge id. See {@link NGraphEngine.addEdgeRows}. */
     private readonly rowLinks = new Map<string, NGraphLink>();
+    /**
+     * The middle of the box a new body starts in: the origin, or after a removal the middle of the
+     * bodies left. A removal leaves its survivors where the larger drawing had them, far from the
+     * origin, and a body started at the origin was pulled across the old drawing's width: each add
+     * after removing most of a 3,214-node graph took hundreds of steps (issue #9421).
+     */
+    private placeAround = { x: 0, y: 0, z: 0 };
+    /** A body left since {@link placeAround} was read: read it again before the next placement. */
+    private placeAroundStale = false;
     /** The one link between two nodes, keyed by both ids in the order the first edge gave them. */
     private readonly pairLinks = new Map<NodeIdType, Map<NodeIdType, NGraphLink>>();
     _settled = true;
@@ -810,14 +826,21 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
-     * Pin each held row body and free the rest, and weigh each by whether its row follows.
+     * Pin each held row body where the element's array has it and free the rest, and weigh each by whether its row
+     * follows. A held row with no `Node` (renderPath "batched") is placed here, as a scoped layout places a held
+     * `Node` before it holds it (`LayoutManager.applyHold`) (issue #10052).
      */
     private holdRowBodies(): void {
         const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
+        const at = { x: 0, y: 0, z: 0 };
         this.rowFollowers.clear();
         for (const [id, ngraphNode] of snapshot === undefined ? [] : this.rowNodes) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row !== INVALID_INDEX) {
+                if (this.isHeld(row) && this.readRowPosition(row, at, this.rowSource?.positions)) {
+                    this.moveRowBody(id, at);
+                }
+
                 this.ngraphLayout.pinNode(ngraphNode, this.isHeld(row));
                 this.weigh(row, id);
                 if (this.isFollower(row)) {
@@ -881,13 +904,37 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
+        if (this.placeAroundStale) {
+            this.placeAroundStale = false;
+            this.placeAround = this.middleOfBodies(id);
+        }
+
         const { springLength } = this.ngraphLayout.simulator.settings;
         const perAxis = Math.pow(this.ngraph.getNodeCount(), 1 / dim) * (dim === 3 ? START_SPREAD_3D : START_SPREAD_2D);
         const side = springLength * Math.max(1, perAxis);
         const coord = (): number => (rng.nextDouble() - 0.5) * side;
-        const x = coord();
-        const y = coord();
-        this.ngraphLayout.setNodePosition(id, x, y, dim === 3 ? coord() : 0);
+        const x = this.placeAround.x + coord();
+        const y = this.placeAround.y + coord();
+        this.ngraphLayout.setNodePosition(id, x, y, dim === 3 ? this.placeAround.z + coord() : 0);
+    }
+
+    /**
+     * The mean position of the bodies in the simulation, leaving one out.
+     * @param skip - The id of the body being placed.
+     * @returns Their middle; the origin when there are none.
+     */
+    private middleOfBodies(skip: NodeIdType): { x: number; y: number; z: number } {
+        const sum = { x: 0, y: 0, z: 0 };
+        let count = 0;
+        this.ngraphLayout.forEachBody((body, bodyId) => {
+            if (bodyId !== skip) {
+                sum.x += body.pos.x;
+                sum.y += body.pos.y;
+                sum.z += body.pos.z ?? 0;
+                count++;
+            }
+        });
+        return count === 0 ? sum : { x: sum.x / count, y: sum.y / count, z: sum.z / count };
     }
 
     /**
@@ -1121,13 +1168,22 @@ export class NGraphEngine extends LayoutEngine {
         const at = { x: 0, y: 0, z: 0 };
         for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
             if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at, this.rowSource?.positions)) {
-                const pos = this.ngraphLayout.getNodePosition(id);
-                pos.x = at.x;
-                pos.y = at.y;
-                // A 2D engine holds its bodies on the plane, whatever Z the array carries.
-                pos.z = this.ngraphLayout.simulator.settings.dimensions === 3 ? at.z : 0;
+                this.moveRowBody(id, at);
             }
         }
+    }
+
+    /**
+     * Move a row body to a position.
+     * @param id - The row's id.
+     * @param at - Where the element's array has the row.
+     */
+    private moveRowBody(id: NodeIdType, at: Required<Position>): void {
+        const pos = this.ngraphLayout.getNodePosition(id);
+        pos.x = at.x;
+        pos.y = at.y;
+        // A 2D engine holds its bodies on the plane, whatever Z the array carries.
+        pos.z = this.ngraphLayout.simulator.settings.dimensions === 3 ? at.z : 0;
     }
 
     /**
@@ -1190,6 +1246,34 @@ export class NGraphEngine extends LayoutEngine {
     protected pin(n: Node): void {
         const ngraphNode = this._getMappedNode(n);
         this.ngraphLayout.pinNode(ngraphNode, true);
+    }
+
+    /**
+     * Holds a node still for the duration of a drag, as a pinned body with no velocity left, without pinning it.
+     *
+     * Unheld, ngraph kept integrating the body between pointer moves: its velocity (up to one unit a step) carried the
+     * node on along the line of sight while the pointer moved it across, so a node dragged while the layout ran slid
+     * away from the reader.
+     * @param n - The node the pointer has taken.
+     */
+    beginDrag(n: Node): void {
+        const ngraphNode = this._getMappedNode(n);
+        this.ngraphLayout.pinNode(ngraphNode, true);
+        const body = this.ngraphLayout.getBody(ngraphNode.id);
+        if (body !== undefined) {
+            body.velocity.x = 0;
+            body.velocity.y = 0;
+            body.velocity.z = 0;
+        }
+    }
+
+    /**
+     * Gives the node back to the simulation, unless the drop pins it or it was pinned or held already.
+     * @param n - The node the pointer has let go of.
+     * @param pin - True when the drag ends in a pin.
+     */
+    endDrag(n: Node, pin: boolean): void {
+        this.ngraphLayout.pinNode(this._getMappedNode(n), pin || n.isPinned() || this.isHeld(n.index));
     }
 
     /**
@@ -1296,6 +1380,7 @@ export class NGraphEngine extends LayoutEngine {
 
         this.ngraph.removeNode(ngraphNode.id);
         this._settled = false;
+        this.placeAroundStale = true;
     }
 
     /**
@@ -1358,3 +1443,5 @@ export class NGraphEngine extends LayoutEngine {
         return ngraphNode;
     }
 }
+
+edgeEndsFollowNodes(NGraphEngine);

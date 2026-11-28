@@ -1,0 +1,147 @@
+id: W84
+name: What Does This Change Affect in the Build Graph
+category: analysis
+validated: false
+personas:
+    - codebase-dependency-developer
+requires_capabilities:
+    - data-import
+    - search
+    - node-selection
+    - neighborhood-expansion
+    - removal-impact-analysis
+    - all-paths-finding
+    - path-highlighting
+    - filtering
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - large-graph-rendering
+    - details-on-demand
+    - data-export
+    - export-image
+    - directed-closure
+    - cycle-detection
+    - dependency-format-import
+suggested_components:
+    - file-drop-zone
+    - search-input
+    - graph-canvas
+    - layout-panel
+    - filter-panel
+    - path-finder-dialog
+    - node-details-panel
+    - data-table-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: build, module or infrastructure-as-code dependency graph (Bazel query DOT, Nx project graph JSON from `nx graph --file`, dependency-cruiser JSON, terraform graph DOT) plus a list of changed files
+    node_count: tens to thousands of projects or targets (Nx's benchmark monorepo has 253 packages and 5,566 TypeScript files; Nx describes "large monorepos with thousands of projects"); no source gives a typical size
+    edge_density: sparse DAG; cycles are errors
+    user_expertise: expert
+goal: >-
+    **Intent**: For a commit, compute which targets, projects or infrastructure resources it affects so CI builds and
+    tests only those, and explain why each one is affected. Developers who own a monorepo's structure, and the build,
+    release and infrastructure-as-code engineers of larger companies, do this on every CI run, mostly through
+    automation, and draw the graph when a result surprises them or a reviewer needs to see the blast radius. The
+    persona is codebase-dependency-developer. dbt Slim CI's `state:modified+` is the same computation over a data
+    lineage graph, which the analytics engineer's own pre-merge workflow covers.
+
+
+    **Mental Model**: "Reverse dependencies of what changed, inside a universe I can see." The answer is only as
+    complete as the graph loaded.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Get changed files** - From git, between base and head refs
+
+    2. **Compute reverse dependencies within a universe** - Bazel `rdeps(u, x)` and `rdeps(u, x, depth)`; Nx affected;
+    at module level, dependency-cruiser `--affected <revision>` (changed modules plus everything that can reach them)
+
+    3. **Avoid the universe trap** - An inferred universe can silently shrink the result (`allrdeps(//my:target)` may
+    return only the target itself)
+
+    4. **Visualize when needed** - `bazel query "allpaths(...)" --output graph | dot -Tsvg`; `nx graph --affected`;
+    `--explain` writes why each task is affected; `depcruise --affected main --output-type mermaid` puts the
+    affected module graph in the pull request summary with changed modules highlighted; for a big Bazel graph, start
+    with a single path (`somepath`)
+
+    5. **Infrastructure as code** - `terraform graph` emits DOT of resource ordering; `-draw-cycles` colors cycle edges;
+    large graphs are grepped by module before rendering, or opened in Rover, Blast Radius or Inframap
+
+
+    **Decision Points**:
+
+    - Which universe (loaded subgraph) is the right one?
+
+    - Does the affected set look right, or did the universe hide dependents?
+
+    - Which affected targets must run before merge?
+
+
+    **Information Needs**:
+
+    - The universe used, shown with the result
+
+    - Why each node is affected (a path from a changed node)
+
+    - Cycle edges marked distinctly
+
+    - Grouping by module or package to keep large graphs readable
+
+
+    **Pain Points**:
+
+    - Static DOT images stop helping past a few dozen Terraform resources
+
+    - Sky Query output is unordered, so graph output is unavailable with it
+
+    - Practitioners grep the DOT text before rendering because the full graph is unreadable
+
+
+    **Data Flow**:
+
+    - Input: Changed files, Bazel query DOT, Nx project graph and explain JSON, dependency-cruiser JSON, terraform graph DOT
+
+    - Transformations: Bounded reverse closure within a universe, path explanation, module grouping, cycle marking
+
+    - Output: Affected target list for CI, explain output, optional diagram
+success_criteria:
+    - metric: Affected set
+      target: User obtains the reverse closure of changed nodes with the universe stated
+    - metric: Explanation
+      target: User can show a path from a changed node to any affected node
+    - metric: Large graphs
+      target: A graph of thousands of targets is navigable without grepping the source first
+sources:
+    - title: Bazel - Query guide
+      url: https://bazel.build/query/guide
+      summary: allpaths with --output graph piped to dot
+    - title: Bazel - Query language reference
+      url: https://bazel.build/query/language
+      summary: rdeps(u, x, depth), universe scope trap, Sky Query unordered output
+    - title: Nx - Affected
+      url: https://nx.dev/docs/features/ci-features/affected
+      summary: nx affected, nx graph --affected, --explain JSON
+    - title: dependency-cruiser - command line interface
+      url: https://github.com/sverweij/dependency-cruiser/blob/main/doc/cli.md
+      summary: --affected shows modules changed since a revision plus all modules that can reach them; mermaid output for a pull request summary
+    - title: Nx - Explore your workspace
+      url: https://nx.dev/docs/features/explore-graph
+      summary: nx graph --file writes the project graph as JSON; nx affected --graph; "Viewing the entire graph can be unmanageable even for smaller repositories"
+    - title: Nx - large-ts-monorepo benchmark
+      url: https://github.com/nrwl/large-ts-monorepo
+      summary: Benchmark project graphs of 10 to 253 packages and 220 to 5,566 TypeScript files
+    - title: Nx - The butterfly effect, a 100x faster linter
+      url: https://dev.to/nx/the-butterfly-effect-how-we-gave-the-linter-a-100x-boost-4nl9
+      summary: Nx team on "large monorepos with thousands of projects"
+    - title: Terraform - graph command
+      url: https://developer.hashicorp.com/terraform/cli/commands/graph
+      summary: DOT of resource ordering, -type=plan, -draw-cycles
+    - title: Spacelift - Terraform graph
+      url: https://spacelift.io/blog/terraform-graph
+      summary: Large graphs dense and hard to read; grep by module; Rover, Blast Radius, Inframap alternatives
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

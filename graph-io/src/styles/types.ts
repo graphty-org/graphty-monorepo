@@ -295,6 +295,11 @@ export interface NodeStyleValues {
      */
     readonly labelWrapSkipEndSpace: boolean;
     /**
+     * Whether a line is measured against `labelWrapWidth` without kerning between its letters, as Java measures text
+     * (Cytoscape desktop). Unset or false, kerned, as a browser draws text.
+     */
+    readonly labelWrapUnkerned: boolean;
+    /**
      * Whether a line wider than `labelWrapWidth` is cut to fit with an ellipsis after it, in place of wrapping
      * (Cytoscape.js `text-wrap: ellipsis`). Unset or false, it wraps.
      */
@@ -538,6 +543,8 @@ export interface NodeStyleValues {
     readonly labelWeight: StyleLabelWeight;
     /** Whether the label is italic. */
     readonly labelItalic: boolean;
+    /** Whether a line is drawn under the label's words (yEd's `underlinedText`). */
+    readonly labelUnderline: boolean;
     /** Where the label sits relative to the node. */
     readonly labelPosition: StyleLabelPosition;
     /** How the label's lines line up with one another: `left`, `center` (the default) or `right`. */
@@ -1082,7 +1089,9 @@ export interface EdgeStyleValues {
     /**
      * How a curved edge is drawn through its bends: `"corners"`, straight through each bend with its corner rounded,
      * or `"midpoints"`, one smooth curve using the bends as control points, from the middle of each segment to the
-     * next and leaving each end along its first and last segments (Cytoscape desktop), or `"bezier"`, one Bezier curve
+     * next and leaving each end along its first and last segments, or `"midpoints-headroom"`, that curve with the
+     * control next to an arrowhead kept at least the head's length behind the line's end (Cytoscape desktop), or
+     * `"bezier"`, one Bezier curve
      * whose control points are the bends (one: quadratic, two: cubic; vis-network's smooth edges), or `"arc"`, the arc
      * of the circle through both ends and the one bend, which lies on it (yEd's arc edge).
      */
@@ -1155,6 +1164,8 @@ export interface EdgeStyleValues {
     readonly labelTextAlign: StyleLabelTextAlign;
     /** Whether the label is italic. */
     readonly labelItalic: boolean;
+    /** Whether a line is drawn under the label's words; see the node's. */
+    readonly labelUnderline: boolean;
     /** The width the label's lines wrap at (a length); see the node's. */
     readonly labelWrapWidth: number;
     /** Whether a line wider than `labelWrapWidth` is cut with an ellipsis; see the node's. */
@@ -1803,6 +1814,12 @@ export interface StyleLengths {
     readonly units: "scene" | "file";
     /** How far apart the nodes of a file that stores no positions are laid out, in the file's lengths. */
     readonly spacing?: number;
+    /**
+     * The clear gap, in the file's lengths, the program's own layout keeps between the circles round any two nodes of
+     * a file that stores no positions (OGDF's energy layout: 20), so no two nodes are drawn over each other. Absent for
+     * a program whose layout lets nodes overlap.
+     */
+    readonly gap?: number;
 }
 
 /**

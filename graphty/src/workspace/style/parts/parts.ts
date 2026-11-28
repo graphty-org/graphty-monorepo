@@ -243,6 +243,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         Type: [
                             "node.labelWeight",
                             "node.labelItalic",
+                            "node.labelUnderline",
                             "node.labelLetterSize",
                             "node.labelLineHeight",
                             "node.labelLineBox",
@@ -286,6 +287,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                             "node.labelWrapWidth",
                             "node.labelWrapTrailingSpace",
                             "node.labelWrapSkipEndSpace",
+                            "node.labelWrapUnkerned",
                             "node.labelWrapEllipsis",
                             "node.labelWrapAnywhere",
                             "node.labelWrapSpaceCount",
@@ -377,7 +379,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
             id: "order",
             title: "Order and groups",
             items: [
-                { id: "order", name: "Order", tail: ["node.zIndex", "node.drawOrder"] },
+                { id: "order", name: "Order", tail: ["node.zIndex", "node.drawOrder", "node.onTop"] },
                 {
                     id: "group",
                     name: "Group",
@@ -526,6 +528,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         Type: [
                             "edge.labelWeight",
                             "edge.labelItalic",
+                            "edge.labelUnderline",
                             "edge.labelLetterSize",
                             "edge.labelLineHeight",
                             "edge.labelLineBox",
@@ -570,6 +573,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                             "edge.labelWrapWidth",
                             "edge.labelWrapTrailingSpace",
                             "edge.labelWrapSkipEndSpace",
+                            "edge.labelWrapUnkerned",
                             "edge.labelWrapEllipsis",
                             "edge.labelWrapAnywhere",
                             "edge.labelWrapSpaceCount",
@@ -578,6 +582,12 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         ],
                         View: ["edge.labelMinScreenSize"],
                     },
+                },
+                {
+                    id: "tooltip",
+                    name: "Tooltip",
+                    main: ["edge.tooltip"],
+                    tail: ["edge.tooltipStyle", "edge.tooltipSize", "edge.tooltipColor", "edge.tooltipBackground"],
                 },
                 {
                     id: "targetCaption",

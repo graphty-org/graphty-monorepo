@@ -13,6 +13,7 @@ import { detectFormats } from "../catalog/detect";
 import type { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
+import { declareKinds } from "./declaredKinds.js";
 import type { DataLoadingError } from "./ErrorAggregator.js";
 import {
     addErrorOrStop,
@@ -111,8 +112,13 @@ const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
 /** The header names that make a file the reader is not told the shape of a node list. */
 const NODE_ID_COLUMNS: readonly string[] = ["id", "Id", "ID"];
 
+/** Digits led by a zero, spaced or not: a code such as a ZIP, a phone or a DUNS number, never a quantity. */
+const CODE = /^0[\d\s]+$/;
+
 /**
- * Type every text cell of the records on its own, as a number, a boolean or text.
+ * Type every text cell of the records on its own, as a number, a boolean or text. The cells of a
+ * column of codes (one is led by a zero, so it is text) stay text all of them, so `"081"` and `"500"`
+ * are one type and match another file's codes as they are written.
  *
  * graph-io types a CSV column as a whole, so one cell that is not a number (`n/a`) turns every
  * number in its column into text. The element has always typed a cell by what it holds, which is
@@ -121,15 +127,62 @@ const NODE_ID_COLUMNS: readonly string[] = ["id", "Id", "ID"];
  * @returns the records
  */
 function typeCells(imported: ImportedRecords): ImportedRecords {
-    for (const { data } of [...imported.nodes, ...imported.edges]) {
-        for (const [key, value] of Object.entries(data)) {
-            if (typeof value === "string") {
-                data[key] = parseTextCell(value);
+    for (const table of [imported.nodes, imported.edges]) {
+        const codes = codeColumns(table);
+        for (const { data } of table) {
+            for (const [key, value] of Object.entries(data)) {
+                if (typeof value === "string" && !codes.has(key)) {
+                    data[key] = parseTextCell(value);
+                }
             }
         }
     }
 
     return imported;
+}
+
+/**
+ * A row with its columns in the file's order: the reader hands them over grouped by type.
+ * @param data - the row as read
+ * @param header - the file's header
+ * @returns the row, its header's columns first in order, then any the header did not name
+ */
+function inHeaderOrder(data: Record<string, unknown>, header: readonly string[]): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const name of header) {
+        if (Object.hasOwn(data, name)) {
+            out[name] = data[name];
+        }
+    }
+    return Object.assign(out, data);
+}
+
+/**
+ * A CSV text's header, read from its first line alone.
+ * @param content - the text
+ * @param delimiter - the column separator given, if any
+ * @returns the header's names
+ */
+function headerOf(content: string, delimiter: string | undefined): string[] {
+    return csvRecordLines(content.split(/\r\n|\n|\r/, 1)[0] ?? "", delimiter).header;
+}
+
+/**
+ * The columns holding a code led by a zero.
+ * @param table - the records of one table
+ * @returns their names
+ */
+function codeColumns(table: ImportedRecords["nodes" | "edges"]): ReadonlySet<string> {
+    const out = new Set<string>();
+    for (const { data } of table) {
+        for (const [key, value] of Object.entries(data)) {
+            if (typeof value === "string" && CODE.test(value.trim())) {
+                out.add(key);
+            }
+        }
+    }
+
+    return out;
 }
 
 /**
@@ -395,7 +448,8 @@ export class CSVDataSource extends DataSource {
             return;
         }
 
-        yield* this.emit(imported.nodes, imported.edges);
+        const header = headerOf(content, this.config.delimiter);
+        yield* this.emit(imported.nodes, imported.edges, header, header);
     }
 
     /**
@@ -618,6 +672,8 @@ export class CSVDataSource extends DataSource {
             id,
             data: Array.isArray(labels) ? { ...data, label: labels.join(";") } : data,
         }));
+        // :LABEL and :TYPE say what kind each node and relationship is.
+        declareKinds(this, { node: "label", edge: "type" });
         yield* this.emit(nodes, imported.edges);
     }
 
@@ -699,7 +755,7 @@ export class CSVDataSource extends DataSource {
         const { header, lines, delimiter } = csvRecordLines(content, given);
         return {
             columns: header,
-            rows: read.nodes.map(({ data }) => data),
+            rows: read.nodes.map(({ data }) => inHeaderOrder(data, header)),
             lines,
             delimiter: { value: delimiter, detected: given === undefined },
         };
@@ -779,7 +835,13 @@ export class CSVDataSource extends DataSource {
         }
 
         aggregateErrors(imported.report, this.errorAggregator, CSVDataSource.type);
-        yield* this.emit(imported.nodes, imported.edges);
+        const { delimiter } = this.config;
+        yield* this.emit(
+            imported.nodes,
+            imported.edges,
+            headerOf(nodeContent, delimiter),
+            headerOf(edgeContent, delimiter),
+        );
     }
 
     /**
@@ -791,19 +853,29 @@ export class CSVDataSource extends DataSource {
      * chunk is yielded, and therefore before the first edge reaches the builder.
      * The id and endpoints are written last, so an attribute column that happens to be named
      * `id`, `source` or `target` cannot take their place.
+     * Each record's columns then follow its file's header.
      * @param nodes - the nodes
      * @param edges - the edges
+     * @param nodeHeader - the node file's header
+     * @param edgeHeader - the edge file's header
      * @yields the chunks
      */
-    private *emit(nodes: ImportedNode[], edges: ImportedEdge[]): Generator<DataSourceChunk, void, unknown> {
-        const edgeRecords: ImportedRecord[] = edges.map(({ source, target, data }) => ({ ...data, source, target }));
+    private *emit(
+        nodes: ImportedNode[],
+        edges: ImportedEdge[],
+        nodeHeader: readonly string[] = [],
+        edgeHeader: readonly string[] = [],
+    ): Generator<DataSourceChunk, void, unknown> {
+        const edgeRecords: ImportedRecord[] = edges.map(({ source, target, data }) =>
+            inHeaderOrder({ ...data, source, target }, edgeHeader),
+        );
         const declared = readGephiTypeColumn(edgeRecords);
         if (declared !== null) {
             this.declareDirection(declared.directed, declared.statedBy, declared.conflictingEdges);
         }
 
         yield* this.chunkData(
-            nodes.map(({ id, data }) => ({ ...data, id })),
+            nodes.map(({ id, data }) => inHeaderOrder({ ...data, id }, nodeHeader)),
             edgeRecords as AdHocData[],
         );
     }

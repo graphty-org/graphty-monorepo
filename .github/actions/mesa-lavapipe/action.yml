@@ -45,7 +45,7 @@ runs:
               if [ "$NEEDED" != true ]; then
                   echo "the runner image already has $PACKAGES"
               elif [ "$HIT" = true ]; then
-                  sudo dpkg -i "$dir"/*.deb
+                  sudo dpkg -i --auto-deconfigure "$dir"/*.deb
               else
                   # apt downloads into $dir and keeps the files there for the save step below
                   mkdir -p "$dir/partial"

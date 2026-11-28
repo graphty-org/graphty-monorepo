@@ -14,6 +14,7 @@ import tseslint from "typescript-eslint";
 import { MANTINE_REPLACEMENTS } from "../compact-mantine/eslint/mantine-replacements.js";
 import noElementMutation from "./eslint-rules/no-element-mutation.js";
 import noSpecialLayers from "./eslint-rules/no-special-layers.js";
+import screenStateDeclared, { readBaselineFile, readKindsFile } from "./eslint-rules/screen-state-declared.js";
 import styleSidebarControls from "./eslint-rules/style-sidebar-controls.js";
 
 // The graphty app is only HTML around graphty-element (CLAUDE.md, "Architectural Principles"):
@@ -30,6 +31,7 @@ const graphtyPlugin = {
     rules: {
         "no-element-mutation": noElementMutation,
         "no-special-layers": noSpecialLayers,
+        "screen-state-declared": screenStateDeclared,
         "style-sidebar-controls": styleSidebarControls,
     },
 };
@@ -184,6 +186,20 @@ export default tseslint.config(
         ignores: ["**/__tests__/**", "**/__fixtures__/**", "**/*.test.*", "**/*.stories.*", "**/stories/**"],
         plugins: { graphty: graphtyPlugin },
         rules: { "graphty/no-special-layers": "error" },
+    },
+
+    // ============================================
+    // EVERY PIECE OF COMPONENT STATE SAYS WHAT A RELOAD DOES TO IT (issue #9655)
+    // ============================================
+    // eslint-rules/screen-state-declared.js; existing state is excused by name in screen-state-baseline.json.
+    // Both files it reads are passed as its option, so `eslint --cache` lints again when either changes.
+    {
+        files: ["src/**/*.ts", "src/**/*.tsx"],
+        ignores: ["**/__tests__/**", "**/__fixtures__/**", "**/*.test.*", "**/*.stories.*", "**/stories/**"],
+        plugins: { graphty: graphtyPlugin },
+        rules: {
+            "graphty/screen-state-declared": ["error", { baseline: readBaselineFile(), kinds: readKindsFile() }],
+        },
     },
 
     // ============================================
@@ -361,5 +377,13 @@ export default tseslint.config(
         // are snake_case. Names the app declares itself are still checked.
         files: ["src/lib/analytics.ts", "src/lib/analytics*.test.ts", "src/workspace/privacy/**"],
         rules: { camelcase: ["error", { properties: "never" }] },
+    },
+    {
+        // Temporary: about 3,500 calls in the app's tests still hand vitest's userEvent an element
+        // (screen.getByRole(...), within(...).getByText(...)), which it turns into a selector at once.
+        // The rule (root eslint.config.js, local/no-element-to-user-event) is off here until they move
+        // to page locators; then delete this block (#10194). No `files`: a block naming "**" makes ESLint
+        // lint every file it matches, CSV and PNG included.
+        rules: { "local/no-element-to-user-event": "off" },
     },
 );

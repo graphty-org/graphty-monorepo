@@ -1,5 +1,7 @@
 // Benchmark page: one library per page load. The runner (run.mjs) calls window.B.* in order.
-import { erdosRenyiGnmGraph } from "@graphty/graph-samples/generators";
+import { erdosRenyiGnmGraph, plantedPartitionGraph } from "@graphty/graph-samples/generators";
+
+import { adjacency, layoutQuality } from "./quality.js";
 
 const host = document.getElementById("host");
 const now = () => performance.now();
@@ -91,19 +93,43 @@ const B = {
         c.remove();
         return stats(intervals(st));
     },
-    gen(n, m) {
+    // kind "planted": a planted partition graph of 100 equal communities (fewer when a community would hold
+    // under 10 nodes), about m edges, 80% of each node's edges inside its community; its `community` column is the
+    // ground truth the quality stage scores against. Otherwise an Erdos-Renyi G(n, m) graph.
+    gen(n, m, kind) {
         const t = now();
-        const g = erdosRenyiGnmGraph({ n, m, seed: 42 });
+        let g;
+        if (kind === "planted") {
+            const groups = Math.max(1, Math.min(100, Math.floor(n / 10)));
+            const size = Math.floor(n / groups);
+            const deg = (2 * m) / (groups * size);
+            g = plantedPartitionGraph({
+                groups,
+                groupSize: size,
+                pIn: Math.min(1, (0.8 * deg) / (size - 1)),
+                pOut: groups > 1 ? (0.2 * deg) / (groups * size - size) : 0,
+                seed: 42,
+            });
+            n = g.nodeCount;
+        } else g = erdosRenyiGnmGraph({ n, m, seed: 42 });
         const r = mulberry32(7);
         const L = 4 * Math.sqrt(n);
         const xy = new Float32Array(2 * n);
         for (let i = 0; i < 2 * n; i++) xy[i] = (r() - 0.5) * L;
-        G = { n, m: g.src.length, src: g.src, dst: g.dst, xy };
-        return { n, m: G.m, genMs: Math.round(now() - t) };
+        G = { n, m: g.src.length, src: g.src, dst: g.dst, xy, community: g.nodeColumns?.community };
+        return {
+            n,
+            m: G.m,
+            kind: kind ?? "gnm",
+            groups: kind === "planted" ? Math.max(1, Math.min(100, Math.floor(n / 10))) : undefined,
+            genMs: Math.round(now() - t),
+        };
     },
 
     async setup(name, opts) {
         lib = name === "cosmos" ? await cosmosAdapter(opts) : await graphtyAdapter(opts);
+        B.adapter = lib; // for a debugging session in the console; the runner never reads it
+        B.score = (p) => layoutQuality(G, p);
         return lib.describe();
     },
     // No per-frame readback while a load runs: a load spans several of graphty-element's frames, and a
@@ -154,7 +180,41 @@ const B = {
         }
         return { cam, t, stamps: stamps.length, after: lib.el?.graph.getCameraState() };
     },
-    hoverTargets: (k) => lib.hoverTargets(k),
+    hoverTargets: (k, seed) => lib.hoverTargets(k, seed),
+    // Layout quality: the force layout runs from the loaded positions, drawn as usual, until it settles or `capMs`
+    // passes. Positions are copied at each mark (ms since the start) and at the end, and every copy, with the
+    // starting positions, is scored by quality.js after the run, so the scoring never slows the layout.
+    // With `steps` (cosmos.gl only), the simulation is stepped by hand with no frames drawn, up to `steps` steps or
+    // until it ends, and copied at `stepMarks`: how a software renderer, where wall time means nothing, is scored.
+    async quality(capMs, marks, steps, stepMarks) {
+        const p0 = lib.positions();
+        SYNC = false; // no blocking read per frame: the layout runs as it would on a reader's page
+        let run;
+        try {
+            run =
+                steps && lib.qualitySteps
+                    ? await lib.qualitySteps(steps, stepMarks)
+                    : await lib.qualityRun(capMs, marks);
+        } finally {
+            SYNC = true;
+        }
+        const t = now();
+        const csr = adjacency(G.n, G.src, G.dst);
+        const score = (p) => layoutQuality(G, p, { csr });
+        const out = {
+            start: score(p0),
+            snaps: run.snaps.map((s) => ({ atMs: s.atMs, atStep: s.atStep, ...score(s.p) })),
+            settledMs: run.settledMs,
+            endMs: run.endMs,
+            iterations: run.iterations,
+            frames: run.frames,
+            engine: run.engine,
+            accelerated: run.accelerated,
+        };
+        out.scoreMs = Math.round(now() - t);
+        drawPositions(run.snaps.at(-1).p);
+        return out;
+    },
     // A lasso over the middle half of the canvas, through the `{ region }` selection target
     // (row-renderer.md stage 23): each call's time, the nodes it selected and whether the cap cut it.
     // cosmos.gl's region select is not measured here.
@@ -191,6 +251,8 @@ const B = {
     edit: () => lib.edit?.() ?? null,
     layoutRun: (name, frames, capMs) => lib.layoutRun?.(name, frames, capMs) ?? null,
     layoutSteps: () => lib.layoutSteps(),
+    // parity-vs-reference.mjs's per-frame correctness probe, graphty-element only
+    frameCheck: (name, frames) => lib.frameCheck?.(name, frames) ?? null,
     mem() {
         return performance.memory
             ? {
@@ -226,8 +288,72 @@ const hoverHit = (detail) => {
         };
 };
 
+/**
+ * Draws a layout's positions over the page, one pixel per node colored by its community, framed on the middle 99%
+ * of x and y, so the screenshot of every library is the same kind of picture whatever it draws itself.
+ * @param {Float32Array} p - x, y and z of every node.
+ */
+function drawPositions(p) {
+    const W = 900;
+    const c = globalThis.document.createElement("canvas");
+    c.width = c.height = W;
+    c.style.cssText = "position:fixed;left:0;top:0;z-index:10;background:#fff";
+    globalThis.document.body.append(c);
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, W, W);
+    const quantiles = (axis) => {
+        const v = [];
+        for (let i = 0; i < G.n; i += Math.max(1, Math.floor(G.n / 20000))) v.push(p[3 * i + axis]);
+        v.sort((a, b) => a - b);
+        return [v[Math.floor(0.005 * (v.length - 1))], v[Math.ceil(0.995 * (v.length - 1))]];
+    };
+    const [x0, x1] = quantiles(0),
+        [y0, y1] = quantiles(1);
+    const span = Math.max(x1 - x0, y1 - y0) * 1.05 || 1;
+    const cx = (x0 + x1) / 2,
+        cy = (y0 + y1) / 2;
+    const groups = G.community ? Math.max(...G.community.subarray(0, Math.min(G.n, 100000))) + 1 : 1;
+    const styles = Array.from({ length: groups }, (_, k) => `hsl(${(k * 137.5) % 360} 70% 45%)`);
+    for (let i = 0; i < G.n; i++) {
+        const x = ((p[3 * i] - cx) / span + 0.5) * W,
+            y = ((p[3 * i + 1] - cy) / span + 0.5) * W;
+        ctx.fillStyle = styles[G.community ? G.community[i] % groups : 0];
+        ctx.fillRect(x, y, 1.5, 1.5);
+    }
+}
+
+/**
+ * The quality stage's run: copies positions at each mark and stops when the layout says it is done or at the cap.
+ * @param {{ capMs: number, marks: number[], read: () => Float32Array, done: () => boolean, stop: () => Promise<void> | void }} o - The library's hooks.
+ * @returns {Promise<{ snaps: { atMs: number, p: Float32Array }[], settledMs: number | null, endMs: number, frames: number }>} The copies.
+ */
+async function runToMarks({ capMs, marks, read, done, stop }) {
+    const t0 = now();
+    const snaps = [];
+    let next = 0;
+    let settledMs = null;
+    stamps.length = 0;
+    // The first frames are never "done": a layout that has not taken its first step can still read as settled.
+    for (let frame = 0; ; frame++) {
+        await raf();
+        const at = now() - t0;
+        while (next < marks.length && at >= marks[next]) snaps.push({ atMs: marks[next++], p: read() });
+        if (frame >= 30 && done()) {
+            settledMs = Math.round(at);
+            break;
+        }
+        if (at >= capMs) break;
+    }
+    const endMs = Math.round(now() - t0);
+    const frames = stamps.length;
+    await stop();
+    snaps.push({ atMs: endMs, p: read() });
+    return { snaps, settledMs, endMs, frames };
+}
+
 // ---------------------------------------------------------------- cosmos.gl
-async function cosmosAdapter({ dpr }) {
+async function cosmosAdapter({ dpr, cosmosConfig }) {
     const { Graph } = await import("@cosmos.gl/graph");
     const div = document.createElement("div");
     div.style.cssText = "width:1200px;height:900px";
@@ -246,6 +372,7 @@ async function cosmosAdapter({ dpr }) {
         pointDefaultColor: "#6366F1",
         linkDefaultColor: "#999999",
         onPointMouseOver: (index) => hoverHit({ index }),
+        ...cosmosConfig,
     });
     await graph.ready;
     const readyMs = now() - tCreate;
@@ -280,6 +407,7 @@ async function cosmosAdapter({ dpr }) {
     };
     let k0 = null;
     const a = {
+        graph,
         describe: () => ({ lib: "cosmos", deviceReadyMs: Math.round(readyMs) }),
         async load() {
             // Same layout as graphty's, mapped into cosmos' space (spaceSize 4096) so no rescale runs.
@@ -326,16 +454,72 @@ async function cosmosAdapter({ dpr }) {
             const dx = 100 * Math.sin(i / 20);
             graph.setViewTransform({ k: k0, x: w / 2 - (k0 * w) / 2 + dx, y: h / 2 - (k0 * h) / 2 });
         },
-        hoverTargets(k) {
-            const p = graph.getPointPositionsArray();
-            const r = mulberry32(11);
-            const out = [];
-            for (let tries = 0; out.length < k && tries < 100000; tries++) {
-                const i = Math.floor(r() * G.n);
-                const [x, y] = graph.spaceToScreenPosition([p[2 * i], p[2 * i + 1]]);
-                if (x > 100 && x < 1100 && y > 100 && y < 800) out.push({ id: i, x, y });
+        hoverTargets(k, seed = 11) {
+            const pick = () => {
+                const p = graph.getPointPositionsArray();
+                const r = mulberry32(seed);
+                const out = [];
+                for (let tries = 0; out.length < k && tries < 100000; tries++) {
+                    const i = Math.floor(r() * G.n);
+                    const [x, y] = graph.spaceToScreenPosition([p[2 * i], p[2 * i + 1]]);
+                    if (x > 100 && x < 1100 && y > 100 && y < 800) out.push({ id: i, x, y });
+                }
+                return out;
+            };
+            const out = pick();
+            if (out.length >= k) return out;
+            // A running simulation spreads the points past the view that fitted them at the load; graphty-element
+            // keeps its graph in view while a layout runs, so cosmos.gl's view is fitted again before picking.
+            graph.fitView(0);
+            return pick().map((t) => ({ ...t, fitted: true }));
+        },
+        positions() {
+            const xy = graph.getPointPositionsArray();
+            const p = new Float32Array(3 * G.n);
+            for (let i = 0; i < G.n; i++) {
+                p[3 * i] = xy[2 * i];
+                p[3 * i + 1] = xy[2 * i + 1];
             }
-            return out;
+            return p;
+        },
+        async qualityRun(capMs, marks) {
+            graph.start(1);
+            const run = await runToMarks({
+                capMs,
+                marks,
+                read: () => a.positions(),
+                done: () => !graph.isSimulationRunning,
+                stop: () => graph.pause(),
+            });
+            return { ...run, iterations: null, engine: "cosmos.gl", accelerated: true };
+        },
+        async qualitySteps(maxSteps, stepMarks) {
+            running = false; // stop our frame loop: nothing is drawn while the steps run
+            await raf();
+            await raf();
+            graph.start(1);
+            graph.pause();
+            const t0 = now();
+            const snaps = [];
+            let s = 0;
+            while (s < maxSteps && graph.progress < 1) {
+                graph.step();
+                s++;
+                if (stepMarks.includes(s)) snaps.push({ atStep: s, atMs: Math.round(now() - t0), p: a.positions() });
+                if (s % 100 === 0) await sleep(0); // let the runner's protocol messages through
+            }
+            snaps.push({ atStep: s, atMs: Math.round(now() - t0), p: a.positions() });
+            running = true;
+            globalThis.requestAnimationFrame(tick);
+            return {
+                snaps,
+                settledMs: graph.progress >= 1 ? snaps.at(-1).atMs : null,
+                endMs: snaps.at(-1).atMs,
+                iterations: s,
+                frames: 0,
+                engine: "cosmos.gl",
+                accelerated: true,
+            };
         },
         async layoutFps(count, capMs) {
             graph.start(1);
@@ -488,6 +672,165 @@ async function until(done, deadline) {
 const landingInterval = (wall, landings) => (landings > 0 ? +(wall / landings).toFixed(1) : null);
 
 // The simulations among the matrix's layouts: timed while they run, the others to their stable frame.
+// ------------------------------------------------------------------ frame check (parity-vs-reference.mjs)
+// The load gave a fixed sample of nodes and edges marker colors (PROBE_NODE, PROBE_EDGE). While a layout runs,
+// each drawn frame is read back inside the frame. For every marker row with both ends on screen, as
+// nodeScreenPosition reports them in that frame, it records whether the marker color is at the node's center, at
+// three points along the edge, and 8 px beside the edge's midpoint (the control). For each marker edge that moved
+// at least 5 px across its own line within the last 30 drawn frames it records whether the marker is at this
+// frame's midpoint or at that earlier frame's: an edge that follows its nodes is found on this one. A marker found
+// at neither, with something drawn over this frame's midpoint (nodes packed together, a pile of faint edges), is
+// hidden there: it is counted apart, not read as an edge left behind. Only the background at the midpoint says the
+// marker is not where its nodes are.
+
+/** Reads a WebGL drawing buffer and answers whether a color is near a CSS point. */
+function frameReader(gl, canvas, clear) {
+    const W = canvas.width,
+        H = canvas.height;
+    const sx = W / canvas.clientWidth,
+        sy = H / canvas.clientHeight;
+    const buf = new Uint8Array(W * H * 4);
+    const hit = (px2, py2, test) => px2 >= 0 && py2 >= 0 && px2 < W && py2 < H && test(buf, 4 * (py2 * W + px2));
+    const bg = [clear.r, clear.g, clear.b].map((c) => Math.round(c * 255));
+    return {
+        read: () => gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, buf),
+        // the background color: nothing drawn here, or only a few faint edges
+        isBare: (b, o) => bg.every((c, k) => Math.abs(b[o + k] - c) <= 32),
+        // the color anywhere in the 3 x 3 device pixels around a CSS point
+        has(x, y, test) {
+            const cx = Math.round(x * sx),
+                cy = H - 1 - Math.round(y * sy);
+            for (let dy = -1; dy <= 1; dy++)
+                for (let dx = -1; dx <= 1; dx++) if (hit(cx + dx, cy + dy, test)) return true;
+            return false;
+        },
+    };
+}
+// By hue, not brightness: a lit 3D face or an antialiased line edge is a darker shade of the same color.
+const isProbeEdge = (b, o) => b[o + 1] > 60 && b[o + 1] > b[o] + 40 && b[o + 1] > b[o + 2] + 40;
+const isProbeNode = (b, o) => b[o] > 60 && b[o + 2] > 60 && b[o] > b[o + 1] + 40 && b[o + 2] > b[o + 1] + 40;
+/** Distance of a point from the line through a and b. */
+function lineOffset(x, y, ax, ay, bx, by) {
+    const l = Math.hypot(bx - ax, by - ay);
+    return l ? Math.abs((bx - ax) * (ay - y) - (ax - x) * (by - ay)) / l : 0;
+}
+
+/** The nearest earlier frame in which an edge's midpoint lay 5 px off this frame's line, and back: is it on either? */
+function checkMovedEdge(f, e, a, b, history, reader) {
+    const mx = (a.x + b.x) / 2,
+        my = (a.y + b.y) / 2;
+    for (let k = history.length - 1; k >= 0; k--) {
+        const pa = history[k].get(G.src[e]),
+            pb = history[k].get(G.dst[e]);
+        if (!pa?.visible || !pb?.visible) return;
+        const pmx = (pa.x + pb.x) / 2,
+            pmy = (pa.y + pb.y) / 2;
+        // a 3 px line and a 3 x 3 window reach 2.5 px
+        if (lineOffset(pmx, pmy, a.x, a.y, b.x, b.y) < 5 || lineOffset(mx, my, pa.x, pa.y, pb.x, pb.y) < 5) continue;
+        const cur = reader.has(mx, my, isProbeEdge),
+            prev = reader.has(pmx, pmy, isProbeEdge);
+        if (!cur && !prev && !reader.has(mx, my, reader.isBare)) {
+            f.hidden++;
+            return;
+        }
+        f.moving++;
+        f.back += history.length - k;
+        if (cur) f.curInked++;
+        if (prev) f.prevInked++;
+        return;
+    }
+}
+
+function checkEdge(f, e, pos, history, reader) {
+    const a = pos(G.src[e]),
+        b = pos(G.dst[e]);
+    if (!a?.visible || !b?.visible) return;
+    const dx = b.x - a.x,
+        dy = b.y - a.y,
+        len = Math.hypot(dx, dy);
+    if (len < 2 * (a.radius + b.radius) + 24) return;
+    for (const t of [0.3, 0.5, 0.7]) {
+        f.points++;
+        if (reader.has(a.x + t * dx, a.y + t * dy, isProbeEdge)) f.pointsInked++;
+    }
+    f.ctrl++;
+    if (reader.has(a.x + dx / 2 - (dy / len) * 8, a.y + dy / 2 + (dx / len) * 8, isProbeEdge)) f.ctrlInked++;
+    checkMovedEdge(f, e, a, b, history, reader);
+}
+
+/** One drawn frame's counts. `history` holds the last 30 frames' positions; `first` is the first frame's counts. */
+function checkDrawnFrame(el, reader, history, first) {
+    reader.read();
+    const f = { nodes: 0, nodesInked: 0, points: 0, pointsInked: 0, ctrl: 0, ctrlInked: 0 };
+    Object.assign(f, { moving: 0, hidden: 0, curInked: 0, prevInked: 0, back: 0, moved: 0, p0: null });
+    const at = new Map();
+    const pos = (id) => {
+        if (!at.has(id)) at.set(id, el.nodeScreenPosition(id));
+        return at.get(id);
+    };
+    const { nodes, edges } = probeSample();
+    for (const id of nodes) {
+        const p = pos(id);
+        if (!p?.visible) continue;
+        f.nodes++;
+        if (reader.has(p.x, p.y, isProbeNode)) f.nodesInked++;
+    }
+    for (const e of edges) checkEdge(f, e, pos, history, reader);
+    const p0 = pos(nodes[0]);
+    f.p0 = p0 ? { x: p0.x, y: p0.y } : null;
+    const start = first?.p0 ?? f.p0;
+    if (f.p0 && start) f.moved = +Math.hypot(f.p0.x - start.x, f.p0.y - start.y).toFixed(1);
+    history.push(at);
+    if (history.length > 30) history.shift();
+    return f;
+}
+
+/** The per-frame rates a frame check returns. */
+function frameRates(frames) {
+    const rate = (k, of) => frames.map((f) => (f[of] ? +(f[k] / f[of]).toFixed(3) : null));
+    const edgeRate = rate("pointsInked", "points");
+    const valid = edgeRate.filter((x) => x !== null);
+    return {
+        edgeInkRate: edgeRate,
+        ctrlInkRate: rate("ctrlInked", "ctrl"),
+        nodeInkRate: rate("nodesInked", "nodes"),
+        minEdgeInkRate: valid.length ? Math.min(...valid) : null,
+        // edges that moved across their line: marker on this frame's midpoint, on the earlier frame's
+        movingEdges: frames.map((f) => f.moving),
+        // moving edges found at neither midpoint with something drawn over this frame's: left out of the rates
+        hiddenEdges: frames.map((f) => f.hidden),
+        curInkRate: rate("curInked", "moving"),
+        prevInkRate: rate("prevInked", "moving"),
+        // how many frames back that earlier frame was, on average
+        framesBack: rate("back", "moving"),
+        edgesChecked: frames.map((f) => f.ctrl),
+        nodesChecked: frames.map((f) => f.nodes),
+        sampleNodeMovedPx: frames.map((f) => f.moved),
+    };
+}
+
+// The frame check's marker colors and rows: a fixed sample, the same on every build.
+const PROBE_NODE = "#ff00ff";
+const PROBE_EDGE = "#00ff00";
+let probeRows = null;
+function markProbeRows(probe, nodes, edges) {
+    if (!probe) return;
+    for (const i of probeSample().nodes) nodes[i].probe = 1;
+    for (const e of edges) e.faint = 1;
+    for (const e of probeSample().edges) {
+        edges[e].probe = 1;
+        delete edges[e].faint;
+    }
+}
+function probeSample() {
+    if (probeRows) return probeRows;
+    const r = mulberry32(5);
+    probeRows = {
+        nodes: Array.from({ length: Math.min(200, G.n) }, () => Math.floor(r() * G.n)),
+        edges: Array.from({ length: Math.min(200, G.m) }, () => Math.floor(r() * G.m)),
+    };
+    return probeRows;
+}
 const SIMULATIONS = new Set(["ngraph", "d3", "forceatlas2"]);
 
 // A picture the browser decodes without a network: 20 x 10, red and blue.
@@ -515,6 +858,34 @@ const MATRIX_STYLES = {
             encode: { "node.label": { by: "data.id", scale: "passthrough" } },
         }),
     "node-image": nodeSet({ "node.image": PICTURE }),
+    // the looks that give each node or edge its own texture, material or object
+    "edge-label": (el) =>
+        el.session.styles.add({
+            name: "matrix",
+            target: "edge",
+            selector: everything,
+            encode: { "edge.label": { by: "data.src", scale: "passthrough" } },
+        }),
+    "node-tooltip": (el) =>
+        el.session.styles.add({
+            name: "matrix",
+            target: "node",
+            selector: everything,
+            encode: { "node.tooltip": { by: "data.id", scale: "passthrough" } },
+        }),
+    "node-badge": (el) =>
+        el.session.styles.add({
+            name: "matrix",
+            target: "node",
+            selector: everything,
+            set: { "node.labelStyle": { badge: "label" } },
+            encode: { "node.label": { by: "data.id", scale: "passthrough" } },
+        }),
+    "node-glow": nodeSet({ "node.glow": "#ffcc00", "node.glowStrength": 1 }),
+    "node-halo": nodeSet({ "node.halo": true, "node.haloColor": "#ffcc00" }),
+    "node-outline": nodeSet({ "node.outline": "#202020", "node.outlineWidth": 0.1 }),
+    "node-underlay": nodeSet({ "node.underlayColor": "#76b7b2", "node.underlayOpacity": 0.5 }),
+    "node-overlay": nodeSet({ "node.overlayColor": "#76b7b2", "node.overlayOpacity": 0.5 }),
     "edge-color": edgeSet({ "edge.color": "#4e79a7" }),
     "edge-width": edgeSet({ "edge.width": 3 }),
     "edge-opacity": edgeSet({ "edge.opacity": 0.5 }),
@@ -606,6 +977,7 @@ async function graphtyAdapter({
     antialias,
     limits,
     dim,
+    probe,
 }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
@@ -633,7 +1005,29 @@ async function graphtyAdapter({
     const gl = graph.engine?._gl ?? null;
     let onFrame = null;
     await addShapeStyles(el, mode, curves);
-    if (labels && (sampled || glyphs)) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
+    if (probe) {
+        // Every other edge faint but still drawn, moved and updated: a dense picture buries the marker edges.
+        await el.session.styles.add({
+            name: "probe faint edges",
+            target: "edge",
+            selector: { match: "has", path: "data.faint" },
+            set: { "edge.opacity": 0.05 },
+        });
+        await el.session.styles.add({
+            name: "probe nodes",
+            target: "node",
+            selector: { match: "has", path: "data.probe" },
+            set: { "node.color": PROBE_NODE },
+        });
+        await el.session.styles.add({
+            name: "probe edges",
+            target: "edge",
+            selector: { match: "has", path: "data.probe" },
+            // Edge width is in graph units, and a layout spreads a larger graph wider: kept near 3 px on screen.
+            set: { "edge.color": PROBE_EDGE, "edge.width": 3 * Math.sqrt(Math.max(1, G.n / 1000)) },
+        });
+    }
+    if (sampled || glyphs) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
     if (labels)
         await el.session.styles.add({
             name: "labels",
@@ -694,6 +1088,8 @@ async function graphtyAdapter({
                     nodes[i] = { id: i, position: { x: G.xy[2 * i], y: G.xy[2 * i + 1], z: 0 } };
                 edges = new Array(G.m);
                 for (let e = 0; e < G.m; e++) edges[e] = { src: G.src[e], dst: G.dst[e] };
+                // The frame check's marker rows (frameCheck below), drawn in colors nothing else uses.
+                markProbeRows(probe, nodes, edges);
             }
             let tLoaded = null,
                 tStable = null,
@@ -834,8 +1230,8 @@ async function graphtyAdapter({
                 );
             for (let i = 0; i < 5; i++) await raf();
         },
-        hoverTargets(k) {
-            const r = mulberry32(11);
+        hoverTargets(k, seed = 11) {
+            const r = mulberry32(seed);
             const out = [];
             for (let tries = 0; out.length < k && tries < 100000; tries++) {
                 const i = Math.floor(r() * G.n);
@@ -844,6 +1240,40 @@ async function graphtyAdapter({
                     out.push({ id: i, x: at.x, y: at.y, radius: at.radius });
             }
             return out;
+        },
+        positions() {
+            const lane = el.session.positions;
+            const at = { x: 0, y: 0, z: 0 };
+            const p = new Float32Array(3 * G.n);
+            for (let i = 0; i < G.n; i++) {
+                lane.read(i, at);
+                p[3 * i] = at.x;
+                p[3 * i + 1] = at.y;
+                p[3 * i + 2] = at.z || 0;
+            }
+            return p;
+        },
+        async qualityRun(capMs, marks) {
+            await el.setLayout("ngraph");
+            while (!graph.getLayoutManager().layoutEngine) await raf();
+            const eng = graph.getLayoutManager().layoutEngine;
+            const it0 = eng.iterationsDone ?? null;
+            const run = await runToMarks({
+                capMs,
+                marks,
+                read: () => a.positions(),
+                done: () => eng.isSettled === true,
+                stop: async () => {
+                    el.setRunning(false);
+                    for (let i = 0; i < 5; i++) await raf();
+                },
+            });
+            return {
+                ...run,
+                iterations: it0 === null ? null : eng.iterationsDone - it0,
+                engine: eng.type,
+                accelerated: eng.isAccelerated ?? false,
+            };
         },
         // One style layer, or one reader action, timed from the call to the stable frame that shows it.
         async restyle(name) {
@@ -884,6 +1314,36 @@ async function graphtyAdapter({
                 return { layout: name, applyMs: +(now() - tCall).toFixed(1), rowCounts: el.rowCounts };
             }
             return { layout: name, ...(await simulationTiming(graph, tCall, count, capMs)), rowCounts: el.rowCounts };
+        },
+        // Correctness, not timing (parity-vs-reference.mjs): see checkDrawnFrame. WebGL only.
+        async frameCheck(name, count) {
+            if (!gl) return { error: "no WebGL context: the frame check reads the WebGL drawing buffer" };
+            if (!probe) return { error: "the page was set up without the probe option" };
+            const reader = frameReader(gl, graph.engine.getRenderingCanvas(), graph.scene.clearColor);
+            const frames = [];
+            const history = [];
+            const obs = graph.scene.onAfterRenderObservable.add(
+                () => {
+                    if (frames.length < count) frames.push(checkDrawnFrame(el, reader, history, frames[0]));
+                },
+                undefined,
+                true,
+            );
+            const tCall = now();
+            await el.setLayout(name, { seed: 7 });
+            // A frame count, never a deadline of the page's own: the runner's deadline ends a hang.
+            while (frames.length < count) await raf();
+            graph.scene.onAfterRenderObservable.remove(obs);
+            const engine = graph.getLayoutManager().layoutEngine;
+            return {
+                layout: name,
+                frames: frames.length,
+                ms: +(now() - tCall).toFixed(0),
+                engine: engine?.type,
+                accelerated: engine?.isAccelerated ?? false,
+                ...frameRates(frames),
+                rowCounts: el.rowCounts,
+            };
         },
         async layoutFps(count, capMs) {
             const tCall = now();

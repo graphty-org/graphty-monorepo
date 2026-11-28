@@ -1,9 +1,9 @@
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
-import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
@@ -17,9 +17,10 @@ import type { Node } from "../Node";
 import type { RowMeasure } from "../render/RowTable";
 import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
+import { blendsRows, viewDepth } from "./instanceRowOrder";
 import type { MeshCache } from "./MeshCache";
-import { NodeMesh, styleOpacity } from "./NodeMesh";
-import { attachRowPull } from "./RowPullPlugin";
+import { NodeMesh, paintedBodyOpacity } from "./NodeMesh";
+import { attachRowPull, glowRowsInPlace } from "./RowPullPlugin";
 import type { Point2 } from "./shapeOutlines";
 
 /**
@@ -51,17 +52,39 @@ export interface RowCounts {
 
 const FIRST_CAPACITY = 16;
 const HOLE = -1;
+/**
+ * A slot's `graphtyRow` at or below this is a row drawn from its own matrix ({@link NodeBatch.own}):
+ * row r is written -r - 2, and the shader reads only its hidden flag from the table.
+ */
+const OWNED = -2;
 const NO_SLOT = -1;
 const MATRIX_FLOATS = 16;
+/** Floats a row takes in the row table's `rowPosition`: x, y, z and w. */
+const ROW_POSITION_FLOATS = 4;
 const COLOR_FLOATS = 4;
 /** Rows a slot's draw key orders under one source rank: `graphtyRow` is exact to 2^24. */
 const ROWS_PER_RANK = 2 ** 24;
 /** The share of a batch's slots that may be holes before a repaint compacts them. */
 const MOST_HOLES = 0.25;
 
+/** Scratch matrices for {@link NodeBatches.mirror}. */
+const TO_BATCH = new Matrix();
+const SCALE = new Matrix();
+const WORLD = new Matrix();
+const OWN = new Matrix();
+
 /** The rows a batch reads its places from. */
 interface RowPlaces {
     readonly positionTexture: RawTexture;
+}
+
+/**
+ * The row a slot's `graphtyRow` names.
+ * @param value - The value: a row, or one drawn from its own matrix ({@link OWNED}).
+ * @returns The row.
+ */
+function rowOf(value: number): number {
+    return value <= OWNED ? OWNED - value : value;
 }
 
 /** One look's thin instances: a slot per row, in draw order (source rank, then row). */
@@ -87,6 +110,9 @@ export class NodeBatch {
     private rowsDirty = false;
     private colorsDirty = false;
     private matricesDirty = false;
+    /** The first and last slot whose own matrix ({@link NodeBatch.own}) changed since the last upload. */
+    private ownedFrom = Infinity;
+    private ownedTo = -1;
 
     /**
      * Build the mesh: a sibling of the source, since a mesh with thin instances ignores ordinary
@@ -106,13 +132,23 @@ export class NodeBatch {
         this.mesh.doNotSyncBoundingInfo = true;
         this.mesh.isPickable = false;
         this.mesh.renderingGroupId = source.renderingGroupId;
+        // blended in its source's place among translucent looks (NODE_BODY_ALPHA_INDEX)
+        this.mesh.alphaIndex = source.alphaIndex;
         this.mesh.hasVertexAlpha = source.hasVertexAlpha;
         this.mesh.useVertexColors = source.useVertexColors;
         this.mesh.sideOrientation = source.sideOrientation;
         this.mesh.setEnabled(false);
         if (source.material) {
             attachRowPull(source.material);
+            // The batch draws the rows, so the source itself is first drawn when a row gets a mesh of its own: the
+            // first selection, which paid for that shader's compile (issue #10124). Compile it now, in the load.
+            const subMesh = source.subMeshes?.[0];
+            if (subMesh !== undefined) {
+                source.material.isReadyForSubMesh(source, subMesh, true);
+            }
         }
+
+        glowRowsInPlace(this.mesh);
 
         this.setBuffers();
     }
@@ -167,12 +203,74 @@ export class NodeBatch {
             this.colorsDirty = true;
         }
 
+        // A row drawn from its own matrix keeps it; any other slot's is its scale alone.
         const m = slot * MATRIX_FLOATS;
         const matrices = this.matrices ?? (Math.fround(scale) === 1 ? undefined : this.scaleRows());
-        if (matrices !== undefined && matrices[m] !== Math.fround(scale)) {
+        if (matrices !== undefined && (this.rows[slot] ?? 0) > OWNED && !isScale(matrices, m, scale)) {
+            matrices.fill(0, m, m + MATRIX_FLOATS);
             matrices[m] = matrices[m + 5] = matrices[m + 10] = scale;
+            matrices[m + 15] = 1;
             this.matricesDirty = true;
         }
+    }
+
+    /**
+     * Draw a row of a slot from a matrix of its own, not from its table place: a node whose mesh a
+     * consumer holds, drawn as that mesh is, in the row's place in the batch's draw order. Only the
+     * table's hidden flag still applies. The matrix goes up alone ({@link NodeBatch.flushOwned}).
+     * @param row - The row, which has a slot.
+     * @param matrix - Its matrix against the batch mesh, 16 floats.
+     */
+    own(row: number, matrix: ArrayLike<number>): void {
+        const slot = this.slotOfRow(row);
+        if (slot === NO_SLOT || this.rows[slot] === HOLE) {
+            return;
+        }
+
+        if (this.rows[slot] !== OWNED - row) {
+            this.rows[slot] = OWNED - row;
+            this.ownedChanged(slot);
+        }
+
+        const matrices = this.matrices ?? this.scaleRows();
+        const m = slot * MATRIX_FLOATS;
+        for (let i = 0; i < MATRIX_FLOATS; i++) {
+            if (matrices[m + i] !== Math.fround(matrix[i] ?? 0)) {
+                matrices.set(matrix, m);
+                this.ownedChanged(slot);
+                break;
+            }
+        }
+    }
+
+    /**
+     * Note a slot {@link NodeBatch.own} changed.
+     * @param slot - The slot.
+     */
+    private ownedChanged(slot: number): void {
+        this.ownedFrom = Math.min(this.ownedFrom, slot);
+        this.ownedTo = Math.max(this.ownedTo, slot);
+    }
+
+    /**
+     * Upload the slots {@link NodeBatch.own} changed, from the first to the last in one write: a held
+     * row moves every frame a layout does, and the whole buffer would cost the size of the batch.
+     * @returns Whether the batch started or stopped drawing, as {@link NodeBatch.flush} says.
+     */
+    flushOwned(): boolean {
+        if (this.rowsDirty || this.matricesDirty) {
+            return this.flush();
+        }
+
+        if (this.ownedTo >= this.ownedFrom) {
+            const count = this.ownedTo - this.ownedFrom + 1;
+            this.mesh.thinInstancePartialBufferUpdate("graphtyRow", count, this.ownedFrom);
+            this.mesh.thinInstancePartialBufferUpdate("matrix", count, this.ownedFrom);
+        }
+
+        this.ownedFrom = Infinity;
+        this.ownedTo = -1;
+        return false;
     }
 
     /**
@@ -220,6 +318,12 @@ export class NodeBatch {
             this.mesh.thinInstanceBufferUpdated("matrix");
         }
 
+        // the rows went up whole; matrices only when they did too
+        if ((this.rowsDirty || whole) && (this.matrices === undefined || this.matricesDirty || whole)) {
+            this.ownedFrom = Infinity;
+            this.ownedTo = -1;
+        }
+
         this.rowsDirty = false;
         this.colorsDirty = false;
         this.matricesDirty = false;
@@ -229,6 +333,60 @@ export class NodeBatch {
             this.mesh.setEnabled(drawing);
         }
 
+        return changed;
+    }
+
+    /**
+     * Draw the slots back to front, as the objects path draws a translucent source's instances
+     * (`drawInRowOrder`): each source rank's rows farthest first, ties in draw-key order. Nothing is
+     * sent while the slots are already in that order.
+     * @param depthOf - A row's depth key: larger is farther.
+     * @returns Whether the batch started or stopped drawing, as {@link NodeBatch.flush} says.
+     */
+    sortByDepth(depthOf: (row: number) => number): boolean {
+        if (this.holes > 0) {
+            this.compact();
+        }
+
+        const order: { slot: number; rank: number; depth: number; key: number }[] = [];
+        let ordered = true;
+        for (let slot = 0; slot < this.slots; slot++) {
+            const key = this.keys[slot] ?? 0;
+            const entry = {
+                slot,
+                rank: Math.floor(key / ROWS_PER_RANK),
+                depth: depthOf(rowOf(this.rows[slot] ?? 0)),
+                key,
+            };
+            const previous = order.at(-1);
+            ordered &&= previous === undefined || backToFront(previous, entry) <= 0;
+            order.push(entry);
+        }
+
+        if (ordered) {
+            return false;
+        }
+
+        order.sort(backToFront);
+        const { rows, keys, colors, matrices } = this;
+        this.rows = new Float32Array(rows.length);
+        this.keys = new Float64Array(keys.length);
+        this.colors = new Float32Array(colors.length);
+        this.matrices = matrices === undefined ? undefined : identities(rows.length);
+        order.forEach(({ slot: from }, slot) => {
+            this.rows[slot] = rows[from] ?? HOLE;
+            this.keys[slot] = keys[from] ?? 0;
+            this.copyLook(colors, matrices, from, slot);
+            this.setSlot(rowOf(this.rows[slot] ?? 0), slot);
+        });
+        this.unsorted = false;
+        this.setBuffers();
+        this.rowsDirty = this.colorsDirty = true;
+        this.matricesDirty = matrices !== undefined;
+        const changed = this.flush();
+        // depth order is not key order: the next repaint puts the slots back in key order, and the
+        // frame sorts them again
+        this.unsorted = true;
         return changed;
     }
 
@@ -251,13 +409,28 @@ export class NodeBatch {
         this.slotOf[row] = slot;
     }
 
+    /**
+     * Copy one slot's color and matrix from the arrays the slots had before a reorder.
+     * @param colors - The old colors.
+     * @param matrices - The old matrices, when the batch has them.
+     * @param from - The slot in the old arrays.
+     * @param slot - The slot in the current arrays.
+     */
+    private copyLook(colors: Float32Array, matrices: Float32Array | undefined, from: number, slot: number): void {
+        this.colors.set(colors.subarray(from * COLOR_FLOATS, (from + 1) * COLOR_FLOATS), slot * COLOR_FLOATS);
+        this.matrices?.set(
+            matrices?.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS) ?? [],
+            slot * MATRIX_FLOATS,
+        );
+    }
+
     /** Take the holes out and put the rows in draw order, which keeps depth ties as they were. */
     private compact(): void {
         const live: { row: number; key: number; from: number }[] = [];
         for (let slot = 0; slot < this.slots; slot++) {
-            const row = this.rows[slot] ?? HOLE;
-            if (row !== HOLE) {
-                live.push({ row, key: this.keys[slot] ?? 0, from: slot });
+            const value = this.rows[slot] ?? HOLE;
+            if (value !== HOLE) {
+                live.push({ row: value, key: this.keys[slot] ?? 0, from: slot });
             }
         }
 
@@ -269,12 +442,8 @@ export class NodeBatch {
         live.forEach(({ row, key, from }, slot) => {
             this.rows[slot] = row;
             this.keys[slot] = key;
-            this.colors.set(colors.subarray(from * COLOR_FLOATS, (from + 1) * COLOR_FLOATS), slot * COLOR_FLOATS);
-            this.matrices?.set(
-                matrices?.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS) ?? [],
-                slot * MATRIX_FLOATS,
-            );
-            this.setSlot(row, slot);
+            this.copyLook(colors, matrices, from, slot);
+            this.setSlot(rowOf(row), slot);
         });
         this.slots = live.length;
         this.holes = 0;
@@ -352,6 +521,45 @@ export class NodeBatch {
         this.matricesDirty = true;
         return matrices;
     }
+}
+
+/**
+ * {@link NodeBatch.sortByDepth}'s order: source rank, then farthest first, then draw key.
+ * @param a - One slot.
+ * @param a.rank - Its source rank.
+ * @param a.depth - Its depth key.
+ * @param a.key - Its draw key.
+ * @param b - The other.
+ * @param b.rank - Its source rank.
+ * @param b.depth - Its depth key.
+ * @param b.key - Its draw key.
+ * @returns Negative when `a` draws first.
+ */
+function backToFront(
+    a: { rank: number; depth: number; key: number },
+    b: { rank: number; depth: number; key: number },
+): number {
+    return a.rank - b.rank || b.depth - a.depth || a.key - b.key;
+}
+
+/**
+ * Whether a slot's matrix is a uniform scale alone.
+ * @param matrices - The matrices.
+ * @param m - Where the slot's starts.
+ * @param scale - The scale.
+ * @returns True when it is.
+ */
+function isScale(matrices: Float32Array, m: number, scale: number): boolean {
+    const s = Math.fround(scale);
+    for (let i = 0; i < MATRIX_FLOATS; i++) {
+        // the diagonal is the scale, but for its last entry
+        const wanted = i % 5 === 0 ? s : 0;
+        if (matrices[m + i] !== (i === MATRIX_FLOATS - 1 ? 1 : wanted)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -675,7 +883,7 @@ export class ColumnRow implements RowMeasure {
      * @returns The opacity.
      */
     get paintedOpacity(): number {
-        return styleOpacity(this.paint.style.texture);
+        return paintedBodyOpacity(this.paint.style);
     }
 
     /**
@@ -773,7 +981,12 @@ function sameSize(a: RowMeasure, b: RowMeasure): boolean {
 /** What {@link NodeBatches} needs of the graph. */
 export interface NodeBatchHost {
     readonly cache: MeshCache;
-    readonly places: RowPlaces & { readonly rows: number; measure(row: RowMeasure): void };
+    readonly places: RowPlaces & {
+        readonly rows: number;
+        /** Each row's x, y, z and w, in the root's space. */
+        readonly rowPosition: Float32Array;
+        measure(row: RowMeasure): void;
+    };
     /** The transform node every row is drawn inside. */
     root(): TransformNode | null;
     /** The scene state paint does not hold. */
@@ -784,8 +997,18 @@ export interface NodeBatchHost {
     sourceOf(paint: NodePaint): Mesh;
     /** Babylon's list of active meshes no longer holds. */
     meshesChanged(): void;
-    /** A row drawn with no `Node` changed its drawn size or shape, which a `nodeGap` layout spaces it by. */
-    resized?(): void;
+    /**
+     * A row drawn with no `Node` changed its drawn size or shape, which a `nodeGap` layout spaces it by and the
+     * `Edge`s built at it trim their ends to.
+     * @param row - The row.
+     */
+    resized?(row: number): void;
+    /**
+     * A row drawn with no `Node` is drawn from a new source of the same size and outline (a translucent one in place
+     * of an opaque one): the `Edge`s built at it measure their ends again, and no layout is woken.
+     * @param row - The row.
+     */
+    edgeEndsChanged?(row: number): void;
     /** Rows drawn with no `Node` that a new view no longer batches: each is to be painted again. */
     repaint?(rows: readonly number[]): void;
 }
@@ -817,7 +1040,13 @@ export class NodeBatches {
     /** The nodes a frame's walk still visits: every member a batch does not draw, and any with an overlay. */
     private readonly walked = new Set<Node>();
     private readonly dirty = new Set<RowGroup>();
+    /**
+     * Members whose mesh a consumer holds (`Node.mesh`). Each keeps its mesh, as an object row does,
+     * and while its look is batched the batch draws its slot from that mesh ({@link NodeBatches.mirror}).
+     */
+    private readonly held = new Set<Node>();
     private readonly stopFlush: () => void;
+    private readonly stopMirror: () => void;
     private view: BatchView;
 
     /**
@@ -833,6 +1062,14 @@ export class NodeBatches {
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
         });
+        // per camera, after every before-render observer has moved the meshes
+        const mirror = scene.onBeforeCameraRenderObservable.add((camera) => {
+            this.mirror();
+            this.sortTranslucent(camera);
+        });
+        this.stopMirror = (): void => {
+            mirror?.remove();
+        };
         this.syncAll();
     }
 
@@ -900,17 +1137,42 @@ export class NodeBatches {
             rows += group.batched ? group.members.size : 0;
         }
 
+        // a held row keeps a mesh of its own, so it counts as an object row
+        for (const node of this.held) {
+            rows -= this.nodeGroups.get(node)?.batched === true ? 1 : 0;
+        }
+
         return rows;
     }
 
     /**
-     * Whether a batch draws this row now: a node rather than its own mesh, or a row with no `Node`
-     * at all, which nothing else draws.
+     * Whether a batch draws this held node's slot from its mesh ({@link NodeBatches.mirror}).
+     * @param node - The node.
+     * @returns True when one does.
+     */
+    mirrors(node: Node): boolean {
+        return this.held.has(node) && this.groupOf(node)?.batched === true;
+    }
+
+    /**
+     * The batch mesh that draws a held node's slot from its mesh ({@link NodeBatches.mirrors}), which is what draws
+     * the node on screen while its own instance's source is hidden.
+     * @param node - The node.
+     * @returns The batch's mesh, or null when the node's own mesh draws it.
+     * @internal
+     */
+    mirrorMeshOf(node: Node): Mesh | null {
+        return this.mirrors(node) ? (this.groupOf(node)?.family?.batch?.mesh ?? null) : null;
+    }
+
+    /**
+     * Whether a batch draws this row now: a node rather than its own mesh (a held node draws its own), or a row
+     * with no `Node` at all, which nothing else draws.
      * @param row - The node or the row.
      * @returns True when it does.
      */
     draws(row: BatchRow): boolean {
-        return this.groupOf(row)?.batched === true;
+        return this.groupOf(row)?.batched === true && (row instanceof ColumnRow || !this.held.has(row));
     }
 
     /**
@@ -983,6 +1245,13 @@ export class NodeBatches {
 
         const group = this.groupOf(node) ?? this.join(node, source);
         const object = !node.batchableIn(this.view);
+        const held = !object && !(node instanceof ColumnRow) && node.drawnHeld;
+        if (held) {
+            this.held.add(node);
+        } else if (!(node instanceof ColumnRow)) {
+            this.held.delete(node);
+        }
+
         if (object !== this.objectRows.has(node)) {
             if (object) {
                 this.objectRows.add(node);
@@ -997,8 +1266,8 @@ export class NodeBatches {
 
         if (group.batched && !object) {
             group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale * node.wholeScale, group.rank);
-            // A row the table does not hold yet keeps its mesh until the flush settles its group.
-            this.draw(node, node.index < this.host.places.rows ? group.source : null, group.restVisibility);
+            // A row the table does not hold yet keeps its mesh until the flush settles its group, and a held one for good.
+            this.draw(node, !held && node.index < this.host.places.rows ? group.source : null, group.restVisibility);
             this.dirty.add(group);
         } else {
             this.draw(node, null);
@@ -1032,6 +1301,7 @@ export class NodeBatches {
             group.columns--;
         } else {
             this.nodeGroups.delete(node);
+            this.held.delete(node);
         }
 
         this.draw(node, null);
@@ -1150,9 +1420,20 @@ export class NodeBatches {
         this.paintedBehindEdges ||= (paint.style.shape?.zIndex ?? 0) < 0;
         // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
         this.host.places.measure(row);
-        if (had === undefined || !sameSize(had, row)) {
+        // as `Node.paintFrom` decides it: a new shape or border is a new outline (a star's, not the sphere's it was
+        // painted over), even at the same size (#9872), which a `nodeGap` layout spaces by
+        if (
+            had === undefined ||
+            !sameSize(had, row) ||
+            !isEqual(had.paint.style.shape, paint.style.shape) ||
+            !isEqual(had.paint.style.border, paint.style.border)
+        ) {
             // as `Node` tells the layout when it is resized: nothing else re-reads a row's size
-            this.host.resized?.();
+            this.host.resized?.(index);
+        } else if (had.paintedSourceMesh !== source) {
+            // a translucent source in place of an opaque one keeps the outline: only the edges measure their ends
+            // again, and a settled layout is not woken (#10084, as `Node.edgeEndsChanged`, #9875)
+            this.host.edgeEndsChanged?.(index);
         }
 
         this.sync(row);
@@ -1267,6 +1548,7 @@ export class NodeBatches {
     /** Stop: every source draws its rows again. */
     dispose(): void {
         this.stopFlush();
+        this.stopMirror();
         for (const group of this.groups.values()) {
             this.settle(group, false);
         }
@@ -1276,6 +1558,79 @@ export class NodeBatches {
         }
 
         this.host.meshesChanged();
+    }
+
+    /**
+     * Draw each held row's slot as its mesh is drawn on the objects path: its world matrix against
+     * the batch, and nothing while the mesh is hidden or disabled. The row keeps its slot, so it
+     * keeps its place among its look in one draw call, and the cost is a matrix per held row.
+     */
+    private mirror(): void {
+        if (this.held.size === 0) {
+            return;
+        }
+
+        const root = this.host.root();
+        const toBatch = root === null ? Matrix.IdentityReadOnly : root.computeWorldMatrix().invertToRef(TO_BATCH);
+        const owned = new Set<NodeBatch>();
+        for (const node of this.held) {
+            const group = this.nodeGroups.get(node);
+            const batch = group?.batched === true ? group.family?.batch : null;
+            const mesh = node.drawnPickMesh;
+            if (group === undefined || batch === null || batch === undefined || mesh === null) {
+                continue;
+            }
+
+            const scale = mesh.isEnabled() && mesh.isVisible ? group.scale : 0;
+            Matrix.ScalingToRef(scale, scale, scale, SCALE);
+            SCALE.multiplyToRef(mesh.computeWorldMatrix(), WORLD).multiplyToRef(toBatch, OWN);
+            batch.own(node.index, OWN.m);
+            owned.add(batch);
+        }
+
+        let changed = false;
+        for (const batch of owned) {
+            changed = batch.flushOwned() || changed;
+        }
+
+        if (changed) {
+            this.host.meshesChanged();
+        }
+    }
+
+    /**
+     * Draw each translucent batch's rows back to front from the camera, as the objects path draws a
+     * translucent source's instances (issue #10045).
+     * ponytail: reads every translucent row's place each frame, which brings the CPU copy of a GPU
+     * layout's rows up to date; sort on the card if large translucent graphs under a GPU layout get slow.
+     * @param camera - The camera about to draw.
+     */
+    private sortTranslucent(camera: Camera): void {
+        let changed = false;
+        let depthOf: ((x: number, y: number, z: number) => number) | null = null;
+        let places: Float32Array | null = null;
+        for (const { batch } of this.families.values()) {
+            if (batch === null || !batch.mesh.isEnabled(false) || !blendsRows(batch.mesh)) {
+                continue;
+            }
+
+            if (depthOf === null || places === null) {
+                const root = this.host.root();
+                depthOf = viewDepth(camera, root === null ? null : root.computeWorldMatrix());
+                places = this.host.places.rowPosition;
+            }
+
+            const [depth, at] = [depthOf, places];
+            changed =
+                batch.sortByDepth((row) => {
+                    const base = row * ROW_POSITION_FLOATS;
+                    return depth(at[base] ?? 0, at[base + 1] ?? 0, at[base + 2] ?? 0);
+                }) || changed;
+        }
+
+        if (changed) {
+            this.host.meshesChanged();
+        }
     }
 
     /** Bring every batch up to date before a frame. */
@@ -1465,7 +1820,7 @@ export class NodeBatches {
         // Each member trades its mesh for an anchor, or back: together, or it costs the scene's size each (#3247).
         const source = batched ? group.source : null;
         handOverTogether(group.source.getScene(), this.host.root(), group.members, (node) => {
-            this.draw(node, source, group.restVisibility);
+            this.draw(node, node instanceof ColumnRow || !this.held.has(node) ? source : null, group.restVisibility);
         });
 
         group.source.visibility = batched ? 0 : group.restVisibility;
@@ -1492,8 +1847,8 @@ export class NodeBatches {
             source.hasVertexAlpha,
             source.useVertexColors,
         ].join("|");
-        // A translucent look keeps a batch per source: Babylon orders translucent meshes back to
-        // front, one source against another, and one batch across sizes would draw them in row order.
+        // A translucent look keeps a batch per source: Babylon blends translucent sources one after
+        // another by `alphaIndex`, and one batch across sizes would draw them in row order.
         const shared = group.restVisibility < 1 ? undefined : this.families.get(look);
         const scale = shared === undefined ? 1 : scaleAgainst(source, shared.canonical);
         // ponytail: a source whose geometry is no scale of the canonical one gets a family of its own.
@@ -1565,12 +1920,8 @@ export class NodeBatches {
         });
 
         if (rows.length > 0) {
-            const made = family.batch === null;
             family.batch ??= this.host.cache.batchFor(family.canonical, this.host.places, this.host.root());
             family.batch.mesh.visibility = restVisibility;
-            if (made && restVisibility < 1) {
-                this.orderTranslucent(family.batch.mesh, family.canonical.uniqueId);
-            }
 
             rows.sort((a, b) => a.group.rank - b.group.rank || a.node.index - b.node.index);
             for (const { node, group } of rows) {
@@ -1579,34 +1930,6 @@ export class NodeBatches {
         }
 
         return family.batch?.flush() ?? false;
-    }
-
-    /**
-     * Put a new translucent batch among the other translucent batches in `scene.meshes` in the
-     * order their sources were made. Every source sits at one place and every batch at another, so
-     * Babylon's back-to-front sort ties them all and draws them in the order they reach it: a
-     * source's when its first instance is met in `scene.meshes`, a batch's when it is.
-     * ponytail: source creation order stands in for the objects path's instance order, which
-     * repaint history can reorder; a translucent row's order would need tracking per instance.
-     * @param mesh - The new batch.
-     * @param sourceId - Its source's unique id.
-     */
-    private orderTranslucent(mesh: Mesh, sourceId: number): void {
-        const later = new Set<AbstractMesh>();
-        for (const other of this.families.values()) {
-            if (other.batch !== null && other.batch.mesh !== mesh && other.batch.mesh.visibility < 1) {
-                if (other.canonical.uniqueId > sourceId) {
-                    later.add(other.batch.mesh);
-                }
-            }
-        }
-
-        const { meshes } = mesh.getScene();
-        const at = meshes.findIndex((candidate) => later.has(candidate));
-        if (at !== -1) {
-            meshes.splice(meshes.indexOf(mesh), 1);
-            meshes.splice(at, 0, mesh);
-        }
     }
 
     /**

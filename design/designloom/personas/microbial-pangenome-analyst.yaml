@@ -1,0 +1,70 @@
+id: microbial-pangenome-analyst
+name: Microbial Pangenome Analyst
+roster_persona: microbial-pangenome-analyst
+tier: B
+scope: in-scope
+role: Bacterial Population Genomicist (gene-level pangenomes of a species collection)
+quote: Color by genome count, pick the nodes in one to three genomes, and I can see the island. What I cannot see is which lineages carry it without matching genome lists by hand.
+bio: >-
+    Dr. Thandiwe Mokoena is a bacterial population genomicist who studies hundreds to thousands of isolates of one species.
+    She annotates them with Prokka or Bakta and builds a gene-level pangenome with Panaroo, Roary or PPanGGOLiN. In the
+    gene graph each node is a family of orthologous genes, each edge joins families that sit next to each other on a
+    contig, and every node and edge lists the genomes that contain it. Most of her output is tables (presence-absence
+    matrix, core alignment, association tests), but she opens final_graph.gml in Cytoscape, or a PPanGGOLiN GEXF in
+    Gephi, to see where an accessory island, a plasmid or a rearrangement attaches to the core genome and which
+    lineages, countries or resistance phenotypes carry it. Graphs are thousands to tens of thousands of nodes. She is
+    fluent with core and accessory genomes, lineages and association testing, and uses neighborhoods and subgraphs
+    without calling them graph theory.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - See the core and accessory genome of a species collection at a glance
+    - Find the accessory island, plasmid or rearrangement next to a core gene
+    - Show which lineages, countries or phenotypes carry a gene region
+    - Cut out the subgraph around a finding for a paper figure
+behaviors:
+    - Loads Panaroo final_graph.gml in Cytoscape and runs the yFiles Organic layout
+    - Colors nodes by the number of genomes they contain to show core and accessory genes
+    - Selects nodes present in a band of genome counts (for example 1 to 3) and makes a new graph from them
+    - Joins a gene annotation table on the node name
+    - Runs Panaroo's reference-based layout script, hides the cut edges, relays out and shows them again
+    - Opens PPanGGOLiN light GEXF in Gephi with ForceAtlas2 and colors by persistent, shell and cloud partition
+frustrations:
+    - The organic layout produces "very convoluted networks" without a reference-based untangling step
+    - Genome membership arrives as semicolon strings or integer indexes, so filtering by lineage means a manual join
+    - Panaroo's metadata guide is "still under construction"
+    - Rare gene families are dropped from figures for readability although they are most of the nodes
+    - Cytoscape and Gephi offer restricted 2D layouts and slow down on complex gene graphs
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W2000
+sources:
+    - title: Panaroo paper (Tonkin-Hill et al. 2020)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7376924
+      summary: Gene graph of orthologous clusters joined by contig adjacency, annotated with genomes; collections of 413 to 1,054 genomes; rearrangements read in Cytoscape
+    - title: Panaroo Cytoscape guide
+      url: https://raw.githubusercontent.com/gtonkinhill/panaroo/master/docs/vis/cytoscape.md
+      summary: yFiles Organic layout, color by genome count, select nodes in 1 to 3 genomes, new graph from selection, table joined on name
+    - title: Panaroo reference-based layout guide
+      url: https://raw.githubusercontent.com/gtonkinhill/panaroo/master/docs/vis/layout.md
+      summary: Organic layout is convoluted; cut long-range edges against a reference, hide them, relayout
+    - title: PPanGGOLiN paper (Gautreau et al. 2020)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7108747
+      summary: Persistent, shell and cloud partitions; 3,117 genomes and 69,446 families; Gephi ForceAtlas2 figure with rare families dropped
+    - title: Harling-Lee et al. 2022
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9548110
+      summary: Gene and genome networks in Graphia; Cytoscape, Gephi and Bandage called restricted to 2D and slow on complex networks
+    - title: Europe PMC citation counts
+      url: https://europepmc.org/article/MED/26198102
+      summary: Roary 4,721 citations; Panaroo 1,254 (MED/32698896); queried 2026-11-25
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

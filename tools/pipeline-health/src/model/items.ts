@@ -412,10 +412,17 @@ export const dirtyKey = (start5m: number): Key => ({ pk: DIRTY_PK, sk: skTime(st
 
 // Raised from 300_000 for the 28-day history backfill; set it back on 2026-11-02 (#3746).
 export const DAILY_ROW_LIMIT = 1_000_000;
+/**
+ * The public reads' daily budget (the Read and Results Lambdas), in DynamoDB read request units: about 0.06 USD a
+ * day at the on-demand rate. A dashboard viewer spends a few thousand a day; past it those Lambdas answer 429.
+ */
+export const DAILY_READ_LIMIT = 500_000;
 export const utcDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 export const quotaKey = (ms: number): Key => ({ pk: `QUOTA#${utcDay(ms)}`, sk: "-" });
 export interface QuotaItem extends Item {
     rows: number;
+    /** Read request units the public reads spent (readMeter in raw.ts). */
+    reads?: number;
 }
 
 export const cursorKey = (name: string): Key => ({ pk: `CURSOR#${name}`, sk: "-" });

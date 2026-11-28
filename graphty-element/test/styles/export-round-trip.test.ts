@@ -69,6 +69,8 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "node.size": ["width", "height"],
     "node.opacity": ["opacity", "fillOpacity"],
     "node.shape": ["shape"],
+    "node.visible": ["visible"],
+    "edge.visible": ["visible"],
     "node.label": ["label"],
     "node.tooltip": ["tooltip"],
     "node.xlabel": ["xlabel"],
@@ -90,6 +92,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "edge.sourcePort": ["sourcePort"],
     "edge.targetPort": ["targetPort"],
     "edge.label": ["label"],
+    "edge.tooltip": ["tooltip"],
     "edge.arrowHeadText": ["targetLabel"],
     "edge.arrowTailText": ["sourceLabel"],
     "edge.xlabel": ["xlabel"],
@@ -105,6 +108,7 @@ const LABEL_PROPERTIES = [
     "labelWrapWidth",
     "labelWrapTrailingSpace",
     "labelWrapSkipEndSpace",
+    "labelWrapUnkerned",
 ];
 
 // ---------------------------------------------------------------------------------------------
@@ -241,7 +245,7 @@ const STACK: readonly LayerSpec[] = [
 ];
 
 /**
- * A chain of eight nodes with the stack above, a degree run, and node `n7` and edge `n2 -> n3` hidden.
+ * A chain of eight nodes with the stack above, a degree run, and node `n7` and the edges of kind `a` drawn hidden.
  * @returns The session.
  */
 async function handMade(): Promise<GraphSession> {
@@ -261,12 +265,18 @@ async function handMade(): Promise<GraphSession> {
         await session.styles.add(spec);
     }
 
-    await session.visibility.set({
-        kind: "all",
-        of: [
-            { kind: "not", of: { kind: "expression", where: "data.w == `8`" } },
-            { kind: "not", of: { kind: "edges", where: "data.source == 'n2'" } },
-        ],
+    // Hidden by style: a file's `visible: false` is a look, drawn hidden and kept in the graph (issue #9949).
+    await session.styles.add({
+        name: "hidden node",
+        target: "node",
+        selector: { match: "expression", where: "data.w == `8`" },
+        set: { "node.visible": false },
+    });
+    await session.styles.add({
+        name: "hidden edge",
+        target: "edge",
+        selector: { match: "expression", where: "data.kind == 'a'" },
+        set: { "edge.visible": false },
     });
     await session.styles.settled();
     return session;
@@ -513,7 +523,7 @@ function names(note: AnyNote, kind: "node" | "edge", channel: string): boolean {
     const property = String(note.params.property);
     // a label's style is one channel merged and several in a layer's contribution
     const properties =
-        /\.label(?:Style|Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|Location)$/.test(
+        /\.label(?:Style|Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapUnkerned|Location)$/.test(
             channel,
         )
             ? LABEL_PROPERTIES

@@ -712,6 +712,10 @@ export interface GraphtyElementJSXProps {
      */
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
     /**
+     * Emitted when the pointer moves onto an edge, with the edge's id and its tooltip's words.
+     */
+    "ongraphty-edge-hover"?: (event: GraphtyElementEventMap["graphty-edge-hover"]) => void;
+    /**
      * Emitted once the element has started, with the experiments it switched on and the ids it did not recognize.
      */
     "ongraphty-features"?: (event: GraphtyElementEventMap["graphty-features"]) => void;
@@ -935,6 +939,10 @@ export interface GraphtyElementJSXProps {
      * Emitted when the graph is drawn again after `render-lost`: the device came back, by itself or through `restartRenderer()`, and every buffer, texture and shader was rebuilt from the graph held in memory. `rendererStatus.drawing` is true again.
      */
     "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
+    /**
+     * Emitted when the graph is drawn, but not quite as it should be: the installed Babylon.js words a line of its shaders differently from the one render-path="batched" edits, so batched rows are shaded or placed by Babylon's own line instead (`W_SHADER_EDIT_MISSED`, `params.renderer`, `params.patterns`). `rendererStatus.drawing` is unchanged. A code and facts, never a sentence.
+     */
+    "onrender-warning"?: (event: CustomEvent<EventOfType<"render-warning">>) => void;
     /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */

@@ -43,7 +43,8 @@ export const MIN_RADIUS_PX = 1.5;
  * The radius, in device pixels, within which a row smaller than it keeps its own depth: half a pixel's
  * diagonal, the farthest a point can be from a pixel center, so its center pixel is always at its own
  * depth. A pointer this close to a row's center finds it unless something nearer is drawn there; out to
- * {@link MIN_RADIUS_PX}, only where nothing else is drawn at its own size. Hover reports this radius.
+ * {@link MIN_RADIUS_PX}, only where nothing else is drawn at its own size. Hover reports this radius, or
+ * MIN_RADIUS_PX when it found the row in that outer ring.
  */
 export const HOVER_RADIUS_PX = 0.71;
 
@@ -94,11 +95,18 @@ void main(void) {
 #endif
     vec4 worldPos = finalWorld * vec4(position, 1.0);
 #ifdef ROW_PULL
-    int grRow = int(graphtyRow + 0.5);
-    vec4 grPlace = graphtyRow < 0.0 ? vec4(0.0) : texelFetch(rowPosition, ivec2(grRow & 1023, grRow >> 10), 0);
+    // A row written -row - 2 is drawn from its own matrix (\`NodeBatch.own\`), as \`RowPullPlugin\` draws it:
+    // only its hidden flag comes from the table, and its id is still its row's.
+    bool grOwn = graphtyRow < -1.5;
+    float grAt = grOwn ? -2.0 - graphtyRow : graphtyRow;
+    int grRow = int(grAt + 0.5);
+    vec4 grPlace = grAt < 0.0 ? vec4(0.0) : texelFetch(rowPosition, ivec2(grRow & 1023, grRow >> 10), 0);
+    if (grOwn) {
+        grPlace = vec4(0.0, 0.0, 0.0, grPlace.w > 0.0 ? 1.0 : 0.0);
+    }
     vec3 grOrigin = world[3].xyz;
     worldPos = vec4((worldPos.xyz - grOrigin) * grPlace.w + grOrigin + mat3(world) * grPlace.xyz, worldPos.w);
-    vId = graphtyRow + 1.0;
+    vId = grAt + 1.0;
     // A row under MIN_RADIUS_PX in radius is drawn that large around its center, so a pointer on it
     // finds it in the pixel it is in. shapeRadius is the batch's largest half-extent.
     vec3 grCenter = (finalWorld[3].xyz - grOrigin) * grPlace.w + grOrigin + mat3(world) * grPlace.xyz;
@@ -162,7 +170,8 @@ void main(void) {
 #endif
     gl_FragDepthEXT = 0.5 * gl_FragCoord.z + depthBand;
 #if defined(ROW_PULL) && defined(ID_FLOAT)
-    gl_FragColor = vec4(floor(vId + 0.5), vPick);
+    // A pixel of the grown disc picks the row out to MIN_RADIUS_PX, so that is the radius it reports.
+    gl_FragColor = vec4(floor(vId + 0.5), vPick.xy, depthBand > 0.0 ? MIN_RADIUS_PX : vPick.z);
 #elif defined(ROW_PULL)
     float id = floor(vId + 0.5);
     gl_FragColor = vec4(mod(id, 256.0), mod(floor(id / 256.0), 256.0), floor(id / 65536.0), 255.0) / 255.0;
@@ -210,7 +219,8 @@ class IdTexture extends RenderTargetTexture {
 /**
  * Where a row was drawn in the frame a read was answered from, in CSS pixels from the canvas's
  * top-left corner: its center, and the radius the target picks it within (at least
- * {@link HOVER_RADIUS_PX} device pixels).
+ * {@link HOVER_RADIUS_PX} device pixels, and {@link MIN_RADIUS_PX} when the read landed on the disc a
+ * smaller row is grown to).
  */
 export interface IdDrawn {
     readonly x: number;

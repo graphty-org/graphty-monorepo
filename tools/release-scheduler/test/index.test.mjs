@@ -6,6 +6,7 @@
 // runner plugin, whose test globs then make every workspace's test/**/*.js an entry.
 import assert from "node:assert/strict";
 import { createVerify, generateKeyPairSync } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import worker, {
@@ -234,5 +235,19 @@ describe("scheduled", () => {
         const { readFile } = await import("node:fs/promises");
         const toml = await readFile(new URL("../wrangler.toml", import.meta.url), "utf8");
         assert.ok(toml.includes(`"${KEY_CHECK_CRON}"`));
+    });
+});
+
+// Its cap (tools/README.md, "Cloud routes"): the crons are its only invocations, so the cap is no URL and a fixed
+// number of crons. A fetch handler, a workers.dev URL or another cron needs a request cap like tools/nx-cache-worker's.
+describe("cap", () => {
+    it("has no fetch handler, no public URL and at most five runs a day", () => {
+        assert.equal(worker.fetch, undefined);
+        const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+        assert.match(toml, /^workers_dev = false$/m);
+        assert.match(toml, /^preview_urls = false$/m);
+        const crons = JSON.parse(/^crons = (\[.*\])$/m.exec(toml)[1]);
+        const runsPerDay = crons.reduce((sum, cron) => sum + cron.split(" ")[1].split(",").length, 0);
+        assert.equal(runsPerDay, 5);
     });
 });

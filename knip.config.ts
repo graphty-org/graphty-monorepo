@@ -179,8 +179,10 @@ const config: KnipConfig = {
                 "src/detect/index.ts!",
                 "test/**/*.test.ts",
                 "scripts/*.mjs",
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set.
+                ".storybook/vitest.setup.visual.ts",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/*.mjs"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/*.mjs", "stories/**/*.{ts,mdx}", ".storybook/*.ts"],
             // `@babylonjs/core` and `@babylonjs/loaders` are optional peers (and devDependencies): only the root entry
             // imports them. `lint:knip:prod` runs --strict and would report them as unlisted. `three` is a
             // devDependency only for the Draco decoder files scripts/copy-decoders.mjs copies from its folder.
@@ -497,7 +499,6 @@ const config: KnipConfig = {
         "flock",
         "ionice",
         "jq",
-        "log", // macOS unified log (log stream), for webinspectord's registrations (graphty-element/test/lifecycle)
         "mkfifo",
         "nvidia-smi",
         "pkill",

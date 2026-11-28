@@ -7,6 +7,8 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
+import { DEFAULT_BACKGROUND_COLOR } from "@graphty/graphty-element/schema";
+import type { NodeRecordInput } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
@@ -16,9 +18,12 @@ import { Workspace } from "../../Workspace";
 
 /**
  * Renders the workspace on Graph settings and waits for the element and a small graph.
+ * @param nodes - the graph's two nodes.
  * @returns the element.
  */
-async function openGraphSettings(): Promise<HTMLElementTagNameMap["graphty-element"]> {
+async function openGraphSettings(
+    nodes: readonly NodeRecordInput[] = [{ id: "a" }, { id: "b" }],
+): Promise<HTMLElementTagNameMap["graphty-element"]> {
     const store = createWorkspaceStore({ project: { name: "Pair", id: 1 }, inspected: { kind: "graph" } });
     render(<Workspace store={store} />);
     let found: HTMLElementTagNameMap["graphty-element"] | null = null;
@@ -30,7 +35,7 @@ async function openGraphSettings(): Promise<HTMLElementTagNameMap["graphty-eleme
         throw new Error("the element never came up");
     }
     const element: HTMLElementTagNameMap["graphty-element"] = found;
-    await element.session.data.addNodes([{ id: "a" }, { id: "b" }]);
+    await element.session.data.addNodes(nodes);
     await element.session.data.addEdges([{ source: "a", target: "b" }]);
     // The graph opens on its Values tab; the settings are on Style.
     await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
@@ -236,5 +241,120 @@ describe("Graph settings", () => {
             assert.isNotNull(within(spread).getByRole("group", { name }), name);
         }
         assert.isNull(screen.queryByRole("group", { name: "Edges per node" }));
+    });
+
+    it("an Image row removed before any image writes nothing, and a removed Color comes back from +", async () => {
+        const element = await openGraphSettings();
+        const add = screen.getByRole("button", { name: "Add to background" });
+        await userEvent.click(add);
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Image/ }));
+        await screen.findByRole("button", { name: "Upload image" });
+        await userEvent.click(screen.getByRole("button", { name: "Remove background image" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("button", { name: "Upload image" }), "the Image row is gone");
+        });
+        assert.strictEqual(element.session.config.background.backgroundType, "color", "no image was written");
+
+        await userEvent.click(screen.getByRole("button", { name: "Remove background color" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("textbox", { name: /^Background color(,|$)/ }));
+        });
+        const drawn = element.session.config.backgroundColor;
+        await userEvent.click(add);
+        const color = await screen.findByRole("menuitem", { name: /^Color/ });
+        assert.isFalse(color.hasAttribute("data-disabled"), "Color can be added again");
+        await userEvent.click(color);
+        await screen.findByRole("textbox", { name: /^Background color(,|$)/ });
+        assert.strictEqual(element.session.config.background.color, drawn, "the color it was drawn in");
+        assert.isNull(document.querySelector("[data-background-caption]"), "no caption while a color is set");
+    });
+
+    it("Reset under a shader writes the default color and keeps the shader", async () => {
+        const element = await openGraphSettings();
+        await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
+        const gallery = await screen.findByTestId("shader-gallery", {});
+        await userEvent.click(within(gallery).getByRole("button", { name: /^Nebula/ }));
+        await waitFor(() => {
+            assert.strictEqual(element.session.config.background.shader?.id, "nebula");
+        });
+        await userEvent.keyboard("{Escape}");
+        const color = screen.getByRole("textbox", { name: /^Background color(,|$)/ });
+        await userEvent.clear(color);
+        await userEvent.type(color, "112233{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(element.session.config.background.color?.toLowerCase(), "#112233");
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Reset Background color to default" }));
+        await waitFor(() => {
+            assert.strictEqual(element.session.config.background.color, DEFAULT_BACKGROUND_COLOR);
+        });
+        assert.strictEqual(element.session.config.background.shader?.id, "nebula", "the shader stays");
+    });
+
+    it("Same size at any depth says it is on while node size follows data, until the reader sets it", async () => {
+        const element = await openGraphSettings([
+            { id: "a", weight: 1 },
+            { id: "b", weight: 5 },
+        ]);
+        await element.session.styles.add({
+            name: "By weight",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.size": { by: "data.weight", range: [1, 3] } },
+        });
+        // The description is part of the label, so the name starts with the setting's words.
+        const same = await screen.findByRole("switch", { name: /^Same size at any depth/ });
+        await waitFor(() => {
+            assert.include(same.closest("[data-setting]")?.textContent ?? "", "On while node size follows data");
+        });
+        assert.isTrue((same as HTMLInputElement).checked, "on while size follows data");
+        await userEvent.click(same);
+        await waitFor(() => {
+            assert.isFalse((same as HTMLInputElement).checked);
+            assert.notInclude(same.closest("[data-setting]")?.textContent ?? "", "On while node size follows data");
+        });
+    });
+
+    it("focus on Lighting moves to the last row shown when 2D hides Lighting and the row after it", async () => {
+        const element = await openGraphSettings();
+        const lighting = screen.getByRole("combobox", { name: "Lighting" });
+        await userEvent.click(lighting);
+        await userEvent.keyboard("{Escape}");
+        assert.strictEqual(document.activeElement, lighting);
+        await userEvent.click(screen.getByRole("button", { name: /^Mode/ }));
+        await userEvent.click(await screen.findByRole("menuitemradio", { name: /^2D/ }));
+        await waitFor(() => {
+            assert.strictEqual(element.session.layout.dimension, "2d");
+            assert.strictEqual(
+                document.activeElement,
+                screen.getByRole("switch", { name: "Move labels off nodes and edges" }),
+            );
+        });
+        await screen.findByText("Lighting applies only in another view");
+    });
+
+    it("Show in Style on a background shader added from the Main menu focuses the Background +", async () => {
+        const element = await openGraphSettings();
+        await userEvent.click(screen.getByRole("tab", { name: "Values" }));
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Add Shader..." }));
+        const dialog = await screen.findByRole("dialog", { name: /^(New|Edit) shader$/ });
+        await waitFor(() => {
+            assert.isNotNull(dialog.querySelector('[data-editor="ready"]'), "the code editor has loaded");
+        });
+        await userEvent.click(within(dialog).getByText("Background"));
+        const addToProject = within(dialog).getByRole("button", { name: "Add to project" });
+        await waitFor(() => {
+            assert.isNull(addToProject.getAttribute("aria-disabled"), "Add to project is enabled");
+        });
+        await userEvent.click(addToProject);
+        await waitFor(() => {
+            assert.lengthOf(element.session.shaders.list(), 1);
+        });
+        await userEvent.click(await screen.findByRole("button", { name: "Show in Style" }));
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement?.getAttribute("aria-label"), "Add to background");
+        });
     });
 });

@@ -1,0 +1,21 @@
+id: pair-statistics-to-edges
+name: "Pair statistics onto expanded edges"
+category: data
+description: "Import a table of tested node pairs whose rows list shared intermediaries (a ceRNA lncRNA-mRNA pair with its shared miRNAs and its hypergeometric p, correlation, correlation p, regulation similarity and sensitivity correlation) and expand it into a typed tripartite network, carrying each pair's statistics onto every edge built from it, so the evidence a tool such as GDCRNATools drops on export stays on the drawing and can be filtered on."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 5.11 (ceRNA networks) and section 10, requirement 11 (S, evidence-channel filtering for multi-score edges)."
+algorithms: []
+used_by_workflows:
+    - W251
+implemented_by_components: []
+requirements:
+    - "Should: Import a table of tested node pairs whose rows list their shared intermediaries, and expand it into a typed tripartite network"
+    - "Should: Carry each pair's statistics (hypergeometric p, correlation and its p, regulation similarity, sensitivity correlation) onto every edge built from the pair"
+    - "Should: Filter edges on several of those statistics at once"
+sources:
+    - title: "GDCRNATools vignette"
+      url: "https://free.nchc.org.tw/bioconductor/packages/3.9/bioc/vignettes/GDCRNATools/inst/doc/GDCRNATools.html"
+      summary: "gdcCEAnalysis tests each lncRNA-mRNA pair; gdcExportNetwork writes edges that carry no statistics"
+    - title: "Systems biology research, section 5.11 and section 10, requirement 11"
+      url: "design/user-research/systems-biology-omics-networks.md"
+      summary: "ceRNA procedure; evidence-channel filtering for multi-score edges, Should"

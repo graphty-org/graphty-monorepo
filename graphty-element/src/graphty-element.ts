@@ -45,6 +45,7 @@ import type { ExportGraphOptions, ExportResult } from "./data/export";
 import type { GraphtyWarningCode } from "./errors/codes";
 import { isGraphtyError } from "./errors/GraphtyError";
 import {
+    type EdgeEventDetail,
     type GraphEvent,
     type GraphtyForwardedEventMap,
     isDomForwardableEvent,
@@ -70,7 +71,7 @@ import type { ModelCheck, ModelCheckOptions, ModelPreview, ModelPreviewOptions }
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { ModelThumbnailOptions, NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { type Antialias, antialiasDefault } from "./meshes/PulledLineBatch";
-import { exportFigure, type FigureOptions, type FigureResult } from "./screenshot/figure.js";
+import type { FigureOptions, FigureResult } from "./screenshot/figure.js";
 import type { ScreenshotLegendPosition, ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -522,7 +523,12 @@ export class Graphty extends LitElement {
      * (`<project name>.graphty.json`) without marking the project saved: it is a copy, and
      * `project.dirty` is left as it was. To save, use `downloadProject`. The file is assembled from
      * the export's UTF-8 chunks, never as one string.
-     * @param format - The format id, as `session.catalog.formats()` lists it.
+     *
+     * To look at an export's `losses` before deciding to save it, call `exportGraph` and hand its
+     * result here in place of the format: the file is written from that result, so the graph is
+     * exported once, not twice. Only `fileName` is read from the options then.
+     * @param format - The format id, as `session.catalog.formats()` lists it, or a result
+     *     `exportGraph` already returned.
      * @param options - The writer's options, as `exportGraph` takes them, and the file's name.
      * @returns The export, whose `losses` list everything the format could not hold.
      * @throws A `GraphtyError` (as a rejection), as `exportGraph` rejects.
@@ -531,24 +537,27 @@ export class Graphty extends LitElement {
      * ```typescript
      * const { losses } = await element.downloadGraph("graphml");
      * for (const loss of losses) console.warn(loss.code, loss.params);
+     *
+     * const result = await element.exportGraph("csv");
+     * if (result.losses.length === 0 || confirm("Save anyway?")) await element.downloadGraph(result);
      * ```
      */
     async downloadGraph(
-        format: FormatId,
+        format: FormatId | ExportResult,
         options: ExportGraphOptions & { readonly fileName?: string } = {},
     ): Promise<ExportResult> {
         const { fileName, ...exportOptions } = options;
-        const result = await this.exportGraph(format, exportOptions);
+        const result = typeof format === "string" ? await this.exportGraph(format, exportOptions) : format;
+        const { format: id } = result;
         const chunks: BlobPart[] = [];
         for await (const chunk of result.bytes) {
             chunks.push(chunk.slice());
         }
         const { name } = this.session.project;
-        const descriptor = this.session.catalog.formats().find((entry) => entry.id === format);
+        const descriptor = this.session.catalog.formats().find((entry) => entry.id === id);
         downloadBlob(
             new Blob(chunks, { type: descriptor?.mimeTypes[0] ?? "application/octet-stream" }),
-            fileName ??
-                (format === "graphty" ? projectFileName(name) : formatFileName(name, descriptor?.extensions[0])),
+            fileName ?? (id === "graphty" ? projectFileName(name) : formatFileName(name, descriptor?.extensions[0])),
         );
         return result;
     }
@@ -1128,6 +1137,17 @@ export class Graphty extends LitElement {
                 }),
             );
         });
+        this.#graph.eventManager.onEdgeEvent.add((event) => {
+            if (event.type !== "edge-hover") {
+                return;
+            }
+
+            const detail: EdgeEventDetail = {
+                edgeId: event.edgeId,
+                ...(event.tooltip === undefined ? {} : { tooltip: event.tooltip }),
+            };
+            this.dispatchEvent(new CustomEvent("graphty-edge-hover", { detail, bubbles: true, composed: true }));
+        });
 
         // Note: Property setters now forward to Graph methods automatically,
         // so we don't need to check changedProperties here. The setters have
@@ -1592,7 +1612,7 @@ export class Graphty extends LitElement {
     #featuresValue: readonly string[] | undefined;
 
     /**
-     * The experiments to switch on, space separated (`features="assistant location-map"`); `all`
+     * The experiments to switch on, space separated (`features="file-styles source-steps"`); `all`
      * switches on every one this build declares. Absent takes the page default
      * (`setDefaultFeatures`). Read once, when the element first renders; see `enabledFeatures`.
      * Features marked `@experimental` may change or disappear in a minor release.
@@ -1884,6 +1904,8 @@ export class Graphty extends LitElement {
             camera: {
                 get: () => this.#graph.getCameraState(),
                 set: (state) => this.#graph.setCameraState(state, { animate: false }),
+                tour: () => this.#graph.tourPlace(),
+                resumeTour: (name, stop) => this.#graph.resumeTour(name, stop),
             },
             reloadPage: async () => {
                 if (pristine !== undefined) {
@@ -4602,6 +4624,8 @@ export class Graphty extends LitElement {
      */
     async exportFigure(options?: FigureOptions): Promise<FigureResult> {
         await this.#graph.waitForStableFrame();
+        // Loaded on first use: most pages never export a figure.
+        const { exportFigure } = await import("./screenshot/figure.js");
         return exportFigure(this.#graph, options);
     }
 
@@ -5658,10 +5682,15 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      */
     get pinnedNodes(): ReadonlySet<string | number> {
+        // From the pin column `Node.isPinned` reads, by row: walking the nodes built a `Node` for
+        // every row stored with none on renderPath "batched" (issue #10023).
+        const manager = this.#graph.getDataManager();
+        const { positions } = manager;
         const pinned = new Set<string | number>();
-        for (const node of this.#graph.getDataManager().nodes.values()) {
-            if (node.isPinned()) {
-                pinned.add(node.id);
+        for (let row = 0; row < positions.count; row++) {
+            const id = positions.isPinned(row) ? manager.nodeIdAtRow(row) : undefined;
+            if (id !== undefined) {
+                pinned.add(id);
             }
         }
 
@@ -5722,6 +5751,10 @@ export class Graphty extends LitElement {
 
     /**
      * Get all edges in the graph. `session.data.edges()` lists the same edges as plain records.
+     *
+     * On the `"batched"` render path an edge's `Edge` is built when its element of the array is
+     * first read: the call and `length` stay cheap, but walking the whole array builds every `Edge`.
+     * Walk {@link getEdgeIds} instead to enumerate a large graph.
      * @returns Array of all edges
      * @since 3.40.0
      * @example
@@ -5732,6 +5765,21 @@ export class Graphty extends LitElement {
      */
     getEdges(): import("./Edge").Edge[] {
         return this.#graph.getEdges();
+    }
+
+    /**
+     * Get the id of every edge, building no `Edge` object: the way to enumerate the edges of a
+     * large graph on the `"batched"` render path, where walking all of {@link getEdges} builds an
+     * `Edge` for every row.
+     * @returns The ids, in the order `getEdges()` returns the edges.
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * console.log('Edges:', element.getEdgeIds().length);
+     * ```
+     */
+    getEdgeIds(): string[] {
+        return this.#graph.getEdgeIds();
     }
 
     /**
@@ -7027,7 +7075,6 @@ export class Graphty extends LitElement {
      * @param id - Its id.
      * @param name - The name, trimmed; null or "" clears it.
      * @returns When it is saved; rejects when the store cannot save it.
-     * @experimental assistant
      * @example
      * ```ts
      * await element.renameAiConversation(id, "Color by department");
@@ -7057,7 +7104,6 @@ export class Graphty extends LitElement {
      * @param options.provider - One provider's key; every provider's when absent.
      * @param options.prefix - `keyPersistence.prefix`, with no assistant enabled.
      * @returns When they are forgotten.
-     * @experimental assistant
      */
     async forgetAiKeys(options?: Parameters<Graph["forgetAiKeys"]>[0]): Promise<void> {
         return this.#graph.forgetAiKeys(options);
@@ -7426,6 +7472,10 @@ export class Graphty extends LitElement {
      * a property of something already in the Babylon.js scene (through `graph.scene`, a material's
      * color, say): during the layout that waits for its next landing. Use `"objects"` if it must
      * show at once.
+     *
+     * `"batched"` needs WebGL2 or WebGPU. On a WebGL1 context every node is drawn as an object, as
+     * under `"objects"`: `rowCounts.batchedNodes` stays 0, and `limits` are not in force
+     * (`W_LIMITS_IGNORED`).
      * @returns The path asked for.
      * @example
      * ```html
@@ -7885,6 +7935,8 @@ declare global {
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
         /** Emitted when a dragged node is let go, with the node's id. */
         "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
+        /** Emitted when the pointer moves onto an edge, with the edge's id and its tooltip's words. */
+        "graphty-edge-hover": CustomEvent<EdgeEventDetail>;
         /** Emitted when how many node labels are drawn, or hidden and why, changes. */
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
         /** Emitted once the element has started, with the experiments it switched on and the ids it did not recognize. */

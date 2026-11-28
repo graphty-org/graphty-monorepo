@@ -47,6 +47,8 @@ import {
     size,
     start,
     summary,
+    unparsedWaitLines,
+    waitPrRef,
     validate,
 } from "./issue-groups.mjs";
 
@@ -241,7 +243,7 @@ describe("risk classes, any member and each member's reason", () => {
                 },
             ],
         };
-        assert.deepEqual(importScan(l, scan, NOW), { groups: 4, issues: 5, unreasoned: 2 });
+        assert.deepEqual(importScan(l, scan, NOW), { groups: 4, issues: 5, unreasoned: 2, waiting: [] });
         assert.deepEqual(
             l.groups.map((g) => g.members.map((m) => m.n)),
             [[1, 2], [3], [4], [5]],
@@ -458,6 +460,49 @@ describe("route", () => {
         assert.equal(l.waits[3].ended, null);
         assert.deepEqual(drift(l, { issues: new Map(), prs, branchPrs }, NOW), [], "a second check finds nothing");
     });
+
+    it("lets a wait with a due time hold its issue only until then, and check --fix ends it after", () => {
+        const l = fresh();
+        l.scannedAt = new Date(NOW).toISOString();
+        const due = new Date(NOW + HOUR).toISOString();
+        assert.match(addWait(l, { n: 3, on: "#8667", due, why: "re-measure", now: NOW }), /until/);
+        assert.throws(() => addWait(l, { n: 4, on: "#1", due: "soon", why: "x", now: NOW }), /not a time/);
+        assert.deepEqual(ledgerJobs(l, q([3, "high"]), NOW).rescan, [], "held before the due time");
+        assert.deepEqual(drift(l, { issues: new Map(), prs: new Map() }, NOW), []);
+        const later = NOW + 2 * HOUR;
+        assert.deepEqual(ledgerJobs(l, q([3, "high"]), later).rescan, [3], "offered once the due time passed");
+        const found = drift(l, { issues: new Map(), prs: new Map() }, later);
+        assert.deepEqual(
+            found.map((d) => d.kind),
+            ["wait-due"],
+        );
+        applyFix(l, found[0], later);
+        assert.match(l.waits[0].ended, /due .* passed$/);
+    });
+
+    it("sets a due time and why on a live wait it already holds (#9743)", () => {
+        const l = fresh();
+        addWait(l, { n: 3, on: "#8667", why: "same file", now: NOW });
+        assert.match(addWait(l, { n: 3, on: "#8667", why: "again", now: NOW }), /already waits/);
+        const due = new Date(NOW + HOUR).toISOString();
+        assert.equal(
+            addWait(l, { n: 3, on: "#8667", due, why: "re-check", now: NOW }),
+            `#3 waits on #8667 until ${due}`,
+        );
+        assert.equal(l.waits.length, 1);
+        assert.equal(l.waits[0].due, due);
+        assert.equal(l.waits[0].why, "re-check");
+        assert.deepEqual(ledgerJobs(l, q([3, "high"]), NOW + 2 * HOUR).rescan, [3], "the new due time holds");
+    });
+
+    it("ends a stand-alone wait with --end (#9743)", () => {
+        const l = fresh();
+        assert.throws(() => addWait(l, { n: 3, on: "#8667", end: true, why: "dead", now: NOW }), /no live wait/);
+        addWait(l, { n: 3, on: "#8667", why: "same file", now: NOW });
+        assert.match(addWait(l, { n: 3, on: "#8667", end: true, why: "base abandoned", now: NOW }), /no longer waits/);
+        assert.match(l.waits[0].ended, /base abandoned$/);
+        assert.deepEqual(ledgerJobs(l, q([3, "high"]), NOW).rescan, [3], "released");
+    });
 });
 
 describe("fetchFacts", () => {
@@ -531,7 +576,7 @@ describe("archive, compact, import and validate", () => {
             ],
         };
         scan.jobs[0].issues.push(last);
-        assert.deepEqual(importScan(l, scan, NOW), { groups: 2, issues: over.length + 1, unreasoned: 0 });
+        assert.deepEqual(importScan(l, scan, NOW), { groups: 2, issues: over.length + 1, unreasoned: 0, waiting: [] });
         assert.deepEqual(
             l.groups.map((g) => [g.id, g.members.map((m) => m.n)]),
             [
@@ -1069,6 +1114,55 @@ describe("jobs", () => {
         assert.deepEqual(ledgerJobs(l, q([4, "high"]), NOW).rescan, [4], "each import replaces the blocked list");
     });
 
+    it("offers a blocked issue again past the block's due time, and names critical/high blocks with no end", () => {
+        const l = fresh();
+        const blocked = [
+            { issue: 1, reason: "waits for a measurement", due: new Date(NOW - HOUR).toISOString() },
+            { issue: 2, reason: "waits for a measurement" },
+            { issue: 3, reason: "owner-only: visual-review/trusted" },
+            { issue: 4, reason: "waits on armable #8465" },
+            { issue: 5, reason: "stranded branch" },
+            { issue: 6, reason: "waits for a recurrence" },
+            { issue: 7, reason: "X6: depends on #3467's open #8465" },
+            { issue: 8, reason: "collision: graphty/src/app.tsx with open #8801" },
+            { issue: 9, reason: "the fix is owner-only" },
+        ];
+        importScan(l, { builtAt: new Date(NOW).toISOString(), jobs: [], blocked }, NOW);
+        const urgent = [2, 3, 4, 6, 7, 8, 9].map((n) => [n, n === 2 ? "critical" : "high"]);
+        const r = ledgerJobs(l, q([1, "high"], ...urgent, [5, "low"]), NOW);
+        assert.deepEqual(r.rescan, [1]);
+        assert.deepEqual(r.unjustified, [2, 6, 9], "a recurrence wait needs a due time; reasons match at their start");
+        assert.ok(jobLines(r).some((line) => /^unjustified blocks: #2 #6 #9 /.test(line)));
+    });
+
+    it("names critical/high issues a live wait with no due time holds, in progress or not", () => {
+        const l = fresh();
+        addWait(l, { n: 1, on: "fix/1-x", why: "branch", now: NOW });
+        addWait(l, { n: 2, on: "fix/2-x", why: "branch", now: NOW, due: new Date(NOW + HOUR).toISOString() });
+        addWait(l, { n: 3, on: "fix/3-x", why: "branch", now: NOW });
+        addWait(l, { n: 4, on: "fix/4-x", why: "branch", now: NOW });
+        const r = ledgerJobs(l, q([3, "low"]), NOW, { urgent: new Set([1, 2, 4]) });
+        assert.deepEqual(r.openEnded, [1, 4]);
+        assert.ok(jobLines(r).some((line) => /^open-ended waits: #1 #4 /.test(line)));
+        assert.deepEqual(ledgerJobs(l, q([1, "high"], [3, "low"]), NOW).openEnded, [1], "default: the queue's");
+    });
+
+    it("keeps a re-blocked issue's earlier due time while it is still ahead", () => {
+        const l = fresh();
+        const at = (h) => new Date(NOW + h * HOUR).toISOString();
+        const scan = (due, now) =>
+            importScan(
+                l,
+                { builtAt: new Date(now).toISOString(), jobs: [], blocked: [{ issue: 1, reason: "r", due }] },
+                now,
+            );
+        scan(at(2), NOW);
+        scan(at(3), NOW + HOUR);
+        assert.equal(l.blocked[0].due, at(2));
+        scan(at(5), NOW + 3 * HOUR);
+        assert.equal(l.blocked[0].due, at(5), "a passed due time is not kept");
+    });
+
     it("asks for a scan when the last one is over 2 hours old", () => {
         const l = fresh();
         l.scannedAt = new Date(NOW - 3 * HOUR).toISOString();
@@ -1540,7 +1634,17 @@ describe("idle", () => {
     it("is idle with startable jobs, free slots, no long wait and load under the cores", () => {
         const v = idleVerdict(base);
         assert.equal(v.idle, true);
-        assert.equal(v.line, "idle: running 0, stuck 0, slots free 3 of 4, load 6/32, startable 10 -- start jobs");
+        assert.equal(
+            v.line,
+            "idle: running 0, stuck 0, slots free 3 of 4, load 6/32, startable 10 (critical/high 0) -- start jobs",
+        );
+    });
+
+    it("says so when only medium or low jobs are startable while critical or high issues are held", () => {
+        const v = idleVerdict({ ...base, critHigh: 0, critHighHeld: 7 });
+        assert.equal(v.idle, true);
+        assert.match(v.line, /startable 10 \(critical\/high 0, 7 held\) -- start jobs; no critical\/high job/);
+        assert.equal(idleVerdict({ ...base, critHigh: 2, critHighHeld: 7 }).reason, "start jobs");
     });
 
     it("reserves no slot for running jobs: startable 1, running 5 and 4 free is idle", () => {
@@ -1557,7 +1661,7 @@ describe("idle", () => {
             [{ load: 32 }, "load is at or over the cores"],
         ];
         for (const [change, reason] of cases) {
-            const v = idleVerdict({ ...base, ...change });
+            const v = idleVerdict({ ...base, critHigh: 0, critHighHeld: 7, ...change });
             assert.equal(v.idle, false, reason);
             assert.equal(v.reason, reason);
         }
@@ -1642,7 +1746,10 @@ describe("idle", () => {
         };
         const r = main(["idle"], deps);
         assert.equal(r.code, 1);
-        assert.equal(r.out, "idle: running 1, stuck 0, slots free 4 of 4, load 1/32, startable 1 -- start jobs");
+        assert.equal(
+            r.out,
+            "idle: running 1, stuck 0, slots free 4 of 4, load 1/32, startable 1 (critical/high 1) -- start jobs",
+        );
         assert.deepEqual(sweeps, [false]);
         const cached = JSON.parse(readFileSync(join(dir, "idle.json"), "utf8"));
         assert.equal(cached.at, NOW);
@@ -1893,6 +2000,21 @@ describe("pipeline jobs", () => {
         assert.deepEqual(offered(NOW + 3 * HOUR), [2, 3]);
     });
 
+    it("holds a blocked issue past its due time while the pull request it names is open (#10254)", () => {
+        const l = withPrs([pr(9010)]);
+        const due = new Date(NOW - HOUR).toISOString();
+        l.blocked = [
+            { issue: 1, prs: [9010], reason: "file collision with open #9010", due },
+            { issue: 2, prs: [9011], reason: "file collision with merged #9011", due },
+        ];
+        const r = ledgerJobs(l, q([1, "high"], [2, "high"]), NOW);
+        assert.deepEqual(
+            r.jobs.filter((j) => !j.kind).map((j) => j.issues),
+            [[2]],
+        );
+        assert.deepEqual(r.rescan, [2]);
+    });
+
     it("fetches the open pull requests in one paged query with their markers", () => {
         const agent = { __typename: "User", login: "graphty-agent" };
         const c = (body, createdAt) => ({ body, createdAt, author: agent, editor: null, lastEditedAt: null });
@@ -2023,6 +2145,67 @@ describe("landed branches", () => {
             [[8197, "wait-target-done", "fix/8189-x landed on master"]],
         );
         assert.match(summary(l), /; 1 owner-blocked$/);
+    });
+
+    it("reads a pull request or branch only where the wait target leads with it (#10171)", () => {
+        const l = fresh();
+        const ref = (on) => waitPrRef(l, { on, test: "X6" });
+        assert.deepEqual(ref("#8596"), { pr: 8596 });
+        assert.deepEqual(ref("pr:9519"), { pr: 9519 });
+        assert.deepEqual(ref("PR #8596 (owner review)"), { pr: 8596 });
+        assert.deepEqual(ref("pull request 10090 (style sidebar) merging"), { pr: 10090 });
+        assert.deepEqual(ref("pull request #8596"), { pr: 8596 });
+        assert.deepEqual(ref("fix/8609-model-dialog-round-5"), { branch: "fix/8609-model-dialog-round-5" });
+        assert.deepEqual(ref("branch:fix/9372-lift-2d-into-3d"), { branch: "fix/9372-lift-2d-into-3d" });
+        assert.deepEqual(ref("branch fix/264-algorithm-on-session"), { branch: "fix/264-algorithm-on-session" });
+        for (const prose of [
+            "the next NeonLine WebKit render-parity failure, which now names the pixel (#9759)",
+            "owner items #3436 #8465 #3425",
+            "issue #9506",
+            "full run on 9db9e0ea9",
+            "owner (visual-review/trusted is owner-only)",
+        ])
+            assert.equal(ref(prose), null, prose);
+    });
+
+    it("ends a free-prose wait only at its due time, never on a pull request it mentions (#10171)", () => {
+        const l = fresh();
+        l.scannedAt = new Date(NOW).toISOString();
+        const due = new Date(NOW + HOUR).toISOString();
+        const on = "the next NeonLine WebKit render-parity failure, which now names the pixel (#9759)";
+        addWait(l, { n: 9739, on, due, why: "intermittent", now: NOW });
+        addWait(l, { n: 9083, on: "pull request 8596 (member answers) merging", why: "builds on it", now: NOW });
+        addWait(l, { n: 9988, on: "pull request 10090 (x) merging", why: "same file", now: NOW });
+        const prs = new Map([
+            [9759, { number: 9759, state: "MERGED" }],
+            [8596, { number: 8596, state: "OPEN" }],
+            [10090, { number: 10090, state: "MERGED" }],
+        ]);
+        const found = drift(l, { issues: new Map(), prs }, NOW);
+        assert.deepEqual(
+            found.map((d) => [d.issue, d.detail]),
+            [[9988, "#10090 merged"]],
+            "the prose wait and the wait on the open pull request stay",
+        );
+        for (const d of found) applyFix(l, d, NOW);
+        const r = ledgerJobs(l, q([9739, "critical"], [9083, "high"]), NOW);
+        assert.deepEqual([r.jobs, r.rescan], [[], []], "a live wait holds its issue: no job, no unscanned job");
+        assert.deepEqual(
+            drift(l, { issues: new Map(), prs }, NOW + 2 * HOUR).map((d) => [d.issue, d.kind]),
+            [[9739, "wait-due"]],
+            "its due time ends it",
+        );
+    });
+
+    it("lists live waits nothing but wait --end ends, and import-scan names the issues it skips for a wait", () => {
+        const l = fresh();
+        addWait(l, { n: 1, on: "owner (figma)", why: "owner", now: NOW });
+        addWait(l, { n: 2, on: "#8596", why: "pr", now: NOW });
+        addWait(l, { n: 3, on: "a recurrence", due: new Date(NOW + HOUR).toISOString(), why: "due", now: NOW });
+        assert.deepEqual(unparsedWaitLines(l), ['waits only wait --end ends: #1 on "owner (figma)"']);
+        const r = importScan(l, { builtAt: new Date(NOW).toISOString(), jobs: [{ issues: [2, 4], why: "x" }] }, NOW);
+        assert.deepEqual(r.waiting, [2]);
+        assert.equal(r.issues, 1);
     });
 });
 

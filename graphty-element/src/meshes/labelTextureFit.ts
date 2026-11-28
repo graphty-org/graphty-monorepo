@@ -81,15 +81,21 @@ class Sweep {
         // A reader's own zoom moves the camera without moving the picture: checked, but never waited for.
         const view = camera.getViewMatrix().updateFlag;
         const projection = camera.getProjectionMatrix().updateFlag;
-        if (view !== this.view || projection !== this.projection) {
+        const moved = view !== this.view || projection !== this.projection;
+        if (moved) {
             this.unchecked = this.labels.size;
         }
 
+        // The first frame the sweep sees is not a move.
+        const moving = moved && this.view !== -1;
+
+        // While the camera moves every fit is stale a frame later, so a moving frame checks the fixed
+        // 256 and the walk's quarter of the labels waits for the camera to stop (orbiting 10,000 labels
+        // checked 2,500 a frame).
         let redrawn = false;
-        const checks = Math.max(
-            TEXTURE_FIT_CHECKS_PER_FRAME,
-            Math.ceil(this.labels.size / TEXTURE_FIT_FRAMES_PER_WALK),
-        );
+        const checks = moving
+            ? TEXTURE_FIT_CHECKS_PER_FRAME
+            : Math.max(TEXTURE_FIT_CHECKS_PER_FRAME, Math.ceil(this.labels.size / TEXTURE_FIT_FRAMES_PER_WALK));
         for (let i = 0; i < checks && this.unchecked > 0; i++) {
             const label = this.next();
             if (label === undefined) {
@@ -137,7 +143,7 @@ const sweeps = new WeakMap<Scene, Sweep>();
  * A label drawn from a texture with many more pixels than it covers on screen is shrunk by the GPU's
  * mipmaps, which blur its letters; one with fewer is magnified, which blurs them too. Before each frame the
  * sweep asks {@link TEXTURE_FIT_CHECKS_PER_FRAME} labels, or a {@link TEXTURE_FIT_FRAMES_PER_WALK}th of them when
- * that is more, whether their texture still matches, and each that does not redraws it. Until every label has
+ * that is more and the camera did not move this frame, whether their texture still matches, and each that does not redraws it. Until every label has
  * been asked since the picture last changed, the frame on screen is not final.
  * @param scene - The scene.
  * @param labels - The scene's labels; read live, so labels added later are swept too.

@@ -258,4 +258,70 @@ describe("the Data page's other paths on the real element", () => {
             assert.equal(box.checked, before);
         });
     });
+
+    it("a replace opened with no choices carries the replaced load's weight meaning onto the new file's weight", async () => {
+        const store = createWorkspaceStore({ project: { name: "team", id: 1 }, place: "graph" });
+        const session = await drawWorkspace(store);
+        await act(async () => {
+            await session.data.import(
+                { config: { file: new File([TIES], "ties.csv") } },
+                { mapping: { weight: "weight", weightMeaning: "distance" } },
+            );
+        });
+        const [ties] = session.data.sources();
+        act(() => {
+            openDataPage(store, {
+                intent: "replace",
+                replaces: ties.key,
+                files: [new File(["source,target,weight\na,b,4\nb,c,1\n"], "ties-2.csv")],
+            });
+        });
+        await screen.findByRole("heading", { name: "Replace: ties-2.csv" });
+        const higher = await screen.findByRole("radiogroup", { name: "Higher means" });
+        await waitFor(() => {
+            const checked = within(higher)
+                .getAllByRole<HTMLInputElement>("radio")
+                .filter((radio) => radio.checked)
+                .map((radio) => radio.labels?.[0]?.textContent);
+            assert.deepEqual(checked, ["Farther"]);
+        });
+    });
+
+    it("Enter on an Error limit left as it was reads nothing again, and File settings stays open", async () => {
+        await openFromEmptyApp();
+        await dropFiles(new File([PEOPLE], "people.csv"));
+        await screen.findByTestId("model-strip", {});
+        await userEvent.click(screen.getByRole("button", { name: /^File settings/ }));
+        const limit = await screen.findByRole<HTMLInputElement>("textbox", { name: "Error limit" });
+        await userEvent.click(limit);
+        await userEvent.keyboard("{Enter}");
+        // A read again takes File settings off the page; with nothing changed it stays, on the box.
+        assert.strictEqual(document.activeElement, limit);
+        assert.isTrue(limit.isConnected);
+        assert.isNotNull(screen.getByTestId("model-strip"));
+    });
+
+    it("a load the element refuses after its count keeps the page, with the refusal and Load's reason", async () => {
+        await openFromEmptyApp();
+        const element = document.querySelector("graphty-element");
+        if (element === null) {
+            throw new Error("the element never came up");
+        }
+        // A consumer's ceiling, honored on the batched render path: room for the file when it is
+        // counted, lowered before Load is pressed.
+        element.renderPath = "batched";
+        element.limits = { renderCeiling: 10 };
+        await dropFiles(new File([PEOPLE], "people.csv"));
+        const load = await screen.findByRole("button", { name: "Load" });
+        await waitFor(() => {
+            assert.isNull(load.getAttribute("aria-disabled"));
+        });
+        element.limits = { renderCeiling: 2 };
+        await userEvent.click(load);
+        await screen.findByText("The load was refused; see the problem above");
+        assert.include(screen.getByRole("alert").textContent, "This load would make 3 nodes; graphty draws at most 2.");
+        assert.strictEqual(load.getAttribute("aria-disabled"), "true");
+        assert.strictEqual(element.session.data.statistics().nodeCount, 0, "nothing was loaded");
+        assert.isNotNull(screen.getByRole("heading", { name: "Open as a new graph" }), "the page stays");
+    });
 });

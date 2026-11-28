@@ -230,7 +230,7 @@ export interface ElementPaint {
     styleOf(target: SelectorTarget, index: number): ResolvedStyle;
     /**
      * Whether one element's words in a text channel are drawn as plain text, every character as
-     * written, never as label markup: true where they came from a `graphty.notes.*` binding
+     * written, never as label markup: true where they came from a `store.graphty.notes.*` binding
      * (design/notes 6.3).
      * @param target - Whether it is a node or an edge.
      * @param index - Its dense index.
@@ -554,7 +554,7 @@ type ChannelColumn =
           readonly kind: "ref";
           values: unknown[];
           /**
-           * For a text channel, 1 where the words came from a `graphty.notes.*` binding and are
+           * For a text channel, 1 where the words came from a `store.graphty.notes.*` binding and are
            * drawn as plain text, never as label markup (design/notes 6.3); null for any other
            * channel.
            */
@@ -708,6 +708,111 @@ function moveColumn(column: ChannelColumn, sourceOf: Int32Array, capacity: numbe
 }
 
 /**
+ * The rows from one to another.
+ * @param from - The first.
+ * @param to - One past the last.
+ * @returns They, ascending.
+ */
+function rowsBetween(from: number, to: number): number[] {
+    const rows: number[] = [];
+    for (let row = from; row < to; row++) {
+        rows.push(row);
+    }
+
+    return rows;
+}
+
+/**
+ * The rows an order-keeping removal drops below `carried`, ascending: each kept row moves down to the next free
+ * row, in order. Null when the remap moves rows any other way.
+ * @param remap - Old index to new; an index at or past `count` is dropped.
+ * @param carried - How many rows, from zero, the remap reaches.
+ * @param count - The new row count.
+ * @returns The dropped rows, or null.
+ */
+function droppedRows(remap: ArrayLike<number>, carried: number, count: number): number[] | null {
+    const dropped: number[] = [];
+    let next = 0;
+    for (let from = 0; from < carried; from++) {
+        const to = remap[from];
+        if (to >= count) {
+            dropped.push(from);
+        } else if (to === next) {
+            next++;
+        } else {
+            return null;
+        }
+    }
+
+    return dropped;
+}
+
+/**
+ * Close up an array in place over an order-keeping removal: the rows between the dropped ones move down in runs,
+ * and what the move frees, up to `used`, is written with the empty value.
+ * @param values - The array: typed, or a plain one.
+ * @param dropped - The dropped rows, ascending, all below `carried`.
+ * @param carried - How many rows, from zero, are kept or dropped; those from it on are dropped too.
+ * @param used - How many rows held values before.
+ * @param empty - The value of a row nothing painted.
+ */
+function closeUp(
+    values: Float64Array | Uint8Array | unknown[],
+    dropped: readonly number[],
+    carried: number,
+    used: number,
+    empty: unknown,
+): void {
+    if (Array.isArray(values)) {
+        // A plain array's own `splice` moves its rows natively, where its `copyWithin` visits each one; the length
+        // it gives back reads as holes, which are rows nothing painted.
+        const { length } = values;
+        values.splice(carried, Math.max(0, used - carried));
+        for (let at = dropped.length - 1; at >= 0; at--) {
+            values.splice(dropped[at], 1);
+        }
+
+        values.length = length;
+        return;
+    }
+
+    let to = dropped.length === 0 ? carried : dropped[0];
+    for (let at = 0; at < dropped.length; at++) {
+        const from = dropped[at] + 1;
+        const end = at + 1 < dropped.length ? dropped[at + 1] : carried;
+        if (end > from) {
+            values.copyWithin(to, from, end);
+            to += end - from;
+        }
+    }
+
+    if (used > to) {
+        values.fill(empty as number, to, used);
+    }
+}
+
+/**
+ * Close up one column in place over an order-keeping removal ({@link closeUp}), keeping the column object,
+ * which prepared layers hold, and its arrays: no array of the graph's length is made again.
+ * @param column - The column.
+ * @param dropped - The dropped rows, ascending.
+ * @param carried - How many rows the remap reaches.
+ * @param used - How many rows held values before.
+ */
+function closeUpColumn(column: ChannelColumn, dropped: readonly number[], carried: number, used: number): void {
+    if (column.kind === "number") {
+        closeUp(column.values, dropped, carried, used, Number.NaN);
+    } else if (column.kind === "flag") {
+        closeUp(column.values, dropped, carried, used, FLAG_ABSENT);
+    } else {
+        closeUp(column.values, dropped, carried, used, undefined);
+        if (column.kind === "ref" && column.plainText !== null) {
+            closeUp(column.plainText, dropped, carried, used, 0);
+        }
+    }
+}
+
+/**
  * What one column holds for one element.
  * @param column - The column.
  * @param index - The element's dense index.
@@ -747,6 +852,79 @@ function lookFiller(channel: string, scales: ScaleRegistry): ((painted: unknown)
 
     return (painted) =>
         typeof painted === "object" && painted !== null ? withLabelLook(painted, scales.carried) : painted;
+}
+
+/** Each dirty element's mesh-keying values as they stood before a pass, by channel and then by dirty position. */
+interface MeshValues {
+    readonly columns: ReadonlyMap<ChannelColumn, readonly unknown[]>;
+    /** By dirty position, 1 when the element's key was interned from those values (see `TargetStore.unkeyed`). */
+    readonly settled: Uint8Array;
+}
+
+/**
+ * Read each dirty element's mesh-keying values before a pass paints over them.
+ * @param store - The store.
+ * @returns The values of every mesh-keying column that exists, by dirty position.
+ */
+function meshValuesOf(store: TargetStore): MeshValues {
+    const values = new Map<ChannelColumn, unknown[]>();
+    for (const channel of meshChannelsFor(store.target)) {
+        const column = store.columns.get(channel);
+        if (column !== undefined) {
+            const read = new Array<unknown>(store.dirtyCount);
+            for (let at = 0; at < store.dirtyCount; at++) {
+                read[at] = readColumn(column, store.dirty[at]);
+            }
+
+            values.set(column, read);
+        }
+    }
+
+    const settled = new Uint8Array(store.dirtyCount);
+    for (let at = 0; at < store.dirtyCount; at++) {
+        settled[at] = store.unkeyed[store.dirty[at]] === 0 ? 1 : 0;
+    }
+
+    return { columns: values, settled };
+}
+
+/**
+ * Whether a pass left every mesh-keying value of one element as it was, so the key it holds still names its mesh.
+ * A value compared by identity: an object built again with equal fields counts as changed, and is interned.
+ *
+ * Key zero is the style with nothing painted (`makeStore` interns it first), so an element holding it is kept only
+ * while it still has nothing painted. One holding it with values is one whose row was given up and taken again, whose
+ * columns still hold the old element's values: interned.
+ * @param before - The values before the pass.
+ * @param columns - The mesh-keying columns now, by channel.
+ * @param written - The positions in `columns` that exist.
+ * @param at - The element's dirty position.
+ * @param index - Its dense index.
+ * @param held - The key it holds.
+ * @returns True when nothing changed.
+ */
+function meshValuesKept(
+    before: MeshValues,
+    columns: readonly (ChannelColumn | null)[],
+    written: readonly number[],
+    at: number,
+    index: number,
+    held: number,
+): boolean {
+    if (before.settled[at] !== 1) {
+        return false;
+    }
+
+    for (const which of written) {
+        const column = columns[which] as ChannelColumn;
+        const was = before.columns.get(column);
+        const value = readColumn(column, index);
+        if ((held === 0 && value !== undefined) || !Object.is(value, was === undefined ? undefined : was[at])) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -979,6 +1157,11 @@ interface TargetStore {
     painted: Uint8Array;
     /** Whether any layer has ever painted a channel that keys a source mesh. */
     meshWritten: boolean;
+    /**
+     * Which elements a pass painted and did not intern, one byte each: a pass canceled between the two leaves their
+     * keys out of step with their values, so whichever pass reaches each of them next interns it whatever it held.
+     */
+    unkeyed: Uint8Array;
 }
 
 /** One channel one layer paints, with everything knowable already worked out. */
@@ -1328,6 +1511,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             dirtyCount: 0,
             painted: new Uint8Array(INITIAL_CAPACITY),
             meshWritten: false,
+            unkeyed: new Uint8Array(INITIAL_CAPACITY),
         };
     };
 
@@ -1368,6 +1552,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         stamps.set(store.stamps);
         const painted = new Uint8Array(capacity);
         painted.set(store.painted);
+        const unkeyed = new Uint8Array(capacity);
+        unkeyed.set(store.unkeyed);
 
         for (const column of store.columns.values()) {
             growColumn(column, capacity);
@@ -1377,6 +1563,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         store.meshKeys = meshKeys;
         store.stamps = stamps;
         store.painted = painted;
+        store.unkeyed = unkeyed;
         store.dirty = new Uint32Array(capacity);
     };
 
@@ -1647,6 +1834,20 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param entry - The compiled layer.
      */
     const markLayer = (entry: CompiledLayer): void => {
+        const { reading } = sources.elements;
+        if (reading === undefined) {
+            markLayerNow(entry);
+        } else {
+            reading(() => {
+                markLayerNow(entry);
+            });
+        }
+    };
+    /**
+     * {@link markLayer}'s walk, the element states its test asks about resolved once for it.
+     * @param entry - The compiled layer.
+     */
+    const markLayerNow = (entry: CompiledLayer): void => {
         const store = stores[entry.layer.target];
         const { test } = entry.selector;
         const indices = iterationFor(entry);
@@ -1857,8 +2058,18 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             }
         };
 
+        // Each run is one synchronous read: the element states its tests ask about resolved once for it.
+        const { reading } = sources.elements;
         for (let from = 0; from < total; from += CHUNK) {
-            paintSlice(from, Math.min(from + CHUNK, total));
+            const to = Math.min(from + CHUNK, total);
+            if (reading === undefined) {
+                paintSlice(from, to);
+            } else {
+                reading(() => {
+                    paintSlice(from, to);
+                });
+            }
+
             slice = await breathe(context, slice);
         }
 
@@ -1870,11 +2081,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param store - The store.
      * @param context - The signal to stop on.
      * @param deadline - When this slice runs out.
+     * @param before - Each dirty element's mesh-keying values before this pass painted it, or null to intern them all.
      * @returns The next slice's deadline.
      */
-    const internDirty = async (store: TargetStore, context: RepaintContext, deadline: number): Promise<number> => {
+    const internDirty = async (
+        store: TargetStore,
+        context: RepaintContext,
+        deadline: number,
+        before: MeshValues | null,
+    ): Promise<number> => {
         const channels = meshChannelsFor(store.target);
         const columns = channels.map((channel) => store.columns.get(channel) ?? null);
+        // Only the channels something has written can differ from before: the rest are absent on both sides.
+        const written = columns.flatMap((column, which) => (column === null ? [] : [which]));
         const { meshes } = store;
         let slice = deadline;
 
@@ -1942,8 +2161,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const internSlice = (from: number, to: number): void => {
             for (let at = from; at < to; at++) {
                 const index = store.dirty[at];
-                const key = uniform ?? keyOf(index);
                 const held = store.meshKeys[index];
+                store.unkeyed[index] = 0;
+                // An element whose mesh-keying values this pass left as they were keeps the key they were interned to:
+                // a color edit re-keyed every node, most of its repaint at 10,000 nodes (issue #10302).
+                if (
+                    uniform === undefined &&
+                    before !== null &&
+                    meshValuesKept(before, columns, written, at, index, held)
+                ) {
+                    continue;
+                }
+
+                const key = uniform ?? keyOf(index);
 
                 // Counted only when an element MOVES to another mesh, so an edit that leaves
                 // every mesh where it was -- a color, a label -- costs no bookkeeping at all.
@@ -2081,6 +2311,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         // Clearing is what makes a removal and an update correct, and it is exactly what the
         // add-on-top path does not have to do: nothing below the new layer changed, so what those
         // layers painted is already right where it needs to be.
+        const before = store.meshWritten ? meshValuesOf(store) : null;
+        for (let at = 0; at < store.dirtyCount; at++) {
+            store.unkeyed[store.dirty[at]] = 1;
+        }
         if (from === 0) {
             clearDirty(store);
         }
@@ -2109,7 +2343,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         // Interning is skipped entirely while no layer has ever painted a channel that keys a
         // mesh, which is the ordinary case: a color encoding moves no element to another mesh.
         if (store.meshWritten) {
-            slice = await internDirty(store, context, slice);
+            slice = await internDirty(store, context, slice, before);
         }
 
         for (let at = 0; at < store.dirtyCount; at++) {
@@ -2266,8 +2500,16 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             }
 
             const store = stores[entry.layer.target];
+            const reach = Math.min(record.length, remap.length);
+            // An order-keeping removal closes the record up in place, as the columns are.
+            const dropped = record.length === store.capacity ? droppedRows(remap, reach, store.count) : null;
+            if (dropped !== null) {
+                closeUp(record, dropped, reach, record.length, 0);
+                continue;
+            }
+
             const carried = new Uint8Array(store.capacity);
-            for (let from = 0; from < Math.min(record.length, remap.length); from++) {
+            for (let from = 0; from < reach; from++) {
                 if (record[from] === 1 && remap[from] < store.count) {
                     carried[remap[from]] = 1;
                 }
@@ -2287,6 +2529,44 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     };
 
     /**
+     * Carry one kind of element's paint through an order-keeping removal, in place: every array keeps its buffer
+     * and its rows close up in runs between the dropped ones, so a removal from a million-element graph allocates
+     * nothing of the graph's length (issue #9164).
+     * @param store - The store.
+     * @param dropped - The rows dropped below `carried`, ascending.
+     * @param carried - How many rows the remap reaches; those from it on are dropped.
+     * @param count - How many elements there are now.
+     * @returns The new indices nothing was carried to.
+     */
+    const closeUpStore = (store: TargetStore, dropped: readonly number[], carried: number, count: number): number[] => {
+        const used = store.count;
+        // Gone, or not worth carrying: the mesh each was drawn from loses it.
+        const release = (from: number): void => {
+            if (store.meshKeys[from] !== 0) {
+                store.meshes.release(store.meshKeys[from]);
+            }
+        };
+        for (const from of dropped) {
+            release(from);
+        }
+        for (let from = carried; from < used; from++) {
+            release(from);
+        }
+
+        closeUp(store.meshKeys, dropped, carried, used, 0);
+        closeUp(store.painted, dropped, carried, used, 0);
+        closeUp(store.unkeyed, dropped, carried, used, 0);
+        for (const column of store.columns.values()) {
+            closeUpColumn(column, dropped, carried, used);
+        }
+
+        store.count = count;
+        store.stamps.fill(0);
+        store.dirty.fill(0);
+        return rowsBetween(carried - dropped.length, count);
+    };
+
+    /**
      * Carry one kind of element's paint through a renumbering.
      * @param store - The store.
      * @param remap - Old index to new; an index at or past the new count is dropped.
@@ -2295,13 +2575,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @returns The new indices nothing was carried to.
      */
     const follow = (store: TargetStore, remap: ArrayLike<number> | null, kept: number, count: number): number[] => {
-        const holes: number[] = [];
         if (remap === null) {
-            for (let row = Math.min(kept, count); row < count; row++) {
-                holes.push(row);
-            }
-
-            return holes;
+            return rowsBetween(Math.min(kept, count), count);
         }
 
         let { capacity } = store;
@@ -2309,16 +2584,23 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             capacity *= 2;
         }
 
+        const carried = Math.min(kept, store.count, remap.length);
+        const dropped = capacity === store.capacity ? droppedRows(remap, carried, count) : null;
+        if (dropped !== null) {
+            return closeUpStore(store, dropped, carried, count);
+        }
+
         const sourceOf = new Int32Array(count).fill(-1);
         const meshKeys = new Float64Array(capacity);
         const painted = new Uint8Array(capacity);
-        const carried = Math.min(kept, store.count, remap.length);
+        const unkeyed = new Uint8Array(capacity);
         for (let from = 0; from < store.count; from++) {
             const to = from < carried ? remap[from] : count;
             if (to < count) {
                 sourceOf[to] = from;
                 meshKeys[to] = store.meshKeys[from];
                 painted[to] = store.painted[from];
+                unkeyed[to] = store.unkeyed[from];
             } else if (store.meshKeys[from] !== 0) {
                 // Gone, or not worth carrying: the mesh it was drawn from loses it.
                 store.meshes.release(store.meshKeys[from]);
@@ -2333,8 +2615,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         store.count = count;
         store.meshKeys = meshKeys;
         store.painted = painted;
+        store.unkeyed = unkeyed;
         store.stamps = new Int32Array(capacity);
         store.dirty = new Uint32Array(capacity);
+        const holes: number[] = [];
         for (let row = 0; row < count; row++) {
             if (sourceOf[row] < 0) {
                 holes.push(row);
@@ -2356,10 +2640,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             still: () => boolean,
         ): Promise<RepaintReport> {
             return exclusively(async () => {
+                // A pass that paints every element is not one whose rows are all that changed.
+                const whole: RepaintContext = {
+                    signal: context.signal,
+                    report: (progress) => {
+                        context.report(progress);
+                    },
+                };
                 if (!still()) {
                     appliedTo = new WeakMap<CompiledLayer, Uint8Array>();
-                    return runPass(stack, context, markEverything, null);
+                    return runPass(stack, whole, markEverything, null);
                 }
+
+                let everything = false;
 
                 const holes = {
                     node: follow(stores.node, moved.node, kept.node, sources.nodeCount()),
@@ -2368,9 +2661,18 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 followApplied(stack, moved);
                 return runPass(
                     stack,
-                    context,
+                    {
+                        signal: context.signal,
+                        report: (progress) => {
+                            context.report(progress);
+                        },
+                        get rowsOnly() {
+                            return context.rowsOnly === true && !everything;
+                        },
+                    },
                     () => {
                         if (stack.some(settledDifferently)) {
+                            everything = true;
                             markEverything();
                             return;
                         }

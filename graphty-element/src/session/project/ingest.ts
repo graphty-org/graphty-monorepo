@@ -24,7 +24,15 @@ import {
     setReaderSignal,
     settledOptionsOf,
 } from "../../data/DataSource";
-import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey, recordType, reducesInto } from "../../data/edgeIdentity";
+import {
+    decideRepeat,
+    duplicateEdgeError,
+    edgeCounterOf,
+    edgeIdOf,
+    pairKey,
+    recordType,
+    reducesInto,
+} from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import { keepSourceMetaExtra, readerMetaExtra } from "../../data/graph-io-import";
@@ -1203,7 +1211,8 @@ export class Ingest<K extends KnownEdge> {
             counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
         });
         // What the load saw that the graph does not keep, for `data.issues()`.
-        const facts = this.sealedTally === null ? null : loadFactsOf(this.sealedTally, this.leaveOutUnmatched);
+        const facts =
+            this.sealedTally === null ? null : loadFactsOf(this.sealedTally, this.leaveOutUnmatched, command.held);
         const prior = same < 0 ? undefined : earlier[same];
         const had = prior === undefined ? undefined : earlierProvenance?.[key];
         // What it supplied, joined to what the load it continues supplied; no copy when it continues none.
@@ -1478,14 +1487,15 @@ export class Ingest<K extends KnownEdge> {
         // the renderer cannot hold is refused whole, not half-applied.
         // A node an earlier edge created is in the builder, and so in `heldCounts`, without a
         // render object yet: its row is not fresh, or the ceiling counts it twice.
-        const { builder } = this.host.store();
+        // Read without bringing a let-go builder back: a batch refused here writes nothing.
+        const { reads } = this.host.store();
         const ids = nodes.map(
             (node) =>
                 (this.loadTally === null
                     ? searchRecord(node, query)
                     : loadedKey(searchRecord(node, query))) as NodeIdType,
         );
-        const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && builder.hasNode(id))));
+        const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && reads.hasNode(id))));
         this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, this.ceilings().renderCeiling);
 
         for (const [i, node] of nodes.entries()) {
@@ -2317,15 +2327,7 @@ export class Ingest<K extends KnownEdge> {
         }
 
         if (decision.kind === "refuse") {
-            throw new GraphtyError({
-                code: "E_DUPLICATE_EDGE",
-                source: "data",
-                message:
-                    `Two edges run from ${JSON.stringify(sourceId)} to ${JSON.stringify(targetId)}, and ` +
-                    `data.knownFields.repeatedEdges is "error". Set it to "keep" to hold both, or to ` +
-                    `"first", "last", "sum", "min" or "max" to fold them into one.`,
-                details: { source: sourceId, target: targetId, existing: known.edgeIndex, repeat: record },
-            });
+            throw duplicateEdgeError(sourceId, targetId, record, known.edgeIndex);
         }
 
         if (decision.kind === "drop") {

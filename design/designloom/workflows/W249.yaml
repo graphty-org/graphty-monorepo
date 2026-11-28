@@ -1,0 +1,157 @@
+id: W249
+name: Single-Cell Gene Regulatory Networks (pySCENIC, SCENIC+, CellOracle, Pando, Dictys, FigR)
+category: analysis
+validated: false
+personas:
+    - single-cell-computational-biologist
+requires_capabilities:
+    - data-import
+    - filtering
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-eigenvector
+    - computed-attributes
+    - comparison-view
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - ego-network
+    - metric-histograms
+    - export-image
+    - network-collection-small-multiples
+    - matrix-import
+    - fixed-node-positions
+suggested_components:
+    - data-import-dialog
+    - network-list-panel
+    - filter-panel
+    - ranked-node-table
+    - comparison-view
+    - histogram
+    - ego-network-dialog
+    - visual-encoding-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: TF-target regulons, TF-region-gene tables, or one TF-target edge table per cell cluster
+    node_count: tens of regulons to about 1,850 genes per cluster network; 24-38 cluster networks
+    edge_density: 74,937 raw edges in one cluster, 2,000 after filtering
+    user_expertise: advanced
+goal: >-
+    **Intent**: Infer which transcription factors regulate which genes in each cell type, find the regulators that drive
+    each type, compare regulators across cell types, and predict what a knockout would do.
+
+
+    **Mental Model**: "Same genes, a different wiring diagram in every cell type." A regulator matters where it is
+    central; a gene without edges in a cell type has no score there, which is not the same as a score of zero.
+
+
+    **Task Phases**:
+
+    1. **pySCENIC regulons** - GRNBoost2 scores every TF-target pair; keep top targets per TF; motif pruning
+    gives regulons such as SPIB(+); AUCell scores cells; results usually shown as heat maps and UMAPs
+
+    2. **SCENIC+ eGRN** - create_nx_tables picks eRegulons and returns TF2R, R2G and TF2G edge tables;
+    fold-change columns added; create_nx_graph with a concentric layout (regions on a circle, genes inward, TFs near
+    their regions); export_to_cytoscape keeps positions but no style
+
+    3. **CellOracle per-cluster GRNs** - get_links fits a regularized regression per gene per cluster (24
+    clusters x 1,850 genes); filter_links(p = 0.001, threshold_number = 2000)
+
+    4. **Scores** - get_network_score: degree (all, in, out), degree centrality, betweenness, eigenvector per
+    gene per cluster; degree distribution per cluster
+
+    5. **Compare** - plot_scores_as_rank per cluster; plot_score_comparison_2D for two clusters at the 98th
+    percentile; plot_score_per_cluster for one gene across all clusters, missing where it has no edges
+
+    6. **Perturb** - simulate_shift with a gene set to zero, n_propagation 3; transition probabilities and
+    vector fields on the embedding beside a randomized-GRN control
+
+    7. **Other tools** (varies) - Pando draws a GRN UMAP with activating edges orange and inhibitory gray and a tree
+    around one TF; Dictys animates the GRN along a trajectory; FigR draws TF to gene links above a score cut
+
+
+    **Decision Points**:
+
+    - Which edge filter (p-value and top-n, importance percentile, score cut) -- tutorial values become defaults
+
+    - Which centrality to compare between clusters?
+
+    - Treat a missing score as missing or as zero?
+
+    - Draw the network, or only score plots?
+
+
+    **Information Needs**:
+
+    - Per-cluster node and edge counts after filtering
+
+    - One gene's score in every cluster, with missing marked
+
+    - Two-cluster score scatter with top genes labeled
+
+    - Activating versus inhibitory edges
+
+    - Filter settings recorded with each network
+
+
+    **Pain Points**:
+
+    - Networks are read as score plots one at a time; the GRN itself is rarely drawn
+
+    - SCENIC+ Cytoscape export carries no style
+
+    - No robustness check of rankings across thresholds found in practice
+
+    - Dictys inference can take weeks without a GPU
+
+    - A gene absent from a cluster's network silently has no score
+
+
+    **Data Flow**:
+
+    - Input: Per-cluster edge CSVs (source, target, coef_mean, coef_abs, p); SCENIC+ node and edge tables; regulon
+    tables
+
+    - Transformations: Filtering per network, centrality per network, cross-network score tables, neighborhood around
+    one TF
+
+    - Output: Ranked regulators per cell type, comparison plots, TF subnetworks, knockout predictions
+success_criteria:
+    - metric: Collection handling
+      target: 24 cluster networks over one gene set load and compare in one session
+    - metric: Missing distinct from zero
+      target: A gene without edges in a cluster shows as missing
+    - metric: Filter recorded
+      target: Every network carries its p-value and top-n settings
+sources:
+    - title: pySCENIC tutorial
+      url: https://pyscenic.readthedocs.io/en/latest/tutorial.html
+      summary: GRN, ctx and AUCell steps
+    - title: SCENIC protocol (Nature Protocols 2020)
+      url: https://www.nature.com/articles/s41596-020-0336-2
+      summary: Regulon pipeline and timings
+    - title: SCENIC+ networks module
+      url: https://scenicplus.readthedocs.io/en/stable/_modules/scenicplus/networks.html
+      summary: Edge tables, concentric layout, Cytoscape export
+    - title: CellOracle network analysis
+      url: https://morris-lab.github.io/CellOracle.documentation/tutorials/networkanalysis.html
+      summary: Per-cluster GRNs, filtering, scores and comparisons
+    - title: CellOracle simulation
+      url: https://morris-lab.github.io/CellOracle.documentation/tutorials/simulation.html
+      summary: Knockout simulation and vector fields
+    - title: CellOracle paper (Nature 2023)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9946838
+      summary: 24 myeloid and 38 zebrafish GRNs; user-defined thresholds
+    - title: Pando visualization
+      url: https://quadbio.github.io/Pando/articles/visualization.html
+      summary: GRN UMAP and per-TF network plots
+    - title: Dictys
+      url: https://github.com/pinellolab/dictys
+      summary: Trajectory-animated GRNs; long inference without GPU
+    - title: FigR plotfigRNetwork
+      url: https://rdrr.io/github/buenrostrolab/FigR/man/plotfigRNetwork.html
+      summary: TF to gene links above a score cut
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

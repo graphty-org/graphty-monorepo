@@ -39,9 +39,15 @@ export interface EdgeRow {
     readonly target: NodeIdType;
 }
 
+/**
+ * A point in the graph's scene, in scene units: where a layout puts a node, or one end of an edge.
+ */
 export interface Position {
+    /** Distance along the horizontal axis. */
     x: number;
+    /** Distance along the vertical axis. */
     y: number;
+    /** Distance along the depth axis; absent (read as 0) for a point in a 2D layout. */
     z?: number;
 }
 
@@ -59,8 +65,14 @@ interface Coords {
     z: number;
 }
 
+/**
+ * Where a layout puts an edge: its two ends, and optionally the route, labels and line ends the
+ * layout laid out for it. A layout engine returns one from {@link LayoutEngine.getEdgePosition}.
+ */
 export interface EdgePosition {
+    /** Where the edge's source end is: normally the source node's position. */
     src: Position;
+    /** Where the edge's target end is: normally the target node's position. */
     dst: Position;
     /**
      * The route the layout laid the edge along, when it laid one (Graphviz's splines): `along, across`
@@ -118,7 +130,9 @@ export interface EdgePosition {
      * @since 3.36.0
      */
     lineEnds?: {
+        /** Where the line starts, at the source end. */
         readonly source: readonly [along: number, across: number];
+        /** Where the line ends, at the target end: where an arrowhead's tip goes. */
         readonly target: readonly [along: number, across: number];
     };
 }
@@ -268,8 +282,17 @@ export interface LayoutEngineStatics {
      * can answer a plugin's own id.
      */
     descriptor?: AuthoredLayoutDescriptor;
+    /** The options this layout accepts, with their defaults and limits; absent when it takes none. */
     zodOptionsSchema?: OptionsSchema;
+    /**
+     * The options this layout accepts.
+     * @returns The options schema, or an empty object when the layout takes no options.
+     */
     getZodOptionsSchema(): OptionsSchema;
+    /**
+     * Whether this layout accepts any options.
+     * @returns True when its options schema names at least one option.
+     */
     hasZodOptions(): boolean;
 }
 
@@ -406,6 +429,82 @@ export const layoutEngineInternals = {} as {
  * a view reads them by index and allocates nothing, and a GPU layout can write into the same rows.
  */
 /**
+ * Whether an engine lays each edge's route itself (Graphviz's splines, and `fixed` when it routes edges through
+ * Graphviz): such a route is read from the `Edge` it keys, and a line drawn from the row table would run straight.
+ * Read by shape, so a caller need not import the engines.
+ * @param engine - The engine, or none.
+ * @returns True for an engine that lays edge routes.
+ */
+export function laysEdgeRoutes(engine: LayoutEngine | undefined): boolean {
+    if (engine === undefined) {
+        return false;
+    }
+
+    if ((engine as unknown as { config?: { edgeRoutes?: unknown } }).config?.edgeRoutes === "graphviz") {
+        return true;
+    }
+
+    // Read for every pulled edge in a frame's walk, so answered once per engine class.
+    const { constructor: cls } = engine;
+    let lays = routeLayingClasses.get(cls);
+    if (lays === undefined) {
+        lays = classLaysEdgeRoutes(engine);
+        routeLayingClasses.set(cls, lays);
+    }
+
+    return lays;
+}
+
+/** {@link laysEdgeRoutes}'s answer per engine class. */
+const routeLayingClasses = new WeakMap<object, boolean>();
+
+/**
+ * Whether an engine's class lays edge routes: a Graphviz engine, or one with its own `getEdgePosition` (a third
+ * party's), which may put an edge's ends anywhere, so its edges are asked of it rather than pulled between their
+ * nodes' rows.
+ * @param engine - The engine.
+ * @returns True when it does.
+ */
+function classLaysEdgeRoutes(engine: LayoutEngine): boolean {
+    const { type } = engine.constructor as { type?: unknown };
+    if (typeof type === "string" && type.startsWith("graphviz-")) {
+        return true;
+    }
+
+    const owner = edgePositionOwner(engine);
+    return owner !== null && !edgesFollowingNodes.has(owner);
+}
+
+/** The engine classes whose own `getEdgePosition` reports an edge's ends where its two nodes are drawn. */
+const edgesFollowingNodes = new WeakSet();
+
+/**
+ * The prototype that defines the `getEdgePosition` an engine uses.
+ * @param engine - The engine.
+ * @returns The nearest prototype on its chain with its own `getEdgePosition`.
+ */
+function edgePositionOwner(engine: LayoutEngine): object | null {
+    let proto = Object.getPrototypeOf(engine) as object | null;
+    while (proto !== null && !Object.hasOwn(proto, "getEdgePosition")) {
+        proto = Object.getPrototypeOf(proto) as object | null;
+    }
+
+    return proto;
+}
+
+/**
+ * Marks engine classes whose own `getEdgePosition` reports an edge's ends at its nodes, so an engine using it has
+ * its plain lines pulled from the row table on the batched path (see {@link laysEdgeRoutes}).
+ * @internal
+ * @param classes - The element's own engine classes.
+ */
+export function edgeEndsFollowNodes(...classes: { prototype: object }[]): void {
+    for (const cls of classes) {
+        edgesFollowingNodes.add(cls.prototype);
+    }
+}
+
+/**
  * The edges an engine holds against the edges drawn: each drawn edge held exactly once, and
  * nothing held that is not drawn.
  * @param held - What the engine holds.
@@ -519,7 +618,9 @@ export abstract class LayoutEngine {
         };
     }
 
+    /** The name a consumer passes to `setLayout` to choose this layout. Every engine class declares one. */
     static type: string;
+    /** The most dimensions this layout can arrange a graph in: 2, or 3 for one that also lays out depth. */
     static maxDimensions: number;
 
     /**
@@ -634,12 +735,22 @@ export abstract class LayoutEngine {
     private followerMembers: ReadonlyMap<number, readonly number[]> = new Map();
 
     // basic functionality
+    /**
+     * Prepare the engine before its first step: an engine that loads code or data does it here.
+     * The element awaits it once, after giving the engine the graph's nodes and edges.
+     * @returns A promise that settles when the engine is ready.
+     */
     abstract init(): Promise<void>;
     // The element's to call: the engine follows the graph slice, and a consumer who added or removed
     // an element here would leave the engine out of step with the graph, with no step to undo.
     // The element calls these through `layoutEngineInternals`; an engine author implements them.
     protected abstract addNode(n: Node): void;
     protected abstract addEdge(e: Edge): void;
+    /**
+     * Where the layout puts a node now.
+     * @param n - The node.
+     * @returns Its position, in scene units.
+     */
     abstract getNodePosition(n: Node): Position;
     /**
      * Place one node, as a drag or a restore does. Protected: the element reaches it through
@@ -647,6 +758,11 @@ export abstract class LayoutEngine {
      * so a caller cannot place a node without a step.
      */
     protected abstract setNodePosition(n: Node, p: Position): void;
+    /**
+     * Where the layout puts an edge now: its two ends, and any route or label places the layout lays out.
+     * @param e - The edge.
+     * @returns Its ends, in scene units, and whatever else the layout placed for it.
+     */
     abstract getEdgePosition(e: Edge): EdgePosition;
     /**
      * Where the layout put a node's external label (`xlabel`), when it places one (Graphviz's `xlp`): the label's
@@ -669,19 +785,40 @@ export abstract class LayoutEngine {
         return false;
     }
     // for animated layouts
+    /**
+     * Advance the layout by one step. An animated layout (a force simulation) moves its nodes a
+     * little each call; a layout computed in one pass does nothing here. The element calls it every
+     * frame until {@link LayoutEngine.isSettled} is true.
+     */
     abstract step(): void;
     /** Hold a node where it is; protected for the reason {@link LayoutEngine.setNodePosition} is. */
     protected abstract pin(n: Node): void;
     /** Release a held node; protected for the reason {@link LayoutEngine.setNodePosition} is. */
     protected abstract unpin(n: Node): void;
     // properties
+    /** Every node the engine lays out. */
     abstract get nodes(): Iterable<Node>;
     /**
      * Every edge the engine holds. An engine that takes an edge up later than it is told must
      * return an array: the frame loop notices that edge by the array's length.
      */
     abstract get edges(): Iterable<Edge>;
+    /**
+     * Whether the layout has finished moving nodes: true once further steps would change nothing,
+     * which is when the element stops stepping it.
+     */
     abstract get isSettled(): boolean;
+
+    /**
+     * How many edges {@link LayoutEngine.edges} holds, or -1 when it is not an array: what the frame loop reads to
+     * notice an edge taken up late, without reading the list itself.
+     * @returns The count.
+     * @internal
+     */
+    get edgeCount(): number {
+        const { edges } = this;
+        return Array.isArray(edges) ? edges.length : -1;
+    }
 
     /**
      * Start the layout again because a node's drawn size changed, when it keeps nodes apart by that size (`nodeGap`):
@@ -1362,6 +1499,8 @@ export abstract class LayoutEngine {
         let pins = positions.pinnedView(live);
         let written = 0;
         let changed = 0;
+        // The rows that now hold something else, so a frame updates their nodes and no other (issue #9164).
+        const changedRows = new ChangedRows(live);
         const box = this.publishedBox;
         box.fill(Infinity, 0, 3);
         box.fill(-Infinity, 3, 6);
@@ -1399,6 +1538,7 @@ export abstract class LayoutEngine {
                 array[base + 1] !== Math.fround(y) ||
                 array[base + 2] !== Math.fround(z)
             ) {
+                changedRows.note(row);
                 changed++;
             }
 
@@ -1408,7 +1548,7 @@ export abstract class LayoutEngine {
             written++;
         }
 
-        positions.moved(written, changed);
+        positions.moved(written, changed, changedRows.rows ?? undefined);
         this.publishedBoxHolds = box[0] <= box[3];
     }
 
@@ -1676,10 +1816,17 @@ export abstract class LayoutEngine {
     }
 }
 
+/**
+ * The options every layout computed in one pass accepts. Other keys pass through untouched, for the
+ * layout itself to read.
+ */
 export const SimpleLayoutConfig = z.looseObject({
+    /** How many scene units one layout unit spans: larger spreads the drawing out. Defaults to 100. */
     scalingFactor: z.number().default(100),
 });
+/** The options of a layout computed in one pass, with every default filled in. */
 export type SimpleLayoutConfigType = z.infer<typeof SimpleLayoutConfig>;
+/** The options a layout computed in one pass is constructed with; every one may be left out. */
 export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
 
 /**
@@ -1761,7 +1908,8 @@ interface LoadedGraph {
 interface SnapshotReplacement {
     readonly previous: GraphSnapshot | null;
     readonly next: GraphSnapshot;
-    readonly report: { readonly nodeRemap: Uint32Array | null };
+    // The edge remap is optional: a caller that leaves it out takes the walk over every edge.
+    readonly report: { readonly nodeRemap: Uint32Array | null; readonly edgeRemap?: Uint32Array | null };
 }
 
 /**
@@ -1853,6 +2001,137 @@ function pairCounts(
 }
 
 /**
+ * {@link existingRows} when nothing was renumbered: every row kept its index and the new ones were
+ * appended, so the old edges are the first rows with their ends unchanged. Only an appended edge can
+ * join two old nodes, and only those are looked at -- not every edge of a million-edge graph.
+ * @param previous - The graph before the freeze.
+ * @param next - The graph after it.
+ * @returns One set bit per existing row, or null when an appended edge joins two of them.
+ */
+function appendedOnly(previous: GraphSnapshot, next: GraphSnapshot): NodeMask | null {
+    for (let e = previous.edgeCount; e < next.edgeCount; e++) {
+        if (next.edgeSource(e) < previous.nodeCount && next.edgeTarget(e) < previous.nodeCount) {
+            return null;
+        }
+    }
+
+    const old = makeMask(next.nodeCount);
+    for (let i = 0; i < previous.nodeCount; i++) {
+        maskSet(old, i, true);
+    }
+
+    return old;
+}
+
+/**
+ * The rows a publish changed, let go of past a sixteenth of the rows, where a frame reads every row
+ * anyway.
+ */
+class ChangedRows {
+    /** The rows, or null once there were too many. */
+    rows: number[] | null = [];
+
+    /** The most rows listed. */
+    private readonly most: number;
+
+    /**
+     * An empty list.
+     * @param live - The rows the lane holds.
+     */
+    constructor(live: number) {
+        this.most = Math.max(4096, live >>> 4);
+    }
+
+    /**
+     * List a row.
+     * @param row - The row.
+     */
+    note(row: number): void {
+        if (this.rows !== null) {
+            this.rows.push(row);
+            this.rows = this.rows.length > this.most ? null : this.rows;
+        }
+    }
+}
+
+/**
+ * Whether the edges between the old nodes are the old edges, read through a freeze's edge remap: every
+ * old edge kept, joining the same two nodes, and every other edge touching a new node. An undo that
+ * puts a node back between others renumbers every row after it, and pairing a million edges up in a
+ * Map took 0.6 s of that undo (issue #9164).
+ * @param previous - the snapshot before
+ * @param next - the snapshot after
+ * @param nodeRemap - old node row to new, or null for the same rows
+ * @param edgeRemap - old edge row to new, or null for the same rows; undefined when not reported
+ * @param old - the new rows of the old nodes
+ * @returns whether they are, or null when the remap does not name every old edge
+ */
+function sameEdgesThroughRemap(
+    previous: GraphSnapshot,
+    next: GraphSnapshot,
+    nodeRemap: Readonly<Uint32Array> | null,
+    edgeRemap: Readonly<Uint32Array> | null | undefined,
+    old: NodeMask,
+): boolean | null {
+    if (
+        edgeRemap === undefined ||
+        (edgeRemap === null ? previous.edgeCount : edgeRemap.length) !== previous.edgeCount
+    ) {
+        return null;
+    }
+
+    const before = previous.edgeList();
+    const after = next.edgeList();
+    const node = (row: number): number => (nodeRemap === null ? row : nodeRemap[row]);
+    const kept = new Uint8Array(next.edgeCount);
+    for (let e = 0; e < previous.edgeCount; e++) {
+        const moved = edgeRemap === null ? e : edgeRemap[e];
+        if (moved === INVALID_INDEX || moved >= next.edgeCount) {
+            return false;
+        }
+
+        const a = node(before.src[e]);
+        const b = node(before.dst[e]);
+        const c = after.src[moved];
+        const d = after.dst[moved];
+        if (!((a === c && b === d) || (a === d && b === c))) {
+            return null;
+        }
+
+        kept[moved] = 1;
+    }
+
+    for (let e = 0; e < next.edgeCount; e++) {
+        if (kept[e] === 0 && maskTest(old, after.src[e]) && maskTest(old, after.dst[e])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * The new rows of the old nodes, as a mask over the new rows.
+ * @param before - the old node count
+ * @param after - the new node count
+ * @param remap - old node row to new, or null for the same rows
+ * @returns the mask, or null when an old node was dropped
+ */
+function oldRowsMask(before: number, after: number, remap: Readonly<Uint32Array> | null): NodeMask | null {
+    const old = makeMask(after);
+    for (let i = 0; i < before; i++) {
+        const row = remap === null ? i : remap[i];
+        if (row === INVALID_INDEX) {
+            return null;
+        }
+
+        maskSet(old, row, true);
+    }
+
+    return old;
+}
+
+/**
  * The rows of `next` that were already nodes of `previous`, when the freeze only ADDED to the graph:
  * no node left, and the edges between two nodes that were already there are exactly the ones that
  * were there before.
@@ -1871,21 +2150,26 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
         return null;
     }
 
-    const old = makeMask(next.nodeCount);
     const remap = report.nodeRemap;
-    for (let i = 0; i < previous.nodeCount; i++) {
-        const row = remap === null ? i : remap[i];
-        if (row === INVALID_INDEX) {
-            return null;
-        }
+    if (remap === null && report.edgeRemap === null && next.edgeCount >= previous.edgeCount) {
+        return appendedOnly(previous, next);
+    }
 
-        maskSet(old, row, true);
+    const old = oldRowsMask(previous.nodeCount, next.nodeCount, remap);
+    if (old === null) {
+        return null;
     }
 
     // The edges between existing nodes must be the SAME edges, not merely as many: a freeze that
-    // swaps one for another rewires the picture as surely as one that adds an edge. Compared as
-    // unordered pairs with their multiplicity, because a static layout reads neither direction nor
-    // edge identity.
+    // swaps one for another rewires the picture as surely as one that adds an edge. Followed through
+    // the freeze's own edge remap when it names every old edge, in typed passes; otherwise compared
+    // as unordered pairs with their multiplicity, because a static layout reads neither direction
+    // nor edge identity.
+    const followed = sameEdgesThroughRemap(previous, next, remap, report.edgeRemap, old);
+    if (followed !== null) {
+        return followed ? old : null;
+    }
+
     const n = next.nodeCount;
     const pair = (a: number, b: number): number => Math.min(a, b) * n + Math.max(a, b);
     const before = pairCounts(previous, remap, pair);
@@ -2111,6 +2395,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         };
     }
 
+    /** The name a consumer passes to `setLayout` to choose this layout. Every engine class declares one. */
     static type: string;
     readonly #nodes: Node[] = [];
     readonly #edges: Edge[] = [];
@@ -2118,11 +2403,19 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     readonly #goneNodes = new Set<Node>();
     /** Edges removed since the list was last read. */
     readonly #goneEdges = new Set<Edge>();
+    /**
+     * Whether the graph changed since the layout was last computed, so the next read of a position
+     * computes it again. Set it to true to force a recompute.
+     */
     stale = true;
     /** What an engine that does not read the protected `graph` computed, keyed by node id, in layout units. */
     positions: Record<string | number, number[]> = {};
     /** What an engine that reads the protected `graph` computed: row `i` is row `i` of that graph. */
     protected result: LayoutResult | null = null;
+    /**
+     * How many scene units one layout unit spans: the engine multiplies what `doLayout` computes by
+     * this. Set from the `scalingFactor` option; 100 unless given.
+     */
     scalingFactor = 100;
 
     /** The graph of the run in progress or the last one, once `graph` has been read. */
@@ -2565,10 +2858,29 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * the next read and write over what was restored.
      */
     override loadArrangement(): void {
-        this.stale = false;
-        this.#deferred = false;
+        this.keepArrangement();
         super.loadArrangement();
         this.#adoptRows();
+    }
+
+    /**
+     * Take what the element wrote into its array for rows stored with no `Node` (renderPath "batched"), as
+     * {@link StaticLayoutEngine.setNodePosition} takes a node's place: into the answer only, so a stale layout
+     * still recomputes; see {@link StaticLayoutEngine.loadArrangement}.
+     * @internal
+     */
+    takeRows(): void {
+        this.#adoptRows();
+    }
+
+    /**
+     * Keep the arrangement in the array, as {@link StaticLayoutEngine.loadArrangement} does, when this
+     * engine already holds the array as it is.
+     * @internal
+     */
+    keepArrangement(): void {
+        this.stale = false;
+        this.#deferred = false;
     }
 
     /**
@@ -2628,6 +2940,16 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      */
     get edges(): Iterable<Edge> {
         return this._edges;
+    }
+
+    /**
+     * The edges held, less those marked removed: counted with no sweep of the list, which a read of
+     * {@link StaticLayoutEngine.edges} after a removal is (issue #9164).
+     * @returns The count.
+     * @internal
+     */
+    override get edgeCount(): number {
+        return this.#edges.length - this.#goneEdges.size;
     }
 
     /**
@@ -3047,6 +3369,8 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
  * which the element's own one-pass layouts are built on, with pins, cancellation and progress.
  */
 export abstract class SimpleLayoutEngine extends StaticLayoutEngine {}
+
+edgeEndsFollowNodes(StaticLayoutEngine);
 
 /**
  * A dimension option as the index-based layouts take it.

@@ -131,6 +131,101 @@ describe("pill tabs", () => {
     });
 });
 
+// A change made on mouse-down can close what holds the control and focus a field elsewhere
+// (#8927). The browser's own mouse-down focus step must not then send focus to the page.
+describe("an activation that moves focus keeps it", () => {
+    /**
+     * Shows `control` until it reports a change, then a field that takes focus as it mounts.
+     * @param props - Component props
+     * @param props.control - draws the control, given what to call on a change
+     * @returns the control, or the field that replaced it
+     */
+    function ReplacedOnChange({
+        control,
+    }: Readonly<{ control: (onChange: () => void) => React.JSX.Element }>): React.JSX.Element {
+        const [changed, setChanged] = useState(false);
+        return changed ? (
+            <input aria-label="Edge value" ref={(field) => field?.focus()} />
+        ) : (
+            control(() => {
+                setChanged(true);
+            })
+        );
+    }
+
+    it("segmented option", async () => {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <ReplacedOnChange
+                    control={(onChange) => <CompactSegmentedControl data={["All", "Where"]} onChange={onChange} />}
+                />
+            </MantineProvider>,
+        );
+
+        await pressOn(screen.getByText("Where"));
+        await commands.mouseUp();
+
+        expect(screen.getByRole("textbox", { name: "Edge value" })).toHaveFocus();
+    });
+
+    it("pill tab", async () => {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <ReplacedOnChange
+                    control={(onChange) => (
+                        <Tabs defaultValue="design" onChange={onChange}>
+                            <Tabs.List>
+                                <Tabs.Tab value="design">Design</Tabs.Tab>
+                                <Tabs.Tab value="prototype">Prototype</Tabs.Tab>
+                            </Tabs.List>
+                        </Tabs>
+                    )}
+                />
+            </MantineProvider>,
+        );
+
+        await pressOn(screen.getByRole("tab", { name: "Prototype" }));
+        await commands.mouseUp();
+
+        expect(screen.getByRole("textbox", { name: "Edge value" })).toHaveFocus();
+    });
+
+    it("a change that moves no focus still focuses the pressed tab", async () => {
+        renderTabs(vi.fn());
+        const tab = screen.getByRole("tab", { name: "Prototype" });
+
+        await pressOn(tab);
+        await commands.mouseUp();
+
+        expect(tab).toHaveFocus();
+    });
+
+    // Focus inside the panel the change closes falls to the page with it: that is not focus the
+    // change moved, so the pressed tab still takes it.
+    it("a change that removes the focused control still focuses the pressed tab", async () => {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <Tabs defaultValue="design" keepMounted={false}>
+                    <Tabs.List>
+                        <Tabs.Tab value="design">Design</Tabs.Tab>
+                        <Tabs.Tab value="prototype">Prototype</Tabs.Tab>
+                    </Tabs.List>
+                    <Tabs.Panel value="design">
+                        <input aria-label="Width" />
+                    </Tabs.Panel>
+                </Tabs>
+            </MantineProvider>,
+        );
+        screen.getByRole("textbox", { name: "Width" }).focus();
+        const tab = screen.getByRole("tab", { name: "Prototype" });
+
+        await pressOn(tab);
+        await commands.mouseUp();
+
+        expect(tab).toHaveFocus();
+    });
+});
+
 describe("segmented options", () => {
     function renderGroup(onChange: (value: string) => void): void {
         render(

@@ -1,0 +1,64 @@
+id: public-kg-explorer
+name: Public Knowledge Graph Explorer
+roster_persona: knowledge-engineer
+tier: B
+scope: in-scope
+role: Wikidata Editor / Librarian / Researcher writing SPARQL
+quote: I wrote the query and got a table. I want to see it as a graph, tweak it, and send a link to my colleague.
+bio: >-
+    Dr. Samuel Okonkwo is a digital humanities researcher and active Wikidata editor. He writes SPARQL in the Wikidata
+    Query Service, shapes result columns so its graph view draws the network he wants (the first item in a row gets an
+    arrow to each other item in the row), adds #defaultView:Graph, iterates on filters and limits until the picture is
+    readable, and shares the query's bookmarkable or short URL. Since May 2025 scholarly articles sit behind a separate
+    endpoint, so some of his queries changed. He also queries DBpedia and institutional endpoints. Wikidata holds about
+    116 million items and 16 billion triples, so he only ever sees query results, never the whole graph.
+characteristics:
+    expertise: intermediate
+    time_pressure: low
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - See a query result as a network, not a table
+    - Iterate quickly on the query until the picture answers the question
+    - Share a reproducible view with colleagues by link
+    - Reuse saved results without rewriting the query in another tool
+    - Grow a graph from one resource by expanding the predicates he cares about, instead of writing the query first
+behaviors:
+    - Writes SELECT queries with item, label, image, color (?rgb), size and ?edgeLabel columns for the graph view
+    - Switches between Table, Graph, Map, Timeline, Tree and Bubble chart result views
+    - Saves results as JSON or CSV and bookmarks or shortens query URLs
+    - Embeds result views in pages with an iframe
+frustrations:
+    - The graph view is built only from the shape of each result row
+    - Large results become unreadable; the only tool is a smaller LIMIT
+    - Loading a saved SPARQL result or a CONSTRUCT graph into another tool means rewriting the query
+    - The 2025 endpoint split broke queries that mixed scholarly and general items
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W138
+    - W139
+    - W420
+sources:
+    - title: Wikidata Query Service user manual
+      url: https://www.mediawiki.org/wiki/Wikidata_Query_Service/User_Manual
+      summary: Query editor, bookmarkable and short URLs, embedding
+    - title: Wikidata query result views
+      url: https://www.wikidata.org/wiki/Wikidata:SPARQL_query_service/Wikidata_Query_Help/Result_Views
+      summary: Graph view built from row shape with label, image, rgb, size and edgeLabel columns
+    - title: Wikidata graph split documentation
+      url: https://www.wikidata.org/wiki/User:TiagoLubiana/Graph_Split_Documentation_Updates
+      summary: Scholarly articles moved to a separate query endpoint in 2025
+    - title: Scaling the knowledge graph behind Wikipedia
+      url: https://www.bigdatawire.com/2025/07/10/scaling-the-knowledge-graph-behind-wikipedia
+      summary: About 116 million items and 16 billion triples
+    - title: Graph2VR (Database journal, 2024)
+      url: https://academic.oup.com/database/article/7613396
+      summary: SPARQL endpoint explored in VR by expanding predicates with counts; 34-participant evaluation
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

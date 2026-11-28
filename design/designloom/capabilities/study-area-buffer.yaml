@@ -1,0 +1,31 @@
+id: study-area-buffer
+name: Study Area with Buffer Nodes
+category: analysis
+description: Mark the nodes inside a study boundary (a polygon, a node attribute or a selection) as live and the rest as
+    buffer. Algorithms route over every node, but values are reported, styled, listed and exported only for live
+    nodes, so measures near the edge of a downloaded network are not distorted by its artificial boundary. The buffer
+    is shown as a distinct, dimmable set.
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 5.6 and section 10, requirement
+    R54 (Must)."
+algorithms: []
+used_by_workflows:
+    - W220
+implemented_by_components: []
+requirements:
+    - "Must: A per-node live flag set from a boundary polygon, an attribute or a selection"
+    - "Must: Shortest paths and centrality use buffer nodes; results, legends, tables and exports cover live nodes only"
+    - "Should: Warn when the buffer is narrower than the largest distance threshold in use"
+sources:
+    - title: Boeing 2025, Modeling and Analyzing Urban Networks and Amenities with OSMnx
+      url: https://arxiv.org/html/2505.00736v1
+      summary: OSMnx buffers the query boundary by 500 m before truncating, to attenuate perimeter effects
+    - title: Gil 2017, Street network analysis edge effects (Environment and Planning B)
+      url: https://research.chalmers.se/en/publication/?id=245772
+      summary: Centrality measures are affected differently by the edge effect, depending on the network distance used
+    - title: Yamaoka, Kumakoshi and Yoshimura 2021, Local betweenness centrality analysis of 30 European cities
+      url: https://arxiv.org/pdf/2103.11437
+      summary: Downloaded with a 5,000 m buffer, trimmed after betweenness and left out of the analysis
+    - title: Norman Foster Institute, cityseer course notes
+      url: https://norman-foster-institute.github.io/ua_part1/themes/2_networks/cityseer.html
+      summary: A node with live set to false is used in shortest paths as buffer but receives no centrality value

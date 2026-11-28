@@ -46,17 +46,20 @@ interface Covered {
 
 const INVENTORY: Record<string, Covered> = {
     "src/Graph.ts": {
-        count: 12,
+        count: 13,
         kind: "load",
         reason:
             "format detection runs inside a load that holds a place in the load line (a URL's download goes " +
             "through source-bytes' fetchBytes); " +
-            "the rest (screenshot capability, video capture and estimation, AI, the XR camera and menu) draw nothing " +
+            "the rest (screenshot capability, video capture and estimation, AI, the XR camera and menu, the model " +
+            "preview's module, which draws in its own host) draw nothing " +
             "of the graph's picture, or run during an immersive session, when the picture is never final",
     },
     "src/graphty-element.ts": {
-        count: 2,
-        reason: "the element's first render waits two animation frames; it waits, it draws nothing itself",
+        count: 3,
+        reason:
+            "the element's first render waits two animation frames; it waits, it draws nothing itself; " +
+            "exportFigure's module, loaded after a stable frame, reads the picture and draws nothing",
     },
     "src/session/data.ts": {
         count: 14,
@@ -67,6 +70,10 @@ const INVENTORY: Record<string, Covered> = {
             "test, list, preview, read and check read a source and draw nothing",
     },
     "src/data/DataSource.ts": { count: 2, kind: "load", reason: "a data source's download, inside a load" },
+    "src/session/files/kindOf.ts": {
+        count: 1,
+        reason: "kindOf loads the version 2 check to tell a file's kind; it returns a fact and draws nothing",
+    },
     "src/session/projectFile.ts": {
         count: 5,
         kind: "load",

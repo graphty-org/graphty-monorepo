@@ -234,7 +234,7 @@ describe("the workflow", () => {
     });
 
     it("pulls the Git LFS files each shard reads, as ci.yml's test job does (#5443)", () => {
-        assert.match(code, /if: matrix\.lfs\n\s+run: git lfs pull --include "\$\{\{ matrix\.lfs \}\}"/);
+        assert.match(code, /if: matrix\.lfs\n\s+run: tools\/lfs-pull-retry\.sh --include "\$\{\{ matrix\.lfs \}\}"/);
     });
 
     it("files nothing from a dispatch on a branch", () => {

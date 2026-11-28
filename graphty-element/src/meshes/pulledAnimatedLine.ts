@@ -69,7 +69,7 @@ void main(void) {
 
     vec4 a = rowAt(int(head.x + 0.5));
     vec4 b = rowAt(int(head.y + 0.5));
-    if (a.w * b.w == 0.0) {
+    if (!rowEnds(a, int(head.x + 0.5)) || !rowEnds(b, int(head.y + 0.5))) {
         return;
     }
 

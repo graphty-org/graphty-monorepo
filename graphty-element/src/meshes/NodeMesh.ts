@@ -206,10 +206,24 @@ function seenGrowth(distance: number, radius: number, back: number): number {
 }
 
 /**
+ * Whether a mesh is as wide, as tall and as deep: a sphere stretched by `width`, `height` or `depth` is an ellipsoid,
+ * whose outline changes with the direction it is seen from (issue #10495).
+ * @param mesh - The node's mesh; an instance reads its source's vertices.
+ * @returns True when its extents agree within 1%.
+ */
+function isRound(mesh: AbstractMesh): boolean {
+    const { x, y, z } = mesh.getBoundingInfo().boundingBox.extendSize;
+    const most = Math.max(x, y, z);
+
+    return most - Math.min(x, y, z) <= 0.01 * most;
+}
+
+/**
  * What a ring's cache key adds so a solid in a 3D view gets a ring of its own per node: a solid shows the camera a
  * different outline from each direction, and in perspective each node is seen from its own direction, so one ring
- * shared by a style fits only the node it was built for (issue #10373). A sphere's outline is the same from every
- * direction, so a style's spheres share one ring, each instance turned to its own line of sight (`faceEachNode`).
+ * shared by a style fits only the node it was built for (issue #10373). A round sphere's outline is the same from
+ * every direction, so a style's round spheres share one ring, each instance turned to its own line of sight
+ * (`faceEachNode`); a stretched one is an ellipsoid and gets its own (issue #10495).
  *
  * ponytail: a ring source, a draw call and an outline rebuilt on every camera move per bordered solid that is not a
  * sphere; share rings across nodes seen from near enough the same direction if large graphs of such nodes get slow.
@@ -220,7 +234,7 @@ function seenGrowth(distance: number, radius: number, back: number): number {
  */
 function ownRingSuffix(shape: NodeStyleConfig["shape"], is2D: boolean, fill: AbstractMesh): string {
     const type = shape?.type;
-    const own = !is2D && type !== undefined && type !== "sphere" && !isFlatShape(type);
+    const own = !is2D && type !== undefined && !isFlatShape(type) && (type !== "sphere" || !isRound(fill));
 
     return own ? `-${String(fill.uniqueId)}` : "";
 }

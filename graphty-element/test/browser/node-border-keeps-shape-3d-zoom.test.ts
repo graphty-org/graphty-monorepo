@@ -39,9 +39,10 @@ const NODES = [
 /**
  * Solids with a border in a 3D view, settled.
  * @param shape - The nodes' shape.
+ * @param extra - More style properties for every node, such as a width that stretches the solids.
  * @returns The element.
  */
-async function mounted(shape = "sphere"): Promise<Graphty> {
+async function mounted(shape = "sphere", extra: Record<string, unknown> = {}): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
@@ -57,7 +58,13 @@ async function mounted(shape = "sphere"): Promise<Graphty> {
         name: "probe",
         target: "node",
         selector: { match: "everything" },
-        set: { "node.shape": shape, "node.size": 3, "node.borderColor": "#0000ff", "node.borderWidth": 0.4 },
+        set: {
+            "node.shape": shape,
+            "node.size": 3,
+            "node.borderColor": "#0000ff",
+            "node.borderWidth": 0.4,
+            ...extra,
+        },
     });
     await element.session.data.addNodes(NODES);
     await element.graph.setLayout("fixed", { dim: 3 });
@@ -308,5 +315,25 @@ describe("a solid's border in 3D keeps the node's shape (#10373)", () => {
         await element.waitForStableFrame();
         measured += assertBordersHugSolids(element, "turned");
         assert.isAbove(measured, 8, "boxes were measured");
+    });
+
+    it("stays round each stretched sphere, not only the nearest", async () => {
+        // a sphere wider than it is tall is an ellipsoid: it shows each node's line of sight its own outline, so one
+        // ring shared by the style fitted only the node nearest the camera (issue #10495)
+        const element = await mounted("sphere", { "node.width": 1.6 * 3 });
+        const canvas = element.graph.getScene().getEngine().getRenderingCanvas();
+        assert.isNotNull(canvas);
+        const middle = { x: WIDTH / 2, y: HEIGHT / 2 };
+
+        let measured = assertBordersHugSolids(element, "framed");
+        for (let i = 0; i < 4; i++) {
+            await wheel(canvas, middle, -120);
+        }
+        await element.waitForStableFrame();
+        measured += assertBordersHugSolids(element, "zoomed in");
+        await drag(canvas, { x: 20, y: HEIGHT - 20 }, { x: 140, y: HEIGHT - 60 });
+        await element.waitForStableFrame();
+        measured += assertBordersHugSolids(element, "turned");
+        assert.isAbove(measured, 4, "nodes were measured");
     });
 });

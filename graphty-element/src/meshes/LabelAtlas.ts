@@ -40,7 +40,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 import { PREMULTIPLIED_ALPHA_MODE } from "./LabelBatch";
 
 /** The name of a scene's one label draw. */
-export const LABEL_ATLAS_NAME = "labelAtlas";
+const LABEL_ATLAS_NAME = "labelAtlas";
 
 /** Whether a new scene draws its shrunk labels from an atlas; tests turn it off to draw the same labels on their own planes. */
 export const labelAtlasEnabled = { value: true };
@@ -285,6 +285,8 @@ export class LabelAtlas {
     private written = 0;
     /** Reads the label's region of the array; see {@link LabelAtlasPlugin}. */
     private readonly plugin: LabelAtlasPlugin;
+    /** Stops listening to the scene and the engine. */
+    private readonly stop: () => void;
 
     /**
      * The scene's draw, made on first use; null where it cannot be made (WebGPU, WebGL 1, no GPU),
@@ -308,7 +310,16 @@ export class LabelAtlas {
      * @param mesh - Its plane.
      */
     static remove(scene: Scene, mesh: Mesh): void {
-        LabelAtlas.perScene.get(scene)?.drop(mesh);
+        const atlas = LabelAtlas.perScene.get(scene);
+        if (!atlas) {
+            return;
+        }
+        atlas.drop(mesh);
+        // The draw goes with the last label it draws, as an edge batch goes with its last edge: a cleared graph leaves
+        // nothing in the scene, and the next label makes a new one.
+        if (atlas.entries.size === 0) {
+            atlas.dispose();
+        }
     }
 
     /**
@@ -351,12 +362,24 @@ export class LabelAtlas {
         const restored = engine.onContextRestoredObservable.add(() => {
             this.uploadAll();
         });
-        scene.onDisposeObservable.addOnce(() => {
+        const disposed = scene.onDisposeObservable.addOnce(() => {
+            this.dispose();
+        });
+        this.stop = () => {
             scene.onBeforeRenderingGroupObservable.remove(frame);
             engine.onContextRestoredObservable.remove(restored);
-            this.texture?.dispose();
-            LabelAtlas.perScene.delete(scene);
-        });
+            scene.onDisposeObservable.remove(disposed);
+        };
+    }
+
+    /** Take the draw out of the scene and release what it holds. */
+    private dispose(): void {
+        this.stop();
+        LabelAtlas.perScene.delete(this.scene);
+        this.mesh.dispose();
+        this.material.dispose();
+        this.texture?.dispose();
+        this.texture = null;
     }
 
     /**

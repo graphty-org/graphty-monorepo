@@ -41,6 +41,11 @@
                         "type": "command",
                         "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-no-foreground-wait.mjs\"",
                         "timeout": 5
+                    },
+                    {
+                        "type": "command",
+                        "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-no-destructive-git.mjs\"",
+                        "timeout": 5
                     }
                 ]
             },

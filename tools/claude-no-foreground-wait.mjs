@@ -244,7 +244,7 @@ function step(scan) {
  * @param inParens - True inside `$(...)`: stop at its closing parenthesis.
  * @returns The sanitized text and the index after what was read.
  */
-function sanitize(text, start = 0, inParens = false) {
+export function sanitize(text, start = 0, inParens = false) {
     const scan = { text, at: start, out: "", depth: 0, heredocs: [] };
     while (scan.at < text.length) {
         if (inParens && text[scan.at] === ")" && scan.depth === 0) {
@@ -306,23 +306,44 @@ export function respond(input) {
     if (!wait) {
         return "";
     }
+    return deny(
+        `Refused: this command waits in the foreground (${wait}). Waiting inside a turn drops the ` +
+            "prompt cache. Run it with run_in_background: true (you are notified when it ends), or start " +
+            "the push or run in the background and end the turn.",
+    );
+}
+
+/**
+ * A PreToolUse hook's stdout that refuses the call.
+ * @param reason - What the session is told.
+ * @returns The JSON decision.
+ */
+export function deny(reason) {
     return JSON.stringify({
         hookSpecificOutput: {
             hookEventName: "PreToolUse",
             permissionDecision: "deny",
-            permissionDecisionReason:
-                `Refused: this command waits in the foreground (${wait}). Waiting inside a turn drops the ` +
-                "prompt cache. Run it with run_in_background: true (you are notified when it ends), or start " +
-                "the push or run in the background and end the turn.",
+            permissionDecisionReason: reason,
         },
     });
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+/**
+ * Runs a hook when its module is the process's entry point: stdin JSON in, respond's text out,
+ * always exit 0 (a hook that fails must never block a call).
+ * @param moduleUrl - The hook module's import.meta.url.
+ * @param respondTo - Maps the parsed input to the hook's stdout.
+ */
+export function runHook(moduleUrl, respondTo) {
+    if (process.argv[1] !== fileURLToPath(moduleUrl)) {
+        return;
+    }
     try {
-        process.stdout.write(respond(JSON.parse(readFileSync(0, "utf8"))));
+        process.stdout.write(respondTo(JSON.parse(readFileSync(0, "utf8"))));
     } catch {
-        // Never block a command because the hook itself failed.
+        // Never block a call because the hook itself failed.
     }
     process.exit(0);
 }
+
+runHook(import.meta.url, respond);

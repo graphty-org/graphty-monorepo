@@ -3,7 +3,7 @@
  * clicks and keys, focus is where the next keystroke belongs: a new Color line's text box (not its
  * swatch), so a typed color and Enter repaint at once; a Width line added on a found selection's
  * Style tab in its box, written to the layer last opened; a new Shape line on its select, its value not drawn selected, and a typed
- * shape name opening its list on that shape; a new text card in its text box (not its match menu), so typing straight
+ * shape letter opening its list on a shape that starts with it; a new text card in its text box (not its match menu), so typing straight
  * after picking the column narrows the rule.
  */
 
@@ -139,10 +139,21 @@ describe("focus after adding a line or a card", () => {
         assert.strictEqual(focused.getAttribute("role"), "combobox");
         assert.isTrue(focused.readOnly, "a select's box takes no typing");
         assert.strictEqual(focused.selectionStart, focused.selectionEnd, "so nothing in it is drawn selected");
-        // Typing a shape's name opens its list on that shape, and Enter picks it.
-        await userEvent.keyboard("Box{Enter}");
+        // A letter typed on the select opens its list on a shape that starts with it, and Enter
+        // picks that shape. One letter, not a whole name: a longer run splits wherever the test
+        // runner pauses past the type-ahead window between keys, as it does on a loaded machine
+        // (issue #10465), and the list then rightly starts a new search.
+        await userEvent.keyboard("b");
+        const shape = await waitFor(() => {
+            const id = focused.getAttribute("aria-activedescendant");
+            const label = (id === null ? null : document.getElementById(id))?.textContent?.trim() ?? "";
+            assert.match(label, /^b/i, "the list opens on a shape starting with the letter");
+            return label.toLowerCase();
+        });
+        await userEvent.keyboard("{Enter}");
         await waitFor(() => {
-            assert.include(written(session, "node.shape"), "box", "the typed shape is written");
+            const words = written(session, "node.shape").map((value) => String(value).replaceAll(/[-_]/g, " "));
+            assert.include(words, shape, "the typed shape is written");
         });
     });
 

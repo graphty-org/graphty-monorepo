@@ -1373,7 +1373,7 @@ export class NodeMesh {
      * style key, as its underlay is.
      * @param cache - The mesh cache the node's own mesh came from.
      * @param options - The node's mesh options.
-     * @param shape - The node's shape block.
+     * @param createOptions - The node's shape, and its border, whose inset a solid's fill is drawn in by.
      * @param shadow - The shadow.
      * @param fill - The node's own mesh, whose outline and depth it follows.
      * @param scene - The scene.
@@ -1382,11 +1382,12 @@ export class NodeMesh {
     static createShadow(
         cache: MeshCache,
         options: NodeMeshOptions,
-        shape: NodeStyleConfig["shape"],
+        createOptions: Pick<NodeMeshCreateOptions, "shape" | "border">,
         shadow: NodeStyleConfig["shadow"],
         fill: AbstractMesh,
         scene?: Scene,
     ): InstancedMesh[] {
+        const { shape, border } = createOptions;
         const opacity = shadow?.opacity ?? 0;
         if (shape?.type === undefined || opacity <= 0) {
             return [];
@@ -1397,6 +1398,9 @@ export class NodeMesh {
         const [dx, dy] = [(shadow?.offsetX ?? 0) * perSize, -(shadow?.offsetY ?? 0) * perSize];
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
+        // a solid's fill is drawn in by a centered or inside border, fitted or not (createMeshWithoutCache); grow its
+        // outline back out to the box first
+        const inset = flat ? 0 : this.borderFit(shape, border, sized).inset;
         const count = blur > 0 ? SHADOW_LAYERS : 1;
         // a layer drawn alone at `share` and `count` of them over one another make `opacity`
         const share = 1 - (1 - opacity) ** (1 / count);
@@ -1410,7 +1414,7 @@ export class NodeMesh {
             const instance = cache.get(key, () => {
                 const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
                 const piecesOf = (round: Point2[]): RingPiece[] => {
-                    const outline = offsetOutline(round, pad).map(([x, y]): Point2 => [x + dx, y + dy]);
+                    const outline = offsetOutline(round, pad + inset).map(([x, y]): Point2 => [x + dx, y + dy]);
                     return [{ inner: outline.map((): Point2 => [dx, dy]), outer: outline, closed: true }];
                 };
                 fill.computeWorldMatrix(true);

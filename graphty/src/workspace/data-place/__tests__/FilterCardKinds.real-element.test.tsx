@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -112,6 +112,25 @@ function stepRule(session: GraphSession): unknown {
     return rule.branches[0]?.steps[0]?.rule;
 }
 
+/**
+ * The open selection workspace, found by its role each time it is used. Never
+ * `page.elementLocator(element)`: that turns the element into a selector once, and for the
+ * workspace it chose the head's text ("Filters /Board0 of"), whose count changes when the
+ * card's step applies, so the click waited for text that was gone (issue #10547).
+ * @returns the workspace's locator.
+ */
+function workspace(): Locator {
+    return page.getByRole("dialog");
+}
+
+/**
+ * The role card's values, by their group's name.
+ * @returns the group's locator.
+ */
+function roleValues(): Locator {
+    return page.getByRole("group", { name: "role values", exact: true });
+}
+
 describe("Each kind of filter card", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
@@ -124,18 +143,11 @@ describe("Each kind of filter card", () => {
         // A value row reads box, name, then its count dimmed at the right; named as the Style card names it.
         const board = within(values).getByRole("checkbox", { name: "board, 3 nodes" });
         assert.equal(board.closest(".mantine-Checkbox-root")?.textContent, "board3");
-        await userEvent.click(
-            page.elementLocator(values).getByRole("checkbox", { name: "board, 3 nodes", exact: true }),
-        );
-        await userEvent.click(
-            page.getByRole("group", { name: "role values", exact: true }).getByRole("checkbox", { name: /^staff/ }),
-        );
+        await userEvent.click(roleValues().getByRole("checkbox", { name: "board, 3 nodes", exact: true }));
+        await userEvent.click(roleValues().getByRole("checkbox", { name: /^staff/ }));
         // The card is a draft until Done writes it as one step.
         assert.lengthOf(session.visibility.conditions, 0, "a draft writes nothing before Done");
-        const open = document.querySelector<HTMLElement>(".sel-ws");
-        await userEvent.click(
-            page.elementLocator(open ?? document.body).getByRole("button", { name: "Done", exact: true }),
-        );
+        await userEvent.click(workspace().getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
         });
@@ -175,25 +187,23 @@ describe("a new filter card's value field and name", () => {
     it("a name typed in the workspace's title is the card's name on Done, and Escape in the box keeps it", async () => {
         const { session } = await openPeople();
         await newCardOn("role");
-        const values = await screen.findByRole("group", { name: "role values" });
-        await userEvent.click(
-            page.elementLocator(values).getByRole("checkbox", { name: "board, 3 nodes", exact: true }),
-        );
+        await screen.findByRole("group", { name: "role values" });
+        await userEvent.click(roleValues().getByRole("checkbox", { name: "board, 3 nodes", exact: true }));
         const head = (): HTMLElement => {
             const found = document.querySelector<HTMLElement>(".sel-ws .sel-ws-head");
             assert.isNotNull(found, "the workspace is open");
             return found;
         };
-        await userEvent.click(page.elementLocator(head()).getByRole("button", { name: /, rename$/ }));
+        await userEvent.click(workspace().getByRole("button", { name: /, rename$/ }));
         await userEvent.keyboard("{Control>}a{/Control}Board{Enter}");
         await within(head()).findByRole("button", { name: "Board, rename" });
 
-        await userEvent.click(page.elementLocator(head()).getByRole("button", { name: "Board, rename", exact: true }));
+        await userEvent.click(workspace().getByRole("button", { name: "Board, rename", exact: true }));
         await userEvent.keyboard("{Control>}a{/Control}Nope{Escape}");
         await within(head()).findByRole("button", { name: "Board, rename" });
         assert.isNotNull(document.querySelector(".sel-ws"), "Escape in the box leaves the workspace open");
 
-        await userEvent.click(page.elementLocator(head()).getByRole("button", { name: "Done", exact: true }));
+        await userEvent.click(workspace().getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.visibility.conditions[0]?.name, "Board");
         });

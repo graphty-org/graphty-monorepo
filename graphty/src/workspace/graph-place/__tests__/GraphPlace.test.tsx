@@ -5,7 +5,7 @@
  */
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry, type WorkspaceRegistration } from "../../commands/registry";
@@ -115,7 +115,7 @@ describe("the Graph place", () => {
         const store = renderPlace(session);
         store.set({ inspected: { kind: "measure-row", id: "pagerank" } });
         const title = screen.getByRole("button", { name: "Graph Les Miserables" });
-        await user.click(title);
+        await user.click(page.getByRole("button", { name: "Graph Les Miserables", exact: true }));
         assert.deepEqual(store.get().inspected, { kind: "graph" });
         store.set({ inspected: null });
         title.focus();
@@ -127,16 +127,16 @@ describe("the Graph place", () => {
     it("shows the graph's name as a tooltip only while the name is cut short", async () => {
         renderPlace(await sessionWithGraph());
         const name = screen.getByText("Les Miserables");
-        await userEvent.hover(name);
+        await userEvent.hover(page.getByText("Les Miserables", { exact: true }));
         // A name drawn whole mounts no tooltip at all (EllipsizedName), so whole-ness is the condition:
         // a wait for a tooltip that never opens would only end at the hang guard.
         assert.isAtMost(name.scrollWidth, name.clientWidth, "the name is drawn whole");
         assert.isNull(screen.queryByRole("tooltip"));
-        await userEvent.unhover(name);
+        await userEvent.unhover(page.getByText("Les Miserables", { exact: true }));
 
         const place = screen.getByRole("region", { name: "Graph place" });
         place.style.width = "90px";
-        await userEvent.hover(name);
+        await userEvent.hover(page.getByText("Les Miserables", { exact: true }));
         const tip = await screen.findByRole("tooltip", {});
         assert.equal(tip.textContent, "Les Miserables");
     });
@@ -173,7 +173,7 @@ describe("the Graph place", () => {
         const session = await sessionWithGraph();
         renderPlace(session);
 
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "jav");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "jav");
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const elements = within(list).getByRole("group", { name: "Nodes" });
         assert.isNotNull(within(elements).getByRole("option", { name: /name: Javert/ }));
@@ -192,7 +192,7 @@ describe("the Graph place", () => {
             await session.data.addEdges([{ source: "Station", target: "Stadium", line: "tram" }]);
             renderPlace(session);
 
-            await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "tram");
+            await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "tram");
             const list = await screen.findByRole("listbox", { name: "Find results" });
             assert.isNotNull(within(list).getByRole("option", { name: new RegExp(`^${name}`) }));
         });
@@ -204,7 +204,7 @@ describe("the Graph place", () => {
             await session.data.addNodes([{ id: "Station" }, { id: "Stadium" }]);
             await session.data.addEdges([{ source: "Station", target: "Stadium" }]);
             renderPlace(session);
-            const box = screen.getByRole("combobox", { name: "Find" });
+            const box = page.getByRole("combobox", { name: "Find", exact: true });
 
             for (const typed of [name, "Stadium"]) {
                 await userEvent.clear(box);
@@ -220,7 +220,7 @@ describe("the Graph place", () => {
         const store = renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
 
-        await userEvent.type(box, "law");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "law");
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const options = within(list).getAllByRole("option");
         assert.equal(box.getAttribute("aria-activedescendant"), options[0].id, "the first row is active until Down");
@@ -247,7 +247,7 @@ describe("the Graph place", () => {
         renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
 
-        await userEvent.type(box, "Cos");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "Cos");
         const first = within(await screen.findByRole("listbox", { name: "Find results" })).getAllByRole("option")[0];
         assert.match(first.textContent ?? "", /Cosette/);
         assert.equal(first.getAttribute("aria-selected"), "true");
@@ -266,7 +266,7 @@ describe("the Graph place", () => {
         renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
 
-        await userEvent.type(box, "=min");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "=min");
         const list = await screen.findByRole("listbox", { name: "Find results" });
         assert.isNull(box.getAttribute("aria-activedescendant"));
         assert.isNull(within(list).queryByRole("option", { selected: true }));
@@ -278,8 +278,8 @@ describe("the Graph place", () => {
         const session = await sessionWithGraph();
         renderPlace(session);
 
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "law");
-        await userEvent.click(await screen.findByRole("option", { name: "Select where side is law (2)" }));
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "law");
+        await userEvent.click(page.getByRole("option", { name: "Select where side is law (2)", exact: true }));
         await waitFor(() => {
             assert.equal(session.selection.size, 2);
         });
@@ -289,7 +289,7 @@ describe("the Graph place", () => {
         const session = await sessionWithGraph();
         renderPlace(session);
 
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "law");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "law");
         await screen.findByRole("option", { name: "Select where side is law (2)" });
         await session.data.addNodes([{ id: "d", name: "Thenardier", side: "law" }]);
         assert.isNotNull(await screen.findByRole("option", { name: "Select where side is law (3)" }));
@@ -299,7 +299,7 @@ describe("the Graph place", () => {
         renderPlace(await sessionWithGraph());
         const box = screen.getByRole("combobox", { name: "Find" });
 
-        await userEvent.type(box, "jav");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "jav");
         await screen.findByRole("listbox", { name: "Find results" });
         await userEvent.keyboard("{Escape}");
         assert.equal((box as HTMLInputElement).value, "");
@@ -315,7 +315,7 @@ describe("the Graph place", () => {
 
     it("says No match for what was typed, from the status line, not a region that arrives with it", async () => {
         const store = renderPlace(await sessionWithGraph());
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "zzz");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "zzz");
         const line = await screen.findByText('No match for "zzz"');
         // The line under the box arrives with its words, so it is not a live region; the
         // workspace's status line, on the page from the start, speaks them.
@@ -331,7 +331,7 @@ describe("the Graph place", () => {
         renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
 
-        await userEvent.type(box, "minutes >= 10");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "minutes >= 10");
         // The reader's own rule, as typed, is the option Enter picks, saying what it selects.
         const hint = await screen.findByText("Select by a value:");
         const option = await screen.findByRole("option", { name: /^minutes >= 10/ });
@@ -353,8 +353,8 @@ describe("the Graph place", () => {
         assert.isNotNull(await screen.findByText(/^\S+ (->|--) \S+ selected$/));
 
         const count = vi.spyOn(session.selection, "count");
-        await userEvent.clear(box);
-        await userEvent.type(box, "zzz");
+        await userEvent.clear(page.getByRole("combobox", { name: "Find", exact: true }));
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "zzz");
         assert.isNotNull(await screen.findByText('No match for "zzz"'));
         // The element reads "zzz" as a column that holds nothing, so once it has answered no hint follows.
         await waitFor(() => {
@@ -380,7 +380,7 @@ describe("the Graph place", () => {
         const session = await sessionWithGraph();
         renderPlace(session);
 
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "regex:^Co");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "regex:^Co");
         assert.isNotNull(await screen.findByText('Press Enter to select "regex:^Co"'));
         assert.equal(session.selection.size, 0);
         await userEvent.keyboard("{Enter}");
@@ -393,7 +393,7 @@ describe("the Graph place", () => {
         const session = await sessionWithGraph();
         await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
         renderPlace(session);
-        const box = screen.getByRole("combobox", { name: "Find" });
+        const box = page.getByRole("combobox", { name: "Find", exact: true });
 
         await userEvent.type(box, "=");
         const example = await screen.findByText(/^name == '\w+'$/);
@@ -436,7 +436,7 @@ describe("the Graph place", () => {
         renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
 
-        await userEvent.type(box, "=min");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "=min");
         const columns = within(await screen.findByRole("listbox", { name: "Find results" })).getByRole("group", {
             name: "Columns",
         });
@@ -445,7 +445,7 @@ describe("the Graph place", () => {
         assert.isNotNull(option.querySelector(".lucide-columns-3"));
         assert.isNull(option.querySelector(".lucide-list-filter"));
         assert.isNull(within(columns).queryByRole("option", { name: /^side/ }));
-        await userEvent.click(option);
+        await userEvent.click(page.elementLocator(columns).getByRole("option", { name: /^minutes/ }));
         assert.equal((box as HTMLInputElement).value, "=minutes");
         assert.equal(document.activeElement, box);
         assert.equal(session.selection.size, 0);
@@ -458,11 +458,11 @@ describe("the Graph place", () => {
         const box = screen.getByRole("combobox", { name: "Find" });
 
         // Where the gray hint's words start, to hold the refusal to.
-        await userEvent.type(box, "=");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "=");
         const hintLeft = textLeft(await screen.findByText(/^Type a rule/));
-        await userEvent.clear(box);
+        await userEvent.clear(page.getByRole("combobox", { name: "Find", exact: true }));
 
-        await userEvent.type(box, "=heft > 3{Enter}");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "=heft > 3{Enter}");
         // The line under the box, not the status region that speaks it.
         const line = (await screen.findAllByText('No column named "heft"')).find(
             (found) => found.getAttribute("role") !== "status",
@@ -474,8 +474,8 @@ describe("the Graph place", () => {
         assert.include(box.getAttribute("aria-describedby") ?? "", line.id);
         assert.equal(session.selection.size, 0);
 
-        await userEvent.clear(box);
-        await userEvent.type(box, "=weight > 3{Enter}");
+        await userEvent.clear(page.getByRole("combobox", { name: "Find", exact: true }));
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "=weight > 3{Enter}");
         await waitFor(() => {
             assert.equal(session.selection.size, 1);
         });
@@ -502,7 +502,7 @@ describe("the Graph place", () => {
         );
         renderPlace(session);
 
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "x");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "x");
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const nodes = within(list).getByRole("group", { name: "Nodes" });
         const edges = within(list).getByRole("group", { name: "Edges" });
@@ -541,7 +541,7 @@ describe("the Graph place", () => {
         renderPlace(session);
 
         const box = screen.getByRole("combobox", { name: "Find" });
-        await userEvent.type(box, "x");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "x");
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const viewport = list.closest<HTMLElement>(".ws-find-viewport");
         assert.isNotNull(viewport);
@@ -576,7 +576,7 @@ describe("the Graph place", () => {
         await session.data.addNodes([{ id: long }]);
         renderPlace(session);
 
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "valjean");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "valjean");
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const viewport = list.closest<HTMLElement>(".ws-find-viewport");
         assert.isNotNull(viewport);
@@ -603,7 +603,7 @@ describe("the Graph place", () => {
         await session.data.addEdges(Array.from({ length: 25 }, (_, i) => ({ source: "hub", target: `t${String(i)}` })));
         renderPlace(session);
 
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "Hub");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "Hub");
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const edges = within(list).getByRole("group", { name: "Edges" });
         assert.isBelow(within(edges).getAllByRole("option").length, 25);
@@ -623,7 +623,7 @@ describe("the Graph place", () => {
         );
         renderPlace(session);
 
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "x");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "x");
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const viewport = list.closest<HTMLElement>(".ws-find-viewport");
         assert.isNotNull(viewport);
@@ -650,7 +650,7 @@ describe("the Graph place", () => {
             Array.from({ length: 6 }, (_, i) => ({ source: "Medici", target: `Ma${String(i)}` })),
         );
         renderPlace(session);
-        const box = screen.getByRole("combobox", { name: "Find" });
+        const box = page.getByRole("combobox", { name: "Find", exact: true });
         // Mantine keeps the scrollbar mounted and hides it with display: none while nothing overflows.
         const scrollbar = (): Element | null => {
             const bar = document.querySelector(
@@ -678,7 +678,7 @@ describe("the Graph place", () => {
 
     it("words any other refused rule with where it went wrong", async () => {
         renderPlace(await sessionWithGraph());
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "=side == 'law' ~{Enter}");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "=side == 'law' ~{Enter}");
         // With a rule that works, since the reader's own cannot be read at all.
         assert.isNotEmpty(
             await screen.findAllByText(/^Not a rule Find can read \(at character \d+\)\. A rule reads like/),
@@ -689,7 +689,7 @@ describe("the Graph place", () => {
         const session = await sessionWithGraph();
         await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
         renderPlace(session);
-        const box = screen.getByRole("combobox", { name: "Find" });
+        const box = page.getByRole("combobox", { name: "Find", exact: true });
         const words = "Did you mean Degree >= 10?";
         const spoken = (): string[] => screen.queryAllByRole("status").map((status) => status.textContent ?? "");
 

@@ -7,7 +7,7 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -29,19 +29,19 @@ describe("the selection editor on 50,000 nodes", () => {
         assert.isAtMost(within(values).getAllByRole("checkbox").length, 9, "8 values and (no value) at most");
         const search = screen.getByRole("textbox", { name: "Search community" });
         assert.match(search.getAttribute("placeholder") ?? "", /^Search [\d,]+$/);
-        await userEvent.type(search, "1");
+        await userEvent.type(page.getByRole("textbox", { name: "Search community", exact: true }), "1");
         const check = await screen.findByRole("button", { name: /^Check [\d,]+$/ });
         const matches = Number((check.textContent ?? "").replace(/\D/g, ""));
         assert.isAbove(matches, 8);
         assert.isAtMost(within(values).getAllByRole("checkbox").length, 8);
-        await userEvent.click(check);
+        await userEvent.click(page.getByRole("button", { name: /^Check [\d,]+$/ }));
         await waitFor(() => {
             const steps = session.styles.get(layer.id)?.selector;
             const rule = steps?.match === "rule" && steps.where.kind === "union" ? steps.where : undefined;
             const step = rule?.branches[0]?.steps[0]?.rule as { values?: unknown[] } | undefined;
             assert.lengthOf(step?.values ?? [], matches);
         });
-        await userEvent.clear(search);
+        await userEvent.clear(page.getByRole("textbox", { name: "Search community", exact: true }));
         await waitFor(() => {
             assert.isNotNull(screen.queryByText(`${(matches - 6).toLocaleString("en-US")} more checked`));
         });

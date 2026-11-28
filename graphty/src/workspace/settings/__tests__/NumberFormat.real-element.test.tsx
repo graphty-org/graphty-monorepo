@@ -8,7 +8,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
@@ -60,7 +60,7 @@ describe("Settings > Number format", () => {
 
         await userEvent.keyboard("{Control>},{/Control}");
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
-        await userEvent.click(within(dialog).getByText("1.234,5"));
+        await userEvent.click(page.elementLocator(dialog).getByText("1.234,5", { exact: true }));
         assert.equal(localStorage.getItem(NUMBER_FORMAT.key), "comma");
         await userEvent.keyboard("{Escape}");
 

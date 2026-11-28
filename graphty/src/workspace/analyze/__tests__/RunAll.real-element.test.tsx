@@ -13,7 +13,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { runAllMethods, startAll } from "../run";
@@ -65,8 +65,8 @@ describe("Run all in Analyze", () => {
         assert.isAbove(keys.length, 1);
 
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Run all, Rank nodes and edges" }));
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Analyze", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "Run all, Rank nodes and edges", exact: true }));
 
         await waitFor(() => {
             const done = keys.map((key) => session.runs.list().find((r) => r.algorithm === key)?.status);

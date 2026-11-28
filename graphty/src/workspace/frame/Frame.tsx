@@ -19,6 +19,7 @@ import { JoinScreen } from "../join/JoinScreen";
 import { NotesPlace } from "../notes/NotesPlace";
 import { PrivacyChip } from "../privacy/PrivacyChip";
 import { NodeMenu } from "../server/NodeMenu";
+import { JoinWorkspaceHost } from "../source-steps/JoinWorkspace";
 import { DOCK_DEFAULT, DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN, type WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
@@ -268,6 +269,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 }
                 right={<PrivacyChip />}
             />
+            {/* The join workspace, drawn over the page: its code comes with the frame's, never the
+                start page's, as it opens only on a project. */}
+            <JoinWorkspaceHost />
         </div>
     );
 }

@@ -128,11 +128,16 @@ async function addMatch(
 }
 
 /**
- * Says how the selected card joins.
+ * Says how the selected card joins, once the graph has finished drawing the join a complete match
+ * made at once: the next join's new nodes start where that one left them, so picking while it is still
+ * laying them out would draw a different picture from run to run.
  * @param modal - the workspace.
  * @param words - the way, as the card words it.
  */
 async function joinAs(modal: HTMLElement, words: string): Promise<void> {
+    await modal.ownerDocument
+        .querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element:not([data-start-page])")
+        ?.waitForStableFrame();
     await userEvent.click(await within(modal).findByRole("radio", { name: words }));
 }
 
@@ -380,6 +385,9 @@ export const JoinList: Story = {
             await expect(cards.querySelectorAll("[data-card-id]")).toHaveLength(3);
         });
         await session.styles.settled();
+        // The new card and the focused Join button have rounded edges: drawn as part of a partial
+        // repaint, they come out a level off from one load to the next (#10467). Draw the page whole.
+        await paintSettled(context.canvasElement.ownerDocument);
     },
 };
 

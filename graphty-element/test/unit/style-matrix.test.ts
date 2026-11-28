@@ -16,14 +16,18 @@ import {
     covering,
     measureNode,
     meshRingChecks,
+    type NodeFrames,
     type P2,
     PALETTE,
+    type Part,
     partIndex,
     type Plane,
     RING_FACTORS,
+    type Run,
     SETTING_FACTORS,
     type Settings,
     shardOf,
+    tidy,
 } from "../helpers/style-matrix";
 
 const SETTINGS: Settings = {
@@ -82,6 +86,43 @@ function checksOn(full: Classes): Map<string, boolean> {
         view: "2d",
     });
     return new Map(checks.map((c) => [c.name, c.pass]));
+}
+
+/**
+ * A 200 by 200 frame painted pixel by pixel.
+ * @param paint - The part at a pixel center, in pixels from (100, 100) (y down), or undefined for background.
+ * @returns The classified frame.
+ */
+function frame(paint: (x: number, y: number) => Part | undefined): Classes {
+    const parts = new Int8Array(200 * 200);
+    for (let y = 0; y < 200; y++) {
+        for (let x = 0; x < 200; x++) {
+            parts[y * 200 + x] = partIndex(paint(x + 0.5 - 100, y + 0.5 - 100) ?? "bg");
+        }
+    }
+    return { parts, width: 200, height: 200 };
+}
+
+/** The angle of a pixel offset in degrees, y down, from -180 to 180. */
+const degrees = (x: number, y: number): number => (Math.atan2(y, x) * 180) / Math.PI;
+
+/**
+ * The checks measureNode makes on a frame against a plain disc of radius 20.
+ * @param settings - The settings to differ from the outside border's.
+ * @param full - The full frame.
+ * @param frames - Frames to differ from the default.
+ * @returns The checks by name.
+ */
+function measured(
+    settings: Partial<Settings>,
+    full: Classes,
+    frames: Partial<NodeFrames> = {},
+): Map<string, { pass: boolean; unread?: boolean; measured: number }> {
+    const { checks } = measureNode(
+        { ...SETTINGS, ...settings },
+        { full, plain: disc(), plane: PLANE, reach: 2.6, dpr: 1, sizeFactor: 1, view: "2d", ...frames },
+    );
+    return new Map(checks.map((c) => [c.name, c]));
 }
 
 describe("style combination matrix", () => {
@@ -232,5 +273,153 @@ describe("style combination matrix", () => {
         };
         assert.isTrue([...run(125).values()].every(Boolean));
         assert.isFalse(run(112).get("label-off-node"));
+    });
+
+    it("joins a one-sample fragment where a ray grazes an outline, and a long blended seam it crosses at a slant", () => {
+        const [FILL, BORDER, MIXED, BG] = (["fill", "border", "mixed", "bg"] as const).map(partIndex);
+        const run = (part: number, from: number, to: number): Run => ({ part, from, to });
+        // 20 pixels a unit: the border for one sample (0 px), then fill again, then the ring
+        const grazing = tidy(
+            [
+                run(FILL, 0, 1),
+                run(BORDER, 1.015, 1.015),
+                run(FILL, 1.03, 1.1),
+                run(BORDER, 1.115, 1.55),
+                run(BG, 1.565, 2),
+            ],
+            20,
+        );
+        assert.deepEqual(
+            grazing.map((r) => [r.part, r.from, r.to]),
+            [
+                [FILL, 0, 1.1],
+                [BORDER, 1.115, 1.55],
+                [BG, 1.565, 2],
+            ],
+        );
+        // a 2.4 pixel seam inside the ring
+        const seam = tidy(
+            [run(FILL, 0, 1), run(BORDER, 1.01, 1.2), run(MIXED, 1.21, 1.33), run(BORDER, 1.34, 1.5)],
+            20,
+        );
+        assert.deepEqual(
+            seam.map((r) => r.part),
+            [FILL, BORDER],
+        );
+        assert.strictEqual(seam[1].to, 1.5);
+    });
+
+    it("reads a database node's border past the rim it draws across its face", () => {
+        // the rim: a band in the border's color across the fill above its center
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            if (r <= 20) {
+                return y >= -12 && y <= -7 ? "border" : "fill";
+            }
+            return r <= 29 ? "border" : undefined;
+        });
+        const database = measured({ shape: "database" }, full);
+        for (const [name, c] of database) {
+            assert.isTrue(c.pass, name);
+        }
+        // read as the ring, the rim is a border 0 wide
+        assert.isFalse(measured({}, full).get("border-width-thinnest")?.pass);
+    });
+
+    it("leaves a ring's mitred corner out of its centroid", () => {
+        // a corner reaching 4 pixels past the band on one side only
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            if (r <= 20) {
+                return "fill";
+            }
+            return r <= 29 || (Math.abs(degrees(x, y)) <= 26 && r <= 33) ? "border" : undefined;
+        });
+        const c = measured({}, full);
+        assert.isTrue(c.get("border-concentric")?.pass, String(c.get("border-concentric")?.measured));
+    });
+
+    it("does not count an outer ring an edge hides as missing", () => {
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            if (x > 24 && Math.abs(y) < 12) {
+                return "edge";
+            }
+            if (r <= 20) {
+                return "fill";
+            }
+            if (r <= 29) {
+                return "border";
+            }
+            return r <= 35 ? "outer" : undefined;
+        });
+        const c = measured({ outer: "abut" }, full);
+        assert.isTrue(c.get("outer-drawn")?.pass, String(c.get("outer-drawn")?.measured));
+    });
+
+    it("reads the node's own halo, not a neighbor's past it, and a ray with no halo as unread", () => {
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            const a = degrees(x, y);
+            if (r <= 20) {
+                return "fill";
+            }
+            if (r <= 29 && Math.abs(a) < 160) {
+                return "halo";
+            }
+            // a neighbor's halo further out on the rays to the right
+            return r >= 40 && r <= 55 && Math.abs(a) < 40 ? "halo" : undefined;
+        });
+        const c = measured({ border: "none", effect: "halo" }, full);
+        assert.isTrue(c.get("halo-scale")?.pass, String(c.get("halo-scale")?.measured));
+        // and expects the element's stretch: a halo grown 1.2 along u is not one grown 1.45
+        const stretched = measured({ border: "none", effect: "halo" }, full, { haloGrow: () => [1.2, 1.45] });
+        assert.isFalse(stretched.get("halo-scale")?.pass);
+    });
+
+    it("leaves a plate unread when too few rays show its end", () => {
+        // the underlay shows on three rays only, and wrongly wide there
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            if (r <= 20) {
+                return "fill";
+            }
+            return r <= 40 && Math.abs(degrees(x, y)) < 20 ? "underlay" : undefined;
+        });
+        const c = measured({ border: "none", plate: "underlay" }, full).get("underlay-padding");
+        assert.isTrue(c?.unread);
+    });
+
+    it("takes a label's box from its own blob, not stray label pixels on the node", () => {
+        const full = frame((x, y) => {
+            if (y >= 25 && y <= 35 && Math.abs(x) <= 10) {
+                return "label";
+            }
+            if (y >= 5 && y <= 7 && x >= -8 && x <= -6) {
+                return "label";
+            }
+            return Math.hypot(x, y) <= 20 ? "fill" : undefined;
+        });
+        const c = measured({ border: "none", label: "bottom" }, full, { labelReadable: true });
+        assert.isTrue(c.get("label-off-node")?.pass);
+    });
+
+    it("lets an edge stop the border's width along its line past a dashed border's slanted side", () => {
+        // a square, its border 18 pixels, an edge leaving at 35 degrees that stops 18 pixels past the side along it
+        const square = (x: number, y: number): Part | undefined =>
+            Math.abs(x) <= 20 && Math.abs(y) <= 20 ? "fill" : undefined;
+        const [dx, dy] = [Math.cos((35 * Math.PI) / 180), Math.sin((35 * Math.PI) / 180)];
+        const stop = 20 / dx + 18;
+        const full = frame((x, y) => {
+            const t = x * dx + y * dy;
+            if (Math.abs(x * dy - y * dx) < 2 && t >= stop + 0.5 && t <= 50) {
+                return "edge";
+            }
+            return square(x, y);
+        });
+        const frames = { plain: frame(square), sizeFactor: 2 };
+        assert.isTrue(measured({ border: "dashed", edges: "on" }, full, frames).get("edge-stops-at-border")?.pass);
+        // a solid border would hide the edge there: the same picture fails it
+        assert.isFalse(measured({ border: "outside", edges: "on" }, full, frames).get("edge-stops-at-border")?.pass);
     });
 });

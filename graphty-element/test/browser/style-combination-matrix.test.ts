@@ -24,6 +24,7 @@ import { commands } from "vitest/browser";
 import type { Graphty } from "../../index.js";
 import type { LayerSpec } from "../../src/catalog/types";
 import { operationQueueOf } from "../../src/Graph";
+import { haloAxisScale } from "../../src/meshes/flatHalo";
 import { convexHull } from "../../src/meshes/shapeOutlines";
 import {
     allCases,
@@ -75,8 +76,23 @@ const EDGES = [
     { src: "a", dst: "c" },
 ];
 
-/** How far round a node to look, in world units: past the widest halo, plate and shadow drawn. */
-const REACH = 2.6;
+/**
+ * How far past its halo a node's rings, plates and shadow reach, in world units at view scale 1 (the border, the
+ * outer border's gap and width, the plate's padding and the shadow's offset are in size units, not multiples of
+ * the size). The measuring reach is the node's drawn extent grown by its halo, plus this.
+ */
+const RING_REACH = 1.5;
+
+/** A node's measuring plane and the world frame it was built from. */
+interface Measure {
+    plane: Plane;
+    mesh: AbstractMesh;
+    center: Vector3;
+    ex: Vector3;
+    ey: Vector3;
+    /** A flat slab: a mesh is measured in its plane by dropping each vertex onto it, so both faces are one face. */
+    flat: boolean;
+}
 
 let element: Graphty;
 let layerIds: string[] = [];
@@ -130,7 +146,7 @@ async function draw(c: MatrixCase): Promise<Frame> {
  * @param shape - Its shape.
  * @returns The plane and the node's mesh.
  */
-function planeFor(id: string, shape: string): { plane: Plane; mesh: AbstractMesh } {
+function planeFor(id: string, shape: string): Measure {
     const { engine, scene } = element.graph;
     const node = element.graph.getDataManager().nodes.get(id);
     assert.isDefined(node, `node ${id} exists`);
@@ -161,19 +177,20 @@ function planeFor(id: string, shape: string): { plane: Plane; mesh: AbstractMesh
         engine.getRenderWidth(),
         engine.getRenderHeight(),
     );
-    return { plane, mesh };
+    return { plane, mesh, center, ex, ey, flat: isFlat(shape) };
 }
 
 /**
  * Whether a node's whole measuring window is on the canvas and in front of the camera.
  * @param plane - Its plane.
  * @param classes - A classified frame.
+ * @param reach - How far round the node to look, in plane units.
  * @returns True when it can be measured.
  */
-function onCanvas(plane: Plane, classes: Classes): boolean {
+function onCanvas(plane: Plane, classes: Classes, reach: number): boolean {
     for (let i = 0; i < 16; i++) {
         const a = (i / 16) * Math.PI * 2;
-        const [x, y] = toScreen(plane, REACH * Math.cos(a), REACH * Math.sin(a));
+        const [x, y] = toScreen(plane, reach * Math.cos(a), reach * Math.sin(a));
         if (!(x >= 0 && y >= 0 && x < classes.width && y < classes.height)) {
             return false;
         }
@@ -182,12 +199,15 @@ function onCanvas(plane: Plane, classes: Classes): boolean {
 }
 
 /**
- * A mesh's world vertices projected into a node's measuring plane, as a convex hull.
+ * A mesh's world vertices in a node's measuring plane, as a convex hull: through the camera onto a solid's plane,
+ * dropped straight onto a flat slab's (so a tilted slab's two faces, and a plate lying on one, are compared in the
+ * face's own plane rather than as the hull of both faces on screen).
  * @param mesh - The mesh.
- * @param plane - The plane.
+ * @param measure - The node's plane and world frame.
  * @returns The hull, empty when the mesh has no vertices.
  */
-function hullOf(mesh: AbstractMesh, plane: Plane): P2[] {
+function hullOf(mesh: AbstractMesh, measure: Measure): P2[] {
+    const { plane } = measure;
     const { scene, engine } = element.graph;
     mesh.computeWorldMatrix(true);
     const source = (mesh as InstancedMesh).sourceMesh ?? mesh;
@@ -198,6 +218,11 @@ function hullOf(mesh: AbstractMesh, plane: Plane): P2[] {
     const points: P2[] = [];
     for (let i = 0; i < positions.length; i += 3) {
         const p = Vector3.TransformCoordinates(new Vector3(positions[i], positions[i + 1], positions[i + 2]), world);
+        if (measure.flat) {
+            const d = p.subtract(measure.center);
+            points.push([Vector3.Dot(d, measure.ex), Vector3.Dot(d, measure.ey)]);
+            continue;
+        }
         const s = Vector3.Project(p, Matrix.Identity(), transform, viewport as never);
         points.push(toPlane(plane, s.x, s.y));
     }
@@ -211,20 +236,25 @@ type Rings = Record<"border" | "outerBorder" | "underlay" | "overlay" | "halo", 
  * The checks on a node's ring meshes against its fill mesh.
  * @param settings - The case's settings.
  * @param id - The node.
- * @param plane - Its plane.
- * @param fillMesh - Its fill mesh.
+ * @param measure - Its plane and world frame.
  * @param sizeFactor - Its view scale.
  * @returns The checks.
  */
-function meshChecks(settings: Settings, id: string, plane: Plane, fillMesh: AbstractMesh, sizeFactor: number): Check[] {
+function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor: number): Check[] {
+    const { plane } = measure;
     const node = element.graph.getDataManager().nodes.get(id) as unknown as Rings;
-    const fill = hullOf(fillMesh, plane);
+    const fill = hullOf(measure.mesh, measure);
     if (fill.length === 0) {
         return [];
     }
     const symmetric = SYMMETRIC.has(settings.shape);
     // a mesh edge is exact: allow half a pixel, or a hundredth of a unit and 5% of the border
-    const tol = Math.max(0.01 + 0.05 * borderEdgeWorld(settings, sizeFactor), 0.5 / pixelsPerUnit(plane).min);
+    // (a solid's silhouette in 2D is its tessellation's, measured 0.02 off its true outline)
+    const rounding = !measure.flat && view === "2d" ? 0.02 : 0;
+    const tol = Math.max(
+        0.01 + rounding + 0.05 * borderEdgeWorld(settings, sizeFactor),
+        0.5 / pixelsPerUnit(plane).min,
+    );
     const checks: Check[] = [];
     // every ring is measured from the drawn fill mesh, which an inside or centered border insets
     const width =
@@ -232,7 +262,7 @@ function meshChecks(settings: Settings, id: string, plane: Plane, fillMesh: Abst
     const inset = width - borderEdgeWorld(settings, sizeFactor);
     // a dashed ring's hull is the hull of its dashes, so it is not read
     if (node.border !== null && width > 0 && settings.border !== "dashed") {
-        const ring = hullOf(node.border, plane);
+        const ring = hullOf(node.border, measure);
         if (ring.length > 0) {
             if (!CONCAVE.has(settings.shape)) {
                 checks.push(...meshRingChecks(fill, ring, width, tol, symmetric, "border"));
@@ -240,7 +270,7 @@ function meshChecks(settings: Settings, id: string, plane: Plane, fillMesh: Abst
         }
     }
     if (node.outerBorder !== null && settings.border !== "screen") {
-        const ring = hullOf(node.outerBorder, plane);
+        const ring = hullOf(node.outerBorder, measure);
         const reach =
             width + ((settings.outer === "gap" ? AMOUNTS.outerGap : 0) + AMOUNTS.outerWidth) * PER_SIZE * sizeFactor;
         if (ring.length > 0 && !CONCAVE.has(settings.shape)) {
@@ -253,7 +283,7 @@ function meshChecks(settings: Settings, id: string, plane: Plane, fillMesh: Abst
     ] as const) {
         const mesh = node[field];
         if (mesh !== null && settings.border !== "screen") {
-            const ring = hullOf(mesh, plane);
+            const ring = hullOf(mesh, measure);
             if (ring.length > 0 && !CONCAVE.has(settings.shape)) {
                 checks.push(
                     ...meshRingChecks(fill, ring, padding * PER_SIZE * sizeFactor + inset, tol, symmetric, field),
@@ -262,6 +292,30 @@ function meshChecks(settings: Settings, id: string, plane: Plane, fillMesh: Abst
         }
     }
     return checks;
+}
+
+/**
+ * How much the element stretches a node's halo along its measuring plane's axes: haloAxisScale (Node.ts) over the
+ * node's own geometry and scaling, with its border's reach, each axis's stretch taken along the plane's u and v.
+ * @param measure - The node's plane and world frame.
+ * @param haloScale - The halo's scale.
+ * @param border - The border's reach, in world units.
+ * @returns The stretch along u and v.
+ */
+function haloGrowOf(measure: Measure, haloScale: number, border: number): [number, number] {
+    const { mesh } = measure;
+    const own = mesh.scaling;
+    const grow = haloAxisScale(
+        mesh.getBoundingInfo().boundingBox.extendSize,
+        haloScale,
+        own.x === 0 ? 0 : border / Math.abs(own.x),
+    );
+    const toLocal = mesh.getWorldMatrix().clone().invert();
+    const along = (axis: Vector3): number => {
+        const d = Vector3.TransformNormal(axis, toLocal).normalize();
+        return Math.hypot(grow.x * d.x, grow.y * d.y, grow.z * d.z);
+    };
+    return [along(measure.ex), along(measure.ey)];
 }
 
 /**
@@ -323,8 +377,8 @@ async function runCase(c: MatrixCase, override: Expectations = {}): Promise<{ re
     const plain = classify(plainFrame, BACKGROUND);
     // a node's view scale under "pivot" or "screen": its fill mesh's reach over its reach under "scene"
     const meshReach = (id: string): number => {
-        const { plane, mesh } = planeFor(id, c.settings.shape);
-        const hull = hullOf(mesh, plane);
+        const measure = planeFor(id, c.settings.shape);
+        const hull = hullOf(measure.mesh, measure);
         return hull.length === 0 ? Number.NaN : Math.max(...hull.map((p) => Math.hypot(p[0], p[1])));
     };
     const scale = new Map(NODES.map(({ id }) => [id, 1]));
@@ -351,40 +405,45 @@ async function runCase(c: MatrixCase, override: Expectations = {}): Promise<{ re
     };
     const sizes: number[] = [];
     for (const { id } of NODES.slice(0, 2)) {
-        const { plane, mesh } = planeFor(id, c.settings.shape);
-        if (!onCanvas(plane, full)) {
+        const measure = planeFor(id, c.settings.shape);
+        const { plane, mesh } = measure;
+        // lengths are in the units of node.size (not multiples of it), so only the view scale changes them
+        const sizeFactor = scale.get(id) ?? 1;
+        // another node in front of this one, or merged with it, makes its fill reach past its own mesh
+        const hull = hullOf(mesh, measure);
+        const meshReach = hull.length === 0 ? Infinity : Math.max(...hull.map((p) => Math.hypot(p[0], p[1])));
+        // the node's drawn extent grown by its halo, and the rings past it
+        // (a mesh with no vertices to read: the reach a size-1 sphere's would give)
+        const reach = (Number.isFinite(meshReach) ? meshReach : 0.75) * AMOUNTS.haloScale + RING_REACH * sizeFactor;
+        if (!onCanvas(plane, full, reach)) {
             result.nodes[id] = { measured: false };
             continue;
         }
-        // lengths are in the units of node.size (not multiples of it), so only the view scale changes them
-        const sizeFactor = scale.get(id) ?? 1;
         const { checks, numbers } = measureNode(
             c.settings,
             {
                 full,
                 plain,
                 plane,
-                reach: REACH,
+                reach,
                 dpr,
                 sizeFactor,
                 view: c.condition.view,
                 // "bottom" is the screen's bottom only in an unturned view
                 labelReadable: c.condition.angle === "0",
+                haloGrow: (haloScale, border) => haloGrowOf(measure, haloScale, border),
             },
             override,
         );
-        checks.push(...meshChecks(c.settings, id, plane, mesh, sizeFactor));
-        const fillHull = hullOf(mesh, plane);
-        if (fillHull.length > 0) {
-            const xs = fillHull.map((p) => p[0]);
-            const ys = fillHull.map((p) => p[1]);
+        checks.push(...meshChecks(c.settings, id, measure, sizeFactor));
+        if (hull.length > 0) {
+            const xs = hull.map((p) => p[0]);
+            const ys = hull.map((p) => p[1]);
             numbers.fillMeshMiddleU = (Math.min(...xs) + Math.max(...xs)) / 2;
             numbers.fillMeshMiddleV = (Math.min(...ys) + Math.max(...ys)) / 2;
             numbers.fillMeshHalfU = (Math.max(...xs) - Math.min(...xs)) / 2;
         }
-        // another node in front of this one, or merged with it, makes its fill reach past its own mesh
-        const hull = hullOf(mesh, plane);
-        const meshReach = hull.length === 0 ? Infinity : Math.max(...hull.map((p) => Math.hypot(p[0], p[1])));
+        numbers.reach = reach;
         // (an inside or centered border insets the fill mesh by up to the border's width)
         if (!(numbers.plainRadiusMedian <= meshReach * 1.2 + numbers.borderWorld + 1.5 / numbers.pxPerUnitMin)) {
             result.nodes[id] = { measured: false, numbers: { ...numbers, meshReach } };

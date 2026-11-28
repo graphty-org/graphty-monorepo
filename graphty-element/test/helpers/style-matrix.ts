@@ -830,14 +830,23 @@ export function distanceTo(edge: Edge2, u: number, v: number): number {
 const FOREIGN = new Set(["edge", "label"].map((p) => partIndex(p as Part)));
 
 /**
- * A ray's runs made fit to read: a blended seam shorter than 1.5 pixels between two runs of one part
- * joins them, and the ray ends before the first run of an edge or a label crossing it (and the run that
- * crossing cut short is dropped).
+ * The longest blended seam (in pixels along the ray) that joins two runs of one part: a ray crossing a one-pixel
+ * seam at a slant, as at a concave corner, walks more than one pixel of it.
+ */
+export const SEAM_PX = 3;
+
+/**
+ * A ray's runs made fit to read: a short fragment between two runs of one part joins them, and the ray ends
+ * before the first run of an edge or a label crossing it (and the run that crossing cut short is dropped). A
+ * fragment is a blended seam under {@link SEAM_PX} pixels, or a stretch of another part under {@link EDGE_PX}
+ * pixels: where a ray grazes an outline it meets the stair-stepped pixels of the part beyond for a sample, then
+ * the part it was in again, and read as it stands the ring past them would start at that sample.
  * @param runs - The runs.
  * @param pxPerUnit - Pixels per plane unit.
  * @returns The runs to read.
  */
 export function tidy(runs: readonly Run[], pxPerUnit: number): Run[] {
+    const MIXED = partIndex("mixed");
     const out: Run[] = [];
     for (const run of runs) {
         if (FOREIGN.has(run.part)) {
@@ -846,21 +855,39 @@ export function tidy(runs: readonly Run[], pxPerUnit: number): Run[] {
             }
             return out;
         }
-        const last = out.at(-1);
-        const before = out.at(-2);
-        if (
-            last !== undefined &&
-            before?.part === run.part &&
-            last.part === partIndex("mixed") &&
-            (last.to - last.from) * pxPerUnit < 1.5
-        ) {
-            out.pop();
-            before.to = run.to;
-            continue;
-        }
         out.push({ ...run });
+        while (out.length >= 3) {
+            const [before, middle, after] = out.slice(-3);
+            const length = (middle.to - middle.from) * pxPerUnit;
+            if (before.part !== after.part || length >= (middle.part === MIXED ? SEAM_PX : EDGE_PX)) {
+                break;
+            }
+            out.splice(-2, 2);
+            before.to = after.to;
+        }
     }
     return out;
+}
+
+/**
+ * A database node's runs with the rim it draws across its face (nodeDecoration.ts databaseRim, in the border's
+ * color by design) taken as fill: every run up to the last fill run the ray meets before leaving the node.
+ * @param runs - The runs, tidied.
+ * @returns The runs, the first one the fill out to where the ray leaves it.
+ */
+export function withoutRim(runs: readonly Run[]): Run[] {
+    const FILL = partIndex("fill");
+    const face = new Set([FILL, partIndex("border"), partIndex("mixed")]);
+    let last = -1;
+    for (let k = 0; k < runs.length && face.has(runs[k].part); k++) {
+        if (runs[k].part === FILL) {
+            last = k;
+        }
+    }
+    if (last <= 0 || runs[0].part !== FILL) {
+        return [...runs];
+    }
+    return [{ part: FILL, from: runs[0].from, to: runs[last].to }, ...runs.slice(last + 1)];
 }
 
 /**
@@ -930,6 +957,24 @@ export interface NodeFrames {
     view: string;
     /** Whether "bottom" is the screen's bottom (an unturned view), so the label can be judged. */
     labelReadable?: boolean;
+    /**
+     * How much the element stretches this node's halo along the plane's u and v axes for a `haloScale` and a border
+     * reaching `border` plane units (Node.ts: haloAxisScale with borderReach). Unset, the halo is the node scaled
+     * `haloScale` about its center.
+     */
+    haloGrow?: (scale: number, border: number) => [number, number];
+}
+
+/** The fewest rays a median is taken over: fewer, a plate's or ring's few mitred tips would be its reading. */
+export const MIN_RAYS = 8;
+
+/**
+ * The median of the readable rays, unread when too few were.
+ * @param list - Per-ray numbers.
+ * @returns The median, NaN under {@link MIN_RAYS}.
+ */
+function readMedian(list: readonly number[]): number {
+    return list.length < MIN_RAYS ? Number.NaN : quantile(list, 0.5);
 }
 
 /** How many device pixels a band's edge may be off: one blended pixel each side and half a sample. */
@@ -1067,7 +1112,11 @@ export function measureNode(
     const edgeTol = EDGE_PX / ppu.min;
     const angles = Array.from({ length: RAYS }, (_, i) => (i / RAYS) * Math.PI * 2);
     const plainRuns = angles.map((a) => tidy(runsAlong(plain, plane, a, reach), ppu.max));
-    const fullRuns = angles.map((a) => tidy(runsAlong(full, plane, a, reach), ppu.max));
+    const rawRuns = angles.map((a) => runsAlong(full, plane, a, reach));
+    // a ray an edge or a label crosses is read only up to it (tidy), so what lies past that is unread, not missing
+    const crossed = rawRuns.map((runs) => runs.some((r) => FOREIGN.has(r.part)));
+    const rim = settings.shape === "database";
+    const fullRuns = rawRuns.map((runs) => (rim ? withoutRim(tidy(runs, ppu.max)) : tidy(runs, ppu.max)));
     const plainExit = plainRuns.map((runs) => (runs[0]?.part === FILL && runs.length > 1 ? runs[0].to : Number.NaN));
     numbers.plainRadiusMedian = quantile(plainExit, 0.5);
     numbers.plainRadiusPx = numbers.plainRadiusMedian * ppu.max;
@@ -1096,6 +1145,7 @@ export function measureNode(
         const gaps: number[] = [];
         const thick: number[] = [];
         const offs: number[] = [];
+        const offAngles: number[] = [];
         let shiftU = 0;
         let shiftV = 0;
         let shiftCount = 0;
@@ -1131,12 +1181,18 @@ export function measureNode(
             const [u, v] = [out * Math.cos(angles[i]), out * Math.sin(angles[i])];
             thick.push(distanceTo(fullFillEdge, u, v));
             offs.push(signed(u, v));
+            offAngles.push(angles[i]);
         });
         const offMedian = quantile(offs, 0.5);
-        offs.forEach((o, i) => {
+        offs.forEach((o, j) => {
+            // a mitred corner reaches past the band by design, and corners need not face each other across the
+            // node, so a ray thicker than the band is left out of the centroid
+            if (thick[j] > expectedWidth + widthTol) {
+                return;
+            }
             if (Math.abs(o - offMedian) <= Math.max(edgeTol, expectedWidth * 0.5)) {
-                shiftU += (o - offMedian) * Math.cos(angles[i]);
-                shiftV += (o - offMedian) * Math.sin(angles[i]);
+                shiftU += (o - offMedian) * Math.cos(offAngles[j]);
+                shiftV += (o - offMedian) * Math.sin(offAngles[j]);
                 shiftCount++;
             }
         });
@@ -1219,9 +1275,11 @@ export function measureNode(
         const starts: number[] = [];
         const widths: number[] = [];
         const gaps: number[] = [];
+        let unseen = 0;
         fullRuns.forEach((runs, i) => {
             const k = runs.findIndex((r) => r.part === OUTER);
             if (k < 0) {
+                unseen += crossed[i] ? 1 : 0;
                 return;
             }
             const run = runs[k];
@@ -1244,13 +1302,19 @@ export function measureNode(
             override.outerStart ?? borderEdge + (s.outer === "gap" ? AMOUNTS.outerGap : 0) * PER_SIZE * sizeFactor;
         const width = AMOUNTS.outerWidth * PER_SIZE * sizeFactor;
         checks.push(
-            check("outer-drawn", "an outer border wider than 0 is drawn round the node", starts.length / RAYS, 1, 0.1),
+            check(
+                "outer-drawn",
+                "an outer border wider than 0 is drawn round the node (of the rays no edge or label crosses first)",
+                RAYS === unseen ? Number.NaN : starts.length / (RAYS - unseen),
+                1,
+                0.1,
+            ),
         );
         checks.push(
             check(
                 "outer-start",
                 "the outer ring starts outerBorderOffset past the border's outer edge",
-                quantile(starts, 0.5),
+                readMedian(starts),
                 start,
                 edgeTol * 2 + width * WIDTH_SLACK,
                 starts,
@@ -1302,7 +1366,7 @@ export function measureNode(
                 check(
                     `${s.plate}-padding`,
                     `the ${s.plate} is the node's outline grown by its padding`,
-                    quantile(past, 0.5),
+                    readMedian(past),
                     padding,
                     edgeTol * 2 + padding * WIDTH_SLACK,
                     ends,
@@ -1392,24 +1456,29 @@ export function measureNode(
     if (s.effect === "halo" && !hidden && !shifted) {
         const HALO = partIndex("halo");
         const scale = override.haloScale ?? AMOUNTS.haloScale;
+        const [gu, gv] = frames.haloGrow?.(scale, borderWorld) ?? [scale, scale];
         const misses: number[] = [];
-        fullRuns.forEach((runs, i) => {
+        angles.forEach((a, i) => {
             if (!Number.isFinite(plainExit[i])) {
                 return;
             }
+            // the halo is the node stretched gu, gv about its center: this outline point lands there
+            const [qu, qv] = [gu * plainExit[i] * Math.cos(a), gv * plainExit[i] * Math.sin(a)];
+            const b = Math.atan2(qv, qu);
+            const edge = Math.hypot(qu, qv);
             // just inside where the halo should end: a part drawn over it there hides its edge, no reading
-            const edge = scale * plainExit[i];
-            const there = partAt(
-                full,
-                plane,
-                (edge - edgeTol) * Math.cos(angles[i]),
-                (edge - edgeTol) * Math.sin(angles[i]),
-            );
+            const there = partAt(full, plane, (edge - edgeTol) * Math.cos(b), (edge - edgeTol) * Math.sin(b));
             if (there !== HALO && there !== partIndex("bg") && there !== partIndex("mixed")) {
                 return;
             }
-            const last = lastOf(runs, (r) => r.part === HALO);
-            misses.push(last === undefined ? Infinity : Math.abs(last.to - edge) * ppu.max);
+            const runs = tidy(runsAlong(full, plane, b, reach), ppu.max);
+            // this node's halo runs out from the node to the first background; a halo past that is a neighbor's
+            const gap = runs.findIndex((r, k) => k > 0 && r.part === partIndex("bg"));
+            const last = lastOf(gap < 0 ? runs : runs.slice(0, gap), (r) => r.part === HALO);
+            // no halo on this ray (an edge or a label crossed it first): unread
+            if (last !== undefined) {
+                misses.push(Math.abs(last.to - edge) * ppu.max);
+            }
         });
         numbers.haloRays = misses.length;
         // a halo hidden on every ray by the parts in front of it (a wide border) is drawn as promised
@@ -1417,7 +1486,7 @@ export function measureNode(
             checks.push(
                 atMost(
                     "halo-scale",
-                    "the halo is the node's own shape scaled haloScale about its center",
+                    "the halo is the node's own shape grown as haloScale and its border grow it, about its center",
                     quantile(misses, 0.9),
                     EDGE_PX * 2,
                     misses,
@@ -1463,12 +1532,26 @@ export function measureNode(
     if (s.edges === "on" && frames.view === "2d") {
         const EDGE = partIndex("edge");
         let inside = 0;
+        // An edge runs to the node's center, so its line from there is radial. Where a solid band lies over the edge
+        // the band hides it, so no visible edge pixel lies inside the band's outer edge along the normal. A dashed
+        // band shows the edge through its gaps, and the element stops the edge no further than the border's width
+        // past the outline along the line (Node.borderReachAlong), which across a slanted side is nearer the
+        // outline along the normal: there the edge must reach no nearer than that along the line.
+        const edgeStopsShort = (u: number, v: number): boolean => {
+            if (s.border !== "dashed") {
+                return signed(u, v) < borderEdge - edgeTol;
+            }
+            const a = Math.atan2(v, u);
+            const plainAlong = tidy(runsAlong(plain, plane, a, reach), ppu.max);
+            const exit = plainAlong[0]?.part === FILL ? plainAlong[0].to : 0;
+            return Math.hypot(u, v) < exit + borderWorld - edgeTol;
+        };
         const [x0, y0, x1, y1] = window.map((v) => Math.round(v));
         for (let y = Math.max(0, y0); y <= Math.min(full.height - 1, y1); y++) {
             for (let x = Math.max(0, x0); x <= Math.min(full.width - 1, x1); x++) {
                 if (full.parts[y * full.width + x] === EDGE) {
                     const [u, v] = toPlane(plane, x + 0.5, y + 0.5);
-                    if (signed(u, v) < borderEdge - edgeTol) {
+                    if (edgeStopsShort(u, v)) {
                         inside++;
                     }
                 }
@@ -1511,14 +1594,50 @@ export function measureLabel(
     const LABEL = partIndex("label");
     const [cx, cy] = toScreen(plane, 0, 0);
     const radius = (window[2] - window[0]) / 2;
-    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
     const { parts, width, height } = full;
     // below the node, no wider than half its reach each side, so a neighbor's label is not read
     const box = [cx - radius / 2, cy, cx + radius / 2, cy + radius].map(Math.round);
+    const inBox = (x: number, y: number): boolean => x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3];
+    // the label is one connected blob (its background is its text's color): the one with most pixels in the box,
+    // whole, so stray label-colored pixels (a neighbor's label, a blend) do not stretch its box onto the node
+    const seen = new Uint8Array(width * height);
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    let best = 0;
     for (let y = Math.max(0, box[1]); y <= Math.min(height - 1, box[3]); y++) {
         for (let x = Math.max(0, box[0]); x <= Math.min(width - 1, box[2]); x++) {
-            if (parts[y * width + x] === LABEL) {
-                [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];
+            if (parts[y * width + x] !== LABEL || seen[y * width + x] === 1) {
+                continue;
+            }
+            const blob = [Infinity, Infinity, -Infinity, -Infinity];
+            let count = 0;
+            const stack = [y * width + x];
+            seen[y * width + x] = 1;
+            while (stack.length > 0) {
+                const at = stack.pop() ?? 0;
+                const [px, py] = [at % width, Math.floor(at / width)];
+                count += inBox(px, py) ? 1 : 0;
+                [blob[0], blob[1], blob[2], blob[3]] = [
+                    Math.min(blob[0], px),
+                    Math.min(blob[1], py),
+                    Math.max(blob[2], px),
+                    Math.max(blob[3], py),
+                ];
+                for (const [nx, ny] of [
+                    [px + 1, py],
+                    [px - 1, py],
+                    [px, py + 1],
+                    [px, py - 1],
+                ]) {
+                    const n = ny * width + nx;
+                    if (nx >= 0 && ny >= 0 && nx < width && ny < height && seen[n] === 0 && parts[n] === LABEL) {
+                        seen[n] = 1;
+                        stack.push(n);
+                    }
+                }
+            }
+            if (count > best) {
+                best = count;
+                [x0, y0, x1, y1] = blob;
             }
         }
     }

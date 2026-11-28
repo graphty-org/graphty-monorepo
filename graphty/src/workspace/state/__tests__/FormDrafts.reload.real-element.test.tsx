@@ -18,15 +18,20 @@ import { page, userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { forgetAutosave, openAutosaved, reload } from "../../../test/reload";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { setUsageSenderForTests } from "../../privacy/usageData";
 import { drop } from "../../source-steps/__tests__/sourceSteps";
 import { Workspace } from "../../Workspace";
 import { createWorkspaceStore } from "../store";
 
-/** Starts with nothing kept: no autosaved work and nothing in this tab's session storage. */
+/** Starts with nothing kept: no autosaved work, nothing in this tab's session storage, no usage answer. */
 async function forget(): Promise<void> {
     await forgetAutosave();
     sessionStorage.clear();
+    localStorage.removeItem(USAGE_ANSWER_KEY);
 }
+
+/** Where the usage data answer is stored (usageData.ts). */
+const USAGE_ANSWER_KEY = "graphty.usageData.v1";
 
 /**
  * The opened element.
@@ -161,8 +166,15 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
         beforeAll(async () => {
             await page.viewport(1440, 900);
         });
-        beforeEach(forget);
-        afterEach(forget);
+        beforeEach(async () => {
+            await forget();
+            // Share starts error reporting: a stand-in sender, so the test sends nothing.
+            setUsageSenderForTests({ start: () => undefined, stop: () => undefined });
+        });
+        afterEach(async () => {
+            setUsageSenderForTests();
+            await forget();
+        });
         withFeatures([]);
 
         it("reopens the Path popover on the From and To the reader picked, which Find path still runs", async () => {
@@ -271,11 +283,29 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
 
         it("reopens Report a problem on the message the reader typed", async () => {
             const before = await openAutosaved("Les Miserables");
-            // Help > Report a problem asks for usage data first; the dialog is what is tested here.
-            before.store.set({ dialog: "report" });
+            // Help > Report a problem asks for usage data: the reader turns it on in Settings > Privacy.
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Settings..." }));
+            const settings = await screen.findByRole("dialog", { name: "Settings" });
+            await userEvent.click(within(settings).getByText("Privacy"));
+            const share = await within(settings).findByRole<HTMLInputElement>("switch", { name: "Share usage data" });
+            await userEvent.click(share);
+            await waitFor(() => {
+                assert.isTrue(share.checked);
+            });
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog", { name: "Settings" }));
+            });
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.hover(await screen.findByRole("menuitem", { name: "Help" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Report a problem" }));
             const dialog = await screen.findByRole("dialog", { name: "Send Feedback" });
             await userEvent.type(within(dialog).getByRole("textbox", { name: "Name (optional)" }), "Ada");
-            await userEvent.type(within(dialog).getByRole("textbox", { name: /^What happened/ }), "The tab went blank.");
+            await userEvent.type(
+                within(dialog).getByRole("textbox", { name: /^What happened/ }),
+                "The tab went blank.",
+            );
 
             const after = await reload(before, { lostSession });
             const back = await screen.findByRole("dialog", { name: "Send Feedback" });

@@ -954,9 +954,10 @@ export class UpdateManager implements Manager {
         });
         this.drawPhaseWatcher = scene.onBeforeDrawPhaseObservable.add(() => {
             if (!this.nodesDrawn) {
-                this.drawingNodes = this.dataManager.nodes.size > 0 && this.drawnMeshesAreReady();
+                this.drawingNodes = this.dataManager.nodes.size > 0 && this.drawnMeshesAreReady(true);
             }
-            this.drewWithEveryShader = !this.stateIsFinished || this.drawnFrameIsFinished || this.drawnMeshesAreReady();
+            this.drewWithEveryShader =
+                !this.stateIsFinished || this.drawnFrameIsFinished || this.drawnMeshesAreReady(true);
         });
         // Not a camera move: a new canvas size resizes the effect layers' targets, so their readiness is asked again.
         this.resizeWatcher = scene.getEngine().onResizeObservable.add(() => {
@@ -3168,7 +3169,7 @@ export class UpdateManager implements Manager {
      * and the frame before it is not (issue #3377). Nothing else here would notice: the layout is
      * at rest, no framing is owed, and no style work is queued. A reader's own drag is not counted,
      * on purpose; see {@link UpdateManager.frameIsStable}. Only the view: the meshes drawn and their shaders are
-     * the ones drawn before (see {@link UpdateManager.drawnMeshesAreReady}).
+     * the ones drawn before, so whether each has its shader is not asked again.
      */
     viewMoved(): void {
         this.pending.viewChanged();
@@ -3524,9 +3525,14 @@ export class UpdateManager implements Manager {
      * question of a frame bring no new shader, and the walk asks every mesh: 15 to 45 ms a frame at 10,000 labeled
      * nodes. A mesh built moves the count before its announcement moves the counter; anything that changes a
      * material, an outline, an effect or what is shown moves the counter (a repaint, a load, a shown mesh).
+     *
+     * Only a yes read as a frame's draw starts is kept: a shader ready when a pass asks can still be missing when the
+     * frame after it draws (a material handed over inside a frame), and a yes kept from the pass would call that
+     * frame final although it skipped the mesh (issue #4237).
+     * @param atDraw - Whether this is asked as a frame's draw starts, so a yes may be kept.
      * @returns True when no drawn mesh and no drawn effect is waiting for a shader.
      */
-    private drawnMeshesAreReady(): boolean {
+    private drawnMeshesAreReady(atDraw = false): boolean {
         const scene = this.graphContext.getScene();
         const at = this.readyAt;
         const content = this.pending.contentEpoch;
@@ -3535,7 +3541,11 @@ export class UpdateManager implements Manager {
         }
 
         const ready = this.everyDrawnMeshIsReady();
-        this.readyAt = ready ? { content, meshes: scene.meshes.length, layers: scene.effectLayers.length } : null;
+        if (!ready) {
+            this.readyAt = null;
+        } else if (atDraw) {
+            this.readyAt = { content, meshes: scene.meshes.length, layers: scene.effectLayers.length };
+        }
         return ready;
     }
 

@@ -4345,11 +4345,12 @@ export class Node implements ModelUser {
             // The node's own geometry, stretched about its center so its band is one width all
             // round (haloAxisScale): a box gets a box, a cylinder a cylinder, and a node drawn
             // wider than tall a halo as thick at its top as at its sides.
+            // the halo's geometry is the node's plain outline (createOverlay), so the border counts only past it (#10435)
             const own = this.#anchor.scaling;
             const grow = haloAxisScale(
                 overlay.getBoundingInfo().boundingBox.extendSize,
                 selection.scale,
-                own.x === 0 ? 0 : this.borderReach / Math.abs(own.x),
+                own.x === 0 ? 0 : (this.borderReach - this.fillInset()) / Math.abs(own.x),
             );
             overlay.scaling.copyFromFloats(own.x * grow.x, own.y * grow.y, own.z * grow.z);
             this.haloLift = flatHaloLift(overlay, this.#anchor.scaling.z);
@@ -4746,9 +4747,15 @@ export class Node implements ModelUser {
         const alpha = kind === "halo" ? selection.opacity : CONTEXT_POINT_ALPHA;
         const shape = kind === "halo" ? this.nodeSourceMesh() : null;
         const flat = kind === "halo" && this.context.is2D();
-        const overlay = this.context
-            .getMeshCache()
-            .get(name, () => Node.createOverlaySource(name, color, alpha, scene, shape, flat));
+        const overlay = this.context.getMeshCache().get(name, () => {
+            // Grown from the node's plain outline, not from its fill: an inside or centered border draws the fill in,
+            // and one almost as wide as the node draws it in to a sliver off its middle, which stretched back out
+            // to the halo's size was thrown far off the node (#10435).
+            const plain = shape === null ? null : this.plainShapeMesh();
+            const source = Node.createOverlaySource(name, color, alpha, scene, plain ?? shape, flat);
+            plain?.dispose();
+            return source;
+        });
 
         if (kind === "halo") {
             this.haloKey = name;
@@ -4860,6 +4867,22 @@ export class Node implements ModelUser {
         source.material = material;
 
         return source;
+    }
+
+    /**
+     * This node's shape at its plain outline, as it is drawn with no border, when a border drew its fill in from it.
+     * @returns A new mesh the caller disposes, or null when the fill is drawn at the outline.
+     */
+    private plainShapeMesh(): Mesh | null {
+        const shape = this.drawnStyle?.shape;
+        if (shape?.type === undefined || this.drawnModel !== null || this.fillInset() <= 0) {
+            return null;
+        }
+        return NodeMesh.createPlain(
+            { styleId: `${this.#anchor.name}|plain`, is2D: this.context.is2D(), size: this.size },
+            shape,
+            this.context.getScene(),
+        );
     }
 
     /**

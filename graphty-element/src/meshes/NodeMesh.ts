@@ -760,6 +760,20 @@ export class NodeMesh {
     }
 
     /**
+     * A node's mesh at its plain outline, as {@link NodeMesh.create} builds its geometry with no border: what its
+     * halo is grown from, so a border drawn inside the outline does not draw the halo in with the fill.
+     * @param options - As for {@link NodeMesh.create}.
+     * @param shape - The node's shape block.
+     * @param scene - Babylon.js scene.
+     * @returns The mesh, with no material, for the caller to dispose.
+     */
+    static createPlain(options: NodeMeshOptions, shape: NonNullable<NodeStyleConfig["shape"]>, scene?: Scene): Mesh {
+        const mesh = this.createMeshWithoutCache(options, { shape }, scene);
+        placeByZIndex(mesh, shape, options.is2D);
+        return mesh;
+    }
+
+    /**
      * Create a node mesh without using cache
      * @param options - Node mesh options including styleId and size
      * @param createOptions - Creation options for shape, texture, and effects

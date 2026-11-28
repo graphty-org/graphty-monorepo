@@ -916,10 +916,11 @@ export class NodeMesh {
         if (options.is2D) {
             // seen only along z, the solid, fitted or at its own proportions, is drawn in to exactly the edge its ring
             // starts from (#10438): shrinking a fitted one on each axis brought a wide cone's or tetrahedron's slanted
-            // sides in by less, under the ring. A fitted one is drawn in along z too, as it always was, unless the
-            // node names its depth.
+            // sides in by less, under the ring. It is drawn in along z too, unless the node names its depth: kept at
+            // its full depth, a cylinder drawn in by most of its width was a sliver ten times as deep as wide, its
+            // ridge so steep in depth that the renderer drew it through the overlay just in front of it.
             NodeMesh.insetFill(mesh, inset);
-            if (fitted && sized.z === undefined) {
+            if (sized.z === undefined) {
                 NodeMesh.shrinkDepth(mesh, inset);
             }
             return mesh;

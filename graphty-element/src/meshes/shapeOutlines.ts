@@ -1111,8 +1111,10 @@ function traceOutline(grid: Uint8Array, nx: number, ny: number): Point2[] {
         const [u, v] = best[(n + 1) % best.length];
         return [(x + u) / 2, (y + v) / 2];
     });
-    // the steps of the grid smoothed away: no point further than half a cell from the line kept
-    return simplify(middles, 0.5);
+    // the steps of the grid smoothed away, and a cell a triangle's corner marked past the edge with them: no point a
+    // cell or less from the line kept. Kept at half a cell, each such one-cell bump's square corners were mitred out
+    // about 1.4 widths, and a ring round the outline showed spikes (issue #10532)
+    return simplify(middles, 1);
 }
 
 /**

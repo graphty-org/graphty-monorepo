@@ -1369,6 +1369,7 @@ export function measureNode(
         const thick: number[] = [];
         const offs: number[] = [];
         const offAngles: number[] = [];
+        const corner: boolean[] = [];
         let shiftU = 0;
         let shiftV = 0;
         let shiftCount = 0;
@@ -1413,6 +1414,7 @@ export function measureNode(
             thick.push(distanceTo(fullFillEdge, u, v));
             offs.push(signed(u, v));
             offAngles.push(angles[i]);
+            corner.push(pastCorner(plainEdge, u, v, expectedWidth / 2));
         });
         // A mitred corner reaches past the band by design (up to MITRE_LIMIT widths), and on a shape with many
         // corners those rays can be most of them, so the ring's position is read on the rays that leave it through
@@ -1420,9 +1422,10 @@ export function measureNode(
         const side = offs.filter((_, j) => thick[j] <= expectedWidth + widthTol);
         const offMedian = quantile(side.length > 0 ? side : offs, 0.5);
         offs.forEach((o, j) => {
-            // corners need not face each other across the node, so a ray thicker than the band is left out of the
-            // centroid
-            if (thick[j] > expectedWidth + widthTol) {
+            // corners need not face each other across the node (a dash gap can take one), so a ray past one of the
+            // outline's corners, or thicker than the band, is left out of the centroid: on a tilted plane the width's
+            // tolerance is loose enough to let a mitre in
+            if (corner[j] || thick[j] > expectedWidth + widthTol) {
                 return;
             }
             if (Math.abs(o - offMedian) <= Math.max(edgeTol, expectedWidth * 0.5)) {
@@ -1485,8 +1488,8 @@ export function measureNode(
         // tip at a corner of angle t retreats inset / sin(t / 2) from the outline's: the thickest a ray can read is
         // the two added (triangle inequality).
         const inset = expectedWidth * (1 - fraction);
-        const corner = frames.sharpestCorner ?? Math.PI;
-        const thickest = MITRE_LIMIT * expectedWidth * fraction + (inset > 0 ? inset / Math.sin(corner / 2) : 0);
+        const sharpest = frames.sharpestCorner ?? Math.PI;
+        const thickest = MITRE_LIMIT * expectedWidth * fraction + (inset > 0 ? inset / Math.sin(sharpest / 2) : 0);
         checks.push(
             atMost(
                 "border-width-thickest",

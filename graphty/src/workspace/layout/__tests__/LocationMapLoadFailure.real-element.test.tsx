@@ -70,10 +70,10 @@ describe("the location map whose placement code cannot be loaded", () => {
         });
         const before = el.session.layout.id;
 
-        await userEvent.click(tool);
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Map/ }));
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Map/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
 
         const alert = await within(popover).findByRole("alert", undefined);
         assert.include(alert.textContent, "could not be loaded");

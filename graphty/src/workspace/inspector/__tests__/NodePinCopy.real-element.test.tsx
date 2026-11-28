@@ -8,7 +8,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, NodeId } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
@@ -44,11 +44,11 @@ describe("a node's inspector header", () => {
     it("Pin pins the node, and Unpin lets it go", async () => {
         const { session, node, inspector } = await inspectNode();
         assert.isFalse(session.positions.pinned.has(node));
-        await userEvent.click(await within(inspector).findByRole("button", { name: "Pin" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("button", { name: "Pin", exact: true }));
         await waitFor(() => {
             assert.isTrue(session.positions.pinned.has(node));
         });
-        await userEvent.click(await within(inspector).findByRole("button", { name: "Unpin" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("button", { name: "Unpin", exact: true }));
         await waitFor(() => {
             assert.isFalse(session.positions.pinned.has(node));
         });
@@ -57,7 +57,7 @@ describe("a node's inspector header", () => {
 
     it("Copy id puts the node's id on the clipboard", async () => {
         const { node, inspector } = await inspectNode();
-        await userEvent.click(await within(inspector).findByRole("button", { name: "Copy id" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("button", { name: "Copy id", exact: true }));
         await waitFor(async () => {
             assert.equal(await navigator.clipboard.readText(), String(node));
         });

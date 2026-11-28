@@ -53,7 +53,7 @@ describe("Settings > Performance", () => {
 
         await userEvent.keyboard("{Control>},{/Control}");
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
-        await userEvent.click(within(dialog).getByText("Performance"));
+        await userEvent.click(page.elementLocator(dialog).getByText("Performance", { exact: true }));
         // An exact locator, not an element: userEvent.click turns an element into a selector that is
         // unique only when it is made (getByText('Off'), case-blind and partial), and the line under the
         // control can turn into "Now: off. <reason>" before Playwright resolves it, matching it twice.

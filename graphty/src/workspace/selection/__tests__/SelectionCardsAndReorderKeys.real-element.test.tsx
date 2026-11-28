@@ -1,12 +1,8 @@
 /**
- * The selection editor's polish rounds (design/ui/studio/tier5/decided.md) on the REAL
- * graphty-element, driven by real clicks, keys and hovers: a yes-or-no value picked removes and
- * selects nothing until Yes or No, a data column named rank is listed, a text step takes the
- * reader's typing, "And..." adds a step with the group's verb after a group's first, a value with no test shows no
- * test in its pane, an edge step reading a node value can take either end (in Advanced), a So far
- * step's pane draws its test, a filter card is named as its rows say it, "Or..." then Escape leaves
- * no group, the key names a single group by the selection's title, hovering a group row marks it,
- * and the style tree's rows move with Mod+[ and Mod+].
+ * The selection editor's cards and the style tree's reorder keys on the REAL graphty-element,
+ * driven by real clicks and keys: a text card puts focus in its text box, a step computed on So
+ * far draws its test from its own values, a filter card is named as its rows say its steps, and
+ * Mod+[ and Mod+] move a style tree row up and down its list.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -33,7 +29,7 @@ withFeatures([]);
  */
 async function openWs(): Promise<HTMLElement> {
     if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
     }
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
@@ -51,7 +47,7 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
     const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
     const row = within(where).queryByRole("treeitem", { name: /^(And|Add)\.\.\.$/ });
     if (row !== null) {
-        await userEvent.click(row);
+        await userEvent.click(page.elementLocator(where).getByRole("treeitem", { name: /^(And|Add)\.\.\.$/ }));
         return;
     }
     if (document.querySelector(".sel-ws") === null) {
@@ -127,7 +123,7 @@ async function openLayer(
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-editor"));
     });
@@ -254,7 +250,7 @@ describe("the style tree's reorder keys", () => {
                 .map((each) => each.name);
         assert.deepEqual(order(), ["Low", "High"], "bottom first");
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Low, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Low, / }));
         // Figma: Ctrl+] brings forward (up the drawn list), Ctrl+[ sends backward.
         await userEvent.keyboard("{Control>}]{/Control}");
         await waitFor(() => {

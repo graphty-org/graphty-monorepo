@@ -83,7 +83,7 @@ describe("the canvas toolbar", () => {
         // In the app a session change re-renders the toolbar; here any store change does.
         store.set({ legendShown: false });
         const clock = await within(toolbar).findByRole("button", { name: "Timeline" });
-        await userEvent.click(clock);
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Timeline", exact: true }));
         assert.equal(runs, 1);
         // Shut until the reader asks, so the first click opens it.
         assert.isTrue(store.get().timelineOpen);
@@ -169,8 +169,8 @@ describe("the canvas toolbar", () => {
     it("runs a command from Quick actions and closes the palette", async () => {
         render(<Workspace initialState={OPEN} />);
 
-        await userEvent.click(screen.getByRole("button", { name: "Quick actions" }));
-        await userEvent.click(await screen.findByRole("option", { name: /Keyboard shortcuts/ }));
+        await userEvent.click(page.getByRole("button", { name: "Quick actions", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: /Keyboard shortcuts/ }));
         assert.isNotNull(await screen.findByRole("dialog", { name: "Keyboard shortcuts" }));
         assert.isNull(screen.queryByRole("listbox"));
     });

@@ -88,7 +88,7 @@ describe("the Style panel on a file's layers", () => {
             await shownOrFailed(() => within(inspector).queryByRole("tab", { name: "Style" }), names[index]);
             const style = within(inspector).getByRole("tab", { name: "Style" });
             if (style.getAttribute("aria-selected") !== "true") {
-                await userEvent.click(style);
+                await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
             }
             await shownOrFailed(() => screen.queryByTestId("style-tab"), names[index]);
         }
@@ -112,7 +112,7 @@ describe("the Style panel on a file's layers", () => {
             assert.isNotNull(document.querySelector(".sel-rest"), "the selection editor reads the layer");
         });
         // ...and edits the layer's selector as it edits any layer's.
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
         const ws = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found, "the selection editor is open");
@@ -122,7 +122,7 @@ describe("the Style panel on a file's layers", () => {
             return;
         }
         // "+ Card" adds an Or group: a new card.
-        await userEvent.click(await within(ws).findByRole("button", { name: "Card" }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "Card", exact: true }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Degree{Enter}");
         await waitFor(() => {
@@ -132,7 +132,7 @@ describe("the Style panel on a file's layers", () => {
                 JSON.stringify(where),
             );
         });
-        await userEvent.click(within(ws).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"), "the selection editor closed");
         });

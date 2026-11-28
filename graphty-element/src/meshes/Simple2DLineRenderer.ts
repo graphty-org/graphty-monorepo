@@ -30,7 +30,7 @@ export class Simple2DLineRenderer {
      * @param scene - Babylon.js scene
      * @param widened - Whether its slots carry a taper's static values (`EdgeLineBatch`)
      * @param minScreenWidth - The fewest screen pixels wide the line is drawn (`line.minScreenWidth`)
-     * @param blend - How it blends: its fade (`line.fade`) and whether it does not (`line.blending`)
+     * @param blend - How it blends: its fade (`line.fade`) and whether it does not (`line.blending`), and how much of its middle is left undrawn (`hollow`)
      * @returns The template mesh, with its material
      */
     static createBatchMesh(
@@ -40,7 +40,7 @@ export class Simple2DLineRenderer {
         scene: Scene,
         widened = false,
         minScreenWidth = 0,
-        blend: Pick<JoinedLineOptions, "fade" | "opaque"> = {},
+        blend: Pick<JoinedLineOptions, "fade" | "opaque" | "hollow"> = {},
     ): Mesh {
         const mesh = CustomLineRenderer.createJoinedLineMesh(
             { width, color, opacity, worldWidth: true, widened, minScreenWidth, ...blend },

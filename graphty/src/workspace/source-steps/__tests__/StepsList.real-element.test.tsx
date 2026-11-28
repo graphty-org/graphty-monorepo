@@ -98,7 +98,7 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
 
         const steps = session.history.steps.length;
         await selectJoin(modal, "people + entries");
-        await userEvent.click(await within(modal).findByRole("button", { name: /^Remove/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Remove/ }));
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["people + hr", "New join"]);
         });
@@ -116,7 +116,7 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
 
         const again = await workspace();
         await selectJoin(again, "people + entries");
-        await userEvent.click(await within(again).findByRole("button", { name: /^Remove/ }));
+        await userEvent.click(page.elementLocator(again).getByRole("button", { name: /^Remove/ }));
         await done(again);
         await screen.findAllByText("Removed");
         assert.isNotEmpty(screen.getAllByRole("button", { name: "Undo" }), "the notice offers Undo");
@@ -202,7 +202,7 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
         const b1 = within(list).getByRole("listitem", { name: "Pick B1" });
         assert.include(b1.textContent ?? "", "dept = Operations");
         assert.include(b1.textContent ?? "", "hr.csv", "names the source it took");
-        await userEvent.click(within(b1).getByRole("button", { name: "Delete Pick B1" }));
+        await userEvent.click(page.elementLocator(b1).getByRole("button", { name: "Delete Pick B1", exact: true }));
         await waitFor(() => {
             assert.isNull(within(list).queryByRole("listitem", { name: "Pick B1" }));
         });
@@ -220,8 +220,8 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
         await merge.commit();
         const nodes = session.data.statistics({ scope: "all" }).nodeCount;
         const row = await screen.findByRole("listitem", { name: "people.csv" });
-        await userEvent.click(within(row).getByRole("button", { name: "people.csv menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "people.csv menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Remove", exact: true }));
         const modal = await screen.findByRole("dialog", { name: "Join" });
         const strip = await within(modal).findByRole("region", { name: "Remove people" });
         const later = within(strip).getByRole("group", { name: "Other joins" });
@@ -251,8 +251,8 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
         store.set({ dockOpen: false, dockMaximized: false });
         assert.lengthOf(session.data.steps(), 0, "no step builds it");
         const row = await screen.findByRole("listitem", { name: "links.csv" });
-        await userEvent.click(within(row).getByRole("button", { name: "links.csv menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "links.csv menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Remove", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.data.sources(), 0);
         });

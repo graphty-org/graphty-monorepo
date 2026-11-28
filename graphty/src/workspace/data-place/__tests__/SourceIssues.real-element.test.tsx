@@ -59,15 +59,19 @@ describe("a Sources row's issues", () => {
         const session = await openSites();
         const place = within(screen.getByRole("region", { name: "Data place" }));
         const row = await place.findByRole("listitem", { name: "sites.csv" });
-        const chip = await within(row).findByRole("button", { name: "1 issue in sites.csv" });
+        await within(row).findByRole("button", { name: "1 issue in sites.csv" });
         assert.isNull(screen.queryByRole("region", { name: "Table" }), "the table is closed");
 
-        await userEvent.click(chip);
+        await userEvent.click(
+            page.elementLocator(row).getByRole("button", { name: "1 issue in sites.csv", exact: true }),
+        );
         const dialog = await screen.findByRole("dialog", { name: "Issues in sites.csv" });
         assert.include(dialog.textContent, "1 value with padded spaces");
         within(dialog).getByRole("button", { name: "Ignore in all columns" });
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Trim: 1 value with padded spaces" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Trim: 1 value with padded spaces", exact: true }),
+        );
         await waitFor(() => {
             assert.lengthOf(session.data.issues(), 0);
             assert.include(spoken(), "name: 1 value trimmed");
@@ -86,9 +90,15 @@ describe("a Sources row's issues", () => {
         await openSites();
         const place = within(screen.getByRole("region", { name: "Data place" }));
         const row = await place.findByRole("listitem", { name: "sites.csv" });
-        await userEvent.click(await within(row).findByRole("button", { name: "1 issue in sites.csv" }));
+        await userEvent.click(
+            page.elementLocator(row).getByRole("button", { name: "1 issue in sites.csv", exact: true }),
+        );
         const dialog = await screen.findByRole("dialog", { name: "Issues in sites.csv" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Show rows: 1 value with padded spaces" }));
+        await userEvent.click(
+            page
+                .elementLocator(dialog)
+                .getByRole("button", { name: "Show rows: 1 value with padded spaces", exact: true }),
+        );
         const table = await screen.findByRole("region", { name: "Table" });
         await waitFor(() => {
             const grid = within(table).getByRole("grid", { name: "Nodes" });
@@ -123,7 +133,7 @@ describe("a Sources row's issues", () => {
         const issues = await within(row).findByRole("button", { name: `1 issue in ${name}` });
         const toggle = row.querySelector<HTMLElement>("[aria-expanded=true]");
         if (toggle !== null) {
-            await userEvent.click(toggle);
+            await userEvent.click(page.elementLocator(row).getByCss("[aria-expanded=true]").first());
         }
         const summary = await waitFor(() => {
             const found = row.querySelector<HTMLElement>("[data-testid=control-section-summary]");

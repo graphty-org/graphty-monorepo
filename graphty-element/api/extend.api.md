@@ -898,10 +898,9 @@ export { EdgeMask }
 // @public
 export function edgeMetricFields(value: MetricValueName): readonly FieldDescriptor[];
 
-// @public (undocumented)
+// @public
 export interface EdgePosition {
     bends?: readonly number[];
-    // (undocumented)
     dst: Position;
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
@@ -914,7 +913,6 @@ export interface EdgePosition {
         readonly source: readonly [along: number, across: number];
         readonly target: readonly [along: number, across: number];
     };
-    // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];
     xlabelAt?: readonly [along: number, across: number];
@@ -2252,9 +2250,7 @@ export abstract class LayoutEngine {
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
     static get(type: string, opts?: object): LayoutEngine | null;
     static getClass(type: string): (LayoutEngineClass & LayoutEngineStatics) | null;
-    // (undocumented)
     abstract getEdgePosition(e: Edge): EdgePosition;
-    // (undocumented)
     abstract getNodePosition(n: Node_2): Position;
     getNodeXlabelOffset(_n: Node_2): readonly [right: number, down: number] | undefined;
     static getOptionsForDimension(dimension: 2 | 3): object | null;
@@ -2269,22 +2265,18 @@ export abstract class LayoutEngine {
     static honorsWeights: boolean;
     // @deprecated
     static readonly honoursWeights?: boolean;
-    // (undocumented)
     abstract init(): Promise<void>;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
     isNodeXlabelLeftOut(_n: Node_2): boolean;
-    // (undocumented)
     abstract get isSettled(): boolean;
     // @internal
     protected keepInPublishedBox(n: Node_2 | ElementPositions | undefined, rows: ReadonlySet<number>): void;
     // @internal
     protected lastPublishedBox(): Readonly<Float64Array> | null;
     loadArrangement(): void;
-    // (undocumented)
     static maxDimensions: number;
     get nodePositions(): ReadonlyElementPositions;
-    // (undocumented)
     abstract get nodes(): Iterable<Node_2>;
     get nodeScreenReference(): number | null;
     // @deprecated
@@ -2330,11 +2322,9 @@ export abstract class LayoutEngine {
     protected get shownView(): WorkingView | null;
     // @internal
     get spacesBySize(): boolean;
-    // (undocumented)
     abstract step(): void;
     // @internal
     storeRowOf: ((id: NodeIdType) => number) | null;
-    // (undocumented)
     static type: string;
     get type(): string;
     protected abstract unpin(n: Node_2): void;
@@ -2354,9 +2344,7 @@ export abstract class LayoutEngine {
 // @public
 export interface LayoutEngineStatics {
     descriptor?: AuthoredLayoutDescriptor;
-    // (undocumented)
     getZodOptionsSchema(): OptionsSchema_2;
-    // (undocumented)
     hasZodOptions(): boolean;
     honorsWeights?: boolean;
     // @deprecated
@@ -2364,7 +2352,6 @@ export interface LayoutEngineStatics {
     maxDimensions: number;
     scoped?: boolean;
     type: string;
-    // (undocumented)
     zodOptionsSchema?: OptionsSchema_2;
 }
 
@@ -2507,6 +2494,8 @@ class Node_2 implements ModelUser {
         min: Vector3;
         max: Vector3;
     };
+    // @internal
+    framingReach(): number;
     getPosition(): {
         x: number;
         y: number;
@@ -2897,13 +2886,10 @@ export interface PlainLogRecord {
 // @public
 export type Point = readonly [number, number] | readonly [number, number, number];
 
-// @public (undocumented)
+// @public
 export interface Position {
-    // (undocumented)
     x: number;
-    // (undocumented)
     y: number;
-    // (undocumented)
     z?: number;
 }
 
@@ -3201,19 +3187,19 @@ export type ShorthandValue<S> = S extends number ? number : S extends boolean ? 
     }[];
 } ? V : string;
 
-// @public (undocumented)
+// @public
 export const SimpleLayoutConfig: z.ZodObject<{
     scalingFactor: z.ZodDefault<z.ZodNumber>;
 }, z.core.$loose>;
 
-// @public (undocumented)
+// @public
 export type SimpleLayoutConfigType = z.infer<typeof SimpleLayoutConfig>;
 
 // @public @deprecated
 export abstract class SimpleLayoutEngine extends StaticLayoutEngine {
 }
 
-// @public (undocumented)
+// @public
 export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
 
 // @public

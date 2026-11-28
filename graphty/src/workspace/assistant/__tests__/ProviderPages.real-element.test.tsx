@@ -48,8 +48,8 @@ function outOfQuota(): void {
  */
 async function openKeyPage(): Promise<HTMLElement> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Pages", id: 1 } })} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
-    await userEvent.click(await screen.findByRole("button", { name: "AI provider..." }));
+    await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
+    await userEvent.click(page.getByRole("button", { name: "AI provider...", exact: true }));
     const dialog = await screen.findByRole("dialog", { name: "Settings" });
     await within(dialog).findByLabelText("API key");
     return dialog;
@@ -74,7 +74,9 @@ describe("the provider pages the Assistant links to", () => {
 
     it("opens the key steps and the key page from the field's (?) by click, and Esc closes them", async () => {
         const dialog = await openKeyPage();
-        const help = within(dialog).getByRole("button", { name: "How to get a key from Google" });
+        const help = page
+            .elementLocator(dialog)
+            .getByRole("button", { name: "How to get a key from Google", exact: true });
         await userEvent.click(help);
         const steps = await screen.findByRole("dialog", { name: "How to get a key from Google" });
         assert.strictEqual(within(steps).getAllByRole("listitem").length, 4);
@@ -110,9 +112,11 @@ describe("the provider pages the Assistant links to", () => {
 
     it("names each provider's own steps, and says OpenAI needs credit", async () => {
         const dialog = await openKeyPage();
-        await userEvent.click(within(dialog).getByRole("combobox", { name: "Provider" }));
-        await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
-        await userEvent.click(within(dialog).getByRole("button", { name: "How to get a key from OpenAI" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Provider", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "OpenAI", exact: true }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "How to get a key from OpenAI", exact: true }),
+        );
         const steps = await screen.findByRole("dialog", { name: "How to get a key from OpenAI" });
         within(steps).getByText("OpenAI needs credit on the account before a key answers.");
         assert.strictEqual(
@@ -124,10 +128,10 @@ describe("the provider pages the Assistant links to", () => {
     it("warns a provider is out of credit with Add credit, in the chat and in Settings, until a new key", async () => {
         outOfQuota();
         const dialog = await openKeyPage();
-        await userEvent.click(within(dialog).getByLabelText("API key"));
+        await userEvent.click(page.elementLocator(dialog).getByLabelText("API key", { exact: true }));
         await userEvent.keyboard(KEY);
-        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-        await userEvent.click(await screen.findByRole("textbox", { name: "Message the assistant" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Save", exact: true }));
+        await userEvent.click(page.getByRole("textbox", { name: "Message the assistant", exact: true }));
         await userEvent.keyboard("Please answer{Enter}");
 
         const row = await screen.findByRole("alert");
@@ -137,7 +141,7 @@ describe("the provider pages the Assistant links to", () => {
         assert.strictEqual(add.getAttribute("href"), GOOGLE?.billing);
         assert.strictEqual(add.getAttribute("target"), "_blank");
 
-        await userEvent.click(within(log).getByRole("button", { name: "AI provider..." }));
+        await userEvent.click(page.elementLocator(log).getByRole("button", { name: "AI provider...", exact: true }));
         const settings = await screen.findByRole("dialog", { name: "Settings" });
         const note = await within(settings).findByRole("note");
         assert.include(note.textContent, "Google has no credit left on this key.");
@@ -147,12 +151,12 @@ describe("the provider pages the Assistant links to", () => {
         );
 
         // A new key may have credit: the warning goes with the old one.
-        await userEvent.click(within(settings).getByLabelText("API key"));
+        await userEvent.click(page.elementLocator(settings).getByLabelText("API key", { exact: true }));
         await userEvent.keyboard(`${KEY}-new`);
-        await userEvent.click(within(settings).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(settings).getByRole("button", { name: "Save", exact: true }));
         await screen.findByRole("textbox", { name: "Message the assistant" });
-        await userEvent.click(await screen.findByRole("button", { name: "Options" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Gemini 3.8 Flash..." }));
+        await userEvent.click(page.getByRole("button", { name: "Options", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Gemini 3.8 Flash...", exact: true }));
         const again = await screen.findByRole("dialog", { name: "Settings" });
         await within(again).findByLabelText("API key");
         assert.isNull(within(again).queryByRole("note"));

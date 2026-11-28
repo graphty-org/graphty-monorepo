@@ -122,3 +122,4 @@ tools/refresh-inherited-prs.test.mjs
 
 tools/loop-record-hook.test.mjs
 tools/workspace-sync.test.mjs
+tools/interaction-latency.test.mjs

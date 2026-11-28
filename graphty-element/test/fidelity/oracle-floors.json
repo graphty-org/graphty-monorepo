@@ -56303,22 +56303,6 @@
                 "date": "2026-11-23"
             }
         },
-        "graphml-stm32-func": {
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.98,
-                "reason": "2026-11-22 (#8189): the comparator now reads graphml-stm32-func's framed edge n2 -> n1 (yEd's outline started at the source arrowhead's wing), so its heads are judged: yEd draws a framed edge with no fill color as its outline alone, its standard heads hollow, where graphty-element fills them (it has no hollow vee arrow)",
-                "date": "2026-11-23"
-            }
-        },
-        "graphml-stm32-func@matched": {
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.98,
-                "reason": "2026-11-22 (#8189): the comparator now reads graphml-stm32-func's framed edge n2 -> n1 (yEd's outline started at the source arrowhead's wing), so its heads are judged: yEd draws a framed edge with no fill color as its outline alone, its standard heads hollow, where graphty-element fills them (it has no hollow vee arrow)",
-                "date": "2026-11-23"
-            }
-        },
         "graphml-yfiles-html-ss13-tree": {
             "label.rotation": {
                 "floor": 1,

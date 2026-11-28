@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
@@ -64,7 +64,7 @@ async function openWithGraph(
  */
 async function focusFind(): Promise<HTMLElement> {
     const find = await screen.findByRole("combobox", { name: "Find" });
-    await userEvent.click(find);
+    await userEvent.click(page.getByRole("combobox", { name: "Find", exact: true }));
     return find;
 }
 
@@ -136,10 +136,10 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("staff");
         const list = await screen.findByRole("listbox", { name: "Find results" });
-        const row = within(list).getByRole("option", { name: /role is staff/ });
+        const row = (): Locator => page.elementLocator(list).getByRole("option", { name: /role is staff/ });
 
         await userEvent.keyboard("{Shift>}");
-        await userEvent.click(row);
+        await userEvent.click(row());
         await userEvent.keyboard("{/Shift}");
 
         await waitFor(() => {
@@ -198,8 +198,11 @@ describe("the find box in plain words", () => {
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes], ["a"]);
         });
-        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(await inspector.findByRole("tab", { name: "Style" }));
+        await userEvent.click(
+            page
+                .getByRole("complementary", { name: "Inspector", exact: true })
+                .getByRole("tab", { name: "Style", exact: true }),
+        );
 
         await focusFind();
         await userEvent.keyboard("Ava");
@@ -241,7 +244,7 @@ describe("the find box in plain words", () => {
         await waitFor(() => {
             assert.match(lineUnderBox(), /type a rule such as name == '(Ava|Ben|Cy|Dee)'/);
         });
-        await userEvent.clear(screen.getByRole("combobox", { name: "Find" }));
+        await userEvent.clear(page.getByRole("combobox", { name: "Find", exact: true }));
         await userEvent.keyboard("=");
         await waitFor(() => {
             assert.include(lineUnderBox(), "Type a rule, such as name == '");
@@ -330,7 +333,7 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("staff");
         const list = await screen.findByRole("listbox", { name: "Find results" });
-        const row = await within(list).findByRole("option", { name: /role is staff/ });
+        await within(list).findByRole("option", { name: /role is staff/ });
         const viewport = list.closest<HTMLElement>(".ws-find-viewport");
         assert.isNotNull(viewport);
         await waitFor(() => {
@@ -338,7 +341,7 @@ describe("the find box in plain words", () => {
         });
 
         await userEvent.keyboard("{Shift>}");
-        await userEvent.click(row);
+        await userEvent.click(page.elementLocator(list).getByRole("option", { name: /role is staff/ }));
         await userEvent.keyboard("{/Shift}");
 
         await waitFor(() => {

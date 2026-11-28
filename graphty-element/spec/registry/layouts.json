@@ -184,6 +184,18 @@
                             "default": false
                         },
                         {
+                            "name": "barnesHut",
+                            "type": "boolean",
+                            "default": false
+                        },
+                        {
+                            "name": "barnesHutTheta",
+                            "type": "number",
+                            "default": 1.2,
+                            "min": 0,
+                            "step": 0.1
+                        },
+                        {
                             "name": "weighted",
                             "type": "boolean",
                             "default": true

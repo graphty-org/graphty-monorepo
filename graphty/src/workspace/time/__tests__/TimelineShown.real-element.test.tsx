@@ -96,7 +96,7 @@ async function savedDates(): Promise<string> {
     await session.project.open(await timedProject(), { discard: true });
     await userEvent.keyboard("{Shift>}T{/Shift}");
     const dock = await screen.findByRole("region", { name: "Table" });
-    await userEvent.click(await within(dock).findByRole("tab", { name: "Edges" }));
+    await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: "Edges", exact: true }));
     const table = await within(dock).findByRole("grid", { name: "Edges" });
     await waitFor(() => {
         assert.match(table.textContent, /[A-Z][a-z]{2} \d+, 202\d/);
@@ -114,10 +114,12 @@ async function savedDates(): Promise<string> {
 async function openTimelineSettings(): Promise<void> {
     const toggle = await screen.findByRole("button", { name: "Timeline" });
     if (toggle.getAttribute("aria-pressed") !== "true") {
-        await userEvent.click(toggle);
+        await userEvent.click(page.getByRole("button", { name: "Timeline", exact: true }));
     }
     const timeline = await screen.findByRole("region", { name: "Timeline" });
-    await userEvent.click(within(timeline).getByRole("button", { name: "Timeline settings" }));
+    await userEvent.click(
+        page.elementLocator(timeline).getByRole("button", { name: "Timeline settings", exact: true }),
+    );
     await screen.findByTestId("time-card");
 }
 
@@ -135,7 +137,7 @@ function dataPlace(): Within {
  */
 async function timeCommands(): Promise<string> {
     await userEvent.keyboard("{Control>}k{/Control}");
-    await userEvent.type(await screen.findByPlaceholderText("Search commands"), "time");
+    await userEvent.type(page.getByPlaceholder("Search commands", { exact: true }), "time");
     const words = screen.queryAllByRole("option").map((option) => option.textContent);
     await userEvent.keyboard("{Escape}");
     return words.join("|");
@@ -146,8 +148,8 @@ async function timeCommands(): Promise<string> {
  * @returns the dialog's words, once it has closed again.
  */
 async function shortcuts(): Promise<string> {
-    await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
+    await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
     const words = (await screen.findByRole("dialog", { name: "Keyboard shortcuts" })).textContent;
     await userEvent.keyboard("{Escape}");
     await waitFor(() => {
@@ -162,7 +164,7 @@ async function shortcuts(): Promise<string> {
  */
 async function sampleCommands(): Promise<string> {
     await userEvent.keyboard("{Control>}k{/Control}");
-    await userEvent.type(await screen.findByPlaceholderText("Search commands"), "Paper citations");
+    await userEvent.type(page.getByPlaceholder("Search commands", { exact: true }), "Paper citations");
     const words = screen.queryAllByRole("option").map((option) => option.textContent);
     await userEvent.keyboard("{Escape}");
     return words.join("|");
@@ -176,7 +178,7 @@ async function sampleCommands(): Promise<string> {
  */
 async function headerRoles(kind: "node" | "edge", name: string): Promise<(string | null)[]> {
     await openColumnMenu(kind, name);
-    await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+    await userEvent.hover(page.getByRole("menuitem", { name: "Role", exact: true }));
     const roles = (await screen.findAllByRole("menuitemradio")).map((item) => item.textContent);
     await userEvent.keyboard("{Escape}");
     await userEvent.keyboard("{Escape}");
@@ -200,7 +202,7 @@ async function loadRoles(): Promise<(string | null)[]> {
     for (const type of ["dragenter", "dragover", "drop"]) {
         dataPage.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
     }
-    await userEvent.click(await screen.findByRole("combobox", { name: "Role of sent" }));
+    await userEvent.click(page.getByRole("combobox", { name: "Role of sent", exact: true }));
     return (await screen.findAllByRole("option")).map((option) => option.textContent);
 }
 
@@ -227,15 +229,15 @@ describe("the timeline in the app", () => {
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add to edge attributes" }));
         // "sent" reads as time: it leads Time's submenu.
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Time" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^sent/ }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Time", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^sent/ }));
 
         await screen.findByRole("button", { name: "Timeline" });
         assert.deepEqual(session.time.field, { edges: { start: "sent" } });
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
         // The new card opens in the selection workspace: its Value list holds the filterable values.
-        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
+        await userEvent.click(page.getByRole("button", { name: "Value", exact: true }));
         await screen.findAllByRole("option");
         assert.isNull(screen.queryByRole("option", { name: "Time window" }), "the window is no filter");
         await userEvent.keyboard("{Escape}");
@@ -254,7 +256,7 @@ describe("the timeline in the app", () => {
         assert.include(await sampleCommands(), "Paper citations");
         assert.include(await headerRoles("node", "team"), "Time");
         await columnVerb("node", "team", "Details");
-        await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
+        await userEvent.click(page.getByRole("button", { name: "Attribute actions", exact: true }));
         await screen.findByRole("menuitem", { name: "Set in Data" });
     });
 

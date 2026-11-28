@@ -4,7 +4,7 @@
  * search and its group filter.
  */
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { render, screen, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
@@ -16,8 +16,8 @@ import { Workspace } from "../../Workspace";
  */
 async function openSamples(): Promise<HTMLElement> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" })} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
+    await userEvent.click(page.getByRole("button", { name: "Add source", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: /Samples/ }));
     return screen.findByRole("dialog", { name: "Samples" });
 }
 
@@ -100,24 +100,30 @@ describe("the Samples dialog", () => {
 
     it("narrows to what the search box names, and to one group", async () => {
         const dialog = await openSamples();
-        const search = within(dialog).getByRole("searchbox", { name: "Search samples" });
+        const search = (): Locator =>
+            page.elementLocator(dialog).getByRole("searchbox", { name: "Search samples", exact: true });
 
-        await userEvent.type(search, "dolphin");
+        await userEvent.type(search(), "dolphin");
         const sections = within(dialog).getAllByRole("region");
         assert.deepEqual(
             sections.map((section) => section.getAttribute("aria-label")),
             ["Samples"],
         );
-        await userEvent.clear(search);
+        await userEvent.clear(search());
 
-        await userEvent.click(within(within(dialog).getByRole("radiogroup", { name: "Group" })).getByText("Network"));
+        await userEvent.click(
+            page
+                .elementLocator(dialog)
+                .getByRole("radiogroup", { name: "Group", exact: true })
+                .getByText("Network", { exact: true }),
+        );
         assert.deepEqual(
             within(dialog)
                 .getAllByRole("region")
                 .map((section) => section.getAttribute("aria-label")),
             ["Network"],
         );
-        await userEvent.type(search, "zzz");
+        await userEvent.type(search(), "zzz");
         assert.isNotNull(within(dialog).getByText("No matches"));
     });
 });

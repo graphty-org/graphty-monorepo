@@ -1,10 +1,9 @@
 /**
  * A sample opened from the start page, as a reader picks it: its tile in the sample library.
  */
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { sampleTile } from "./sample-tile";
-import { screen } from "./test-utils";
 
 export { sampleTile };
 
@@ -14,5 +13,5 @@ export { sampleTile };
  * @param name - the sample's name.
  */
 export async function pickSample(name: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("button", { name: sampleTile(name) }));
+    await userEvent.click(page.getByRole("button", { name: sampleTile(name), exact: true }));
 }

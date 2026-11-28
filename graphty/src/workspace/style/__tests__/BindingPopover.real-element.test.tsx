@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -155,8 +155,8 @@ function rowOf(popover: HTMLElement, value: string): HTMLElement {
  * @param item - the item's name.
  */
 async function rowMenu(popover: HTMLElement, row: HTMLElement, name: string, item: string | RegExp): Promise<void> {
-    await userEvent.click(within(row).getByRole("button", { name: new RegExp(` ${name} actions$`) }));
-    await userEvent.click(await within(popover).findByRole("menuitem", { name: item }));
+    await userEvent.click(page.elementLocator(row).getByRole("button", { name: new RegExp(` ${name} actions$`) }));
+    await userEvent.click(page.elementLocator(popover).getByRole("menuitem", { name: item, exact: true }));
 }
 
 /**
@@ -182,8 +182,8 @@ async function editValue(
     const row = rowOf(popover, value);
     const otherBefore = colorOfValue(session, layer.id, other);
 
-    await userEvent.click(within(row).getByTestId("compact-color-input-chip"));
-    const hex = await screen.findByTestId("color-picker-value");
+    await userEvent.click(page.elementLocator(row).getByTestId("compact-color-input-chip"));
+    const hex = page.getByTestId("color-picker-value");
     await userEvent.tripleClick(hex);
     await userEvent.keyboard("00AA00{Enter}");
     await waitFor(() => {
@@ -198,7 +198,7 @@ async function editValue(
     assert.isTrue(popover.isConnected, "and leaves the popover open");
 
     // A palette change reaches every value without an entry and leaves the entry alone.
-    await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
+    await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: /^Palette/ }));
     const options = await screen.findAllByRole("option");
     // The layer sets no palette, so none is shown as chosen: pick one other than the one in force.
     const inForce = session.styles.legendOf(layer.id).find((block) => block.channel === "node.color")?.palette?.name;
@@ -267,19 +267,31 @@ describe("the binding popover on the real element", () => {
         const track = within(popover).getByTestId("ramp-editor-track");
         const { width } = track.getBoundingClientRect();
 
-        await userEvent.dragAndDrop(handle, track, { targetPosition: { x: width * 0.5, y: 8 } });
+        await userEvent.dragAndDrop(
+            page.elementLocator(popover).getByRole("slider", { name: "Ramp end", exact: true }),
+            page.elementLocator(popover).getByTestId("ramp-editor-track"),
+            { targetPosition: { x: width * 0.5, y: 8 } },
+        );
         await waitFor(() => {
             assert.isBelow(domainOf()?.[1] ?? Infinity, 20, "the drag narrows the ramp");
         });
         assert.equal(handle.getAttribute("aria-valuemax"), "20", "the end can still reach the data's end");
         assert.equal(axisOf(popover)[0]?.split(" to ")[0], "1", "the axis still starts at the data's start");
 
-        await userEvent.dragAndDrop(handle, track, { targetPosition: { x: width - 1, y: 8 } });
+        await userEvent.dragAndDrop(
+            page.elementLocator(popover).getByRole("slider", { name: "Ramp end", exact: true }),
+            page.elementLocator(popover).getByTestId("ramp-editor-track"),
+            { targetPosition: { x: width - 1, y: 8 } },
+        );
         await waitFor(() => {
             assert.equal(domainOf()?.[1], 20, "dragged back out to the data's end");
         });
 
-        await userEvent.dragAndDrop(handle, track, { targetPosition: { x: width * 0.5, y: 8 } });
+        await userEvent.dragAndDrop(
+            page.elementLocator(popover).getByRole("slider", { name: "Ramp end", exact: true }),
+            page.elementLocator(popover).getByTestId("ramp-editor-track"),
+            { targetPosition: { x: width * 0.5, y: 8 } },
+        );
         await waitFor(() => {
             assert.isBelow(domainOf()?.[1] ?? Infinity, 20);
         });
@@ -305,10 +317,13 @@ describe("the binding popover on the real element", () => {
         const lowest = colorOfNode(session, "n0");
         assert.notEqual(low, lowest, "score 5 and score 1 differ before the drag");
 
-        const handle = within(popover).getByRole("slider", { name: "Ramp start" });
+        const handle = (): Locator =>
+            page.elementLocator(popover).getByRole("slider", { name: "Ramp start", exact: true });
         const track = within(popover).getByTestId("ramp-editor-track");
         const { width } = track.getBoundingClientRect();
-        await userEvent.dragAndDrop(handle, track, { targetPosition: { x: width * 0.5, y: 8 } });
+        await userEvent.dragAndDrop(handle(), page.elementLocator(popover).getByTestId("ramp-editor-track"), {
+            targetPosition: { x: width * 0.5, y: 8 },
+        });
         await waitFor(() => {
             const { domain } = session.styles.get(layer.id)?.encode?.["node.color"] as { domain?: unknown };
             assert.isArray(domain, "the drag writes a domain");
@@ -320,19 +335,23 @@ describe("the binding popover on the real element", () => {
         const from = within(popover).getByTestId("ramp-editor-from");
         assert.notEqual((from as HTMLInputElement).value, "1", "the ramp's start field follows");
 
-        await userEvent.click(within(popover).getByRole("button", { name: "Fit to the data" }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("button", { name: "Fit to the data", exact: true }),
+        );
         const linear = await waitFor(() => {
             const bars = axisOf(popover);
             assert.equal(bars[0]?.split(" to ")[0], "1");
             return bars;
         });
-        await userEvent.click(within(popover).getByRole("combobox", { name: /^Scale/ }));
-        await userEvent.click(await screen.findByRole("option", { name: /^Logarithmic/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: /^Scale/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Logarithmic/ }));
         await waitFor(() => {
             assert.notDeepEqual(axisOf(popover), linear, "Log redraws the axis");
         });
 
-        await userEvent.click(within(popover).getByRole("switch", { name: "Clamp outliers" }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("switch", { name: "Clamp outliers", exact: true }),
+        );
         await waitFor(() => {
             const binding = session.styles.get(layer.id)?.encode?.["node.color"];
             assert.isDefined(binding);
@@ -347,8 +366,8 @@ describe("the binding popover on the real element", () => {
         });
 
         // A stepped ramp lists its steps, each with the count the element gives it.
-        await userEvent.click(within(popover).getByRole("combobox", { name: /^Scale/ }));
-        await userEvent.click(await screen.findByRole("option", { name: /^Equal bins/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: /^Scale/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Equal bins/ }));
         await waitFor(() => {
             const steps = within(within(popover).getByRole("list", { name: "Steps" })).getAllByRole("listitem");
             assert.isAtLeast(steps.length, 2);
@@ -472,9 +491,10 @@ describe("the binding popover on the real element", () => {
         const name = keyName(session, layer.id, value);
         const popover = await openBinding(store, layer);
         await rowMenu(popover, rowOf(popover, value), name, /^Rename/);
-        const field = await within(popover).findByRole("textbox", { name: new RegExp(`^Name of .* ${name}$`) });
-        await userEvent.clear(field);
-        await userEvent.type(field, "Students{Enter}");
+        const field = (): Locator =>
+            page.elementLocator(popover).getByRole("textbox", { name: new RegExp(`^Name of .* ${name}$`) });
+        await userEvent.clear(field());
+        await userEvent.type(field(), "Students{Enter}");
         const path = session.results.path(runId);
         await waitFor(() => {
             assert.equal(session.data.valueLabels(path).get(value), "Students");

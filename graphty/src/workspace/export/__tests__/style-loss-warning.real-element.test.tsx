@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import { createGraphSession, type GraphSession, type LayerSpec } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -90,7 +90,12 @@ function layers(session: GraphSession): unknown[] {
 async function openData(): Promise<HTMLElement> {
     await userEvent.keyboard("{Control>}e{/Control}");
     const dialog = await screen.findByRole("dialog", { name: "Export" });
-    await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"));
+    await userEvent.click(
+        page
+            .elementLocator(dialog)
+            .getByRole("grid", { name: "What to export", exact: true })
+            .getByText("Data", { exact: true }),
+    );
     await waitFor(() => {
         assert.notInclude(
             within(dialog).getByLabelText("Preview of the exported data").textContent,
@@ -105,10 +110,14 @@ async function openData(): Promise<HTMLElement> {
  * @param dialog - the Export dialog, on Data.
  */
 async function chooseCsvNodes(dialog: HTMLElement): Promise<void> {
-    await userEvent.click(within(dialog).getByLabelText("Format", { selector: "input" }));
-    await userEvent.click(await screen.findByRole("option", { name: "CSV" }));
-    await userEvent.click(within(dialog).getByLabelText("Table", { selector: "input" }));
-    await userEvent.click(await screen.findByRole("option", { name: "Nodes" }));
+    await userEvent.click(
+        page.elementLocator(dialog).getByLabelText("Format", { exact: true }).and(page.getByCss("input")),
+    );
+    await userEvent.click(page.getByRole("option", { name: "CSV", exact: true }));
+    await userEvent.click(
+        page.elementLocator(dialog).getByLabelText("Table", { exact: true }).and(page.getByCss("input")),
+    );
+    await userEvent.click(page.getByRole("option", { name: "Nodes", exact: true }));
     await waitFor(() => {
         assert.notInclude(within(dialog).getByLabelText("Preview of the exported data").textContent, "Writing");
     });
@@ -146,7 +155,7 @@ describe("Export warns before the graph's styles are lost", () => {
         const dialog = await openData();
         await chooseCsvNodes(dialog);
         within(dialog).getByText("No styles");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Export", exact: true }));
         await screen.findByText("Exported untitled_nodes.csv", TOAST);
         assert.isNull(within(dialog).queryByRole("alertdialog"));
         assert.deepEqual(
@@ -156,12 +165,12 @@ describe("Export warns before the graph's styles are lost", () => {
 
         // GraphML keeps the layers: the menu says so, and Export saves without a warning.
         const again = await openData();
-        await userEvent.click(within(again).getByLabelText("Format"));
-        await userEvent.click(await screen.findByRole("option", { name: "GraphML" }));
+        await userEvent.click(page.elementLocator(again).getByLabelText("Format", { exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "GraphML", exact: true }));
         await waitFor(() => {
             assert.include(within(again).getByLabelText("Preview of the exported data").textContent, "<graphml");
         });
-        await userEvent.click(within(again).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(again).getByRole("button", { name: "Export", exact: true }));
         await screen.findByText("Exported untitled_graph.graphml", TOAST);
         assert.isNull(screen.queryByRole("alertdialog"));
         const file = saved.find(({ name }) => name === "untitled_graph.graphml");
@@ -212,18 +221,18 @@ describe("Export warns before the graph's styles are lost", () => {
         });
 
         const dialog = await openData();
-        await userEvent.click(within(dialog).getByLabelText("Format"));
-        await userEvent.click(await screen.findByRole("option", { name: /^GEXF/ }));
+        await userEvent.click(page.elementLocator(dialog).getByLabelText("Format", { exact: true }));
+        await userEvent.click(page.getByRole("option", { name: /^GEXF/ }));
         await waitFor(() => {
             assert.include(within(dialog).getByLabelText("Preview of the exported data").textContent, "<gexf");
         });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Export", exact: true }));
         const warning = await within(dialog).findByRole("alertdialog", {});
         assert.match(warning.textContent, /Node label color not written/);
         assert.match(warning.textContent, /Reopened: layers as layers/);
         assert.lengthOf(saved, 0, "no file before the reader chooses");
 
-        await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
+        await userEvent.click(page.elementLocator(warning).getByRole("button", { name: "Save anyway", exact: true }));
         await screen.findByText("Exported untitled_graph.gexf", TOAST);
         assert.deepEqual(
             saved.map(({ name }) => name),
@@ -247,17 +256,17 @@ describe("Export warns before the graph's styles are lost", () => {
 
         const dialog = await openData();
         await chooseCsvNodes(dialog);
-        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Export", exact: true }));
         await screen.findByText("Exported untitled_nodes.csv", TOAST);
         assert.isNull(screen.queryByRole("alertdialog"));
 
         const again = await openData();
-        await userEvent.click(within(again).getByLabelText("Format"));
-        await userEvent.click(await screen.findByRole("option", { name: /^GEXF/ }));
+        await userEvent.click(page.elementLocator(again).getByLabelText("Format", { exact: true }));
+        await userEvent.click(page.getByRole("option", { name: /^GEXF/ }));
         await waitFor(() => {
             assert.include(within(again).getByLabelText("Preview of the exported data").textContent, "<gexf");
         });
-        await userEvent.click(within(again).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(again).getByRole("button", { name: "Export", exact: true }));
         await screen.findByText("Exported untitled_graph.gexf", TOAST);
         assert.isNull(screen.queryByRole("alertdialog"));
         assert.deepEqual(

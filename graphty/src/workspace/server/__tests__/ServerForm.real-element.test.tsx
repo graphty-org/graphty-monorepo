@@ -18,7 +18,7 @@ import {
     registerSource,
 } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -262,8 +262,8 @@ registerSource(
  * @returns the form.
  */
 async function openForm(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
+    await userEvent.click(page.getByRole("button", { name: "Add source", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: "Network data...", exact: true }));
     return screen.findByRole("form", { name: "Network data" });
 }
 
@@ -287,8 +287,8 @@ function fixtureUrl(name: string): string {
 async function loadFromUrl(url: string): Promise<void> {
     const form = await openForm();
     await pick(form, "Kind", "Load from URL");
-    await userEvent.type(await within(form).findByRole("textbox", { name: "URL" }), url);
-    await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+    await userEvent.type(page.elementLocator(form).getByRole("textbox", { name: "URL", exact: true }), url);
+    await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
     await waitFor(() => {
         assert.isNull(screen.queryByRole("form", { name: "Network data" }));
     });
@@ -320,9 +320,9 @@ async function openDataPlace(): Promise<{ element: ElementTag; session: GraphSes
  * @param option - the option's text.
  */
 async function pick(form: HTMLElement, label: string, option: string): Promise<void> {
-    await userEvent.click(within(form).getByRole("combobox", { name: label }));
+    await userEvent.click(page.elementLocator(form).getByRole("combobox", { name: label, exact: true }));
     // The list opens in a portal, outside the form.
-    await userEvent.click(await screen.findByRole("option", { name: option }));
+    await userEvent.click(page.getByRole("option", { name: option, exact: true }));
 }
 
 /**
@@ -374,7 +374,7 @@ describe("editing a network source", () => {
         within(panel).getByText("people");
         within(panel).getByText("a,b");
 
-        await userEvent.click(within(panel).getByRole("button", { name: "Edit source" }));
+        await userEvent.click(page.elementLocator(panel).getByRole("button", { name: "Edit source", exact: true }));
         const form = await screen.findByRole("form", { name: "Network data" });
         const query = within(form).getByRole<HTMLTextAreaElement>("textbox", { name: "Query" });
         assert.strictEqual(query.value, "a,b");
@@ -382,9 +382,9 @@ describe("editing a network source", () => {
         assert.strictEqual(within(form).getByLabelText<HTMLInputElement>("Password").value, "");
         assert.isTrue(within(form).getByRole<HTMLInputElement>("combobox", { name: "Kind" }).disabled);
 
-        await userEvent.clear(query);
-        await userEvent.type(query, "x,y,z");
-        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await userEvent.clear(page.elementLocator(form).getByRole("textbox", { name: "Query", exact: true }));
+        await userEvent.type(page.elementLocator(form).getByRole("textbox", { name: "Query", exact: true }), "x,y,z");
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
@@ -405,13 +405,13 @@ describe("editing a network source", () => {
             config: { mapping: { nodes: "$" }, package: "webpack", version: "5" },
         });
         within(panel).getByText("package");
-        await userEvent.click(within(panel).getByRole("button", { name: "Edit source" }));
+        await userEvent.click(page.elementLocator(panel).getByRole("button", { name: "Edit source", exact: true }));
         const form = await screen.findByRole("form", { name: "Network data" });
         const field = within(form).getByRole<HTMLInputElement>("textbox", { name: "package" });
         assert.strictEqual(field.value, "webpack");
-        await userEvent.clear(field);
-        await userEvent.type(field, "vite");
-        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await userEvent.clear(page.elementLocator(form).getByRole("textbox", { name: "package", exact: true }));
+        await userEvent.type(page.elementLocator(form).getByRole("textbox", { name: "package", exact: true }), "vite");
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
         await waitFor(() => {
             assert.isDefined(session.data.node("vite"));
         });
@@ -424,7 +424,7 @@ describe("editing a network source", () => {
             config: { mapping: { requests: { nodes: { path: "/p?api_key=sekrit&page=1" } } } },
         });
         assert.notInclude(panel.textContent, "sekrit");
-        await userEvent.click(within(panel).getByRole("button", { name: "Edit source" }));
+        await userEvent.click(page.elementLocator(panel).getByRole("button", { name: "Edit source", exact: true }));
         const form = await screen.findByRole("form", { name: "Network data" });
         assert.notInclude(within(form).getByRole<HTMLTextAreaElement>("textbox", { name: "Mapping" }).value, "sekrit");
     });
@@ -436,11 +436,11 @@ describe("editing a network source", () => {
             { source: EDITABLE, endpoint: "https://editable.example" },
             credentials.basic("reader", "hunter2"),
         );
-        await userEvent.click(within(panel).getByRole("button", { name: "Edit source" }));
+        await userEvent.click(page.elementLocator(panel).getByRole("button", { name: "Edit source", exact: true }));
         const form = await screen.findByRole("form", { name: "Network data" });
         // A load saved with a query and no Start still shows its query.
         assert.strictEqual(within(form).getByRole<HTMLTextAreaElement>("textbox", { name: "Query" }).value, "a,b");
-        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
@@ -491,12 +491,12 @@ describe("server sources on the real element", () => {
         assert.isNotNull(within(form).getByRole("radio", { name: "Query" }));
         assert.isNotNull(within(form).getByRole("textbox", { name: "Query" }));
         assert.isNotNull(within(form).getByRole("checkbox", { name: "Expand on double-click" }));
-        const limit = within(form).getByRole("spinbutton", { name: "Limit" });
-        await userEvent.clear(limit);
+        const limit = (): Locator => page.elementLocator(form).getByRole("spinbutton", { name: "Limit", exact: true });
+        await userEvent.clear(limit());
         // A number field commits on Tab, Enter or blur.
-        await userEvent.type(limit, "10{Tab}");
+        await userEvent.type(limit(), "10{Tab}");
 
-        await userEvent.click(within(form).getByRole("button", { name: "Test" }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Test", exact: true }));
         const preview = await within(form).findByRole("group", { name: "Preview" });
         assert.include(preview.textContent, "Person 0");
         assert.isNotNull(within(preview).getByRole("list", { name: "Columns" }));
@@ -507,7 +507,7 @@ describe("server sources on the real element", () => {
         const loadButton = within(form).getByRole("button", { name: "Load" });
         assert.isAtMost(loadButton.getBoundingClientRect().right, window.innerWidth);
 
-        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.data.nodes(), PAGE);
         });
@@ -520,8 +520,8 @@ describe("server sources on the real element", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, row.querySelector("[aria-expanded]"));
         });
-        await userEvent.hover(row);
-        await userEvent.click(within(row).getByRole("button", { name: "Load more" }));
+        await userEvent.hover(page.getByRole("listitem", { name: /^People server/ }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "Load more", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.data.nodes(), 2 * PAGE);
         });
@@ -530,16 +530,16 @@ describe("server sources on the real element", () => {
 
         // The node menu: Expand... with its rows, then Collapse.
         await userEvent.click(element, { button: "right", position: await pointOn(element, "p0") });
-        await userEvent.click(await screen.findByRole("menuitem", { name: /Expand/ }));
-        await userEvent.click(await screen.findByRole("button", { name: "Expand" }));
+        await userEvent.click(page.getByRole("menuitem", { name: /Expand/ }));
+        await userEvent.click(page.getByRole("button", { name: "Expand", exact: true }));
         await waitFor(() => {
             assert.isDefined(session.data.node("p0-friend0"));
         });
         await userEvent.click(element, { button: "right", position: await pointOn(element, "p0") });
-        const collapse = await screen.findByRole("menuitem", { name: "Collapse" });
+        await screen.findByRole("menuitem", { name: "Collapse" });
         // The server sent every neighbor, so the node offers no second Expand... (#7057).
         assert.isNull(screen.queryByRole("menuitem", { name: /Expand/ }));
-        await userEvent.click(collapse);
+        await userEvent.click(page.getByRole("menuitem", { name: "Collapse", exact: true }));
         await waitFor(() => {
             assert.isUndefined(session.data.node("p0-friend0"));
         });
@@ -550,8 +550,8 @@ describe("server sources on the real element", () => {
             assert.isDefined(session.data.node("p1-friend2"));
         });
 
-        await userEvent.hover(row);
-        await userEvent.click(within(row).getByRole("button", { name: "Refresh" }));
+        await userEvent.hover(page.getByRole("listitem", { name: /^People server/ }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "Refresh", exact: true }));
         await waitFor(() => {
             assert.isNotNull(screen.queryByText(/changed/, { selector: ".cm-toast-message" }));
         });
@@ -564,7 +564,7 @@ describe("server sources on the real element", () => {
             { limits: { maxNodes: 1, onLimit: "stop" } },
         );
         const row = await screen.findByRole("listitem", { name: "Whole" });
-        await userEvent.hover(row);
+        await userEvent.hover(page.getByRole("listitem", { name: "Whole", exact: true }));
         assert.isNotNull(within(row).getByRole("button", { name: "Refresh" }));
         assert.isNull(within(row).queryByRole("button", { name: "Load more" }));
     });
@@ -574,8 +574,8 @@ describe("server sources on the real element", () => {
         const form = await openForm();
         await pick(form, "Kind", "Keyed server");
         assert.isNull(within(form).queryByLabelText("Password"), "a key, not a sign-in");
-        await userEvent.type(within(form).getByLabelText("API key"), "sekret-key");
-        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await userEvent.type(page.elementLocator(form).getByLabelText("API key", { exact: true }), "sekret-key");
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.data.nodes(), 2);
         });
@@ -595,7 +595,7 @@ describe("server sources on the real element", () => {
         const header = row.querySelector<HTMLElement>("[data-testid=control-section-toggle]");
         assert.isNotNull(header);
         if (header?.getAttribute("aria-expanded") === "true") {
-            await userEvent.click(header);
+            await userEvent.click(page.elementLocator(row).getByCss("[data-testid=control-section-toggle]").first());
         }
         await waitFor(() => {
             assert.match(
@@ -617,7 +617,7 @@ describe("server sources on the real element", () => {
         await pick(form, "Kind", "Neo4j");
         assert.isNull(within(form).queryByRole("combobox", { name: "Example" }), "samples are never in the form");
         assert.isNotNull(within(form).getByRole("textbox", { name: "User" }));
-        await userEvent.click(within(form).getByText("Seed nodes"));
+        await userEvent.click(page.elementLocator(form).getByText("Seed nodes", { exact: true }));
         assert.isNotNull(within(form).getByRole("textbox", { name: "Seed ids" }));
         assert.isNull(within(form).queryByRole("textbox", { name: "Query" }));
 
@@ -635,7 +635,10 @@ describe("server sources on the real element", () => {
         const loadButton = within(form).getByRole<HTMLButtonElement>("button", { name: "Load" });
         assert.isTrue(testButton.disabled, "no endpoint, no Test");
         assert.isTrue(loadButton.disabled, "no endpoint, no Load");
-        await userEvent.type(within(form).getByRole("textbox", { name: "Endpoint" }), "https://neo4j.example");
+        await userEvent.type(
+            page.elementLocator(form).getByRole("textbox", { name: "Endpoint", exact: true }),
+            "https://neo4j.example",
+        );
         assert.isFalse(testButton.disabled);
         assert.isFalse(loadButton.disabled);
 
@@ -660,7 +663,7 @@ describe("server sources on the real element", () => {
             await openDataPlace();
             const form = await openForm();
             await pick(form, "Kind", "Busy server");
-            await userEvent.click(within(form).getByRole("button", { name: "Test" }));
+            await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Test", exact: true }));
             const chip = await waitFor(() => {
                 const found = form.querySelector('[data-code="E_SOURCE_QUOTA"]');
                 assert.isNotNull(found);
@@ -687,8 +690,8 @@ describe("server sources on the real element", () => {
             await openDataPlace();
             const form = await openForm();
             await pick(form, "Kind", "Load from URL");
-            await userEvent.type(within(form).getByRole("textbox", { name: "URL" }), address);
-            await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+            await userEvent.type(page.elementLocator(form).getByRole("textbox", { name: "URL", exact: true }), address);
+            await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
             const chip = await waitFor(() => {
                 const found = form.querySelector('[data-code="E_PARSE_FAILED"]');
                 assert.isNotNull(found);
@@ -703,7 +706,7 @@ describe("server sources on the real element", () => {
     it("lists every kind of network this browser can reach, and Load from URL", async () => {
         await openDataPlace();
         const form = await openForm();
-        await userEvent.click(within(form).getByRole("combobox", { name: "Kind" }));
+        await userEvent.click(page.elementLocator(form).getByRole("combobox", { name: "Kind", exact: true }));
         await screen.findByRole("option", { name: "NDEx" });
         const options = screen.getAllByRole("option").map((option) => option.textContent);
         for (const kind of [
@@ -727,13 +730,16 @@ describe("server sources on the real element", () => {
         assert.isNull(within(form).queryByRole("textbox", { name: "Endpoint" }));
         const loadButton = within(form).getByRole<HTMLButtonElement>("button", { name: "Load" });
         assert.isTrue(loadButton.disabled, "no address, no Load");
-        await userEvent.type(within(form).getByRole("textbox", { name: "URL" }), fixtureUrl("suppliers.csv"));
+        await userEvent.type(
+            page.elementLocator(form).getByRole("textbox", { name: "URL", exact: true }),
+            fixtureUrl("suppliers.csv"),
+        );
         assert.isFalse(loadButton.disabled);
-        await userEvent.click(within(form).getByRole("button", { name: "Test" }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Test", exact: true }));
         await within(form).findByRole("group", { name: "Preview" });
         assert.isNull(form.querySelector("[data-error]"));
 
-        await userEvent.click(loadButton);
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
         await screen.findByRole("listitem", { name: /^suppliers\.csv/ });
         assert.isAbove(session.data.nodes().length, 0);
     });
@@ -759,7 +765,7 @@ describe("server sources on the real element", () => {
         const form = await openForm();
         await pick(form, "Kind", "Slow server");
         const testButton = within(form).getByRole("button", { name: "Test" });
-        await userEvent.click(testButton);
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Test", exact: true }));
         await waitFor(() => {
             assert.equal(testButton.getAttribute("aria-disabled"), "true");
         });
@@ -775,22 +781,29 @@ describe("server sources on the real element", () => {
         const { element, session } = await openDataPlace();
         const form = await openForm();
         await pick(form, "Kind", "Tuned server");
-        await userEvent.click(within(form).getByRole("checkbox", { name: "Verbose" }));
-        await userEvent.type(within(form).getByRole("textbox", { name: "Retries" }), "3{Tab}");
+        await userEvent.click(page.elementLocator(form).getByRole("checkbox", { name: "Verbose", exact: true }));
+        await userEvent.type(
+            page.elementLocator(form).getByRole("textbox", { name: "Retries", exact: true }),
+            "3{Tab}",
+        );
         await pick(form, "Format", "XML");
-        await userEvent.type(within(form).getByRole("textbox", { name: "Region" }), "eu");
-        const depth = within(form).getByRole("spinbutton", { name: "Depth" });
-        await userEvent.clear(depth);
-        await userEvent.type(depth, "2{Tab}");
+        await userEvent.type(page.elementLocator(form).getByRole("textbox", { name: "Region", exact: true }), "eu");
+        const depth = (): Locator => page.elementLocator(form).getByRole("spinbutton", { name: "Depth", exact: true });
+        await userEvent.clear(depth());
+        await userEvent.type(depth(), "2{Tab}");
         // A segmented control's radio is drawn by its label; the reader clicks the label.
         const direction = within(form).getByRole<HTMLInputElement>("radio", { name: "In" });
         await userEvent.click(direction.labels?.[0] ?? direction);
-        await userEvent.type(within(form).getByRole("textbox", { name: "Edge types" }), "knows");
-        const expandLimit = within(form).getByRole("spinbutton", { name: "Expand limit" });
-        await userEvent.clear(expandLimit);
-        await userEvent.type(expandLimit, "4{Tab}");
+        await userEvent.type(
+            page.elementLocator(form).getByRole("textbox", { name: "Edge types", exact: true }),
+            "knows",
+        );
+        const expandLimit = (): Locator =>
+            page.elementLocator(form).getByRole("spinbutton", { name: "Expand limit", exact: true });
+        await userEvent.clear(expandLimit());
+        await userEvent.type(expandLimit(), "4{Tab}");
 
-        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.data.nodes(), 2);
         });

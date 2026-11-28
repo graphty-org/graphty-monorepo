@@ -46,7 +46,7 @@ async function workspace(): Promise<{ session: GraphSession; unmount: () => void
  * @returns them.
  */
 async function calculatedRows(): Promise<HTMLElement[]> {
-    await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
+    await userEvent.click(page.getByRole("tab", { name: "Calculated", exact: true }));
     const list = await screen.findByRole("list", { name: "Results" });
     return [...list.querySelectorAll<HTMLElement>("[data-run]")];
 }

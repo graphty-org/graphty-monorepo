@@ -72,11 +72,11 @@ const every = (name: string, target: "node" | "edge", set: LayerSpec["set"]): La
  */
 async function openStyle(name: string, kind: "node" | "edge" = "node"): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     const tab = await screen.findByTestId("style-tab");
     await showKind(kind);
@@ -120,7 +120,7 @@ const found = (results: HTMLElement): string[] =>
  * @returns the results.
  */
 async function find(tab: HTMLElement, words: string): Promise<HTMLElement> {
-    await userEvent.click(within(tab).getByRole("searchbox", { name: "Find a setting" }));
+    await userEvent.click(page.elementLocator(tab).getByRole("searchbox", { name: "Find a setting", exact: true }));
     await userEvent.keyboard(words);
     return waitFor(() => {
         const results = tab.querySelector<HTMLElement>("[data-find-results]");
@@ -136,7 +136,7 @@ async function find(tab: HTMLElement, words: string): Promise<HTMLElement> {
  * @returns the page.
  */
 async function openPage(tab: HTMLElement, name: string): Promise<HTMLElement> {
-    await userEvent.click(within(tab).getByRole("button", { name }));
+    await userEvent.click(page.elementLocator(tab).getByRole("button", { name, exact: true }));
     return screen.findByRole("dialog", { name: name.replace(/ settings$/, "") });
 }
 
@@ -199,12 +199,16 @@ describe("the edge tab by part of the drawing", () => {
         await waitFor(() => {
             assert.includeMembers(lines(route), ["edge.bends", "edge.sourcePort", "edge.targetPort"]);
         });
-        await userEvent.click(within(route).getByRole("button", { name: "Remove edge bends" }));
+        await userEvent.click(
+            page.elementLocator(route).getByRole("button", { name: "Remove edge bends", exact: true }),
+        );
         await waitFor(() => {
             const layer = session.styles.list().find((each) => each.name === "From the file");
             assert.deepEqual(Object.keys(layer?.set ?? {}).sort(), ["edge.sourcePort", "edge.targetPort"]);
         });
-        await userEvent.click(within(route).getByRole("button", { name: "Remove edge source port" }));
+        await userEvent.click(
+            page.elementLocator(route).getByRole("button", { name: "Remove edge source port", exact: true }),
+        );
         await waitFor(() => {
             assert.notInclude(lines(route), "edge.sourcePort");
         });
@@ -215,9 +219,9 @@ describe("each part's settings page", () => {
     it("Border's sliders page shows the ring count in words", async () => {
         await openProject([every("Key", "node", { "node.shape": "box" })]);
         const tab = await openStyle("Key");
-        const page = await openPage(tab, "Node border settings");
-        within(page).getByText("Ring count");
-        assert.isNotNull(page.querySelector('[data-unset-line="node.outerBorderCount"]'));
+        const pane = await openPage(tab, "Node border settings");
+        within(pane).getByText("Ring count");
+        assert.isNotNull(pane.querySelector('[data-unset-line="node.outerBorderCount"]'));
     });
 
     it("size mode a layer sets is a row of Shape, its sliders page and Find a setting", async () => {
@@ -228,9 +232,9 @@ describe("each part's settings page", () => {
         await waitFor(() => {
             assert.include(lines(shape), "node.sizeMode", "a set value is a row of its section");
         });
-        const page = await openPage(tab, "Node shape settings");
-        assert.isNotNull(page.querySelector('.ws-row[data-line="node.sizeMode"]'));
-        await userEvent.click(within(page).getByRole("button", { name: "Close Node shape" }));
+        const pane = await openPage(tab, "Node shape settings");
+        assert.isNotNull(pane.querySelector('.ws-row[data-line="node.sizeMode"]'));
+        await userEvent.click(page.elementLocator(pane).getByRole("button", { name: "Close Node shape", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Node shape" }));
         });
@@ -241,17 +245,17 @@ describe("each part's settings page", () => {
     it("the label's sliders page has Type, Box, Place, Wrap and View pages", async () => {
         await openProject([every("Key", "node", { "node.label": "Hello" })]);
         const tab = await openStyle("Key");
-        const page = await openPage(tab, "Node text settings");
-        const pages = within(page).getByRole("radiogroup", { name: "Label settings page" });
+        const pane = await openPage(tab, "Node text settings");
+        const pages = within(pane).getByRole("radiogroup", { name: "Label settings page" });
         assert.strictEqual(within(pages).getAllByRole("radio").length, 5);
         for (const name of ["Type", "Box", "Place", "Wrap", "View"]) {
             within(pages).getByRole("radio", { name });
         }
-        await userEvent.click(within(pages).getByText("Place"));
+        await userEvent.click(page.elementLocator(pages).getByText("Place", { exact: true }));
         await waitFor(() => {
-            assert.isNotNull(page.querySelector('[data-unset-line="node.labelOffsetX"]'));
+            assert.isNotNull(pane.querySelector('[data-unset-line="node.labelOffsetX"]'));
         });
-        assert.isNull(page.querySelector('[data-unset-line="node.labelWeight"]'), "Type's settings are on Type");
+        assert.isNull(pane.querySelector('[data-unset-line="node.labelWeight"]'), "Type's settings are on Type");
     });
 });
 
@@ -262,7 +266,7 @@ describe("Find a setting", () => {
         const box = within(tab).getByRole("searchbox", { name: "Find a setting" });
         within(tab).getByText("/", { selector: "kbd" });
         // A control of the panel, not a text field, holds focus: one Tab on from the find box.
-        await userEvent.click(box);
+        await userEvent.click(page.elementLocator(tab).getByRole("searchbox", { name: "Find a setting", exact: true }));
         await userEvent.tab();
         assert.notStrictEqual(document.activeElement, box);
         assert.isTrue(tab.contains(document.activeElement));
@@ -272,7 +276,7 @@ describe("Find a setting", () => {
         });
         // Elsewhere, "/" is the graph tree's Find.
         const tree = screen.getByRole("tree", { name: "Style layers" });
-        await userEvent.click(within(tree).getByRole("treeitem", { name: /^Key, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Key, / }));
         await userEvent.keyboard("/");
         await waitFor(() => {
             assert.strictEqual(document.activeElement?.id, FIND_BOX_ID);
@@ -324,7 +328,7 @@ describe("Find a setting", () => {
         const link = within(color).getByRole("button", { name: "Open Shadowed" });
         assert.notInclude(color.textContent, "Also set by", "said on the button's tooltip, not beside it");
         assert.include(await tooltipOf(link), "Also set by Shadowed");
-        await userEvent.click(link);
+        await userEvent.click(page.elementLocator(color).getByRole("button", { name: "Open Shadowed", exact: true }));
         await waitFor(() => {
             const tree = screen.getByRole("tree", { name: "Style layers" });
             const row = within(tree).getByRole("treeitem", { name: /^Shadowed, / });
@@ -336,7 +340,9 @@ describe("Find a setting", () => {
         const session = await openProject([every("Key", "node", { "node.shape": "box" })]);
         const tab = await openStyle("Key");
         const results = await find(tab, "ring count");
-        await userEvent.click(within(results).getByRole("button", { name: "Add node ring count" }));
+        await userEvent.click(
+            page.elementLocator(results).getByRole("button", { name: "Add node ring count", exact: true }),
+        );
         await waitFor(() => {
             const line = results.querySelector('.ws-row[data-line="node.outerBorderCount"]');
             assert.isTrue(line?.contains(document.activeElement) === true, "focus is in the new line");
@@ -348,7 +354,7 @@ describe("Find a setting", () => {
                 2,
             );
         });
-        await userEvent.click(within(tab).getByRole("button", { name: "Clear search" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Clear search", exact: true }));
         const border = await section(tab, "node-border");
         await waitFor(() => {
             assert.include(lines(border), "node.outerBorderCount");
@@ -366,7 +372,7 @@ describe("Find a setting", () => {
         await openProject([every("Key", "node", { "node.shape": "box" })]);
         const tab = await openStyle("Key");
         const box = within(tab).getByRole("searchbox", { name: "Find a setting" });
-        await userEvent.click(box);
+        await userEvent.click(page.elementLocator(tab).getByRole("searchbox", { name: "Find a setting", exact: true }));
         await userEvent.tab();
         await userEvent.keyboard("/paint");
         await waitFor(() => {

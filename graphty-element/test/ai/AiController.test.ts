@@ -8,22 +8,22 @@ import type { CommandContext, CommandResult } from "../../src/ai/commands/types"
 import { MockLlmProvider } from "../../src/ai/providers/MockLlmProvider";
 import type { LlmProvider, LlmResponse, Message } from "../../src/ai/providers/types";
 import { assistantSession, callsTurn, ScriptedAssistant, textTurn } from "../helpers/assistant";
-import { createMessageGraph } from "../helpers/message-graph";
+import { createCommandGraph } from "../helpers/session-graph";
 
 describe("AiController", () => {
     let controller: AiController;
     let mockProvider: MockLlmProvider;
     let registry: CommandRegistry;
-    let mockGraph: CommandContext["graph"];
+    let sessionGraph: CommandContext["graph"];
 
-    beforeEach(() => {
+    beforeEach(async () => {
         mockProvider = new MockLlmProvider();
         registry = new CommandRegistry();
-        mockGraph = createMessageGraph();
+        sessionGraph = await createCommandGraph();
         controller = new AiController({
             provider: mockProvider,
             commandRegistry: registry,
-            graph: mockGraph,
+            graph: sessionGraph,
         });
     });
 
@@ -262,7 +262,7 @@ describe("AiController", () => {
                 { text: "", toolCalls: [{ id: "t2", name: "act", arguments: { value: "zoom" } }] },
                 { text: "Zoomed to the servers.", toolCalls: [] },
             ]);
-            const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+            const multi = new AiController({ provider, commandRegistry: registry, graph: sessionGraph });
 
             const result = await multi.execute("focus on servers");
 
@@ -290,7 +290,7 @@ describe("AiController", () => {
         it("puts the instructions in the user's turn for a provider that refuses a system prompt with tools", async () => {
             registerEcho("look");
             const provider = { ...scriptedProvider([]), supportsSystemPromptWithTools: false };
-            const noSystem = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+            const noSystem = new AiController({ provider, commandRegistry: registry, graph: sessionGraph });
 
             await noSystem.execute("find servers");
 
@@ -308,7 +308,7 @@ describe("AiController", () => {
                 { text: "", toolCalls: [{ id: "t1", name: "broken", arguments: { value: "a" } }] },
                 { text: "", toolCalls: [{ id: "t2", name: "fixed", arguments: { value: "b" } }] },
             ]);
-            const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+            const multi = new AiController({ provider, commandRegistry: registry, graph: sessionGraph });
 
             await multi.execute("do it");
 
@@ -331,7 +331,7 @@ describe("AiController", () => {
                     ],
                 },
             ]);
-            const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+            const multi = new AiController({ provider, commandRegistry: registry, graph: sessionGraph });
 
             await multi.execute("do both");
 
@@ -353,7 +353,7 @@ describe("AiController", () => {
                 toolCalls: [{ id: "t", name: "again", arguments: { value: "x" } }],
             };
             const provider = scriptedProvider([...Array.from({ length: 5 }, () => forever), answer, forever]);
-            const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+            const multi = new AiController({ provider, commandRegistry: registry, graph: sessionGraph });
 
             const result = await multi.execute("loop");
 
@@ -377,7 +377,7 @@ describe("AiController", () => {
                 { text: "", toolCalls: [] },
                 { text: "Found a.", toolCalls: [] },
             ]);
-            const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+            const multi = new AiController({ provider, commandRegistry: registry, graph: sessionGraph });
 
             const result = await multi.execute("look");
 
@@ -396,7 +396,7 @@ describe("AiController", () => {
                 { text: "", toolCalls: [] },
                 { text: "", toolCalls: [] },
             ]);
-            const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+            const multi = new AiController({ provider, commandRegistry: registry, graph: sessionGraph });
 
             const result = await multi.execute("look");
 
@@ -547,7 +547,7 @@ describe("AiController", () => {
             });
 
             await controller.execute("check graph");
-            assert.strictEqual(receivedGraph, mockGraph);
+            assert.strictEqual(receivedGraph, sessionGraph);
         });
 
         it("provides abort signal to commands", async () => {
@@ -627,7 +627,7 @@ describe("AiController", () => {
             const two = new AiController({
                 provider: thinking,
                 commandRegistry: registry,
-                graph: mockGraph,
+                graph: sessionGraph,
                 emitEvent: (event) => {
                     if (event.type === "ai-command-canceled") {
                         canceledInputs.push(`${event.type} ${event.input}`);

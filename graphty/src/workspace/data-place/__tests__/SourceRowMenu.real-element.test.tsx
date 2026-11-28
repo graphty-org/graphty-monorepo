@@ -50,8 +50,8 @@ async function rowVerb(load: LoadedSource, item: string): Promise<void> {
     const place = await screen.findByRole("region", { name: "Data place" });
     const list = within(place).getByRole("list", { name: "Data sources" });
     const row = await within(list).findByRole("listitem", { name });
-    await userEvent.click(within(row).getByRole("button", { name: `${name} menu` }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+    await userEvent.click(page.elementLocator(row).getByRole("button", { name: `${name} menu`, exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: item, exact: true }));
 }
 
 describe("a Sources row's menu", () => {
@@ -112,10 +112,10 @@ describe("a Sources row's menu", () => {
             name: "ties.csv",
         });
         // The row's name opens the source in the inspector, whose "..." holds the same verbs.
-        await userEvent.click(within(row).getAllByRole("button")[0]);
+        await userEvent.click(page.elementLocator(row).getByRole("button").nth(0));
         await commands.chooseNextFile("ties-v2.csv", "text/csv", "source,target\nAna,Bo\nBo,Dee\n");
-        await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Replace with file..." }));
+        await userEvent.click(page.getByRole("button", { name: "Source actions", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Replace with file...", exact: true }));
         await screen.findByRole("heading", { name: "Replace: ties-v2.csv" });
         assert.lengthOf(session.data.sources(), 1, "nothing is replaced until the reader says so");
     });

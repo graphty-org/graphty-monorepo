@@ -80,9 +80,12 @@ export const FILE_SECONDS = 15;
 export const TEST_SECONDS = 3.2;
 
 /**
- * Each real-element file's measured seconds on a CI runner, loading included: the median of the graphty-N logs of
- * full runs 43878423145 (all ten parts) and 43861444283 (parts 2, 4 and 6), written by real-element-seconds.mjs
- * (2026-11-16). The table it replaced, from the six-part runs of 2026-11-10 and 11, planned 661 s a part while the
+ * Each real-element file's measured seconds on a CI runner, loading included: the graphty-N logs of full run
+ * 46148647266 (all ten parts, 2026-11-28), written by real-element-seconds.mjs. The table of 2026-11-16 before it
+ * lacked 95 of the 296 files and had CustomModelDialog at 108 s for its 25 tests, since grown to 68 tests and
+ * 225 s; the parts it planned at about 910 s each ran 795 to 1,454 s, and graphty-6 reached its 1,560 s deadline
+ * (#10535). The test count below gave ProgramSamples, whose 60 tests come from three it.each, 18 s for a 289 s
+ * file. The table before that, from the six-part runs of 2026-11-10 and 11, planned 661 s a part while the
  * parts ran 401 to 954 s, and lacked ModelFormats (64 tests from one it.each, counted as one: 212 s run) (#6620). The test count below missed by up to 130 s a file (Timeline 26 tests, 98 s counted,
  * 225 s run) and gave one part 1,440 s while another had 1,010 s (issue #6620).
  * ponytail: refreshed by hand; when a graphty-N part drifts more than about 100 s from the others, run

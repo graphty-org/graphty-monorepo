@@ -981,6 +981,9 @@ export class Node implements ModelUser {
     /** How far the border reaches past the outline, in the units positions are laid out in. */
     private borderWidth = 0;
 
+    /** How far the border and the outer border together reach past the fill: where the outline ring starts. */
+    private outlineReach = 0;
+
     /**
      * What the border was last built from: the mesh key and style, and for a border in screen
      * pixels (`border.screenWidth`) the screen pixels one scene unit was drawn as then, rounded to
@@ -1521,6 +1524,26 @@ export class Node implements ModelUser {
     }
 
     /**
+     * How far the built border and outer border reach past the fill: the border's ring, and the outer
+     * border past it by its offset, then each of its rings (`outerBorder.count`) and the offsets between
+     * them, as NodeMesh.createOuterBorder lays them.
+     * @param style - The resolved style.
+     * @param ring - The border's drawn width.
+     * @returns The reach, in the fill's units.
+     */
+    private drawnBorderReach(style: NodeStyleConfig, ring: number): number {
+        const own = this.border === null ? 0 : ring;
+        if (this.outerBorder === null) {
+            return own;
+        }
+        const perSize = NodeMesh.extentPerSize(style.shape);
+        const width = (style.outerBorder?.width ?? 0) * perSize;
+        const offset = (style.outerBorder?.offset ?? 0) * perSize;
+        const count = Math.max(1, Math.floor(style.outerBorder?.count ?? 1));
+        return Math.max(own, ring + offset + (count - 1) * (width + Math.max(0, offset)) + width);
+    }
+
+    /**
      * Build this node's border from its style, as a child of its mesh so it moves, hides and is
      * disposed with the node. Called after every new mesh: the old border went with the old mesh.
      * @param meshKey - The source mesh key the node is drawn under.
@@ -1564,6 +1587,7 @@ export class Node implements ModelUser {
             this.outerBorder.parent = this.#anchor;
             this.outerBorder.position.setAll(0);
         }
+        this.outlineReach = this.drawnBorderReach(style, width);
 
         for (const kind of ["underlay", "overlay"] as const) {
             const old = this[kind];
@@ -2967,7 +2991,7 @@ export class Node implements ModelUser {
         // model's shape, and a glow on its shared source mesh lights every node drawing the model.
         const effect = this.drawnByBatch() || this.drawnModel !== null ? undefined : style.effect;
         if (this.#mesh !== null) {
-            NodeEffects.applyOutlineEffect(this.#mesh, effect, this.context.getMeshCache());
+            NodeEffects.applyOutlineEffect(this.#mesh, effect, this.context.getMeshCache(), () => this.outlineReach);
             NodeEffects.applyGlowEffect(this.#mesh, effect);
         }
         this.syncModelMark();

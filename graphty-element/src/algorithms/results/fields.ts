@@ -35,6 +35,19 @@ export function metricFieldSpecs(
     ];
 }
 
+/**
+ * The fields a measurement of each node's eccentricity publishes: the metric fields, the value
+ * being the distance to the furthest node reached, and the graph's diameter and radius.
+ * @returns The field list.
+ */
+export function eccentricityFieldSpecs(): readonly ResultFieldSpec[] {
+    return [
+        ...metricFieldSpecs("node"),
+        { name: "diameter", kind: "graph", type: "number" },
+        { name: "radius", kind: "graph", type: "number" },
+    ];
+}
+
 /** The fields a community result publishes, with the group sizes the element derives. */
 const COMMUNITY_BASE: readonly ResultFieldSpec[] = [
     { name: "group", kind: "node", type: "integer" },

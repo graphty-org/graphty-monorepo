@@ -4,7 +4,7 @@ layout: home
 
 hero:
     text: Graph layouts and algorithms for Cytoscape.js
-    tagline: 16 layouts, 63 algorithms, WebGPU acceleration, generators, datasets and file formats, added with one cytoscape.use() call
+    tagline: 16 layouts, 64 algorithms, WebGPU acceleration, generators, datasets and file formats, added with one cytoscape.use() call
     actions:
         - theme: brand
           text: Get started
@@ -30,7 +30,7 @@ features:
       link: ./guide/layouts
       linkText: Choose a layout
     - title: Algorithms
-      details: 63 methods on every collection and on the core, from graphtyPageRank to graphtyLouvain and graphtyMaxFlow.
+      details: 64 methods on every collection and on the core, from graphtyPageRank to graphtyLouvain and graphtyMaxFlow.
       link: ./guide/algorithms
       linkText: Run an algorithm
     - title: WebGPU

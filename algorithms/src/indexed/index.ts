@@ -46,6 +46,7 @@ export {
 } from "./delta-pagerank.js";
 export { depthFirstSearch, type DfsOptions, type DfsResult, hasCycle, topologicalSort } from "./dfs.js";
 export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
+export { distanceMeasures, type DistanceMeasuresOptions, type DistanceMeasuresResult } from "./distance-measures.js";
 export { eigenvectorCentrality, type EigenvectorOptions, type EigenvectorResult } from "./eigenvector.js";
 export {
     type BipartiteFlowNetwork,

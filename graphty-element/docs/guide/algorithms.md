@@ -382,6 +382,31 @@ publishes no node values and no `diameter` or `radius`: the result carries only
 `hasNegativeCycle: true`. It treats every edge as undirected, so a single edge with a negative
 weight is already a negative cycle -- cross it and come back.
 
+#### Diameter, radius and average distance
+
+`distance-measures` gives each node its eccentricity -- the distance to the furthest node it can
+reach -- and publishes the graph's `diameter`, `radius`, `averageShortestPathLength` and
+`componentCount`. It runs one search from each node, so it costs n x m rather than the n x n x n
+of `floyd-warshall`, and keeps no matrix. Distances count edges unless you pass a `weight`.
+
+```typescript
+const result = await element.session.runs.start("distance-measures");
+const { diameter, radius, averageShortestPathLength } = result.graph;
+```
+
+A graph in several pieces is measured per piece: a node's eccentricity counts only the nodes it
+reaches, and the graph-wide figures are those of the largest piece. The caveats say so with
+`distance-measures.largest-component`, carrying the number of pieces and the largest one's size.
+
+On a large graph, bound the work with `k`: only `k` sources (drawn the same way every time) are
+searched from. Only they carry an eccentricity, the `diameter` is then a lower bound, the `radius`
+an upper bound and the average an estimate; the result says `caveats.exact: false`. The default
+searches from every node.
+
+```typescript
+await element.session.runs.start("distance-measures", { k: 500 });
+```
+
 ### Spanning Tree
 
 Find minimum spanning trees:

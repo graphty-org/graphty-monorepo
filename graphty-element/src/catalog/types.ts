@@ -215,6 +215,7 @@ export const KNOWN_ALGORITHMS = [
     "removal-impact",
     "articulation-points",
     "bridges",
+    "distance-measures",
 ] as const;
 
 /** One of the built-in algorithms. */

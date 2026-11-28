@@ -53,14 +53,14 @@ export interface ClosenessResult extends ScoresResult {
 }
 
 /** An out-adjacency to search, with the weight of each of its arcs, or null to count hops. */
-interface Adjacency {
+export interface Adjacency {
     readonly rowPtr: U32;
     readonly colIdx: U32;
     readonly weights: NumericVector | null;
 }
 
 /** One search from a source over an adjacency, reusing its scratch arrays across sources. */
-interface Search {
+export interface Search {
     /** Distance of each node from the last source; Infinity when unreached. */
     readonly dist: Float64Array;
     /** The nodes the last search reached, the source first. */
@@ -155,7 +155,7 @@ function dijkstraFrom(
  * @param cutoff - Stop expanding nodes this far away or farther
  * @returns The search
  */
-function searcher(n: number, adj: Adjacency, cutoff: number): Search {
+export function searcher(n: number, adj: Adjacency, cutoff: number): Search {
     const { weights } = adj;
     const dist = new Float64Array(n).fill(Infinity);
     const reached = new Uint32Array(n);
@@ -327,3 +327,6 @@ export function nodeClosenessCentrality(
     const search = searcher(s.nodeCount, adjacency(s, options, false), options.cutoff ?? Infinity);
     return exactScore(search, options, s.nodeCount, node);
 }
+
+// The searches distanceMeasures reuses, so both read weights by the same rule.
+export { adjacency };

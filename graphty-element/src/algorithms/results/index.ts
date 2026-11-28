@@ -9,6 +9,7 @@ export { caveat } from "../../session/runs/caveatFacts";
 export { DeclaredAlgorithm } from "./DeclaredAlgorithm";
 export {
     communityFieldSpecs,
+    eccentricityFieldSpecs,
     LAYERED_GROUPING_FIELD_SPECS,
     metricFieldSpecs,
     PATH_FIELD_SPECS,

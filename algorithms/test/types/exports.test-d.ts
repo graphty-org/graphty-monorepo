@@ -40,6 +40,8 @@ import type {
     DfsOptions,
     DfsResult,
     DirectionOptimizedBfsOptions,
+    DistanceMeasuresOptions,
+    DistanceMeasuresResult,
     EdgeBetweennessOptions,
     EdgeScoresResult,
     EdgeSetResult,
@@ -126,6 +128,9 @@ expectTypeOf(algorithms.closenessCentrality).toEqualTypeOf<
 >();
 expectTypeOf(algorithms.nodeClosenessCentrality).toEqualTypeOf<
     (s: GraphSnapshot, node: NodeRef, options?: Omit<ClosenessOptions, "sources" | "k">) => number
+>();
+expectTypeOf(algorithms.distanceMeasures).toEqualTypeOf<
+    (s: GraphSnapshot, options?: DistanceMeasuresOptions) => DistanceMeasuresResult
 >();
 expectTypeOf(algorithms.commonNeighborsScore).toEqualTypeOf<
     (s: GraphSnapshot, u: number, v: number, o?: CommonNeighborsOptions) => number
@@ -325,6 +330,7 @@ type Promoted =
     | "depthFirstSearch"
     | "dijkstra"
     | "directionOptimizedBfs"
+    | "distanceMeasures"
     | "edgeBetweennessCentrality"
     | "eigenvectorCentrality"
     | "evaluateAdamicAdar"

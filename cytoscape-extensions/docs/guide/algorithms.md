@@ -1,6 +1,6 @@
 # Algorithms
 
-After `cytoscape.use(graphtyCytoscape)`, every Cytoscape collection and the core have 63 algorithm methods named `graphty` plus the algorithm's name: `graphtyPageRank`, `graphtyLouvain`, `graphtyDijkstra`. Each one runs a graphty algorithm on the collection and returns a result keyed by element.
+After `cytoscape.use(graphtyCytoscape)`, every Cytoscape collection and the core have 64 algorithm methods named `graphty` plus the algorithm's name: `graphtyPageRank`, `graphtyLouvain`, `graphtyDijkstra`. Each one runs a graphty algorithm on the collection and returns a result keyed by element.
 
 This Node script (save it as `rank.mjs`) prints one node's PageRank:
 
@@ -40,7 +40,7 @@ Like Cytoscape's built-ins, each method is synchronous, takes one options object
 
 The graph is the calling collection: its nodes, and those of its edges whose two ends are both in it. To run on part of a graph, include the edges: `part.union(part.connectedEdges()).graphtyDegreeCentrality()`.
 
-The exported `ALGORITHM_NAMES` lists the 63 methods. Importing the package adds their types to Cytoscape's `Core` and `Collection`.
+The exported `ALGORITHM_NAMES` lists the 64 methods. Importing the package adds their types to Cytoscape's `Core` and `Collection`.
 
 ## Results
 

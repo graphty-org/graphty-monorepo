@@ -167,6 +167,17 @@ function metricFields(kind: "node" | "edge", value: MetricValue): readonly Field
     ];
 }
 
+/** Each node's eccentricity and the graph's diameter and radius: what both distance keys publish. */
+const ECCENTRICITY_FIELDS: readonly FieldDescriptor[] = [
+    ...metricFields("node", {
+        plainName: "Distance to the furthest node",
+        technicalName: "eccentricity",
+        polarity: "lower",
+    }),
+    field({ name: "diameter", plainName: "Widest distance", technicalName: "diameter", kind: "graph", type: "number" }),
+    field({ name: "radius", plainName: "Narrowest distance", technicalName: "radius", kind: "graph", type: "number" }),
+];
+
 /**
  * How to read modularity. The 0.3 line is Newman and Girvan's; the 0.1 line is this element's
  * convention for "close to what a random split of the same graph would score".
@@ -881,28 +892,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             "Measures the distance between every pair of nodes, and gives each node the distance to the furthest node it can reach.",
         category: "path",
         shape: "node-metric",
-        fields: [
-            ...metricFields("node", {
-                plainName: "Distance to the furthest node",
-                technicalName: "eccentricity",
-                polarity: "lower",
-            }),
-            field({
-                name: "diameter",
-                plainName: "Widest distance",
-                technicalName: "diameter",
-                kind: "graph",
-                type: "number",
-            }),
-            field({
-                name: "radius",
-                plainName: "Narrowest distance",
-                technicalName: "radius",
-                kind: "graph",
-                type: "number",
-            }),
-            HAS_NEGATIVE_CYCLE,
-        ],
+        fields: [...ECCENTRICITY_FIELDS, HAS_NEGATIVE_CYCLE],
         options: optionsOf("floyd-warshall"),
         costClass: "cubic",
         complexity: "O(n^3)",
@@ -1276,6 +1266,37 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         costClass: "instant",
         complexity: "O(n + m)",
         legacyKeys: [{ key: "bridges" }],
+    },
+    {
+        key: "distance-measures",
+        plainName: "Graph distances",
+        technicalName: "Distance measures",
+        description:
+            "Gives each node the distance to the furthest node it can reach, and measures the graph's diameter, radius and average shortest path length, one search from each node.",
+        category: "path",
+        keywords: ["diameter", "radius", "eccentricity", "average distance", "small world"],
+        shape: "node-metric",
+        fields: [
+            ...ECCENTRICITY_FIELDS,
+            field({
+                name: "averageShortestPathLength",
+                plainName: "Average distance",
+                technicalName: "averageShortestPathLength",
+                kind: "graph",
+                type: "number",
+            }),
+            field({
+                name: "componentCount",
+                plainName: "Pieces",
+                technicalName: "componentCount",
+                kind: "graph",
+                type: "integer",
+            }),
+        ],
+        options: optionsOf("distance-measures"),
+        costClass: "heavy",
+        complexity: "O(n * m)",
+        legacyKeys: [{ key: "distance-measures" }],
     },
 ];
 

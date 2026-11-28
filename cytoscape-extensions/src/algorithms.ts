@@ -50,6 +50,8 @@ import {
     dijkstra,
     directionOptimizedBfs,
     type DirectionOptimizedBfsOptions,
+    distanceMeasures,
+    type DistanceMeasuresOptions,
     edgeBetweennessCentrality,
     eigenvectorCentrality,
     type EigenvectorOptions,
@@ -1411,6 +1413,24 @@ const IMPLS = {
                 Array.from(r.coreness.keys()).filter((i) => r.coreness[i] >= k),
             );
         return scored(c, r.coreness, { maxCore: r.maxCore, core });
+    },
+    distanceMeasures: (
+        c: Ctx,
+        o: WeightedFlag<Omit<DistanceMeasuresOptions, "sources">> & Sampled = {},
+    ): ScoreResult & {
+        diameter: number;
+        radius: number;
+        averageShortestPathLength: number;
+        componentCount: number;
+    } => {
+        const sources = o.sources === undefined ? undefined : indicesOf(c.cs, o.sources);
+        const r = distanceMeasures(c.s, { ...c.rest, sources, weighted: c.weighted });
+        return scored(c, r.eccentricity, {
+            diameter: r.diameter,
+            radius: r.radius,
+            averageShortestPathLength: r.averageShortestPathLength,
+            componentCount: r.componentCount,
+        });
     },
     triangleCount: (
         c: Ctx,

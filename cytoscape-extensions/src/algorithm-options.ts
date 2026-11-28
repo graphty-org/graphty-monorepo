@@ -46,6 +46,7 @@ export const OPTION_NAMES: Readonly<Record<string, readonly string[]>> = {
     graphtyDepthFirstSearch: ["directed", "field", "goal", "gpu", "order", "root"],
     graphtyDijkstra: ["cutoff", "directed", "field", "gpu", "root", "weight"],
     graphtyDirectionOptimizedBfs: ["alpha", "beta", "directed", "field", "gpu", "root"],
+    graphtyDistanceMeasures: ["directed", "field", "gpu", "k", "sources", "weight"],
     graphtyEdgeBetweennessCentrality: ["directed", "field", "gpu", "k", "normalized", "sources"],
     graphtyEigenvectorCentrality: [
         "directed",

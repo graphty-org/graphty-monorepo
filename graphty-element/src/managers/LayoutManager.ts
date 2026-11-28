@@ -187,6 +187,8 @@ interface ParsedSimulationOptions {
     distributedAction?: boolean;
     linlog?: boolean;
     dissuadeHubs?: boolean;
+    barnesHut?: boolean;
+    barnesHutTheta?: number;
     weighted?: boolean;
     nodeMass?: Readonly<Record<string, number>> | string | null;
     k?: number | null;
@@ -242,6 +244,8 @@ function simulationModel(
                 distributedAction: options.distributedAction,
                 linlog: options.linlog,
                 dissuadeHubs: options.dissuadeHubs,
+                barnesHutOptimize: options.barnesHut,
+                barnesHutTheta: options.barnesHutTheta,
                 weight: options.weighted,
                 nodeMass: options.nodeMass,
                 nodeSize: null,

@@ -496,6 +496,8 @@ export interface BuiltNode extends BuiltElement {
     alt?: { src: string; col: string; v: Value; from?: string }[];
     /** Sources whose edge ends reach it; settled into `loads` or `named` after the build. */
     ends?: string[];
+    /** The sources that supplied it only as an edge end, no source's rows holding it (3.1). */
+    byEnds?: string[];
 }
 
 /** An edge of the working graph, keyed `{ load, key }`. */

@@ -16,6 +16,8 @@
 import { afterEach, assert, describe, test } from "vitest";
 
 import { Graphty } from "../../src/graphty-element";
+import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
+import { LayoutManager, layoutManagerInternals } from "../../src/managers/LayoutManager";
 
 /** Five five-node cliques joined in a ring: 25 nodes in clusters a reader would remember. */
 const NODES = Array.from({ length: 25 }, (_, i) => ({ id: `n${String(i)}` }));
@@ -74,6 +76,174 @@ function span(drawn: [number, number, number][], axis: 0 | 1 | 2): number {
 async function settle(element: Graphty): Promise<void> {
     await element.waitForSettled();
     await element.waitForStableFrame();
+}
+
+/** A prototype's method, called on its instance. */
+type Method = (this: object, ...args: unknown[]) => unknown;
+
+/**
+ * Trace what every lift does, for issue #10483: each layout build (type, dimension, lift, flatten, restoring), the pre-
+ * steps, every rise step and whether the rise still runs, every arrangement handed to the layout (which ends a rise),
+ * and every d3 engine load and wake with the engine's step count and alpha -- each with the frame it ran in. A rise
+ * step's own load and wake are folded into it, and steps and rise steps are logged every tenth and after any other
+ * event; a line repeated at once is counted, not repeated. A passing run builds only these few lines.
+ * @returns `mark` a test event, `state` an element's engine and row 0, `text` the trace, `stop` to unhook.
+ */
+function traceLifts(): {
+    mark: (event: string) => void;
+    state: (element: Graphty) => string;
+    text: () => string;
+    stop: () => void;
+} {
+    const events: string[] = [];
+    const ids = new WeakMap<object, number>();
+    const steps = new WeakMap<object, number>();
+    let handed = 0;
+    let rises = 0;
+    /** Above 0 inside a rise step, whose own engine load and wake are not logged apart. */
+    let quiet = 0;
+    let repeats = 0;
+    let frame = 0;
+    let running = true;
+    const tick = (): void => {
+        frame++;
+        if (running) {
+            requestAnimationFrame(tick);
+        }
+    };
+    requestAnimationFrame(tick);
+    const tag = (thing: object, kind: string): string => {
+        let id = ids.get(thing);
+        if (id === undefined) {
+            id = ++handed;
+            ids.set(thing, id);
+        }
+
+        return `${kind}${String(id)}`;
+    };
+    const alpha = (engine: object): string =>
+        engine instanceof D3GraphEngine ? engine.d3ForceLayout.alpha().toFixed(6) : "-";
+    let last = "";
+    const push = (line: string): void => {
+        if (line === last) {
+            repeats++;
+            return;
+        }
+
+        if (repeats > 0) {
+            events.push(`   (the line above ${String(repeats)} more times)`);
+            repeats = 0;
+        }
+
+        last = line;
+        events.push(`f${String(frame)} ${line}`);
+    };
+    const restores: (() => void)[] = [];
+    const hook = (
+        proto: object,
+        name: string,
+        describe: (self: object, args: unknown[]) => string | null,
+        hush = false,
+    ): void => {
+        const own = Object.getOwnPropertyDescriptor(proto, name);
+        const original = (proto as Record<string, Method>)[name];
+        Object.defineProperty(proto, name, {
+            configurable: true,
+            writable: true,
+            value: function (this: object, ...args: unknown[]): unknown {
+                const line = describe(this, args);
+                if (line !== null) {
+                    push(line);
+                }
+
+                quiet += hush ? 1 : 0;
+                try {
+                    return original.apply(this, args);
+                } finally {
+                    quiet -= hush ? 1 : 0;
+                }
+            },
+        });
+        restores.push(() => {
+            if (own === undefined) {
+                Reflect.deleteProperty(proto, name);
+            } else {
+                Object.defineProperty(proto, name, own);
+            }
+        });
+    };
+
+    const d3 = D3GraphEngine.prototype;
+    hook(d3, "step", (self) => {
+        const n = (steps.get(self) ?? 0) + 1;
+        steps.set(self, n);
+        const routine = last.includes(" stepped ") || last.includes(" riseStep ");
+        return n === 1 || n % 10 === 0 || !routine
+            ? `${tag(self, "d3#")} stepped ${String(n)} alpha ${alpha(self)}`
+            : null;
+    });
+    for (const name of ["loadArrangement", "wakeForLift", "wakeForResize"]) {
+        hook(d3, name, (self) =>
+            quiet > 0
+                ? null
+                : `${tag(self, "d3#")} ${name} after step ${String(steps.get(self) ?? 0)} alpha ${alpha(self)}`,
+        );
+    }
+
+    const manager = LayoutManager.prototype;
+    hook(manager, "_setLayoutInternal", (self, [type, , how]) => {
+        const build = how as { dimension?: number; lift?: boolean; flatten?: boolean; restoring?: boolean };
+        rises = 0;
+        return (
+            `${tag(self, "LM#")} build ${String(type)} ${String(build.dimension)}D lift=${String(build.lift)} ` +
+            `flatten=${String(build.flatten)} restoring=${String(build.restoring)}`
+        );
+    });
+    hook(manager, "spendPreSteps", (self) => `${tag(self, "LM#")} spendPreSteps`);
+    hook(
+        manager,
+        "riseStep",
+        (self) => {
+            if (!layoutManagerInternals.rising(self as LayoutManager)) {
+                return null;
+            }
+
+            rises++;
+            const routine = last.includes(" stepped ") || last.includes(" riseStep ");
+            return rises === 1 || rises % 10 === 0 || !routine ? `${tag(self, "LM#")} riseStep ${String(rises)}` : null;
+        },
+        true,
+    );
+    hook(
+        manager,
+        "loadArrangement",
+        (self, args) => `${tag(self, "LM#")} loadArrangement(${args.map(String).join(",")})`,
+    );
+
+    return {
+        mark: (event) => {
+            push(`-- ${event}`);
+        },
+        state: (element) => {
+            const manager = element.graph.getLayoutManager();
+            const engine = manager.layoutEngine;
+            const at = positions(element)[0]
+                .map((v) => v.toFixed(6))
+                .join(",");
+            return engine === undefined
+                ? `no engine, row 0 at ${at}`
+                : `${tag(manager, "LM#")} ${tag(engine, "d3#")} ${engine.constructor.name} steps ${String(steps.get(engine) ?? 0)} ` +
+                      `alpha ${alpha(engine)} config ${JSON.stringify(element.layoutConfig)} row 0 at ${at}`;
+        },
+        text: () =>
+            [...events, ...(repeats > 0 ? [`   (the line above ${String(repeats)} more times)`] : [])].join("\n"),
+        stop: () => {
+            running = false;
+            for (const restore of restores.splice(0).reverse()) {
+                restore();
+            }
+        },
+    };
 }
 
 /** The force engines and render paths a lift is checked on; d3 has no seed and runs the same every time. */
@@ -158,19 +328,40 @@ describe.each(CASES)("switching a 2D $layout drawing to 3D on the $path path", (
 
     test("lifts the same drawing to the same 3D drawing every time", async () => {
         const drawn: [number, number, number][][] = [];
-        for (let run = 0; run < 2; run++) {
-            const element = await drawFlat(c);
-            await element.setViewMode("3d");
-            await settle(element);
-            drawn.push(positions(element));
+        const trace = traceLifts();
+        try {
+            for (let run = 0; run < 2; run++) {
+                trace.mark(`lift ${String(run)}: build 2D`);
+                const element = await drawFlat(c);
+                trace.mark(`lift ${String(run)}: flat ${trace.state(element)}; switch to 3D`);
+                await element.setViewMode("3d");
+                trace.mark(`lift ${String(run)}: switched`);
+                await settle(element);
+                drawn.push(positions(element));
+                trace.mark(`lift ${String(run)}: settled ${trace.state(element)}`);
+            }
+        } finally {
+            trace.stop();
         }
 
         const [first, second] = drawn;
         const width = Math.max(span(first, 0), span(first, 1), span(first, 2));
         assert.isAtLeast(span(first, 2), width * 0.3, "the lifted drawing has real depth");
+        // Issue #10483: in CI the first of the two lifts once ended elsewhere, and more than 100 local lifts did not.
+        // A failure prints what each lift did, so the next CI failure names the path the odd one took.
+        const differs = first.some((at, row) => at.some((v, axis) => Math.abs(second[row][axis] - v) > width * 1e-6));
+        if (differs) {
+            console.log(`LIFT TRACE (issue #10483)\n${trace.text()}`);
+        }
+
         for (const [row, at] of first.entries()) {
             for (const axis of [0, 1, 2] as const) {
-                assert.closeTo(second[row][axis], at[axis], width * 1e-6, `row ${String(row)} axis ${String(axis)}`);
+                assert.closeTo(
+                    second[row][axis],
+                    at[axis],
+                    width * 1e-6,
+                    `row ${String(row)} axis ${String(axis)}; what each lift did:\n${trace.text()}`,
+                );
             }
         }
     });

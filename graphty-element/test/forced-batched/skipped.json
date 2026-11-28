@@ -12,6 +12,10 @@
     },
     { "file": "test/browser/edges-follow-steps-mid-layout.test.ts", "reason": "Sets each case's render path by hand" },
     {
+        "file": "test/browser/halo-follows-size-space.test.ts",
+        "reason": "Measures the halo mesh a node object builds (nodeInternals.drawn) against that object's own mesh, which a batched row does not have"
+    },
+    {
         "file": "test/browser/edge-arrowhead-position.test.ts",
         "reason": "Reads each edge's placed ArrowCap object, which a batched head pulled from the row table no longer has"
     },

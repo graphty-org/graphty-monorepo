@@ -2616,6 +2616,29 @@ export function yedArrowWidth(arrow: unknown): number | null {
 }
 
 /**
+ * Takes off the heads yEd loses on a polyline: yEd aims a head along the leg from the bend beside it to its port, and
+ * with that bend on the port the leg has no direction, so yEd draws the head somewhere else, not at its end
+ * (gml-synthetic-coverage 7 -> 8: its white_diamond lands on the tip of 2 -> 3's head, across the drawing).
+ * @param ends - the route's source and target ports
+ * @param bends - its bends, from the source
+ * @param put - receives the values
+ */
+export function putLostYedHeads(
+    ends: readonly [BendPoint, BendPoint],
+    bends: readonly BendPoint[],
+    put: (property: string, value: string) => void,
+): void {
+    const on = (bend: BendPoint | undefined, end: BendPoint): boolean =>
+        bend !== undefined && Math.hypot(bend[0] - end[0], bend[1] - end[1]) < 1e-6;
+    if (on(bends[0], ends[0])) {
+        put("sourceArrow", "none");
+    }
+    if (on(bends.at(-1), ends[1])) {
+        put("targetArrow", "none");
+    }
+}
+
+/**
  * Reads a framed edge (GenericEdge `com.yworks.edge.framed`) as yEd draws it: a closed outline 1 wide in the line's
  * color round a band as wide as the line, filled with `FramedEdgePainter.fillColor` (graphml-galaxy-lcms-workflow: a
  * band 3 wide stroked 1 wide over a #ffffff fill of the same outline). The fill is the line, 1 narrower than the band,

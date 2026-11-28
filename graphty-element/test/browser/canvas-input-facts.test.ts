@@ -1,7 +1,7 @@
 /**
  * @file What the element says about a reader's own canvas input, under real input: how a
  * selection was made (`SelectionDelta.via`), when a camera gesture ended (`camera:gesture-end`,
- * once per gesture, ended by the input and never by a timer), and the `"suggestion"` trigger on
+ * once per gesture, ended by the input, or for the wheel by a pause), and the `"suggestion"` trigger on
  * the style entries `applySuggestedStyles` writes.
  */
 
@@ -20,7 +20,7 @@ import {
 } from "../../session";
 import { operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
-import { click, drag, holdKey, nextFrame, type Point, releaseHeldKeys, releaseKey, wheel } from "../helpers/real-input";
+import { click, drag, holdKey, type Point, releaseHeldKeys, releaseKey, wheel } from "../helpers/real-input";
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -223,7 +223,7 @@ describe("camera:gesture-end", () => {
         });
     }
 
-    it("ends wheel runs a frame with no wheel apart as two gestures", async () => {
+    it("ends wheel runs a pause apart as two gestures", async () => {
         const element = await mounted("3d");
         const ends = gestureEnds(element);
         const center = { x: WIDTH / 2, y: HEIGHT / 2 };
@@ -231,8 +231,8 @@ describe("camera:gesture-end", () => {
         let ended = ends.next();
         await wheel(element, center, -40);
         assert.strictEqual(await ended, "zoom");
+        // The first run has ended, so the wheel has rested: the next turn is a gesture of its own.
         ended = ends.next();
-        await nextFrame();
         await wheel(element, center, 40);
         assert.strictEqual(await ended, "zoom");
         await settled(element);

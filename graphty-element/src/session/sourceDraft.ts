@@ -71,6 +71,7 @@ import type {
     SourceDraft,
     SourceDraftChange,
     SourceDraftColumn,
+    SourceDraftMadeCounts,
     SourceDraftOptions,
     SourceDraftPreview,
     SourceDraftRow,
@@ -161,6 +162,7 @@ export class SourceDraftHandle implements SourceDraft {
     // Whether the draft is drawn, and which side of its commit.
     private shown: { readonly on: boolean; readonly side: "before" | "after" } = { on: false, side: "after" };
     private hold = false;
+    private keepCamera = false;
     // The marks of the current state, kept until an act or an undo changes it.
     private marked: { readonly state: DraftState; readonly marks: DraftMarks } | null = null;
     // the preview of the current state, kept until an act, an undo or the session's references and
@@ -207,15 +209,24 @@ export class SourceDraftHandle implements SourceDraft {
         return this.hold && this.shown.on;
     }
 
+    /**
+     * Whether the draft, while it is drawn, leaves the camera where it is.
+     * @returns True under `display(true, { keepCamera: true })`.
+     */
+    get keepsCamera(): boolean {
+        return this.keepCamera && this.shown.on;
+    }
+
     /** @inheritdoc */
     get side(): "before" | "after" {
         return this.shown.side;
     }
 
     /** @inheritdoc */
-    display(on: boolean, options: { readonly hold?: boolean } = {}): Promise<void> {
+    display(on: boolean, options: { readonly hold?: boolean; readonly keepCamera?: boolean } = {}): Promise<void> {
         this.live("display");
         const hold = options.hold === true;
+        this.keepCamera = options.keepCamera === true;
         if (this.shown.on !== on || this.hold !== hold) {
             this.shown = { ...this.shown, on };
             this.hold = hold;
@@ -787,6 +798,17 @@ export class SourceDraftHandle implements SourceDraft {
             const { base, state } = this;
             const drawn = draftMarks(base, state);
             // The drill-down reads the state the preview describes; kept off the enumerable data.
+            // A screen asks each card's counts on every draw: each set of steps is counted once per preview.
+            const made = new Map<string, SourceDraftMadeCounts>();
+            const madeOf = (steps: readonly number[]): SourceDraftMadeCounts => {
+                const at = steps.join(",");
+                let out = made.get(at);
+                if (out === undefined) {
+                    out = madeCounts(state, drawn, steps);
+                    made.set(at, out);
+                }
+                return out;
+            };
             const questions = openQuestions(state).map(({ space, count, of, source, sources }) => ({
                 code: "W_SPACE_OVERLAP" as const,
                 params: { space, count, of, source, sources },
@@ -798,7 +820,7 @@ export class SourceDraftHandle implements SourceDraft {
                     elements: { value: (q: DrillQueryArg) => drillElements(state, q) },
                     cells: { value: (q: CellQueryArg) => drillCells(state, q) },
                     marks: { value: Object.freeze(markCounts(state, drawn)), enumerable: true },
-                    made: { value: (steps: readonly number[]) => madeCounts(state, drawn, steps) },
+                    made: { value: madeOf },
                     ids: {
                         value: (q: DrillQueryArg | { readonly refs: readonly SourceElementRef[] }) =>
                             this.idsOf("refs" in q ? q.refs : drillElements(state, q)),

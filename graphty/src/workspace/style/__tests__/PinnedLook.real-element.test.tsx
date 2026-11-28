@@ -74,7 +74,9 @@ describe("the Pinned look of a new project", () => {
         await element.waitForStableFrame();
         const now = element.nodeScreenPosition(String(dragged));
         assert.isTrue(now?.visible, "the dragged node is on screen");
-        await userEvent.click(element, { position: { x: now?.x ?? 0, y: now?.y ?? 0 } });
+        await userEvent.click(page.getByCss("graphty-element").first(), {
+            position: { x: now?.x ?? 0, y: now?.y ?? 0 },
+        });
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes], [dragged], "the click selected the pinned node");
             assert.notStrictEqual(halo(session, dragged), RING, "Selected sits above Pinned and wins");

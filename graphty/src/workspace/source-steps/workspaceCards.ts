@@ -39,9 +39,6 @@ import type { TableShows } from "./JoinPane";
 /** The colors of what the commit does, as the key names them: merged, new, removed. */
 export const [MERGED_COLOR = "#000", NEW_COLOR = "#000", REMOVED_COLOR = "#000"] = DEFAULT_BRANCH_PALETTE;
 
-/** How many new nodes are looked for in the view before the preview is framed again. */
-const MOST_LOOKED_FOR = 500;
-
 /**
  * An Add step's card id: its place, so a card follows its step through undo.
  * @param index - The step's place.
@@ -231,21 +228,6 @@ export function unfinished(card: JoinCardView, unfinishedEnds: SourceKey | undef
         unfinishedEnds !== undefined &&
         lines.some(({ a, b }) => a.side?.source === unfinishedEnds || b.side?.source === unfinishedEnds);
     return begun || ends;
-}
-
-/**
- * The new nodes a draft adds, as the element draws them.
- * @param draft - the open draft
- * @returns their ids
- */
-export function newNodeIds(draft: SourceDraft): readonly (string | number)[] {
-    const preview = draft.preview();
-    return preview.steps
-        .filter((step) => step.committed === null)
-        .flatMap((step) =>
-            (["newNodes", "keptNew"] as const).flatMap((bucket) => preview.ids({ step: step.index, bucket }).nodes),
-        )
-        .slice(0, MOST_LOOKED_FOR);
 }
 
 /**

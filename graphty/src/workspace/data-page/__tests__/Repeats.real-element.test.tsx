@@ -13,7 +13,7 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { act } from "react";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import FRIENDS from "../../../../../design/ui/studio/tool/files/friends.csv?raw";
 import FRIENDS_V2 from "../../../../../design/ui/studio/tool/files/friends-v2.csv?raw";
@@ -84,7 +84,7 @@ describe("Add a file whose edges the graph already holds", () => {
                 .filter((words) => words !== undefined && words !== null)
                 .join(" "),
         );
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.getByRole("button", { name: "Cancel", exact: true }));
 
         // One edge repeats and one is new: Replace is offered, Load stays the primary.
         act(() => {
@@ -96,7 +96,7 @@ describe("Add a file whose edges the graph already holds", () => {
         await screen.findByTestId("repeats", {});
         assert.equal(screen.getByRole("button", { name: "Replace friends.csv" }).dataset.variant, "default");
         assert.equal(screen.getByRole("button", { name: "Load" }).dataset.variant, "filled");
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.getByRole("button", { name: "Cancel", exact: true }));
 
         act(() => {
             openDataPage(store, { intent: "add", files: [new File([FRIENDS_V2], "friends-v2.csv")] });
@@ -111,7 +111,7 @@ describe("Add a file whose edges the graph already holds", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, replace);
         });
-        await userEvent.click(screen.getByRole("button", { name: "Replace friends.csv" }));
+        await userEvent.click(page.getByRole("button", { name: "Replace friends.csv", exact: true }));
 
         // Replace replaces at once, with no second page asking again (a load can be undone).
         await waitFor(() => {
@@ -136,12 +136,12 @@ describe("Add a file whose edges the graph already holds", () => {
         });
         await screen.findByTestId("repeats", {});
         // The element reads weight as the edges' weight; the reader makes it a plain attribute.
-        await userEvent.click(screen.getByRole("combobox", { name: "Role of weight" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Attribute" }));
+        await userEvent.click(page.getByRole("combobox", { name: "Role of weight", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "Attribute", exact: true }));
         await waitFor(() => {
             assert.equal(screen.getByRole<HTMLInputElement>("combobox", { name: "Role of weight" }).value, "Attribute");
         });
-        await userEvent.click(screen.getByRole("button", { name: "Replace friends.csv" }));
+        await userEvent.click(page.getByRole("button", { name: "Replace friends.csv", exact: true }));
 
         await waitFor(() => {
             assert.match(store.get().notice?.message ?? "", /^Replaced friends\.csv with friends-v2\.csv/);

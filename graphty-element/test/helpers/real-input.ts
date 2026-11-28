@@ -172,6 +172,8 @@ function modifierBits(modifiers: Modifiers = {}): number {
  * @param timestamp - When the event happened, in seconds since the epoch; the browser stamps it
  *     with the time it arrives when this is left out.
  * @param button - Which button.
+ * @param clickCount - The press's click count.
+ * @param pointerType - The pointer: a mouse, or a pen (the protocol sends a pen as a mouse event).
  */
 async function mouseEvent(
     type: "mouseMoved" | "mousePressed" | "mouseReleased",
@@ -182,6 +184,7 @@ async function mouseEvent(
     timestamp?: number,
     button: Button = "left",
     clickCount = 1,
+    pointerType: "mouse" | "pen" = "mouse",
 ): Promise<void> {
     const at = toPage(element, point);
     await send()("Input.dispatchMouseEvent", {
@@ -192,8 +195,31 @@ async function mouseEvent(
         buttons: buttons === 0 ? 0 : BUTTON_BITS[button],
         clickCount: type === "mouseMoved" ? 0 : clickCount,
         modifiers: modifierBits(modifiers),
+        pointerType,
         ...(timestamp === undefined ? {} : { timestamp }),
     });
+}
+
+/**
+ * Move a pen hovering over the screen, its tip not touching it.
+ * @param element - The element the point is on.
+ * @param point - Where to.
+ */
+export async function penHover(element: Element, point: Point): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 0, undefined, undefined, "left", 1, "pen");
+}
+
+/**
+ * Touch a pen to one point and lift it, the touch and the lift sent together, as `click` sends its press and release.
+ * @param element - The element the point is on.
+ * @param point - Where.
+ */
+export async function penTap(element: Element, point: Point): Promise<void> {
+    await penHover(element, point);
+    await Promise.all([
+        mouseEvent("mousePressed", element, point, 1, undefined, undefined, "left", 1, "pen"),
+        mouseEvent("mouseReleased", element, point, 0, undefined, undefined, "left", 1, "pen"),
+    ]);
 }
 
 /**
@@ -295,34 +321,52 @@ export async function pressFor(
 }
 
 /**
- * Move the mouse to a point and press the left button there, holding it.
+ * Move the mouse to a point and press a button there, the left by default, holding it.
  * @param element - The element the point is on.
  * @param point - Where.
  * @param modifiers - Modifier keys held.
+ * @param button - Which button.
  */
-export async function press(element: Element, point: Point, modifiers?: Modifiers): Promise<void> {
+export async function press(
+    element: Element,
+    point: Point,
+    modifiers?: Modifiers,
+    button: Button = "left",
+): Promise<void> {
     await mouseEvent("mouseMoved", element, point, 0, modifiers);
-    await mouseEvent("mousePressed", element, point, 1, modifiers);
+    await mouseEvent("mousePressed", element, point, 1, modifiers, undefined, button);
 }
 
 /**
- * Move the mouse in one step with the left button held, as after `press`.
+ * Move the mouse in one step with a button held, the left by default, as after `press`.
  * @param element - The element the point is on.
  * @param point - Where to.
  * @param modifiers - Modifier keys held.
+ * @param button - Which button is held.
  */
-export async function moveHeld(element: Element, point: Point, modifiers?: Modifiers): Promise<void> {
-    await mouseEvent("mouseMoved", element, point, 1, modifiers);
+export async function moveHeld(
+    element: Element,
+    point: Point,
+    modifiers?: Modifiers,
+    button: Button = "left",
+): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 1, modifiers, undefined, button);
 }
 
 /**
- * Release the left button at a point, as after `press`.
+ * Release a button, the left by default, at a point, as after `press`.
  * @param element - The element the point is on.
  * @param point - Where.
  * @param modifiers - Modifier keys held.
+ * @param button - Which button.
  */
-export async function release(element: Element, point: Point, modifiers?: Modifiers): Promise<void> {
-    await mouseEvent("mouseReleased", element, point, 0, modifiers);
+export async function release(
+    element: Element,
+    point: Point,
+    modifiers?: Modifiers,
+    button: Button = "left",
+): Promise<void> {
+    await mouseEvent("mouseReleased", element, point, 0, modifiers, undefined, button);
 }
 
 /**

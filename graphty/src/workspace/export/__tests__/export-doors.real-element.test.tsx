@@ -70,9 +70,13 @@ describe("Export opens on Data where a table is showing (R14)", () => {
         const placeRegion = within(screen.getByRole("region", { name: "Data place" }));
         const row = await placeRegion.findByRole("listitem", { name: "hosts.csv" });
 
-        await userEvent.hover(row);
-        await userEvent.click(within(row).getByRole("button", { name: "hosts.csv menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Export..." }));
+        await userEvent.hover(
+            page
+                .getByRole("region", { name: "Data place", exact: true })
+                .getByRole("listitem", { name: "hosts.csv", exact: true }),
+        );
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "hosts.csv menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Export...", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         assert.isNotNull(within(dialog).getByRole("heading", { name: "Data" }));
         await waitFor(() => {
@@ -103,7 +107,7 @@ describe("Export: a camera exports images and a tour videos", () => {
             assert.isNull(screen.queryByRole("dialog", { name: "Export" }));
         });
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
         const menu = await screen.findByRole("menu");
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Export\.\.\./ }));
         assert.isNull(within(menu).queryByRole("menuitem", { name: /^Export (image|video)/i }));
@@ -113,7 +117,7 @@ describe("Export: a camera exports images and a tour videos", () => {
         });
 
         await userEvent.keyboard("{Control>}k{/Control}");
-        await userEvent.fill(await screen.findByPlaceholderText("Search commands"), "Export");
+        await userEvent.fill(page.getByPlaceholder("Search commands", { exact: true }), "Export");
         await screen.findByRole("option", { name: /^Export\.\.\./ });
         assert.isNull(screen.queryByRole("option", { name: /^(Export image|Export video|Record video)/i }));
     });
@@ -142,9 +146,13 @@ describe("Export's scope says what it writes and starts on the whole graph", () 
         const placeRegion = within(screen.getByRole("region", { name: "Data place" }));
         const row = await placeRegion.findByRole("listitem", { name: "hosts.csv" });
 
-        await userEvent.hover(row);
-        await userEvent.click(within(row).getByRole("button", { name: "hosts.csv menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Export..." }));
+        await userEvent.hover(
+            page
+                .getByRole("region", { name: "Data place", exact: true })
+                .getByRole("listitem", { name: "hosts.csv", exact: true }),
+        );
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "hosts.csv menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Export...", exact: true }));
         let dialog = await screen.findByRole("dialog", { name: "Export" });
         await waitFor(() => {
             assert.match(
@@ -152,14 +160,19 @@ describe("Export's scope says what it writes and starts on the whole graph", () 
                 /^hosts\.csv /,
             );
         });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Export" }));
         });
 
         await userEvent.keyboard("{Control>}e{/Control}");
         dialog = await screen.findByRole("dialog", { name: "Export" });
-        await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"));
+        await userEvent.click(
+            page
+                .elementLocator(dialog)
+                .getByRole("grid", { name: "What to export", exact: true })
+                .getByText("Data", { exact: true }),
+        );
         await waitFor(() => {
             assert.strictEqual(
                 within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Scope" }).value,
@@ -185,14 +198,14 @@ describe("the Data output's format list and losses (R14)", () => {
         assert.isNull(within(dialog).queryByRole("checkbox", { name: /^Include styles$/i }));
         assert.isNotNull(within(dialog).getByText("No styles"));
 
-        await userEvent.click(within(dialog).getByRole("combobox", { name: "Format" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Format", exact: true }));
         const list = await screen.findByRole("listbox");
         assert.isNotNull(within(list).getByText("Tables"));
         assert.isNotNull(within(list).getByText("Network files"));
         for (const option of within(list).getAllByRole("option")) {
             assert.notInclude(option.textContent, "keeps style layers");
         }
-        await userEvent.click(within(list).getByRole("option", { name: "GraphML" }));
+        await userEvent.click(page.elementLocator(list).getByRole("option", { name: "GraphML", exact: true }));
         await previewed(dialog);
         assert.isNotNull(within(dialog).getByRole("checkbox", { name: "Include styles" }));
         assert.isNull(within(dialog).queryByText("No styles"));
@@ -211,15 +224,15 @@ describe("the Data output's format list and losses (R14)", () => {
 
         await userEvent.keyboard("{Control>}e{/Control}");
         const dialog = await screen.findByRole("dialog", { name: "Export" });
-        await userEvent.click(within(dialog).getByRole("combobox", { name: "Format" }));
-        await userEvent.click(await screen.findByRole("option", { name: "GEXF" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Format", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "GEXF", exact: true }));
         const note = await within(dialog).findByRole("status", {});
         const details = within(note).getByRole("button", { name: "Details" });
         assert.strictEqual(details.getAttribute("aria-expanded"), "false");
         assert.match(note.textContent, /^Not in GEXF: node label color not writtenDetails$/);
         assert.isNull(within(note).queryByRole("list"));
 
-        await userEvent.click(details);
+        await userEvent.click(page.elementLocator(note).getByRole("button", { name: "Details", exact: true }));
         assert.strictEqual(details.getAttribute("aria-expanded"), "true");
         assert.match(within(note).getByRole("list").textContent, /Node label color not written/);
     });

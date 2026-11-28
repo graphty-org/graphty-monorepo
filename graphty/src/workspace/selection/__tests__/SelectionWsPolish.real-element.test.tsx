@@ -73,7 +73,7 @@ async function openLayer(session: GraphSession, name: string, where?: UnionLeaf)
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });

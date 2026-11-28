@@ -64,7 +64,7 @@ async function openDock(data?: string): Promise<{ session: GraphSession; store: 
         : session.data.import({ type: "csv", config: { data } }));
     await session.time.setField({ edges: { start: "sent" } });
     await session.time.ready;
-    await userEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+    await userEvent.click(page.getByRole("button", { name: "Timeline", exact: true }));
     return { session, store, dock: await screen.findByRole("region", { name: "Timeline" }) };
 }
 
@@ -166,11 +166,11 @@ function statusLine(): string {
  * @param to - the To date.
  */
 async function typeWindow(dock: HTMLElement, from: string, to: string): Promise<void> {
-    await userEvent.click(within(dock).getByTestId("time-readout"));
-    const first = await screen.findByRole("textbox", { name: "From" });
-    const last = screen.getByRole("textbox", { name: "To" });
-    await userEvent.clear(first);
-    await userEvent.type(first, from);
+    await userEvent.click(page.elementLocator(dock).getByTestId("time-readout"));
+    await screen.findByRole("textbox", { name: "From" });
+    const last = page.getByRole("textbox", { name: "To", exact: true });
+    await userEvent.clear(page.getByRole("textbox", { name: "From", exact: true }));
+    await userEvent.type(page.getByRole("textbox", { name: "From", exact: true }), from);
     await userEvent.clear(last);
     await userEvent.type(last, `${to}{Enter}`);
 }
@@ -196,7 +196,9 @@ describe("the timeline dock on the real element", () => {
         assert.equal(Number(session.time.current?.to), to);
         assert.isAtMost(brushOf(dock).min, from);
 
-        await userEvent.click(within(dock).getByRole("button", { name: "Show whole timeline" }));
+        await userEvent.click(
+            page.elementLocator(dock).getByRole("button", { name: "Show whole timeline", exact: true }),
+        );
         await waitFor(() => {
             assert.equal(brushOf(dock).max - brushOf(dock).min, span);
         });
@@ -447,7 +449,9 @@ describe("the timeline dock on the real element", () => {
         });
         const span = session.time.spanOf({ nodes: ["p01"], incident: true });
 
-        await userEvent.click(await within(dock).findByRole("button", { name: "Jump to selection" }));
+        await userEvent.click(
+            page.elementLocator(dock).getByRole("button", { name: "Jump to selection", exact: true }),
+        );
 
         await waitFor(() => {
             assert.equal(Number(session.time.current?.from), span?.from);
@@ -459,8 +463,11 @@ describe("the timeline dock on the real element", () => {
         const { session } = await openDock();
         const jump = async (): Promise<void> => {
             await userEvent.keyboard("{Control>}k{/Control}");
-            await userEvent.type(await screen.findByPlaceholderText("Search commands"), "Jump time to the selection");
-            await userEvent.click(await screen.findByRole("option", { name: /Jump time to the selection/ }));
+            await userEvent.type(
+                page.getByPlaceholder("Search commands", { exact: true }),
+                "Jump time to the selection",
+            );
+            await userEvent.click(page.getByRole("option", { name: /Jump time to the selection/ }));
         };
         const before = session.history.position;
         await jump();
@@ -596,16 +603,18 @@ describe("the timeline dock on the real element", () => {
     it("reads in the reader's zone: day bars, typed dates and the zone's name", async () => {
         await inBrowserZone(NEW_YORK, async () => {
             const { session, dock } = await openDock();
-            await userEvent.click(within(dock).getByRole("button", { name: "Timeline settings" }));
+            await userEvent.click(
+                page.elementLocator(dock).getByRole("button", { name: "Timeline settings", exact: true }),
+            );
             const zone = await screen.findByRole("radiogroup", { name: "Zone" });
             assert.equal(session.time.settings.timeZone, "UTC");
 
-            await userEvent.click(within(zone).getByText("Local"));
+            await userEvent.click(page.elementLocator(zone).getByText("Local", { exact: true }));
 
             await waitFor(() => {
                 assert.equal(session.time.settings.timeZone, NEW_YORK);
             });
-            await userEvent.click(screen.getByRole("button", { name: "Close Timeline settings" }));
+            await userEvent.click(page.getByRole("button", { name: "Close Timeline settings", exact: true }));
             // A day bar starts at midnight in New York, and the brush starts on a bar.
             await session.time.window(null);
             await waitFor(() => {
@@ -661,7 +670,9 @@ describe("the timeline dock on the real element", () => {
             await windowOn(session, Date.UTC(2025, 2, 10), Date.UTC(2025, 2, 12));
             const before = windowOf(session);
             const readout = within(dock).getByTestId("time-readout").textContent;
-            await userEvent.click(within(dock).getByRole("button", { name: "Timeline settings" }));
+            await userEvent.click(
+                page.elementLocator(dock).getByRole("button", { name: "Timeline settings", exact: true }),
+            );
             const zone = await screen.findByRole("radiogroup", { name: "Zone" });
 
             for (const [label, timeZone] of [
@@ -670,7 +681,7 @@ describe("the timeline dock on the real element", () => {
                 ["Local", NEW_YORK],
                 ["UTC", "UTC"],
             ]) {
-                await userEvent.click(within(zone).getByText(label));
+                await userEvent.click(page.elementLocator(zone).getByText(label, { exact: true }));
                 await waitFor(() => {
                     assert.equal(session.time.timeZone, timeZone);
                 });
@@ -733,8 +744,8 @@ describe("the timeline dock on the real element", () => {
         await act(async () => {
             await session.time.setSettings({ step: "week" });
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
         await waitFor(() => {
             const { entered, left } = session.time.changes();
             const counted = (ids: typeof entered): number => ids.nodes.length + ids.edges.length;
@@ -750,12 +761,12 @@ describe("the timeline dock on the real element", () => {
             played.entered += entered.nodes + entered.edges;
             played.left += left.nodes + left.edges;
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Play", exact: true }));
         await waitFor(() => {
             assert.isAbove(played.entered + played.left, 0);
         });
 
-        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Pause", exact: true }));
 
         await waitFor(() => {
             assert.isFalse(session.time.playing);
@@ -781,7 +792,7 @@ describe("the timeline dock on the real element", () => {
         const stopEnd = session.on("time:end", () => {
             ended = true;
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Play", exact: true }));
 
         await waitFor(() => {
             assert.isTrue(ended);
@@ -853,10 +864,10 @@ describe("the timeline dock on the real element", () => {
             assert.isFalse(session.time.playing);
         });
 
-        await userEvent.click(within(dock).getByTestId("time-readout"));
+        await userEvent.click(page.elementLocator(dock).getByTestId("time-readout"));
         const from = await screen.findByRole("textbox", { name: "From" });
-        await userEvent.clear(from);
-        await userEvent.type(from, "1 2");
+        await userEvent.clear(page.getByRole("textbox", { name: "From", exact: true }));
+        await userEvent.type(page.getByRole("textbox", { name: "From", exact: true }), "1 2");
         assert.equal((from as HTMLInputElement).value, "1 2");
         assert.isFalse(session.time.playing);
     });

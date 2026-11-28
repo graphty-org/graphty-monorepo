@@ -34,6 +34,30 @@ function drop(file: File): void {
     }
 }
 
+/**
+ * A spot a reader can point at: a node drawn there, picked there, and with no app overlay (the
+ * canvas toolbar, the key) over it. The drawing is framed in the whole canvas and overlays float
+ * on top of it, so any one node, such as the file's first, can lie under an overlay (#10273).
+ * @param element - the element.
+ * @returns the spot, in the element's own pixels, or undefined when every node is covered.
+ */
+function reachableNode(element: HTMLElementTagNameMap["graphty-element"]): { x: number; y: number } | undefined {
+    const box = element.getBoundingClientRect();
+    for (const node of element.session.data.nodes()) {
+        const at = element.nodeScreenPosition(String(node.id));
+        if (at?.visible !== true) {
+            continue;
+        }
+        const point = { x: at.x, y: at.y };
+        const picked = element.elementAt(point);
+        const top = document.elementFromPoint(box.left + point.x, box.top + point.y);
+        if (picked?.kind === "node" && String(picked.id) === String(node.id) && top !== null && element.contains(top)) {
+            return point;
+        }
+    }
+    return undefined;
+}
+
 describe("a yEd file opened with its styles", () => {
     it("keys no edge route, and leaving the canvas leaves nothing hovered", async () => {
         await page.viewport(1440, 900);
@@ -59,14 +83,13 @@ describe("a yEd file opened with its styles", () => {
             "the file binds edge.bends",
         );
 
-        const node = session.data.nodes()[0];
-        const at = element.nodeScreenPosition(String(node?.id));
-        assert.isDefined(at, "the node is drawn");
-        await userEvent.hover(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        const at = reachableNode(element);
+        assert.isDefined(at, "a node is drawn where the reader can point at it");
+        await userEvent.hover(element, { position: at });
         await waitFor(() => {
             assert.isNotNull(session.selection.hovered, "pointing at a node hovers it");
         });
-        await userEvent.hover(screen.getByRole("tree", { name: "Style layers" }));
+        await userEvent.hover(page.getByRole("tree", { name: "Style layers", exact: true }));
         await waitFor(() => {
             assert.isNull(session.selection.hovered, "the pointer left the canvas");
         });

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import type { captureUserFeedback } from "../lib/sentry";
 import { render, screen, waitFor } from "../test/test-utils";
@@ -37,7 +37,7 @@ describe("FeedbackModal", () => {
 
     it("enables submit when message is provided", async () => {
         render(<FeedbackModal send={mockCaptureUserFeedback} opened onClose={vi.fn()} />);
-        const textarea = screen.getByPlaceholderText(/Describe the issue/);
+        const textarea = page.getByPlaceholder(/Describe the issue/);
         await userEvent.fill(textarea, "Bug report");
         expect(screen.getByRole("button", { name: /Send Feedback/i })).not.toBeDisabled();
     });
@@ -45,7 +45,7 @@ describe("FeedbackModal", () => {
     it("calls onClose when Cancel is clicked", async () => {
         const onClose = vi.fn();
         render(<FeedbackModal send={mockCaptureUserFeedback} opened onClose={onClose} />);
-        await userEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+        await userEvent.click(page.getByRole("button", { name: /Cancel/i }));
         expect(onClose).toHaveBeenCalled();
     });
 
@@ -72,14 +72,14 @@ describe("FeedbackModal", () => {
     it("updates name field when typed into", async () => {
         render(<FeedbackModal send={mockCaptureUserFeedback} opened onClose={vi.fn()} />);
         const nameInput = screen.getByPlaceholderText("Your name");
-        await userEvent.fill(nameInput, "John Doe");
+        await userEvent.fill(page.getByPlaceholder("Your name", { exact: true }), "John Doe");
         expect(nameInput).toHaveValue("John Doe");
     });
 
     it("updates email field when typed into", async () => {
         render(<FeedbackModal send={mockCaptureUserFeedback} opened onClose={vi.fn()} />);
         const emailInput = screen.getByPlaceholderText("your.email@example.com");
-        await userEvent.fill(emailInput, "john@example.com");
+        await userEvent.fill(page.getByPlaceholder("your.email@example.com", { exact: true }), "john@example.com");
         expect(emailInput).toHaveValue("john@example.com");
     });
 
@@ -88,11 +88,11 @@ describe("FeedbackModal", () => {
         render(<FeedbackModal send={mockCaptureUserFeedback} opened onClose={onClose} />);
 
         // Fill in message
-        const textarea = screen.getByPlaceholderText(/Describe the issue/);
+        const textarea = page.getByPlaceholder(/Describe the issue/);
         await userEvent.fill(textarea, "Test feedback message");
 
         // Click submit
-        await userEvent.click(screen.getByRole("button", { name: /Send Feedback/i }));
+        await userEvent.click(page.getByRole("button", { name: /Send Feedback/i }));
 
         await waitFor(() => {
             expect(mockCaptureUserFeedback).toHaveBeenCalledWith({
@@ -113,16 +113,16 @@ describe("FeedbackModal", () => {
         render(<FeedbackModal send={mockCaptureUserFeedback} opened onClose={onClose} />);
 
         // Fill in name
-        await userEvent.fill(screen.getByPlaceholderText("Your name"), "John Doe");
+        await userEvent.fill(page.getByPlaceholder("Your name", { exact: true }), "John Doe");
 
         // Fill in email
-        await userEvent.fill(screen.getByPlaceholderText("your.email@example.com"), "john@example.com");
+        await userEvent.fill(page.getByPlaceholder("your.email@example.com", { exact: true }), "john@example.com");
 
         // Fill in message
-        await userEvent.fill(screen.getByPlaceholderText(/Describe the issue/), "Test feedback");
+        await userEvent.fill(page.getByPlaceholder(/Describe the issue/), "Test feedback");
 
         // Click submit
-        await userEvent.click(screen.getByRole("button", { name: /Send Feedback/i }));
+        await userEvent.click(page.getByRole("button", { name: /Send Feedback/i }));
 
         await waitFor(() => {
             expect(mockCaptureUserFeedback).toHaveBeenCalledWith({
@@ -139,11 +139,11 @@ describe("FeedbackModal", () => {
         render(<FeedbackModal send={mockCaptureUserFeedback} opened onClose={onClose} />);
 
         // Fill in fields
-        await userEvent.fill(screen.getByPlaceholderText("Your name"), "John");
-        await userEvent.fill(screen.getByPlaceholderText(/Describe the issue/), "Test");
+        await userEvent.fill(page.getByPlaceholder("Your name", { exact: true }), "John");
+        await userEvent.fill(page.getByPlaceholder(/Describe the issue/), "Test");
 
         // Click submit
-        await userEvent.click(screen.getByRole("button", { name: /Send Feedback/i }));
+        await userEvent.click(page.getByRole("button", { name: /Send Feedback/i }));
 
         await waitFor(() => {
             expect(onClose).toHaveBeenCalled();
@@ -180,13 +180,13 @@ describe("FeedbackModal", () => {
         }
         render(<Harness />);
 
-        await userEvent.fill(screen.getByPlaceholderText(/Describe the issue/), "First report");
-        await userEvent.click(screen.getByRole("button", { name: /Send Feedback/i }));
+        await userEvent.fill(page.getByPlaceholder(/Describe the issue/), "First report");
+        await userEvent.click(page.getByRole("button", { name: /Send Feedback/i }));
         await waitFor(() => {
             expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
         });
 
-        await userEvent.click(screen.getByRole("button", { name: "Open feedback" }));
+        await userEvent.click(page.getByRole("button", { name: "Open feedback", exact: true }));
         await waitFor(() => {
             expect(screen.getByRole("dialog")).toBeInTheDocument();
         });
@@ -205,10 +205,10 @@ describe("FeedbackModal", () => {
             render(<FeedbackModal send={mockCaptureUserFeedback} opened onClose={onClose} />);
 
             // Fill in message
-            await userEvent.fill(screen.getByPlaceholderText(/Describe the issue/), "Test feedback");
+            await userEvent.fill(page.getByPlaceholder(/Describe the issue/), "Test feedback");
 
             // Click submit
-            await userEvent.click(screen.getByRole("button", { name: /Send Feedback/i }));
+            await userEvent.click(page.getByRole("button", { name: /Send Feedback/i }));
 
             // Should show error alert
             await waitFor(() => {
@@ -229,12 +229,12 @@ describe("FeedbackModal", () => {
             render(<FeedbackModal send={mockCaptureUserFeedback} opened onClose={vi.fn()} />);
 
             // Fill in all fields
-            await userEvent.fill(screen.getByPlaceholderText("Your name"), "John Doe");
-            await userEvent.fill(screen.getByPlaceholderText("your.email@example.com"), "john@example.com");
-            await userEvent.fill(screen.getByPlaceholderText(/Describe the issue/), "My feedback message");
+            await userEvent.fill(page.getByPlaceholder("Your name", { exact: true }), "John Doe");
+            await userEvent.fill(page.getByPlaceholder("your.email@example.com", { exact: true }), "john@example.com");
+            await userEvent.fill(page.getByPlaceholder(/Describe the issue/), "My feedback message");
 
             // Click submit
-            await userEvent.click(screen.getByRole("button", { name: /Send Feedback/i }));
+            await userEvent.click(page.getByRole("button", { name: /Send Feedback/i }));
 
             // Wait for error alert
             await waitFor(() => {

@@ -70,10 +70,10 @@ function refusedForSize(session: GraphSession): number {
 async function openBySize(): Promise<HTMLElement> {
     const tab = await screen.findByTestId("style-tab", {});
     if (tab.querySelector('.ws-row[data-line="node.size"]') === null) {
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Size", exact: true }));
     }
-    await userEvent.click(await screen.findByRole("spinbutton", { name: /^Node size/ }));
+    await userEvent.click(page.getByRole("spinbutton", { name: /^Node size/ }));
     await userEvent.keyboard("=");
     return findValuePicker();
 }
@@ -131,7 +131,7 @@ describe("the value picker on the real element", () => {
         // The fold sits in a group named "Does not fit", and while folded its name says why the
         // rows do not fit and that it shows why.
         const misfits = within(picker).getByRole("group", { name: "Does not fit" });
-        const fold = within(misfits).getByRole("option", {
+        const fold = page.elementLocator(misfits).getByRole("option", {
             name: new RegExp(`^${String(refused)} attributes?, hidden, .*holds groups, not amounts.*, Show why$`),
         });
         assert.isNull(within(picker).queryByRole("option", { name: /^dept(,|$)/ }), "dept is folded");
@@ -144,7 +144,7 @@ describe("the value picker on the real element", () => {
         assert.match(dept.getAttribute("aria-label") ?? "", /^dept, /);
         assert.notEqual(dept.getAttribute("aria-selected"), "true");
 
-        await userEvent.click(search);
+        await userEvent.click(page.elementLocator(picker).getByRole("combobox"));
         await userEvent.keyboard("ag");
         await waitFor(() => {
             assert.deepEqual(optionNames(picker), ["age"], "typing narrows to the matches");
@@ -184,10 +184,10 @@ describe("the value picker on the real element", () => {
 
         const tab = await screen.findByTestId("style-tab", {});
         // Size is a row once Shape's "+" adds it; its vary glyph opens the picker.
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Size", exact: true }));
         const button = await screen.findByRole("button", { name: "Node size by attribute" });
-        await userEvent.click(button);
+        await userEvent.click(page.getByRole("button", { name: "Node size by attribute", exact: true }));
         const picker = await findValuePicker();
         assert.equal(picker.getAttribute("aria-label"), "Node size by attribute", "named by its pop-out's title");
         const dialog = picker.closest("[role=dialog]");

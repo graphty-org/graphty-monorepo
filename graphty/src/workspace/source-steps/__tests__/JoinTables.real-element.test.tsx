@@ -25,6 +25,7 @@ import {
     joinsOf,
     newest,
     openJoins,
+    pickableWays,
     pickFields,
     pickSources,
     waysToJoin,
@@ -92,7 +93,7 @@ async function press(modal: HTMLElement, name: string, field: string): Promise<v
     if (header === undefined) {
         throw new Error(`no header for ${field}`);
     }
-    await userEvent.click(within(header).getByRole("button"));
+    await userEvent.click(page.elementLocator(header).getByRole("button"));
 }
 
 /**
@@ -159,7 +160,8 @@ describe("the join workspace's two tables (source-steps)", () => {
         await waitFor(() => {
             assert.strictEqual(valueOf(modal, "Field 2"), "door");
         });
-        assert.deepStrictEqual(waysToJoin(modal), [], "no door is a badge");
+        assert.isNotEmpty(waysToJoin(modal), "no door is a badge: the ways still show");
+        assert.deepStrictEqual(pickableWays(modal), [], "and none can be picked");
         await press(modal, "entries", "door");
         await waitFor(() => {
             assert.strictEqual(valueOf(modal, "Field 2"), "");
@@ -237,15 +239,15 @@ describe("the join workspace's two tables (source-steps)", () => {
         await pickSources(modal, "people", "entries");
         await pickFields(modal, "badge", "badge");
         const shown = within(modal).getByRole("radiogroup", { name: "Rows shown" });
-        await userEvent.click(within(shown).getByText("Only entries"));
+        await userEvent.click(page.elementLocator(shown).getByText("Only entries", { exact: true }));
         await waitFor(() => {
             assert.deepStrictEqual([...rowsAt(modal, "entries").values()], ["B999"]);
         });
-        await userEvent.click(within(shown).getByText("Only people"));
+        await userEvent.click(page.elementLocator(shown).getByText("Only people", { exact: true }));
         await waitFor(() => {
             assert.strictEqual([...rowsAt(modal, "people").values()][0], "B30", "the first no entry names");
         });
-        await userEvent.click(within(shown).getByText("Matched"));
+        await userEvent.click(page.elementLocator(shown).getByText("Matched", { exact: true }));
         await waitFor(() => {
             assert.notInclude([...rowsAt(modal, "people").values()], "");
         });
@@ -287,7 +289,7 @@ describe("the join workspace's two tables (source-steps)", () => {
 });
 
 describe("the join workspace's preview (source-steps)", () => {
-    it("shows the reader's graph from the moment it opens, and keeps every node of it where it is through a join, B and Done", async () => {
+    it("shows the reader's graph from the moment it opens, and keeps every node of it where it is through a join and B, then lays out on from there after Done", async () => {
         const { session, modal } = await opened();
         await atRest();
         const ids = session.data.nodes().map((node) => String(node.id));
@@ -320,7 +322,12 @@ describe("the join workspace's preview (source-steps)", () => {
         assert.isBelow(moved(drawn, places(session, added)), size / 4, "a node the join adds keeps its place too");
         const at = places(session, ids);
         await done(modal);
-        assert.isBelow(moved(at, places(session, ids)), size / 4, "Done draws on from there");
+        // Let go, the layout goes on from the places the preview drew (issue #10215): every node moves
+        // on from there, by less than a new layout would take it, which is about one gap between nodes.
+        await atRest();
+        const after = moved(at, places(session, ids));
+        assert.isAbove(after, 0, "Done lets the layout go on");
+        assert.isBelow(after, size / 2, "from where the preview drew it");
     });
 
     it("draws the reader's graph at full strength whichever card is selected, and marks only what a join changes", async () => {
@@ -345,7 +352,7 @@ describe("the join workspace's preview (source-steps)", () => {
         await pickFields(modal, "badge", "badge");
         await joinAs(modal, "Node per entries row, linked to people");
         await newest(session, (step) => step.act !== null, "joined");
-        await userEvent.click(within(modal).getByText("Styled", { exact: true }));
+        await userEvent.click(page.elementLocator(modal).getByText("Styled", { exact: true }));
         await waitFor(() => {
             assert.isNotNull(session.styles.shownDraft, "the draft is still drawn with its marks");
         });
@@ -359,7 +366,7 @@ describe("the join workspace's preview (source-steps)", () => {
         assert.strictEqual(session.styles.explain({ edge: edge.id }).merged["edge.style"], "dash", "a new edge");
     });
 
-    it("keeps the reader's camera while a join is made, and frames again only for new nodes out of view", async () => {
+    it("keeps the reader's camera while a join is made, even one that adds nodes out of view", async () => {
         const { session, modal } = await opened();
         await atRest();
         const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
@@ -385,8 +392,9 @@ describe("the join workspace's preview (source-steps)", () => {
         await element.waitForStableFrame();
         assert.strictEqual(camera(), close, "two tables and a join that adds no node leave it");
         await joinAs(modal, "Node per entries row, linked to people");
-        await waitFor(() => {
-            assert.notStrictEqual(camera(), close, "61 new nodes all round are out of a close view");
-        });
+        await newest(session, (step) => step.op === "join.edges", "a node per entry");
+        await element.waitForSettled();
+        await element.waitForStableFrame();
+        assert.strictEqual(camera(), close, "61 new nodes are laid out round the view the reader has (#10204)");
     });
 });

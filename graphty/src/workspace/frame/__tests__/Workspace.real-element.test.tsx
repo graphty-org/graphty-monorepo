@@ -46,7 +46,7 @@ describe("the workspace frame on the real element", () => {
         });
         const applied = session.history.position;
 
-        await userEvent.click(undo);
+        await userEvent.click(page.getByRole("button", { name: /^Undo( |$)/ }));
         await waitFor(() => {
             assert.equal(session.history.position, applied - 1);
         });
@@ -106,7 +106,7 @@ describe("the workspace frame on the real element", () => {
         const session = await openWorkspace();
         await session.data.addNodes([{ id: "a" }, { id: "b" }]);
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
-        await userEvent.click(within(inspector).getByRole("tab", { name: "Style" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
 
         const lighting = await within(inspector).findByRole("combobox", { name: "Lighting" });
         const panel = within(inspector).getByRole("tabpanel", { name: "Style" });
@@ -151,7 +151,7 @@ describe("the workspace frame on the real element", () => {
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
         // A real click on empty canvas focuses the drawing, as a reader's does.
-        await userEvent.click(element, { position: { x: 10, y: 10 } });
+        await userEvent.click(page.getByCss("graphty-element").first(), { position: { x: 10, y: 10 } });
 
         // Registered after the workspace's own key listener, so it sees the press as the browser will.
         let browserSelectsAll: boolean | null = null;
@@ -185,7 +185,7 @@ describe("the workspace frame on the real element", () => {
 
         // In the find box, Control+A selects the typed text and no node.
         const find = screen.getByRole("combobox", { name: "Find" });
-        await userEvent.click(find);
+        await userEvent.click(page.getByRole("combobox", { name: "Find", exact: true }));
         await userEvent.keyboard("ab");
         await userEvent.keyboard("{Control>}a{/Control}");
         assert.instanceOf(find, HTMLInputElement);
@@ -195,7 +195,7 @@ describe("the workspace frame on the real element", () => {
         await userEvent.keyboard("{Escape}");
 
         // On the canvas, Control+A selects every node.
-        await userEvent.click(element, { position: { x: 10, y: 10 } });
+        await userEvent.click(page.getByCss("graphty-element").first(), { position: { x: 10, y: 10 } });
         await waitFor(() => {
             assert.strictEqual(session.selection.size, 0);
         });
@@ -206,8 +206,11 @@ describe("the workspace frame on the real element", () => {
 
         // The empty canvas's menu lists Select all, and it selects every node again.
         session.selection.clear();
-        await userEvent.click(element, { position: { x: 10, y: 10 }, button: "right" });
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Select all/ }));
+        await userEvent.click(page.getByCss("graphty-element").first(), {
+            position: { x: 10, y: 10 },
+            button: "right",
+        });
+        await userEvent.click(page.getByRole("menuitem", { name: /^Select all/ }));
         await waitFor(() => {
             assert.sameMembers([...session.selection.nodes], ["a", "b", "c"]);
         });
@@ -221,7 +224,7 @@ describe("the workspace frame on the real element", () => {
         await session.data.addEdges([{ src: "a", dst: "b" }]);
         // The graph opens on Values; its Style tab holds the Layout group's Select.
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
-        await userEvent.click(within(inspector).getByRole("tab", { name: "Style" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
         // Mantine keeps a closed Select's options mounted, hidden: the case that once switched
         // every single-key shortcut off.
         await waitFor(() => {

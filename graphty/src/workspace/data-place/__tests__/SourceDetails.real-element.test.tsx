@@ -9,7 +9,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import ndexRecordings from "../../server/__tests__/ndex-wp5483.json";
@@ -43,7 +43,7 @@ async function openProject(): Promise<GraphSession> {
 async function details(name: string): Promise<Record<string, string>> {
     const place = await screen.findByRole("region", { name: "Data place" });
     const row = await within(place).findByRole("listitem", { name });
-    await userEvent.click(within(row).getAllByRole("button")[0]);
+    await userEvent.click(page.elementLocator(row).getByRole("button").nth(0));
     const inspector = await screen.findByRole("complementary", { name: "Inspector" });
     const facts = await waitFor(() => {
         const groups = within(inspector).getAllByRole("group");

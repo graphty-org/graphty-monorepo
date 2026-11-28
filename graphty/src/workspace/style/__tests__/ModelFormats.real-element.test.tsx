@@ -16,7 +16,7 @@ import "@graphty/graphty-element";
 
 import type { ModelSummary } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { commands, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { CUSTOM_MODEL } from "../words";
@@ -213,7 +213,9 @@ describe("every model format and variant, through the Load custom model dialog",
             // Neither a click nor Enter or Space on the blocked Add adds the model. A browser clicks an
             // aria-disabled button; Playwright only does with `force`, which skips its own enabled check.
             const before = written(session, "node.model");
-            await userEvent.click(addButton, { force: true });
+            await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Add model", exact: true }), {
+                force: true,
+            });
             await userEvent.keyboard("{Enter}");
             await userEvent.keyboard(" ");
             assert.equal(written(session, "node.model"), before, "a blocked Add adds nothing");
@@ -224,7 +226,9 @@ describe("every model format and variant, through the Load custom model dialog",
             const row = await within(await within(dialog).findByTestId("model-files")).findByRole("group", {
                 name: variant.needs,
             });
-            await userEvent.click(within(row).getByRole("button", { name: `Load without ${variant.needs}` }));
+            await userEvent.click(
+                page.elementLocator(row).getByRole("button", { name: `Load without ${variant.needs}`, exact: true }),
+            );
             // Load without is asynchronous, and the waiting model already has a preview (its part stood
             // in): wait for its row to go, then for the caption that marks the model drawn without it.
             await waitFor(() => {
@@ -304,7 +308,10 @@ describe("every model format and variant, through the Load custom model dialog",
         });
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}cube.gltf{Enter}`);
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            `${base}cube.gltf{Enter}`,
+        );
         const variant = TABLE.find((v) => v.id === "gltf-bin");
         assert.isDefined(variant);
         await assertPreview(dialog, variant);
@@ -328,7 +335,7 @@ describe("every model format and variant, through the Load custom model dialog",
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
         await userEvent.type(
-            within(dialog).getByRole("textbox", { name: "Model address" }),
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
             "https://assets.example.com/meshes/cube.babylon{Enter}",
         );
         const variant = TABLE.find((v) => v.id === "babylon-absolute-textures");
@@ -355,7 +362,7 @@ describe("every model format and variant, through the Load custom model dialog",
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
         await userEvent.type(
-            within(dialog).getByRole("textbox", { name: "Model address" }),
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
             "https://models.example.com/meshes/cube.babylon{Enter}",
         );
         const row = await within(await within(dialog).findByTestId("model-files")).findByRole("group", {
@@ -369,11 +376,11 @@ describe("every model format and variant, through the Load custom model dialog",
             "another site is not fetched by itself",
         );
 
-        await userEvent.click(field);
+        await userEvent.click(page.elementLocator(row).getByRole("textbox", { name: "cube.png address", exact: true }));
         await userEvent.keyboard("{Enter}");
         const question = await screen.findByRole("dialog", { name: "Open a web address?" });
         assert.include(question.textContent, "Load a part of this model from assets.example.com?");
-        await userEvent.click(within(question).getByRole("button", { name: "Continue" }));
+        await userEvent.click(page.elementLocator(question).getByRole("button", { name: "Continue", exact: true }));
         const variant = TABLE.find((v) => v.id === "babylon-absolute-textures");
         assert.isDefined(variant);
         await assertPreview(dialog, variant);

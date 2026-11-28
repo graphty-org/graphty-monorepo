@@ -65,7 +65,7 @@ describe("the Layout popover", () => {
 
     it("offers Rings by group once a community run has finished, grouped by that run", async () => {
         const session = await openK5();
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         let popover = await screen.findByRole("dialog", { name: "Layout" });
         const before = within(popover).getByRole("option", { name: /^Rings by group/ });
         assert.strictEqual(before.getAttribute("aria-disabled"), "true", "no column groups K5 yet");
@@ -73,7 +73,7 @@ describe("the Layout popover", () => {
         await userEvent.keyboard("{Escape}");
 
         const run = await session.runs.start("louvain", {}, { style: false });
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         popover = await screen.findByRole("dialog", { name: "Layout" });
         await waitFor(() => {
             const rings = within(popover).getByRole("option", { name: /^Rings by group/ });
@@ -83,8 +83,8 @@ describe("the Layout popover", () => {
         const columns = within(popover).getByRole("option", { name: /^Two columns/ });
         assert.include(columns.textContent, "Needs exactly two groups; Louvain has 1");
         assert.notInclude(columns.textContent, "results.");
-        await userEvent.click(within(popover).getByRole("option", { name: /^Rings by group/ }));
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Rings by group/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.layout.id, "shell");
         });
@@ -96,13 +96,13 @@ describe("the Layout popover", () => {
         // A name column with one name repeated can group in principle, so it is offered too.
         await session.data.updateNodes(IDS.map((id) => ({ id, values: { name: id === "b" ? "a" : id } })));
         const groupBy = async (): Promise<HTMLInputElement> => {
-            await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+            await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
             const popover = await screen.findByRole("dialog", { name: "Layout" });
             await waitFor(() => {
                 const rings = within(popover).getByRole("option", { name: /^Rings by group/ });
                 assert.notStrictEqual(rings.getAttribute("aria-disabled"), "true", rings.textContent);
             });
-            await userEvent.click(within(popover).getByRole("option", { name: /^Rings by group/ }));
+            await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Rings by group/ }));
             return within(popover).getByRole<HTMLInputElement>("combobox", { name: "Group by" });
         };
         assert.strictEqual((await groupBy()).value, "name", "the only column that groups");
@@ -120,7 +120,7 @@ describe("the Layout popover", () => {
         const session = await openK5();
         assert.strictEqual(session.layout.id, "force", "the app starts on the force layout by id");
 
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         let popover = await screen.findByRole("dialog", { name: "Layout" });
         const rows = within(popover).getAllByRole("option");
         const engines = session.catalog
@@ -152,19 +152,21 @@ describe("the Layout popover", () => {
         }
 
         // Grid: nothing runs until Apply.
-        await userEvent.click(within(popover).getByRole("option", { name: /^Grid/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Grid/ }));
         assert.strictEqual(session.layout.id, "force", "picking a layout runs nothing");
-        await userEvent.click(within(popover).getByRole("button", { name: "Back to layouts" }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("button", { name: "Back to layouts", exact: true }),
+        );
 
         // Force: Shape reads what is drawn, and nothing differs yet.
-        await userEvent.click(within(popover).getByRole("option", { name: /^Force(?!Atlas)/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Force(?!Atlas)/ }));
         const shape = within(popover).getByRole("radiogroup", { name: "Shape" });
         assert.isTrue(within(shape).getByRole<HTMLInputElement>("radio", { name: "3D" }).checked);
         const applied = within(popover).getByRole("button", { name: "Applied" });
         assert.isTrue(applied.hasAttribute("disabled"));
 
-        await userEvent.click(within(shape).getByText("2D"));
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(shape).getByText("2D", { exact: true }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.layout.arrangedDimension, "2d");
         });
@@ -177,9 +179,9 @@ describe("the Layout popover", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Layout" }));
         });
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Force(?!Atlas)/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Force(?!Atlas)/ }));
         assert.isTrue(
             within(within(popover).getByRole("radiogroup", { name: "Shape" })).getByRole<HTMLInputElement>("radio", {
                 name: "2D",
@@ -190,7 +192,7 @@ describe("the Layout popover", () => {
         const before = session.layout.options.seed;
         // Every setting is in the Layout popover: no second dialog to open.
         assert.isNull(within(popover).queryByRole("button", { name: /Advanced/ }));
-        await userEvent.click(within(popover).getByRole("button", { name: "Reshuffle" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Reshuffle", exact: true }));
         await waitFor(() => {
             assert.notStrictEqual(session.layout.options.seed, before);
         });
@@ -201,23 +203,23 @@ describe("the Layout popover", () => {
         await session.layout.set("force-2d");
         assert.strictEqual(session.layout.arrangedDimension, "2d");
 
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
         // The old flat force is Force drawn by its ARF engine: that engine's own row is checked.
         const arf = within(popover).getByRole("option", { name: /^ARF/ });
         assert.strictEqual(arf.getAttribute("aria-selected"), "true");
-        await userEvent.click(arf);
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^ARF/ }));
         within(popover).getByText("Draws flat");
     });
 
     it("lists Force's other engines under Force-directed, and choosing ForceAtlas2 runs force with that engine", async () => {
         const session = await openK5();
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
         const row = within(popover).getByRole("option", { name: /^ForceAtlas2/ });
         assert.strictEqual(row.closest('[role="group"]')?.getAttribute("aria-label"), "Force-directed");
-        await userEvent.click(row);
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^ForceAtlas2/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.layout.id, "force");
             assert.strictEqual(session.layout.engine, "forceatlas2");
@@ -226,15 +228,15 @@ describe("the Layout popover", () => {
 
     it("applies on Enter in a field and keeps the form open, so several values can be tried in turn", async () => {
         const session = await openK5();
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^ForceAtlas2/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^ForceAtlas2/ }));
         const form = within(popover).getByRole("form", { name: /ForceAtlas2/ });
         const cap = within(form).getByRole<HTMLInputElement>("textbox", { name: "Max iterations" });
         assert.strictEqual(cap.value, "", "no cap of the reader's: the element scales one to the graph");
         assert.strictEqual(cap.placeholder, "Automatic");
 
-        await userEvent.fill(within(form).getByRole("spinbutton", { name: "Gravity" }), "3");
+        await userEvent.fill(page.elementLocator(form).getByRole("spinbutton", { name: "Gravity", exact: true }), "3");
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.strictEqual(session.layout.engine, "forceatlas2");
@@ -242,7 +244,7 @@ describe("the Layout popover", () => {
         });
         assert.isTrue(form.isConnected, "the form is still open");
 
-        await userEvent.fill(within(form).getByRole("spinbutton", { name: /^Scaling ratio$/i }), "5");
+        await userEvent.fill(page.elementLocator(form).getByRole("spinbutton", { name: /^Scaling ratio$/i }), "5");
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.deepInclude(session.layout.options, { gravity: 3, scalingRatio: 5 });

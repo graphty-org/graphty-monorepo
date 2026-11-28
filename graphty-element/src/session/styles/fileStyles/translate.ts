@@ -1222,6 +1222,7 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     // a picture on a square, stretched to its own width and length
     ["image", 1],
     ["open-vee", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["hollow-vee", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
 ]);
 
 /**

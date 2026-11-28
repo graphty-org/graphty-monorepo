@@ -71,7 +71,7 @@ import {
     type SurfacePath,
 } from "./meshes/NodeShaderDrawing";
 import { shareLabelBox } from "./meshes/NodeShapeGeometry";
-import { createOverlayMaterial } from "./meshes/overlayMaterial";
+import { createOverlayMaterial, keepBehindMiddle } from "./meshes/overlayMaterial";
 import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -1104,6 +1104,9 @@ export class Node implements ModelUser {
     /** How far toward the camera the halo is moved from the node: a 2D halo's lift over the edges. */
     private haloLift = 0;
 
+    /** How many times the node's size the halo is drawn: its look's `scale`. */
+    private haloScale = 1;
+
     /**
      * Which shader path draws this node's surface or sprite (design/rendering/shader-styles.md
      * section 5), or null while it is drawn plainly. Part of its source mesh's key: an impostor or
@@ -1713,7 +1716,13 @@ export class Node implements ModelUser {
         if (box !== undefined) {
             this.drawAsGroup(box);
         }
-        return this.borderReach !== before;
+        const moved = this.borderReach !== before;
+        // the halo's band starts past the border, so it is grown again round the rebuilt one
+        if (moved && this.halo?.isEnabled() === true && !this.halo.isDisposed()) {
+            this.scaleHalo(this.halo);
+            this.syncOverlayPositions();
+        }
+        return moved;
     }
 
     /**
@@ -2303,6 +2312,20 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Keep a hidden halo no node draws for the next node to draw a halo in its look (`takeSpareHalo`).
+     * @param key - The cache key of its source.
+     * @param halo - The halo.
+     */
+    private spareHalo(key: string, halo: AbstractMesh): void {
+        const scene = this.context.getScene();
+        const byKey = spareHalos.get(scene) ?? new Map<string, AbstractMesh[]>();
+        spareHalos.set(scene, byKey);
+        const spare = byKey.get(key) ?? [];
+        byKey.set(key, spare);
+        spare.push(halo);
+    }
+
+    /**
      * Move a node's place, state and parts from one scene node to another.
      * @param from - What held them.
      * @param to - What holds them now.
@@ -2605,6 +2628,11 @@ export class Node implements ModelUser {
             this.#anchor.scaling.setAll(scale);
         } else {
             built.scaleToRef(scale, this.#anchor.scaling);
+        }
+
+        if (this.halo?.isEnabled() === true && !this.halo.isDisposed()) {
+            this.scaleHalo(this.halo);
+            this.syncOverlayPositions();
         }
 
         this.measureRow();
@@ -4345,14 +4373,8 @@ export class Node implements ModelUser {
             // The node's own geometry, stretched about its center so its band is one width all
             // round (haloAxisScale): a box gets a box, a cylinder a cylinder, and a node drawn
             // wider than tall a halo as thick at its top as at its sides.
-            const own = this.#anchor.scaling;
-            const grow = haloAxisScale(
-                overlay.getBoundingInfo().boundingBox.extendSize,
-                selection.scale,
-                own.x === 0 ? 0 : this.borderReach / Math.abs(own.x),
-            );
-            overlay.scaling.copyFromFloats(own.x * grow.x, own.y * grow.y, own.z * grow.z);
-            this.haloLift = flatHaloLift(overlay, this.#anchor.scaling.z);
+            this.haloScale = selection.scale;
+            this.scaleHalo(overlay);
         } else {
             this.contextPoint = overlay;
             overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
@@ -4368,17 +4390,36 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Scale the halo to the node's drawn scale, stretched about its center so its band is one
+     * width all round (haloAxisScale). Run again whenever the node is drawn at a new scale: the
+     * halo hangs from graph-root, not from the anchor, so a node shrunk to its size on screen
+     * (`node.sizeSpace` "screen" or "pivot") would otherwise sit on a halo at its old size
+     * (issue #10404).
+     * @param halo - The halo.
+     */
+    private scaleHalo(halo: AbstractMesh): void {
+        const own = this.#anchor.scaling;
+        const grow = haloAxisScale(
+            halo.getBoundingInfo().boundingBox.extendSize,
+            this.haloScale,
+            own.x === 0 ? 0 : this.borderReach / Math.abs(own.x),
+        );
+        halo.scaling.copyFromFloats(own.x * grow.x, own.y * grow.y, own.z * grow.z);
+        this.haloLift = flatHaloLift(halo, own.z);
+    }
+
+    /**
      * The overlay to draw: the one built already, a spare halo, or a new instance.
      * @param kind - Which overlay.
      * @param existing - The one this node holds, or null.
      * @param selection - The halo's look.
-     * @returns The overlay, and whether it was just built.
+     * @returns The overlay, and the meshes just built for it: none, its instance, or its instance and its source.
      */
     private overlayToShow(
         kind: "halo" | "context",
         existing: AbstractMesh | null,
         selection: GraphSelectionStyleConfig,
-    ): { overlay: AbstractMesh; built: boolean } {
+    ): { overlay: AbstractMesh; built: number } {
         // A halo is the node's own shape, so a node redrawn in another shape needs another halo,
         // and its own look's material, so a halo changing look needs another one too.
         const stale = kind === "halo" && existing !== null && this.haloKey !== this.haloSourceKey(selection);
@@ -4387,13 +4428,20 @@ export class Node implements ModelUser {
         }
 
         if (existing && !stale && !existing.isDisposed()) {
-            return { overlay: existing, built: false };
+            return { overlay: existing, built: 0 };
         }
 
         const spare = kind === "halo" ? this.takeSpareHalo(selection) : null;
-        return spare === null
-            ? { overlay: this.createOverlay(kind, selection), built: true }
-            : { overlay: spare, built: false };
+        if (spare !== null) {
+            return { overlay: spare, built: 0 };
+        }
+
+        // The first halo of a look also builds its source mesh (a cache miss), which the frame must be told of too, or
+        // the first selection on a page thaws the frozen list (issue #10124).
+        const cache = this.context.getMeshCache();
+        const { misses } = cache;
+        const overlay = this.createOverlay(kind, selection);
+        return { overlay, built: cache.misses > misses ? 2 : 1 };
     }
 
     /**
@@ -4424,13 +4472,8 @@ export class Node implements ModelUser {
     private hideOverlay(kind: "halo" | "context", existing: AbstractMesh | null): void {
         if (kind === "halo" && existing && !existing.isDisposed() && this.haloKey !== null) {
             // Given back, hidden, for the next node to draw a halo in this look (`takeSpareHalo`).
-            this.context.getUpdateManager?.().haloTouched(existing, false);
-            const scene = this.context.getScene();
-            const byKey = spareHalos.get(scene) ?? new Map<string, AbstractMesh[]>();
-            spareHalos.set(scene, byKey);
-            const spare = byKey.get(this.haloKey) ?? [];
-            byKey.set(this.haloKey, spare);
-            spare.push(existing);
+            this.context.getUpdateManager?.().haloTouched(existing, 0);
+            this.spareHalo(this.haloKey, existing);
             this.halo = null;
             this.haloKey = null;
         }
@@ -4833,7 +4876,7 @@ export class Node implements ModelUser {
             source = MeshBuilder.CreateSphere(name, { diameter: 1, segments: 8 }, scene);
         }
 
-        // Its shader was compiled with the scene's first node source (`prepareOverlayShader`).
+        // Its shader was compiled right after the scene's first frame of nodes (`prepareOverlayShader`).
         const material = createOverlayMaterial(`${name}-material`, color, alpha, scene);
         // A halo around a solid draws only its far side. The near side lies in front of the node
         // it surrounds, and blending it over the node tinted the whole node the halo's color (a
@@ -4845,6 +4888,12 @@ export class Node implements ModelUser {
         // does a context point, drawn in place of a hidden node with nothing in front of it.
         material.backFaceCulling = name.startsWith(SELECTION_HALO_MESH) && !Node.isFlat(source);
         material.cullBackFaces = false;
+        // Some far faces of a tetrahedron, a torus, or a box or cone seen at an angle lie in front of the node's
+        // middle, where its border, outer border and plates are drawn as flat rings: kept behind them (#10499). A
+        // 3D view's camera is a perspective one.
+        if (material.backFaceCulling && !flat) {
+            keepBehindMiddle(material);
+        }
         // Drawn just behind a surface it shares a depth with, so around a flat node -- whose
         // scaled copy lies in the node's own plane -- the halo shows as a rim around the node
         // instead of fighting it for the same pixels. Too small to move a 3D halo visibly. A 2D

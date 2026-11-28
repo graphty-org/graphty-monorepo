@@ -3334,6 +3334,8 @@ export class Graph implements GraphContext {
     disableAiControl(): void;
     dispose(): void;
     // @internal
+    drawnHalos(): Map<NodeIdType, AbstractMesh>;
+    // @internal
     drawnNodeSpots(): Generator<DrawnNodeSpot>;
     drawnShaders(): DrawnShaders;
     get edgeLabelCounts(): EdgeLabelCounts;

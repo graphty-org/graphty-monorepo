@@ -1358,6 +1358,15 @@ export class NodeBatches {
     }
 
     /**
+     * The rows drawn with no `Node` whose halo a batch draws, each with the batch mesh that draws it.
+     * @returns Row number and mesh pairs.
+     * @internal
+     */
+    haloMeshes(): [number, Mesh][] {
+        return [...this.haloRows].map(([row, batch]) => [row, batch.mesh]);
+    }
+
+    /**
      * Upload the halo batches written since the last flush.
      * @returns Whether one started or stopped drawing.
      */

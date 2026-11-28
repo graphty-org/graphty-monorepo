@@ -57,7 +57,7 @@ function distanceTo(p: Point2, polygon: readonly Point2[]): number {
 
 for (const kind of ["underlay", "overlay"] as const) {
     test(`a vee's ${kind} keeps its padding from the vee all along the sides that meet at its sharp corners`, () => {
-        const shape = { type: "vee", size: 1 };
+        const shape = { type: "vee" as const, size: 1 };
         const options = { styleId: `vee-${kind}`, is2D: true, size: 1 };
         const fill = NodeMesh.create(cache, options, { shape }, scene);
         const plate = NodeMesh.createHalo(

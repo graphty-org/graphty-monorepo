@@ -395,6 +395,39 @@ describe("usage counts from the real element", () => {
         sendsNone("SECRET_LAYER");
     });
 
+    it("sends nothing more for a write in a drag that changes nothing", async () => {
+        const { session } = await loadedProject();
+        const layer = await session.styles.add({
+            name: "SECRET_LAYER",
+            selector: { match: "everything" },
+            target: "node",
+            set: { "node.color": "#0072b2" },
+        });
+        await session.styles.settled();
+        const before = sent("style_changed").posthog.length;
+        const steps: (string | undefined)[] = [];
+        const off = session.on("journal:appended", ({ entry }) => {
+            if (entry.command.op === "style.patch") {
+                steps.push(entry.step);
+            }
+        });
+        // A slider's handle that has not drawn its last value yet sends that value again: the
+        // element records no step for it, and the drag goes on into the step it started.
+        await session.styles.update(layer.id, { set: { "node.color": "#d55e00" } });
+        await session.styles.update(layer.id, { set: { "node.color": "#d55e00" } });
+        await session.styles.update(layer.id, { set: { "node.color": "#cc79a7" } });
+        off();
+        assert.deepEqual(steps, [steps[0], undefined, steps[0]], "the repeated value records no step");
+        assert.deepEqual(
+            sent("style_changed")
+                .posthog.slice(before)
+                .map(({ op, action }) => ({ op, action })),
+            [{ op: "style.patch", action: "update" }],
+            "one drag, one style edit",
+        );
+        sendsNone("SECRET_LAYER");
+    });
+
     it("sends a later, separate edit of the same layer again, after other work in between", async () => {
         const { session } = await loadedProject();
         const layer = await session.styles.add({

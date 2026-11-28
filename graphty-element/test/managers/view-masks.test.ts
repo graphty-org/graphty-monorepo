@@ -20,6 +20,7 @@ import type { GraphContext } from "../../src/managers/GraphContext";
 import { UpdateManager, type ViewMaskSource } from "../../src/managers/UpdateManager";
 import type { NodeRenderState } from "../../src/Node";
 import { ElementMask, type MaskIdSpace } from "../../src/session/scope/index";
+import { Styles } from "../../src/Styles";
 
 /** A node as the mask pass sees it, counting every write it is handed. */
 interface FakeNode {
@@ -183,7 +184,7 @@ describe("UpdateManager view masks", () => {
             onMeshRemovedObservable: observable,
             getEngine: () => ({ onResizeObservable: observable }),
         };
-        const graphContext = { getScene: () => scene } as unknown as GraphContext;
+        const graphContext = { getScene: () => scene, getStyles: () => Styles.default() } as unknown as GraphContext;
 
         return new UpdateManager(null as never, null as never, null as never, dataManager, null as never, graphContext);
     }

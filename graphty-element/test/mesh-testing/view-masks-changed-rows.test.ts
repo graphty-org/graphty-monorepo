@@ -16,6 +16,7 @@ import { batchUploadFrames } from "../../src/meshes/FrameRoster";
 import type { NodeRenderState } from "../../src/Node";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
 import type { ElementSession } from "../../src/session/types";
+import { Styles } from "../../src/Styles";
 
 const NODES = 2_000;
 const EDGES = 10_000;
@@ -184,7 +185,7 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
         { nodes, edges, placeGroups: () => undefined } as unknown as LayoutManager,
         dataManager,
         null as never,
-        { getScene: () => babylon } as unknown as GraphContext,
+        { getScene: () => babylon, getStyles: () => Styles.default() } as unknown as GraphContext,
     );
     manager.bindViewMasks({
         selection: { nodes: () => session.selection.nodeMembers(), edges: () => session.selection.edgeMembers() },

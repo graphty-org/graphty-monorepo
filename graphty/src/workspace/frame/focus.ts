@@ -1,10 +1,13 @@
 /**
  * Whether keyboard focus has fallen to the page itself, as it does when the control holding it
- * is removed (WCAG 2.4.3): the caller then hands it on to a stated target.
- * @returns true when no control has focus.
+ * is removed (WCAG 2.4.3): the caller then hands it on to a stated target. A control that holds
+ * focus but has just been disabled counts as lost too: Chromium (since Playwright 1.65's build)
+ * blurs it at the next rendering update, so waiting for the blur would leave focus on the page.
+ * @returns true when no enabled control has focus.
  */
 export function focusIsLost(): boolean {
-    return document.activeElement === null || document.activeElement === document.body;
+    const active = document.activeElement;
+    return active === null || active === document.body || active.matches(":disabled");
 }
 
 /**

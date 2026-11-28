@@ -1409,7 +1409,13 @@ export function measureNode(
             const from = lastIndex(runs, (r, k) => k < ring && r.part === FILL);
             const between = runs.slice(from + 1, ring).filter((r) => r.part === BG);
             gaps.push(between.reduce((sum, r) => sum + (r.to - r.from), 0) * ppu.max);
-            const out = runs[ring].to;
+            // a lobe of fill the ray only grazes (its tip, all blended pixels) or a stair step of an edge crossed at a
+            // shallow angle splits the ring into runs with blends between them: its outer edge ends the last of them
+            let outer = ring;
+            for (let k = ring + 1; k < runs.length && (runs[k].part === MIXED || runs[k].part === BORDER); k++) {
+                outer = runs[k].part === BORDER ? k : outer;
+            }
+            const out = runs[outer].to;
             const [u, v] = [out * Math.cos(angles[i]), out * Math.sin(angles[i])];
             thick.push(distanceTo(fullFillEdge, u, v));
             offs.push(signed(u, v));

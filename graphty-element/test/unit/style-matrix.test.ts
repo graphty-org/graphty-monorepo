@@ -576,6 +576,23 @@ describe("style combination matrix", () => {
         assert.isTrue(c.get("border-width-thinnest")?.pass, String(c.get("border-width-thinnest")?.measured));
     });
 
+    it("reads the ring to its outer edge past a lobe of fill a ray only grazes, in blended pixels", () => {
+        // bs-man-outside-3d-mid-a1: a ray leaves the torso, crosses the ring between it and an arm, grazes the arm's
+        // tip along its slanted end (6 blended pixels, no pure fill), and then crosses the rest of the ring
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            if (r <= 20) {
+                return "fill";
+            }
+            if (Math.abs(degrees(x, y)) < 8 && r > 21 && r <= 27) {
+                return "mixed";
+            }
+            return r <= 29 ? "border" : undefined;
+        });
+        const c = measured({}, full);
+        assert.isTrue(c.get("border-width-thinnest")?.pass, String(c.get("border-width-thinnest")?.measured));
+    });
+
     it("counts no hole in the fill as a gap between the fill and the ring", () => {
         const full = frame((x, y) => {
             const r = Math.hypot(x, y);

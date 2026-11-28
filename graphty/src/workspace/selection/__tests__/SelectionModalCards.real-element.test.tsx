@@ -814,7 +814,7 @@ describe("a card's More menu and the title's", () => {
     });
     it("names keys in tooltips and to a screen reader, never drawn in a menu (#10394)", async () => {
         await twoCards();
-        await userEvent.click(screen.getByRole("button", { name: "More for B" }));
+        await userEvent.click(page.getByRole("button", { name: "More for B" }));
         const menu = await screen.findByRole("menu");
         const items = within(menu).getAllByRole("menuitem");
         const withKeys = items.filter((item) => item.hasAttribute("aria-keyshortcuts"));

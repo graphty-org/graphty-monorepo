@@ -112,8 +112,8 @@ describe("every loaded source is drawn (source-steps, #10364)", () => {
     it("Add to graph in a waiting source's menu draws it as its own nodes; Undo leaves it waiting", async () => {
         const { session } = await withPeopleDropped();
         const entry = await stage("buildings.csv", BUILDINGS);
-        await userEvent.click(within(entry).getByRole("button", { name: "buildings.csv menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Add to graph" }));
+        await userEvent.click(page.elementLocator(entry).getByRole("button", { name: "buildings.csv menu" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Add to graph" }));
         await waitFor(() => {
             assert.strictEqual(session.data.nodes().length, 5);
         });

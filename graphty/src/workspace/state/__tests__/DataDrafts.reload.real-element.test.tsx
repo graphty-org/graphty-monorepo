@@ -21,6 +21,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import {
     advanced,
     drop,
+    fromHeadMenu,
     joinAs,
     joinLines,
     openJoins,
@@ -222,7 +223,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 await userEvent.click(page.getByRole("menuitem", { name: "Remove", exact: true }));
                 const modal = await screen.findByRole("dialog", { name: "Join" });
                 await within(modal).findByRole("region", { name: "Remove people" });
-                await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Undo/ }));
+                await fromHeadMenu(modal, "Undo");
                 await waitFor(() => {
                     assert.isNull(within(modal).queryByRole("region", { name: "Remove people" }));
                 });

@@ -1974,7 +1974,7 @@ function NewStepPane({
  * @param props.onRename - takes the typed name, or undefined for none
  * @returns The title
  */
-export function TitleName({
+function TitleName({
     id,
     owner,
     name,

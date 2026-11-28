@@ -194,7 +194,7 @@ const EDGE_CODES: ReadonlySet<SourceJoinOutcome["code"]> = new Set(["link", "edg
  * @param matches - how many whole matches the card has
  * @returns the type, or undefined when none matches a row
  */
-export function defaultOutcome(outcomes: readonly SourceJoinOutcome[], matches: number): SourceJoinOutcome | undefined {
+function defaultOutcome(outcomes: readonly SourceJoinOutcome[], matches: number): SourceJoinOutcome | undefined {
     const ways = outcomes.filter((each) => each.uses.length === matches && !each.matched.includes(0));
     return ways.find((each) => EDGE_CODES.has(each.code)) ?? ways.at(0);
 }

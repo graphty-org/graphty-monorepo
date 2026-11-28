@@ -58,14 +58,14 @@ async function joined(
  * @param item - the item
  */
 async function fromMenu(name: string, item: string): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: `${name} menu` }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: new RegExp(`^${item}`, "u") }));
+    await userEvent.click(page.getByRole("button", { name: `${name} menu` }));
+    await userEvent.click(page.getByRole("menuitem", { name: new RegExp(`^${item}`, "u") }));
 }
 
 describe("the Data panel's Join list (source-steps)", () => {
     it("offers Open, Rename, Turn off and Delete, in a join card's words", async () => {
         await joined();
-        await userEvent.click(screen.getByRole("button", { name: "people + entries menu" }));
+        await userEvent.click(page.getByRole("button", { name: "people + entries menu" }));
         const menu = await screen.findByRole("menu");
         const items = within(menu)
             .getAllByRole("menuitem")
@@ -116,8 +116,8 @@ describe("the Data panel's Join list (source-steps)", () => {
     it("renames a join from its menu, and an unchanged name renames nothing", async () => {
         const { store, session, place } = await joined();
         await fromMenu("people + entries", "Rename");
-        const box = await within(place).findByRole("textbox", { name: "Join name" });
-        await userEvent.fill(box, "Badge entries");
+        await within(place).findByRole("textbox", { name: "Join name" });
+        await userEvent.fill(page.elementLocator(place).getByRole("textbox", { name: "Join name" }), "Badge entries");
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(place), ["Badge entries"]);
@@ -147,7 +147,7 @@ describe("the Data panel's Join list (source-steps)", () => {
             assert.isAtMost(title?.scrollWidth ?? Infinity, title?.clientWidth ?? 0, `${where}: the name is not cut`);
         };
         const place = await screen.findByRole("region", { name: "Data place" });
-        await userEvent.click(within(place).getByText("people + door_entries_badge"));
+        await userEvent.click(page.elementLocator(place).getByText("people + door_entries_badge"));
         const modal = await screen.findByRole("dialog", { name: "Join" });
         const card = (): Element | null => modal.querySelector("[data-card-id]");
         await waitFor(() => {

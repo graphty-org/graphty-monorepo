@@ -15,6 +15,10 @@
     },
     { "file": "test/browser/edges-follow-running-layout.test.ts", "reason": "Sets each case's render path by hand" },
     {
+        "file": "test/browser/node-outline-follows-view.test.ts",
+        "reason": "Its node has a border and an outer border, which no batch draws (neither is a batchable key), so it is an object on either path"
+    },
+    {
         "file": "test/browser/edges-follow-through-a-transition.test.ts",
         "reason": "Sets each case's render path by hand"
     },

@@ -3014,7 +3014,14 @@ export class Node implements ModelUser {
         // model's shape, and a glow on its shared source mesh lights every node drawing the model.
         const effect = this.drawnByBatch() || this.drawnModel !== null ? undefined : style.effect;
         if (this.#mesh !== null) {
-            NodeEffects.applyOutlineEffect(this.#mesh, effect, this.context.getMeshCache(), () => this.outlineReach);
+            const type = style.shape?.type;
+            NodeEffects.applyOutlineEffect(
+                this.#mesh,
+                effect,
+                () => this.outlineReach,
+                type !== undefined && isFlatShape(type),
+                () => [this.border, this.outerBorder],
+            );
             NodeEffects.applyGlowEffect(this.#mesh, effect);
         }
         this.syncModelMark();

@@ -373,7 +373,13 @@ export class LayoutRunner implements ArrangementEngine {
         if (type !== undefined) {
             // A null ForceAtlas2 cap is scaled to the graph, as the drawn layout's bridge scales it.
             const capped =
-                type === "forceatlas2" ? { ...options, maxIter: options.maxIter ?? forceAtlas2MaxIterFor(n) } : options;
+                type === "forceatlas2"
+                    ? {
+                          ...options,
+                          maxIter: options.maxIter ?? forceAtlas2MaxIterFor(n),
+                          barnesHutOptimize: options.barnesHut,
+                      }
+                    : options;
             const simulation = createSimulation(
                 type,
                 STAND_INS.has(choice.engine)

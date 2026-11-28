@@ -1488,8 +1488,8 @@ export function measureNode(
         // tip at a corner of angle t retreats inset / sin(t / 2) from the outline's: the thickest a ray can read is
         // the two added (triangle inequality).
         const inset = expectedWidth * (1 - fraction);
-        const corner = frames.sharpestCorner ?? Math.PI;
-        const thickest = MITRE_LIMIT * expectedWidth * fraction + (inset > 0 ? inset / Math.sin(corner / 2) : 0);
+        const sharpest = frames.sharpestCorner ?? Math.PI;
+        const thickest = MITRE_LIMIT * expectedWidth * fraction + (inset > 0 ? inset / Math.sin(sharpest / 2) : 0);
         checks.push(
             atMost(
                 "border-width-thickest",

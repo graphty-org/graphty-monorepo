@@ -266,7 +266,7 @@ describe("a label and the ring around its node", () => {
         assert.isOk(halo);
         halo.computeWorldMatrix(true);
         const ringBottom = project(graph, new Vector3(0, halo.getBoundingInfo().boundingBox.minimumWorld.y, 0)).y;
-        const top = words(graph, node).top;
+        const { top } = words(graph, node);
         assert.isAtLeast(top, ringBottom, "the words are clear of the ring");
         assert.approximately(top - ringBottom, gap, 2, "the words keep the same gap from the ring as from the node");
     });

@@ -556,6 +556,8 @@ export const layoutManagerInternals = {} as {
     styles(manager: LayoutManager): Styles;
     /** Install an engine, or none, as a standalone test's stand-in for a build. */
     setEngine(manager: LayoutManager, engine: LayoutEngine | undefined): void;
+    /** Whether a 2D drawing is still rising into 3D; see `LayoutManager.liftIntoDepth`. */
+    rising(manager: LayoutManager): boolean;
 };
 
 /**
@@ -730,6 +732,7 @@ export class LayoutManager implements Manager {
     static {
         layoutManagerInternals.apply = (manager, choice, options) => manager.apply(choice, options);
         layoutManagerInternals.styles = (manager) => manager.styles;
+        layoutManagerInternals.rising = (manager) => manager.#rise !== null;
         layoutManagerInternals.setLayout = (manager, type, opts, scope) => manager.setLayout(type, opts, scope);
         layoutManagerInternals.takeOwedMembers = (manager) => {
             manager.takeOwedMembers();
@@ -3012,6 +3015,13 @@ export class LayoutManager implements Manager {
         this.ownArrangement = false;
         if (this.layoutEngine !== undefined) {
             this.applyHoldMask(this.layoutEngine);
+        }
+
+        // Let go, the nodes the preview held are free to move, but a simulation that settled round them
+        // is at rest and would never step again: it steps from where they are once the layout runs
+        // (issue #10215). Whether it runs stays the caller's: a Before or a cancel restores at rest.
+        if (ids === null) {
+            this.layoutEngine?.wakeForLift();
         }
 
         if (wake) {

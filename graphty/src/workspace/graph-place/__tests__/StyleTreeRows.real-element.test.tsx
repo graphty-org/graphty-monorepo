@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { openSampleFromStart } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -128,8 +128,9 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
     it("marks a painted-over row with a whole glyph whose tooltip names the layer above", async () => {
         await openScene();
         const keyRow = await row("Key people");
-        const mark = await within(keyRow).findByRole("img", { name: "Painted over by Cover" });
-        await userEvent.hover(mark);
+        const mark = (): Locator =>
+            page.elementLocator(keyRow).getByRole("img", { name: "Painted over by Cover", exact: true });
+        await userEvent.hover(mark());
         const tip = await screen.findByRole("tooltip", {});
         assert.equal(tip.textContent, "Painted over by Cover");
         assert.isNull(within(await row("Cover")).queryByRole("img", { name: /Painted over/ }));
@@ -191,7 +192,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
             within(menu).getByRole("menuitem", { name: /^Lock/ }).getAttribute("aria-keyshortcuts"),
             "Shift+Control+L",
         );
-        await userEvent.click(hide);
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: /^Hide/ }));
         await waitFor(() => {
             assert.isTrue(findTreeRow(session.styles.tree(), key)?.row.hidden);
         });
@@ -210,9 +211,11 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         const treeGlyph = (await row("Key people")).querySelector(".ws-row-marks svg")?.getAttribute("class");
         const headGlyph = within(inspector).getByRole("heading", { level: 2 }).parentElement?.querySelector("svg");
         assert.equal(headGlyph?.getAttribute("class"), treeGlyph, "the header draws the row's own kind glyph");
-        await userEvent.click(within(inspector).getByRole("button", { name: "Layer actions" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Move to folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Annotations" }));
+        await userEvent.click(
+            page.elementLocator(inspector).getByRole("button", { name: "Layer actions", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Move to folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Annotations", exact: true }));
         await waitFor(() => {
             assert.equal(findTreeRow(session.styles.tree(), key)?.folders.at(-1)?.id, folder.id);
         });
@@ -235,7 +238,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
 
         // Duplicate: a copy just above the original, painting the same nodes.
         const menu = await rowMenu("Key people");
-        await userEvent.click(within(menu).getByRole("menuitem", { name: /^Duplicate/ }));
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: /^Duplicate/ }));
         await row("Key people copy");
         const tops = session.styles.tree().filter((each) => each.pin === "none");
         const at = tops.findIndex((each) => each.id === key);
@@ -247,16 +250,20 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         const folder = await session.styles.addFolder("Annotations");
         await row("Annotations");
         await userEvent.click(
-            within(await rowMenu("Key people copy")).getByRole("menuitem", { name: "Move to folder" }),
+            page
+                .elementLocator(await rowMenu("Key people copy"))
+                .getByRole("menuitem", { name: "Move to folder", exact: true }),
         );
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Annotations" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Annotations", exact: true }));
         await waitFor(() => {
             assert.equal(findTreeRow(session.styles.tree(), copy.id)?.folders.at(-1)?.id, folder.id);
         });
 
         // Select what it paints: exactly the row's two nodes.
         await userEvent.click(
-            within(await rowMenu("Key people")).getByRole("menuitem", { name: "Select what it paints" }),
+            page
+                .elementLocator(await rowMenu("Key people"))
+                .getByRole("menuitem", { name: "Select what it paints", exact: true }),
         );
         await waitFor(() => {
             assert.sameMembers([...session.selection.nodes].map(String), ["1", "2"]);
@@ -275,8 +282,8 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         assert.equal(name, "Connections");
         await userEvent.click(await row(name));
 
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Layer", exact: true }));
         await waitFor(() => {
             assert.equal(store.get().inspected?.kind, "layer-row");
             assert.notEqual(store.get().inspected?.id, degreeRow?.id);
@@ -325,7 +332,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
             await within(inspector).findByTestId("style-tab");
             await page.screenshot({ path: `${SHOTS}/folder-panel-${size}.png` });
 
-            await userEvent.click(screen.getByRole("button", { name: "Graph settings" }));
+            await userEvent.click(page.getByRole("button", { name: "Graph settings", exact: true }));
             const settings = await within(inspector).findByRole("tabpanel");
             // Flat titles, as the Style tab's: headings, not buttons that fold.
             // Background is a section of its own: Color, Image and Shader stack under its "+".
@@ -343,8 +350,8 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
 
     it("ends naming a new folder with focus on its row", async () => {
         await openScene();
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Folder" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Folder", exact: true }));
         const field = await screen.findByRole("textbox", { name: "Folder name" });
         await waitFor(() => {
             assert.equal(document.activeElement, field);
@@ -360,7 +367,9 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         const { session } = await openScene();
         await userEvent.click(await row("Key people"));
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-        await userEvent.click(await within(inspector).findByRole("button", { name: "Select what it paints" }));
+        await userEvent.click(
+            page.elementLocator(inspector).getByRole("button", { name: "Select what it paints", exact: true }),
+        );
         await waitFor(() => {
             assert.sameMembers([...session.selection.nodes].map(String), ["1", "2"]);
         });
@@ -369,7 +378,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
     it("opens Graph settings on its Style tab with focus inside it, and says so", async () => {
         const { store } = await openScene();
         tree();
-        await userEvent.click(screen.getByRole("button", { name: "Graph settings" }));
+        await userEvent.click(page.getByRole("button", { name: "Graph settings", exact: true }));
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
         const style = await within(inspector).findByRole("tab", { name: "Style" });
         assert.equal(style.getAttribute("aria-selected"), "true");

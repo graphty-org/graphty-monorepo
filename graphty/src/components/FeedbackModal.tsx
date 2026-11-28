@@ -5,11 +5,28 @@ import { useState } from "react";
 
 import { type AttachmentData, captureUserFeedback, type FeedbackResult } from "../lib/sentry";
 
+/** What the reader typed: Name, Email and the message. */
+export interface FeedbackDraft {
+    readonly name: string;
+    readonly email: string;
+    readonly message: string;
+}
+
+/** Nothing typed yet. */
+const EMPTY_DRAFT: FeedbackDraft = { name: "", email: "", message: "" };
+
 interface FeedbackModalProps {
     opened: boolean;
     onClose: () => void;
     /** Sends the feedback; Sentry's by default. Tests pass one that records it. */
     send?: typeof captureUserFeedback;
+    /**
+     * What is typed, when the caller keeps it (the workspace keeps it across a reload); without
+     * it, the modal holds it itself.
+     */
+    draft?: FeedbackDraft;
+    /** Takes what is typed, with `draft`. */
+    onDraftChange?: (draft: FeedbackDraft) => void;
 }
 
 /**
@@ -32,25 +49,34 @@ async function fileToAttachment(file: File): Promise<AttachmentData> {
  * @param root0.opened - Whether the modal is open
  * @param root0.onClose - Close the modal
  * @param root0.send - Sends the feedback; Sentry's by default
+ * @param root0.draft - What is typed, when the caller keeps it
+ * @param root0.onDraftChange - Takes what is typed, with `draft`
  * @returns The feedback modal component
  */
 export function FeedbackModal({
     opened,
     onClose,
     send = captureUserFeedback,
+    draft,
+    onDraftChange,
 }: Readonly<FeedbackModalProps>): React.JSX.Element {
-    const [name, setName] = useState("");
-    const [email, setEmail] = useState("");
-    const [message, setMessage] = useState("");
+    // on reload: fresh: derived: used only without `draft`; the workspace passes its kept feedbackDraft
+    const [own, setOwn] = useState(EMPTY_DRAFT);
+    const typed = draft ?? own;
+    const { name, email, message } = typed;
+    const setTyped = (next: FeedbackDraft): void => {
+        (onDraftChange ?? setOwn)(next);
+    };
+    // on reload: fresh: in flight: files picked to attach, which a browser gives back to no page after a reload
     const [files, setFiles] = useState<File[]>([]);
+    // on reload: fresh: in flight: a send under way
     const [loading, setLoading] = useState(false);
+    // on reload: fresh: notice: why the last send failed
     const [result, setResult] = useState<FeedbackResult | null>(null);
 
     const handleClose = (): void => {
         // Reset form on close
-        setName("");
-        setEmail("");
-        setMessage("");
+        setTyped(EMPTY_DRAFT);
         setFiles([]);
         setResult(null);
         onClose();
@@ -125,7 +151,7 @@ export function FeedbackModal({
                         data-1p-ignore
                         data-lpignore="true"
                         onChange={(e) => {
-                            setName(e.currentTarget.value);
+                            setTyped({ ...typed, name: e.currentTarget.value });
                         }}
                     />
                     <TextInput
@@ -137,7 +163,7 @@ export function FeedbackModal({
                         data-lpignore="true"
                         value={email}
                         onChange={(e) => {
-                            setEmail(e.currentTarget.value);
+                            setTyped({ ...typed, email: e.currentTarget.value });
                         }}
                     />
                     <Textarea
@@ -147,7 +173,7 @@ export function FeedbackModal({
                         minRows={4}
                         value={message}
                         onChange={(e) => {
-                            setMessage(e.currentTarget.value);
+                            setTyped({ ...typed, message: e.currentTarget.value });
                         }}
                     />
                     <FileInput

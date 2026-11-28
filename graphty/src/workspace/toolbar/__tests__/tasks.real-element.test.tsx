@@ -60,10 +60,10 @@ function analyzeTool(): HTMLElement {
  */
 async function analyze(filter: string, entry: string): Promise<void> {
     await userEvent.click(analyzeTool());
-    const box = await screen.findByRole("combobox", { name: "Filter analyses" });
+    const box = page.getByRole("combobox", { name: "Filter analyses", exact: true });
     await userEvent.type(box, filter);
-    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${entry}`) }));
-    await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
+    await userEvent.click(page.getByRole("option", { name: new RegExp(`^${entry}`) }));
+    await userEvent.click(page.getByRole("button", { name: /^Run\b/ }));
 }
 
 /**
@@ -101,13 +101,13 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const table = within(toolbar).getByRole("button", { name: "Table" });
         assert.isNull(screen.queryByRole("region", { name: "Table" }));
 
-        await userEvent.click(table);
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Table", exact: true }));
         assert.isNotNull(await screen.findByRole("region", { name: "Table" }));
         assert.equal(table.getAttribute("aria-pressed"), "true");
         // Karate has no column with the time role, so the clock is not drawn.
         assert.isNull(within(toolbar).queryByRole("button", { name: "Timeline" }));
 
-        await userEvent.click(table);
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Table", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: "Table" }));
         });
@@ -143,11 +143,13 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // layer already shows, pressing it would change nothing, so it is not offered.
         await userEvent.click(analyzeTool());
         const recent = await screen.findByRole("group", { name: "Recent" });
-        await userEvent.click(within(recent).getByRole("option", { name: /^PageRank/ }));
+        await userEvent.click(page.elementLocator(recent).getByRole("option", { name: /^PageRank/ }));
         const update = await screen.findByRole("button", { name: "Update PageRank layer" });
         assert.strictEqual(update.getAttribute("aria-disabled"), "true");
         // A real press on the dimmed button (force: it is aria-disabled, so it would wait for enabled).
-        await userEvent.click(update, { force: true });
+        await userEvent.click(page.getByRole("button", { name: "Update PageRank layer", exact: true }), {
+            force: true,
+        });
         assert.strictEqual(session.history.steps.length, steps, "pressing it records nothing");
         assert.isNotNull(screen.getByText("PageRank is up to date with these settings."));
         assert.isNotNull(screen.getByRole("combobox", { name: "Filter analyses" }), "Analyze stays open");
@@ -167,8 +169,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.lengthOf(session.runs.bindings(run.id), 0);
 
         await userEvent.click(analyzeTool());
-        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Betweenness");
-        await userEvent.click(await screen.findByRole("option", { name: /^Betweenness/ }));
+        await userEvent.type(page.getByRole("combobox", { name: "Filter analyses", exact: true }), "Betweenness");
+        await userEvent.click(page.getByRole("option", { name: /^Betweenness/ }));
         const action = await screen.findByRole("button", { name: /^(Run\b|(Update|Add) Betweenness layer)/ });
         assert.match(action.textContent ?? "", /^Run\b/);
         await userEvent.keyboard("{Escape}");
@@ -180,7 +182,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         // A single match: typing then Enter chooses it, focus moves to its Run, and Enter runs it.
         await userEvent.click(analyzeTool());
-        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "brokers{Enter}");
+        await userEvent.type(page.getByRole("combobox", { name: "Filter analyses", exact: true }), "brokers{Enter}");
         const run = await screen.findByRole("button", { name: "Run Betweenness" });
         await waitFor(() => {
             assert.equal(document.activeElement, run);
@@ -226,11 +228,11 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.isAbove(session.runs.bindings(louvain).length, 0);
         });
         if (screen.queryByRole("tree", { name: "Style layers" }) === null) {
-            await userEvent.click(screen.getByRole("button", { name: "Graph" }));
+            await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
         }
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         // A grouping run's groups are layers in a folder named for it.
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Louvain, folder, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Louvain, folder, / }));
         await userEvent.keyboard("{Delete}");
         await waitFor(() => {
             assert.isNull(within(tree).queryByRole("treeitem", { name: /^Louvain, folder, / }));
@@ -241,9 +243,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const computedAt = session.runs.get(louvain)?.startedAt;
 
         await userEvent.click(analyzeTool());
-        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "communities");
-        await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
-        await userEvent.click(await screen.findByRole("button", { name: "Add Louvain layers" }));
+        await userEvent.type(page.getByRole("combobox", { name: "Filter analyses", exact: true }), "communities");
+        await userEvent.click(page.getByRole("option", { name: /^Louvain/ }));
+        await userEvent.click(page.getByRole("button", { name: "Add Louvain layers", exact: true }));
         // Nothing needs computing again, so the run settles once whatever Analyze asked of it has.
         await session.runs.get(louvain)?.then(
             () => undefined,
@@ -263,7 +265,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.isAbove(session.runs.bindings(closeness).length, 0);
         });
         if (screen.queryByRole("tree", { name: "Style layers" }) === null) {
-            await userEvent.click(screen.getByRole("button", { name: "Graph" }));
+            await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
         }
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await within(tree).findByRole("treeitem", { name: /^Closeness, (node |edge |node and edge )?layer/ });
@@ -283,7 +285,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const session = await openKarate();
         const before = session.layout.id;
 
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         // The graph's inspector shows the same group; this one is the popover's.
         const popover = await screen.findByRole("dialog", { name: "Layout" });
         // The sample opened on the layout the element recommends: checked, and the list says so.
@@ -292,8 +294,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             .find((row) => row.getAttribute("aria-selected") === "true");
         assert.include(current?.textContent, "Recommended");
 
-        await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Circle(?!s)/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.equal(session.layout.id, "circular");
         });
@@ -302,7 +304,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.keyboard("{Escape}");
         const { generation } = session.positions;
         await userEvent.keyboard("{Control>}k{/Control}");
-        await userEvent.click(await screen.findByRole("option", { name: /Re-run layout/ }));
+        await userEvent.click(page.getByRole("option", { name: /Re-run layout/ }));
         await waitFor(() => {
             assert.notEqual(session.positions.generation, generation);
             // Recorded as a re-run, not as a change of layout.
@@ -327,7 +329,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // No XR buttons on the canvas: the menu is the one way in.
         assert.isNull(document.querySelector("graphty-element .xr-button-container, .xr-button-container"));
 
-        await userEvent.click(view);
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Mode, 3D", exact: true }));
         const menu = await screen.findByRole("menu", { name: /^Mode/ });
         const twoD = within(menu).getByRole("menuitemradio", { name: /^2D/ });
         const threeD = within(menu).getByRole("menuitemradio", { name: /^3D/ });
@@ -350,14 +352,14 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.notEqual(reasons.vr, "disabled");
         assert.notEqual(reasons.ar, "disabled");
 
-        await userEvent.click(twoD);
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitemradio", { name: /^2D/ }));
         await waitFor(() => {
             assert.equal(session.layout.dimension, "2d");
             assert.equal(face(), "2d");
         });
         assert.equal(view.textContent, "2D");
         assert.equal(view.getAttribute("aria-label"), "Mode, 2D");
-        await userEvent.click(view);
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Mode, 2D", exact: true }));
         const flat = await screen.findByRole("menu", { name: /^Mode/ });
         assert.include(within(flat).getByRole("menuitemradio", { name: /^3D/ }).textContent, "5");
         // Key 5 switches back, and the face says so.
@@ -376,9 +378,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         if (element === null) {
             return;
         }
-        const camera = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
-            name: "Camera",
-        });
+        const camera = page
+            .getByRole("toolbar", { name: "Canvas tools", exact: true })
+            .getByRole("button", { name: "Camera", exact: true });
         const open = async (): Promise<HTMLElement> => {
             await userEvent.click(camera);
             return screen.findByRole("menu", { name: /^Camera/ });
@@ -398,7 +400,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // Auto-rotate shows its key, 9, on its row.
         assert.equal(rotate.getAttribute("aria-keyshortcuts"), "9");
         assert.equal(element.autoRotate, 0);
-        await userEvent.click(rotate);
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ }));
         await waitFor(() => {
             assert.isAbove(element.autoRotate, 0);
         });
@@ -406,7 +408,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         menu = await open();
         const on = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
         assert.equal(on.getAttribute("aria-checked"), "true");
-        await userEvent.click(on);
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ }));
         await waitFor(() => {
             assert.equal(element.autoRotate, 0);
         });
@@ -446,9 +448,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             return;
         }
         await element.waitForStableFrame();
-        const camera = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
-            name: "Camera",
-        });
+        const camera = page
+            .getByRole("toolbar", { name: "Canvas tools", exact: true })
+            .getByRole("button", { name: "Camera", exact: true });
         const open = async (): Promise<HTMLElement> => {
             await userEvent.click(camera);
             return screen.findByRole("menu", { name: /^Camera/ });
@@ -457,7 +459,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // Focus selected is on, and turning it off leaves the camera where it is on a pick.
         const follow = within(await open()).getByRole("menuitemcheckbox", { name: /^Focus selected/ });
         assert.equal(follow.getAttribute("aria-checked"), "true");
-        await userEvent.click(follow);
+        await userEvent.click(
+            page.getByRole("menu", { name: /^Camera/ }).getByRole("menuitemcheckbox", { name: /^Focus selected/ }),
+        );
         await waitFor(() => {
             assert.isFalse(element.layoutBehavior?.camera?.pivotOnSelection);
         });
@@ -480,9 +484,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // Fit selection frames the ends where they are when it is pressed, and the layout is
         // still moving them after the queue empties: wait for the drawing to stop.
         await element.waitForStableFrame();
-        const view = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
-            name: "Camera",
-        });
+        const view = page
+            .getByRole("toolbar", { name: "Canvas tools", exact: true })
+            .getByRole("button", { name: "Camera", exact: true });
         const frameRow = async (): Promise<HTMLElement> => {
             await userEvent.click(view);
             const menu = await screen.findByRole("menu", { name: /^Camera/ });
@@ -554,7 +558,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const values = await screen.findByRole("group", { name: "Summary values" });
         assert.isNull(screen.queryByRole("toolbar", { name: "Selection" }));
 
-        await userEvent.click(within(values).getByRole("button", { name: /Degree/ }));
+        await userEvent.click(page.elementLocator(values).getByRole("button", { name: /Degree/ }));
         let neighborhood = 0;
         await waitFor(() => {
             neighborhood = session.selection.nodes.length;
@@ -565,7 +569,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         // Hops 2 in the list's header reselects two hops out and relists; the list, the
         // selection and the status line agree on the count.
-        const hops = await screen.findByRole("spinbutton", { name: "Hops" });
+        const hops = page.getByRole("spinbutton", { name: "Hops", exact: true });
         await userEvent.clear(hops);
         await userEvent.type(hops, "2{Enter}");
         await waitFor(() => {
@@ -585,13 +589,13 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // Karate is undirected, so there is no way to choose to follow.
         assert.isNull(screen.queryByRole("radiogroup", { name: "Follow" }));
         // The neighborhood has one home: no Grow by one hop in its "...".
-        await userEvent.click(screen.getByRole("button", { name: "Neighborhood actions" }));
+        await userEvent.click(page.getByRole("button", { name: "Neighborhood actions", exact: true }));
         await screen.findByRole("menuitem", { name: /Fit selection/ });
         assert.isNull(screen.queryByRole("menuitem", { name: /Grow by one hop/ }));
         await userEvent.keyboard("{Escape}");
 
         // Filter to neighbors adds one card keeping the same two hops.
-        await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
+        await userEvent.click(page.getByRole("button", { name: "Filter to neighbors", exact: true }));
         await waitFor(() => {
             assert.deepEqual(
                 session.visibility.conditions.map((c) => c.rule),
@@ -600,7 +604,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.equal(session.visibility.summary.visibleNodes, grown + 1);
         });
         // A command, not a toggle: pressed again it leaves the one card, on.
-        await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }), { force: true });
+        await userEvent.click(page.getByRole("button", { name: "Filter to neighbors", exact: true }), { force: true });
         await waitFor(() => {
             assert.deepEqual(
                 session.visibility.conditions.map((c) => [c.on, c.rule]),
@@ -616,12 +620,12 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await session.selection.apply({ nodes: [node] });
         const degree = async (): Promise<void> => {
             const values = await screen.findByRole("group", { name: "Summary values" });
-            await userEvent.click(within(values).getByRole("button", { name: /Degree/ }));
+            await userEvent.click(page.elementLocator(values).getByRole("button", { name: /Degree/ }));
         };
 
         // Open at one hop, reach two, filter to it, twice.
         await degree();
-        const hops = await screen.findByRole("spinbutton", { name: "Hops" });
+        const hops = page.getByRole("spinbutton", { name: "Hops", exact: true });
         await userEvent.clear(hops);
         await userEvent.type(hops, "2{Enter}");
         await waitFor(() => {
@@ -633,7 +637,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // A plain command: never drawn as pressed.
         assert.isNull(command.getAttribute("aria-pressed"));
         const grown = session.selection.nodes.length - 1;
-        await userEvent.click(command);
+        await userEvent.click(page.getByRole("button", { name: "Filter to neighbors", exact: true }));
         await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, grown + 1);
         });
@@ -643,9 +647,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.equal(command.getAttribute("data-disabled"), "true");
             assert.equal(command.getAttribute("aria-disabled"), "true");
         });
-        await userEvent.hover(command);
+        await userEvent.hover(page.getByRole("button", { name: "Filter to neighbors", exact: true }));
         await screen.findByText("The drawing already shows only this neighborhood. Its card in Filters turns it off");
-        await userEvent.click(command, { force: true });
+        await userEvent.click(page.getByRole("button", { name: "Filter to neighbors", exact: true }), { force: true });
         await waitFor(() => {
             assert.deepEqual(
                 session.visibility.conditions.map((c) => [c.on, c.rule]),
@@ -656,7 +660,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNull(command.getAttribute("aria-pressed"));
 
         // Back to the node, then its Degree row again: the list opens at the filter's two hops.
-        await userEvent.click(screen.getByRole("button", { name: `Back to ${name}` }));
+        await userEvent.click(page.getByRole("button", { name: `Back to ${name}`, exact: true }));
         await degree();
         const words = `${name} and ${String(grown)} connections`;
         await screen.findByRole("group", { name: words });
@@ -678,7 +682,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const filters = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", {
             name: "Filters",
         });
-        await userEvent.click(within(filters).getByRole("checkbox", { name: /^Use\b/ }));
+        await userEvent.click(page.elementLocator(filters).getByRole("checkbox", { name: /^Use\b/ }));
         await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, 34);
             assert.deepEqual(
@@ -693,7 +697,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
 
         // Pressed again, the command turns that same card back on.
-        await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
+        await userEvent.click(page.getByRole("button", { name: "Filter to neighbors", exact: true }));
         await waitFor(() => {
             assert.deepEqual(
                 session.visibility.conditions.map((c) => [c.on, c.rule]),
@@ -707,7 +711,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNull(screen.queryByRole("region", { name: "Data place" }));
         await userEvent.keyboard("{Control>}k{/Control}");
         await userEvent.keyboard("filter");
-        await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Filters/ }));
         await screen.findByRole("region", { name: "Data place" });
         // The new card opens in the selection workspace, its Value field ready.
         await screen.findByRole("button", { name: "Value" });
@@ -725,19 +729,19 @@ it("shows and hides the legend and the table from their own toolbar buttons, pre
     assert.equal(table.getAttribute("aria-pressed"), "false");
     assert.isNull(screen.queryByRole("region", { name: "Table" }));
 
-    await userEvent.click(legend);
+    await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Legend", exact: true }));
     await waitFor(() => {
         assert.isNull(screen.queryByRole("region", { name: "Legend" }));
     });
     assert.equal(legend.getAttribute("aria-pressed"), "false");
-    await userEvent.click(legend);
+    await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Legend", exact: true }));
     await screen.findByRole("region", { name: "Legend" });
     assert.equal(legend.getAttribute("aria-pressed"), "true");
 
-    await userEvent.click(table);
+    await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Table", exact: true }));
     await screen.findByRole("region", { name: "Table" });
     assert.equal(table.getAttribute("aria-pressed"), "true");
-    await userEvent.click(table);
+    await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Table", exact: true }));
     await waitFor(() => {
         assert.isNull(screen.queryByRole("region", { name: "Table" }));
     });

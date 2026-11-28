@@ -60,7 +60,7 @@ describe("the Graph place on the real element", () => {
         const { session, store } = await openGraph();
 
         const box = screen.getByRole("combobox", { name: "Find" });
-        await userEvent.type(box, "offic");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "offic");
         // The list fills while typing, before any Enter, and nothing is selected yet.
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const hit = within(list).getByRole("option", { name: /name: Officer/ });
@@ -68,7 +68,7 @@ describe("the Graph place on the real element", () => {
         assert.equal(session.selection.size, 0);
         assert.equal(document.activeElement, box, "focus stays in the box");
 
-        await userEvent.click(hit);
+        await userEvent.click(page.elementLocator(list).getByRole("option", { name: /name: Officer/ }));
         await waitFor(() => {
             assert.isTrue(session.selection.has(2));
         });
@@ -113,7 +113,7 @@ describe("the Graph place on the real element", () => {
         };
 
         // Plain text that reads as no rule: No match, then an example rule over the open data.
-        await userEvent.type(box, "chapters 10");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "chapters 10");
         assert.isNotNull(await screen.findByText('No match for "chapters 10"'));
         // The example is a node rule in the plain form the box reads: no backticks, no "=", and
         // never over the ids (numbers here, as karate's are), which teach nothing about the data.
@@ -125,8 +125,8 @@ describe("the Graph place on the real element", () => {
         assert.isNull(screen.queryByRole("option"));
 
         // A rule with a bare number reads as typed: Enter runs it.
-        await userEvent.clear(box);
-        await userEvent.type(box, "=minutes >= 10");
+        await userEvent.clear(page.getByRole("combobox", { name: "Find", exact: true }));
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "=minutes >= 10");
         // The line drawn under the box. The status line says the same words once the line settles,
         // so a query over the whole page finds two elements, or one, depending on when it looks.
         assert.isNotNull(
@@ -139,8 +139,8 @@ describe("the Graph place on the real element", () => {
 
         // A condition typed without "=": the text as a rule is what Enter picks.
         session.selection.clear();
-        await userEvent.clear(box);
-        await userEvent.type(box, "minutes >= 10");
+        await userEvent.clear(page.getByRole("combobox", { name: "Find", exact: true }));
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "minutes >= 10");
         // The line under the box, and the status line that speaks it.
         assert.isNotEmpty(await screen.findAllByText("Select by a value:"));
         const offered = await screen.findByRole("option", { name: /^minutes >= 10/ });
@@ -151,7 +151,7 @@ describe("the Graph place on the real element", () => {
 
     it("keeps the example under the box while the session changes, rather than taking it down to ask again", async () => {
         const { session } = await openGraph();
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "chapters 10");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "chapters 10");
         const example = await screen.findByText(/^\w+ == '[^']+'$/);
 
         // Any session change asks the element again; the element's own late history step after a
@@ -207,7 +207,7 @@ describe("the Graph place on the real element", () => {
             assert.isDefined(point, "a point above Officer's sphere answers Officer");
         });
 
-        await userEvent.click(element, { position: point });
+        await userEvent.click(page.getByCss("graphty-element").first(), { position: point });
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes], [2]);
         });
@@ -240,10 +240,15 @@ describe("the Graph place on the real element", () => {
             assert.closeTo(target.z, node.z, 0.01, `the camera turns about node ${String(id)}`);
         };
         const pick = async (name: string, id: number): Promise<void> => {
-            const box = screen.getByRole("combobox", { name: "Find" });
+            const box = page.getByRole("combobox", { name: "Find", exact: true });
             await userEvent.type(box, name);
             const list = await screen.findByRole("listbox", { name: "Find results" });
-            await userEvent.click(within(list).getAllByRole("option", { name: new RegExp(name) })[0]);
+            await userEvent.click(
+                page
+                    .elementLocator(list)
+                    .getByRole("option", { name: new RegExp(name) })
+                    .nth(0),
+            );
             await waitFor(() => {
                 assert.isTrue(session.selection.has(id));
             });
@@ -269,7 +274,7 @@ describe("the Graph place on the real element", () => {
 
     it("says when nothing matches, and offers the value rows", async () => {
         await openGraph();
-        const box = screen.getByRole("combobox", { name: "Find" });
+        const box = page.getByRole("combobox", { name: "Find", exact: true });
 
         await userEvent.type(box, "zzz");
         assert.isNotNull(await screen.findByText('No match for "zzz"'));
@@ -290,13 +295,15 @@ describe("the Graph place on the real element", () => {
             (m) => Number(m[1]) >= 10,
         ).length;
 
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "10");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "10");
         const values = within(await screen.findByRole("listbox", { name: "Find results" })).getByRole("group", {
             name: "Values",
         });
         const exact = within(values).getByRole("option", { name: /^Select where .+ is 10 \(\d+\)$/ });
         assert.notInclude(exact.textContent, "Select where", "the words on the row drop the verb");
-        await userEvent.click(within(values).getByRole("option", { name: /^Select where .+ is 10 or more \(\d+\)$/ }));
+        await userEvent.click(
+            page.elementLocator(values).getByRole("option", { name: /^Select where .+ is 10 or more \(\d+\)$/ }),
+        );
 
         await waitFor(() => {
             assert.equal(session.selection.edges.length, wanted);
@@ -323,12 +330,14 @@ describe("the Graph place on the real element", () => {
         );
         const wanted = links.filter(([, , minutes]) => Number(minutes) >= 10).length;
 
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "10");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "10");
         const values = within(await screen.findByRole("listbox", { name: "Find results" })).getByRole("group", {
             name: "Values",
         });
         await userEvent.click(
-            within(values).getByRole("option", { name: `Select where minutes is 10 or more (${String(wanted)})` }),
+            page
+                .elementLocator(values)
+                .getByRole("option", { name: `Select where minutes is 10 or more (${String(wanted)})`, exact: true }),
         );
 
         await waitFor(() => {

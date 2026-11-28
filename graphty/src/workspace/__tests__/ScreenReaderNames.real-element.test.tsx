@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../test/test-utils";
 import { createWorkspaceStore } from "../state/store";
@@ -51,11 +51,11 @@ async function openScene(): Promise<GraphSession> {
  */
 async function openStyle(name: string): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     return screen.findByTestId("style-tab");
 }
@@ -64,9 +64,9 @@ describe("screen-reader names on the real element", () => {
     it("names the analysis card's button after its analysis", async () => {
         await openScene();
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
-        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Degree");
-        await userEvent.click(await screen.findByRole("option", { name: /^Degree/ }));
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Analyze", exact: true }));
+        await userEvent.type(page.getByRole("combobox", { name: "Filter analyses", exact: true }), "Degree");
+        await userEvent.click(page.getByRole("option", { name: /^Degree/ }));
         const run = await screen.findByRole("button", { name: "Run Degree" });
         // The name begins with what it shows, so a reader who says "click Run" still reaches it.
         assert.equal(run.textContent, "Run");
@@ -109,8 +109,9 @@ describe("screen-reader names on the real element", () => {
         );
         assert.lengthOf(named, 1, "one element carries the name");
 
-        const chip = within(legend).getByRole("img", { name: colorName("#e69f00") });
-        await userEvent.hover(chip);
+        const chip = (): Locator =>
+            page.elementLocator(legend).getByRole("img", { name: colorName("#e69f00"), exact: true });
+        await userEvent.hover(chip());
         await waitFor(() => {
             assert.include(screen.getByRole("tooltip", { hidden: true }).textContent, colorName("#e69f00"));
         });

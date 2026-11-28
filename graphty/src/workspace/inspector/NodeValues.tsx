@@ -629,7 +629,8 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
  * @param props.session - the element's session
  * @param props.kind - nodes or edges
  * @param props.id - the node or edge
- * @returns the row, or nothing while it has no type
+ * @returns the row, as the other stat rows are, "No value" for a record with no type; nothing while the graph's
+ * records of its kind have no types
  */
 function TypeRow({
     session,
@@ -637,8 +638,10 @@ function TypeRow({
     id,
 }: Readonly<{ session: GraphSession; kind: RecordKind; id: NodeId }>): React.JSX.Element | null {
     const value = typeValue(session, kind);
-    const type = value === undefined ? null : session.data.typeOf(kind, id);
-    return value === undefined || type === null ? null : <DataRow name={value.plainName} value={type} />;
+    if (value === undefined) {
+        return null;
+    }
+    return <DataRow stat name={value.plainName} value={session.data.typeOf(kind, id) ?? NO_VALUE} />;
 }
 
 /** How many selected edges the list names before "N more edges". */

@@ -1000,4 +1000,59 @@ describe("the join workspace's cards work as the selection workspace's cards do 
             assert.include(row?.closest("[data-testid=data-row]")?.textContent ?? "", "entry");
         });
     });
+    it("an edge a join made, clicked on the canvas, reads its Edge type in the inspector's Type row", async () => {
+        const { session, modal } = await opened();
+        await connect(modal, session);
+        await advanced(modal);
+        await userEvent.click(within(modal).getByLabelText("Edge type"));
+        await userEvent.keyboard("entry{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(draftOf(session).steps().at(-1)?.act?.edgeType, "entry");
+        });
+        await done(modal);
+        const type = session.data.readableValues().find((each) => each.path === "graphty.type" && each.on === "edge");
+        assert.isDefined(type, "the element names the edges' type");
+        const element = document.querySelector("graphty-element");
+        if (element === null) {
+            throw new Error("no graph");
+        }
+        await element.waitForStableFrame();
+        // The edge whose middle lies farthest from every other node, so the click lands on the edge alone.
+        const at = (id: string | number): { x: number; y: number } | null => {
+            const p = element.nodeScreenPosition(id);
+            return p?.visible === true ? { x: p.x, y: p.y } : null;
+        };
+        const spots = session.data.edges().flatMap((edge) => {
+            const [a, b] = [at(edge.source), at(edge.target)];
+            if (a === null || b === null) {
+                return [];
+            }
+            const middle = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            const clear = Math.min(
+                ...session.data.nodes().flatMap((node) => {
+                    const p = at(node.id);
+                    return p === null ? [] : [Math.hypot(p.x - middle.x, p.y - middle.y)];
+                }),
+            );
+            return [{ middle, clear }];
+        });
+        const spot = spots.toSorted((x, y) => y.clear - x.clear).at(0);
+        if (spot === undefined) {
+            throw new Error("no edge on screen");
+        }
+        await userEvent.click(element, { position: spot.middle });
+        await waitFor(() => {
+            assert.lengthOf(session.selection.edges, 1, "the click picked one edge");
+            assert.lengthOf(session.selection.nodes, 0, "and no node");
+        });
+        const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+        await waitFor(() => {
+            const row = within(inspector)
+                .getAllByTestId("data-row-name")
+                .find((name) => name.textContent === type?.plainName);
+            assert.isDefined(row, "a Type row");
+            const value = row?.closest("[data-testid=data-row]")?.querySelector(".cm-data-row-value");
+            assert.strictEqual(value?.textContent, "entry");
+        });
+    });
 });

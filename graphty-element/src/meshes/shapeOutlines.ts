@@ -856,7 +856,18 @@ export function convexHull(points: readonly Point2[]): Point2[] {
         return chain;
     };
 
-    return [...half(sorted), ...half([...sorted].reverse())];
+    const hull = [...half(sorted), ...half([...sorted].reverse())];
+    // A mesh's seam vertices project a rounding error apart, and both can survive the chain: the side between them is
+    // a point long with a direction of noise, which cut one of two mirrored corners of a ring square and mitred the
+    // other (issue #10502). Points nearer than a billionth of the hull's size are one point.
+    const [first, last] = [sorted[0], sorted.at(-1)];
+    const near =
+        first === undefined || last === undefined ? 0 : 1e-9 * Math.hypot(last[0] - first[0], last[1] - first[1]);
+
+    return hull.filter(([x, y], i) => {
+        const [px, py] = hull[(i + hull.length - 1) % hull.length];
+        return i === 0 || Math.hypot(x - px, y - py) > near;
+    });
 }
 
 /**

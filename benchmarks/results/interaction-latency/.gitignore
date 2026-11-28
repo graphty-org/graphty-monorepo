@@ -1,0 +1,3 @@
+# Generated input graphs the latency runner writes next to its results (genFile in
+# benchmarks/compare/interaction-latency.mjs); rebuilt on demand, never committed.
+*.graphml

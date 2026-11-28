@@ -10,6 +10,7 @@ import {
     compareRuns,
     CREEP_RUNS,
     FLOOR_MS,
+    guardCells,
     lastTwo,
     METHOD,
     overBudget,
@@ -213,5 +214,33 @@ describe("interaction-latency", () => {
             stateOnly.map((l) => l.cell),
             ["a"],
         );
+    });
+
+    it("guards the cells the matrix measured under 300 ms and lists the known slow ones", () => {
+        const base = [
+            elementRow("hover-node", 40, 60),
+            elementRow("click-select-node", 250, 280),
+            elementRow("wheel-zoom", 600, 700),
+            elementRow("drag-node", 100, 120),
+        ];
+        const now = [
+            elementRow("hover-node", 45, 70),
+            elementRow("click-select-node", 320, 350),
+            elementRow("wheel-zoom", 650, 700),
+            { ...elementRow("drag-node", null, null), died: "no progress for 600 s" },
+        ];
+        const { failing, known } = guardCells(base, now);
+        assert.deepEqual(
+            failing.map((f) => [f.cell.split(" | ")[1], f.why]),
+            [
+                ["click-select-node", "over 300 ms"],
+                ["drag-node", "no progress for 600 s"],
+            ],
+        );
+        assert.deepEqual(
+            known.map((k) => k.cell.split(" | ")[1]),
+            ["wheel-zoom"],
+        );
+        assert.deepEqual(guardCells(base, base.slice(0, 2)).failing, []);
     });
 });

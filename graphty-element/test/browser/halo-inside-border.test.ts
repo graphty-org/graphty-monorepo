@@ -13,15 +13,17 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { nodeInternals } from "../../src/Node";
 
-/** The look every node is drawn in: the sweep's wide cylinder with a halo. */
+/** The look every node is drawn in: a wide node with a halo. */
 const LOOK = {
-    "node.shape": "cylinder",
     "node.width": 1.6,
     "node.height": 1,
     "node.haloColor": "#FFBE00",
     "node.haloOpacity": 1,
     "node.haloScale": 1.45,
 };
+
+/** A solid and a flat shape: both grow their halo through the same path. */
+const SHAPES = ["cylinder", "rectangle"] as const;
 
 describe("a halo round a node with an inside border", () => {
     let container: HTMLElement;
@@ -34,20 +36,33 @@ describe("a halo round a node with an inside border", () => {
         document.body.appendChild(container);
         graph = new Graph(container);
         await graph.init();
-        await graph.addNodes([
-            { id: "plain", x: -3, y: 0, z: 0 },
-            { id: "inside", x: 0, y: 0, z: 0 },
-            { id: "center", x: 3, y: 0, z: 0 },
-        ]);
+        await graph.addNodes(
+            SHAPES.flatMap((shape, row) =>
+                ["plain", "inside", "center"].map((position, k) => ({
+                    id: `${shape}-${position}`,
+                    x: (k - 1) * 3,
+                    y: row * 3,
+                    z: 0,
+                })),
+            ),
+        );
         await graph.setLayout("fixed");
         await operationQueueOf(graph).waitForCompletion();
         const { styles } = graph.getSession();
         await styles.add({ name: "look", target: "node", selector: { match: "everything" }, set: LOOK });
+        for (const shape of SHAPES) {
+            await styles.add({
+                name: shape,
+                target: "node",
+                selector: { match: "ids", nodes: ["plain", "inside", "center"].map((p) => `${shape}-${p}`) },
+                set: { "node.shape": shape },
+            });
+        }
         for (const position of ["inside", "center"]) {
             await styles.add({
                 name: position,
                 target: "node",
-                selector: { match: "ids", nodes: [position] },
+                selector: { match: "ids", nodes: SHAPES.map((shape) => `${shape}-${position}`) },
                 set: { "node.borderWidth": 0.3, "node.borderPosition": position, "node.borderColor": "#78C800" },
             });
         }
@@ -80,15 +95,17 @@ describe("a halo round a node with an inside border", () => {
         };
     }
 
-    for (const position of ["inside", "center"]) {
-        it(`with its border ${position} reaches as far as with no border`, () => {
-            const plain = haloHalf("plain");
-            const bordered = haloHalf(position);
-            // the border is drawn within the outline (inside) or half past it (center): an inside border's halo ends
-            // where a plain node's does, a centered one's no nearer
-            const past = position === "inside" ? 0 : 0.3 * 1.5 * 0.5;
-            assert.approximately(bordered.y, plain.y + past, 0.01, "half-height");
-            assert.approximately(bordered.x, plain.x + past, 0.01, "half-width");
-        });
+    for (const shape of SHAPES) {
+        for (const position of ["inside", "center"]) {
+            it(`on a ${shape} with its border ${position} reaches as far as with no border`, () => {
+                const plain = haloHalf(`${shape}-plain`);
+                const bordered = haloHalf(`${shape}-${position}`);
+                // the border is drawn within the outline (inside) or half past it (center): an inside border's halo
+                // ends where a plain node's does, a centered one's no nearer
+                const past = position === "inside" ? 0 : 0.3 * 1.5 * 0.5;
+                assert.approximately(bordered.y, plain.y + past, 0.01, "half-height");
+                assert.approximately(bordered.x, plain.x + past, 0.01, "half-width");
+            });
+        }
     }
 });

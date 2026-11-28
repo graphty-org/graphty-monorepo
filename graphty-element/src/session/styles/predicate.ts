@@ -186,6 +186,14 @@ export interface SelectorSource {
      */
     readonly inState?: (state: ElementState, target: SelectorTarget, index: number) => boolean;
     /**
+     * Run one synchronous read of the stack (a count, a legend) during which {@link inState} brings
+     * each state's inputs up to date once rather than once per element: nothing a state reads can
+     * move inside a read. Absent, a read just runs.
+     * @param read - The read.
+     * @returns What it returns.
+     */
+    readonly reading?: <T>(read: () => T) => T;
+    /**
      * What the reader is pointing at, which a `{match:"hover"}` selector tests by index. Absent,
      * a `{match:"hover"}` selector is refused.
      * @returns The hovered node's neighborhood now, or null while no node is hovered.

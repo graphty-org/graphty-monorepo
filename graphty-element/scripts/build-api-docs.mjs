@@ -52,7 +52,7 @@ const KNOWN_BROKEN_LINKS = [];
 // unexported: 139 is the measured 139. The count includes DataStepsSetCommand, the
 // source-steps experiment's command in SessionCommand, whose edit and copies types stay internal until
 // the experiment graduates.
-const DEBT_CEILING = { undocumented: 202, unexported: 139, misplacedTags: 4 };
+const DEBT_CEILING = { undocumented: 174, unexported: 139, misplacedTags: 4 };
 
 /** Warning text that means a documentation link does not resolve to a page. */
 const LINK_PATTERNS = [/Failed to resolve link to /, /links to ".*" which was resolved but is not included/];

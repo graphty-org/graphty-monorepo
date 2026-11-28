@@ -32,8 +32,6 @@ interface GestureSession {
 export class InputController implements GestureEndHooks {
     /** Told once when a reader's camera gesture ends; see `camera:gesture-end`. */
     public onGestureEnd: ((kind: CameraGestureKind) => void) | null = null;
-    /** Asks the render loop for one more frame; see {@link WheelRun}. */
-    public requestFrame: (() => void) | null = null;
     /** What the drag or touch gesture under way has done, once it moved the camera. */
     private dragKind: CameraGestureKind | null = null;
     /** What the camera keys have been doing, until the camera's inertia comes to rest. */
@@ -476,7 +474,7 @@ export class InputController implements GestureEndHooks {
             this.onGestureEnd?.(kind);
         }
 
-        if (this.wheelRun.frame(this.requestFrame)) {
+        if (this.wheelRun.frame()) {
             this.onGestureEnd?.("zoom");
         }
     }

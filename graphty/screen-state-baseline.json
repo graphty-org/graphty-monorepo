@@ -73,7 +73,7 @@
         "src/workspace/data-place/ScoreDialog.tsx": ["name"],
         "src/workspace/export/CameraImageOutput.tsx": ["backgroundCheck"],
         "src/workspace/export/DocumentOutput.tsx": ["contents"],
-        "src/workspace/export/ReportOutput.tsx": ["configs", "counts", "savedName"],
+        "src/workspace/export/ReportOutput.tsx": ["configs", "savedName"],
         "src/workspace/export/TourVideoOutput.tsx": ["estimate", "failure", "progress", "recording"],
         "src/workspace/frame/ElementHost.tsx": ["hosted"],
         "src/workspace/frame/Frame.tsx": [
@@ -259,16 +259,6 @@
         ],
         "src/workspace/style/Section.tsx": ["code", "element", "gallery", "hidden", "waiting"],
         "src/workspace/style/ShaderCodeEditor.tsx": ["extensions", "view"],
-        "src/workspace/style/ShaderEditorDialog.tsx": [
-            "adding",
-            "drawn",
-            "hasCursor",
-            "loaded",
-            "result",
-            "state",
-            "tab",
-            "tabMoves"
-        ],
         "src/workspace/style/ShaderGallery.tsx": ["origin", "query", "stop"],
         "src/workspace/style/ShaderParamRows.tsx": ["open", "typed", "typed"],
         "src/workspace/style/ShaderParams.tsx": ["live"],

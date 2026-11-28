@@ -906,21 +906,30 @@ export function silhouetteOutline(points: readonly Point2[], triangles: ArrayLik
  */
 function fillTriangle(grid: Uint8Array, nx: number, corners: readonly Point2[]): void {
     const [[ax, ay], [bx, by], [cx, cy]] = corners;
-    for (const [x, y] of corners) {
-        grid[Math.floor(y) * nx + Math.floor(x)] = 1;
-    }
     const area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
-    if (area === 0) {
-        return;
-    }
-    const side = (px: number, py: number, qx: number, qy: number, x: number, y: number): number =>
-        ((qx - px) * (y - py) - (qy - py) * (x - px)) * Math.sign(area);
-    for (let j = Math.floor(Math.min(ay, by, cy)); j <= Math.ceil(Math.max(ay, by, cy)); j++) {
-        for (let i = Math.floor(Math.min(ax, bx, cx)); i <= Math.ceil(Math.max(ax, bx, cx)); i++) {
-            const [x, y] = [i + 0.5, j + 0.5];
-            if (side(ax, ay, bx, by, x, y) >= 0 && side(bx, by, cx, cy, x, y) >= 0 && side(cx, cy, ax, ay, x, y) >= 0) {
-                grid[j * nx + i] = 1;
+    let marked = false;
+    if (area !== 0) {
+        const side = (px: number, py: number, qx: number, qy: number, x: number, y: number): number =>
+            ((qx - px) * (y - py) - (qy - py) * (x - px)) * Math.sign(area);
+        for (let j = Math.floor(Math.min(ay, by, cy)); j <= Math.ceil(Math.max(ay, by, cy)); j++) {
+            for (let i = Math.floor(Math.min(ax, bx, cx)); i <= Math.ceil(Math.max(ax, bx, cx)); i++) {
+                const [x, y] = [i + 0.5, j + 0.5];
+                if (
+                    side(ax, ay, bx, by, x, y) >= 0 &&
+                    side(bx, by, cx, cy, x, y) >= 0 &&
+                    side(cx, cy, ax, ay, x, y) >= 0
+                ) {
+                    grid[j * nx + i] = 1;
+                    marked = true;
+                }
             }
+        }
+    }
+    // a triangle thinner than a cell covers no cell's middle, and its corners' cells keep it. A wider one is left to
+    // its middles: a corner a hair past a cell's side marked a one-cell bump past the edge (issue #10532)
+    if (!marked) {
+        for (const [x, y] of corners) {
+            grid[Math.floor(y) * nx + Math.floor(x)] = 1;
         }
     }
 }
@@ -1061,10 +1070,11 @@ function traceOutline(grid: Uint8Array, nx: number, ny: number): Point2[] {
         const [u, v] = best[(n + 1) % best.length];
         return [(x + u) / 2, (y + v) / 2];
     });
-    // the steps of the grid smoothed away, and a cell a triangle's corner marked past the edge with them: no point a
-    // cell or less from the line kept. Kept at half a cell, each such one-cell bump's square corners were mitred out
-    // about 1.4 widths, and a ring round the outline showed spikes (issue #10532)
-    return simplify(middles, 1);
+    // the steps of the grid smoothed away: no point further than half a cell from the line kept. Then each side a cell
+    // long or less joined into one point at its middle: such a side between two turns is a one-cell bump or step, whose
+    // two square corners were mitred out about 1.4 widths, and a ring round the outline showed spikes (issue #10532).
+    // Smoothing at a whole cell instead cut across hollows, and a ring round a model stood off its arms and legs
+    return joinShortSides(simplify(middles, 0.5), 1.5);
 }
 
 /**
@@ -1903,6 +1913,33 @@ export function piecesThickness(pieces: readonly RingPiece[]): number {
     }
 
     return edges > 0 ? (2 * area) / edges : 0;
+}
+
+/**
+ * A closed outline with each side no longer than a length replaced by one point at its middle.
+ * @param outline - The outline.
+ * @param length - The longest side joined.
+ * @returns The outline, its short sides joined; the outline itself when joining would leave fewer than three points.
+ */
+function joinShortSides(outline: readonly Point2[], length: number): Point2[] {
+    const short = (a: Point2, b: Point2): boolean => Math.hypot(b[0] - a[0], b[1] - a[1]) <= length;
+    const middle = (a: Point2, b: Point2): Point2 => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const out: Point2[] = [];
+    let firstJoined = false;
+    for (let n = 0; n < outline.length; n++) {
+        const [a, b] = [outline[n], outline[(n + 1) % outline.length]];
+        if (n + 1 < outline.length && short(a, b)) {
+            out.push(middle(a, b));
+            firstJoined ||= n === 0;
+            n++;
+        } else if (n + 1 === outline.length && !firstJoined && short(a, b)) {
+            // the side that closes the outline: its middle takes the first point's place
+            out[0] = middle(a, b);
+        } else {
+            out.push(a);
+        }
+    }
+    return out.length < 3 ? [...outline] : out;
 }
 
 /**

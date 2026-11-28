@@ -964,6 +964,69 @@ export function insideConvex(hull: readonly P2[], p: P2): boolean {
     return true;
 }
 
+/** What {@link drawnMeshes} reads of a mesh. */
+export interface DrawnMesh {
+    name: string;
+    isVisible: boolean;
+    visibility: number;
+    isEnabled(): boolean;
+    getChildMeshes(directDescendantsOnly?: boolean): DrawnMesh[];
+}
+
+/** A node's meshes, as the element keeps them. */
+export interface DrawnNode<M extends DrawnMesh> {
+    mesh: M | null;
+    border: M | null;
+    outerBorder: M | null;
+    underlay: M | null;
+    overlay: M | null;
+    halo: M | null;
+    shadow: M[];
+    decorations: M[];
+}
+
+/**
+ * Every enabled, visible mesh a node draws, its outline ring among them: a neighbor's ring drawn over this node's
+ * rings covers them as the neighbor's own meshes do, so it is read as another node's, not as this node's rings
+ * missing.
+ * @param node - The node.
+ * @returns Its meshes.
+ */
+export function drawnMeshes<M extends DrawnMesh>(node: DrawnNode<M>): M[] {
+    const ring = (node.mesh?.getChildMeshes(true) ?? []).filter((m) => m.name.startsWith("graphty-node-outline-"));
+    const all = [
+        node.mesh,
+        node.border,
+        node.outerBorder,
+        node.underlay,
+        node.overlay,
+        node.halo,
+        ...node.shadow,
+        ...node.decorations,
+        ...(ring as M[]),
+    ];
+    return all.filter((m): m is M => m !== null && m.isEnabled() && m.isVisible && m.visibility > 0);
+}
+
+/**
+ * The plain frame with the fill an edge or a label covers in it put back where the full frame shows the fill. With no
+ * ring to stop at, an edge in the plain frame can reach over the fill and across its outline (a tilted flat star's,
+ * pw-085), and the outline it covered was missing: the ring read wider than it is past the outline either side.
+ * @param plain - The classified plain frame.
+ * @param full - The classified full frame.
+ * @returns The plain frame, fill where it was covered and the full frame shows fill.
+ */
+export function fillUnderCrossings(plain: Classes, full: Classes): Classes {
+    const FILL = partIndex("fill");
+    const parts = Int8Array.from(plain.parts);
+    parts.forEach((part, i) => {
+        if (FOREIGN.has(part) && full.parts[i] === FILL) {
+            parts[i] = FILL;
+        }
+    });
+    return { ...plain, parts };
+}
+
 /**
  * A frame with every pixel another node's meshes cover marked {@link OTHER_NODE}: inside the convex hull of their
  * projected vertices, or within one pixel of it (a blended pixel at its edge).
@@ -1120,18 +1183,19 @@ export interface NodeFrames {
     /** Whether "bottom" is the screen's bottom (an unturned view), so the label can be judged. */
     labelReadable?: boolean;
     /**
-     * How much the element stretches this node's halo along the plane's u and v axes for a `haloScale` and a border
-     * reaching `border` plane units (Node.ts: haloAxisScale with borderReach). Unset, the halo is the node scaled
-     * `haloScale` about its center.
+     * How much the element stretches this node's outline along the plane's u and v axes for a `haloScale`, a border
+     * `border` plane units wide and a fill drawn `inset` plane units in from the outline by a centered or inside
+     * border (Node.ts: haloAxisScale with borderReach and fillInset). Unset, the halo is the node scaled `haloScale`
+     * about its center.
      */
-    haloGrow?: (scale: number, border: number) => [number, number];
+    haloGrow?: (scale: number, border: number, inset: number) => [number, number];
     /**
-     * The hull, in plane units, of where the element's halo should be for a `haloScale` and a border reaching
-     * `border` plane units: the node's own vertices stretched as haloAxisScale stretches them and projected as the
+     * The hull, in plane units, of where the element's halo should be for a `haloScale`, a border `border` plane units
+     * wide and a fill drawn `inset` in: the node's own vertices stretched as haloAxisScale stretches them and projected as the
      * camera projects them, so perspective and an oblique view of a stretched solid are in it exactly. Empty (or
      * unset) where a hull would bridge the shape's hollows; then {@link NodeFrames.haloGrow}'s model is used.
      */
-    haloHull?: (scale: number, border: number) => P2[];
+    haloHull?: (scale: number, border: number, inset: number) => P2[];
     /**
      * The other nodes' drawn extents (every mesh they hold), as convex hulls in device pixels. The classifier cannot
      * tell two nodes' parts apart, so a ray is read only up to where it enters one (like an edge crossing it).
@@ -1290,8 +1354,8 @@ export function measureNode(
     const BG = partIndex("bg");
     // what another node covers is not this node's: both frames are read only up to it
     const others = frames.others ?? [];
-    const plain = withoutOthers(frames.plain, others);
     let full = withoutOthers(frames.full, others);
+    const plain = fillUnderCrossings(withoutOthers(frames.plain, others), full);
     // A shape whose center is not filled (man, woman) is measured from its fill's centroid instead.
     const plane = centeredOnFill(plain, frames.plane, window);
     const shifted = plane !== frames.plane;
@@ -1409,7 +1473,13 @@ export function measureNode(
             const from = lastIndex(runs, (r, k) => k < ring && r.part === FILL);
             const between = runs.slice(from + 1, ring).filter((r) => r.part === BG);
             gaps.push(between.reduce((sum, r) => sum + (r.to - r.from), 0) * ppu.max);
-            const out = runs[ring].to;
+            // a lobe of fill the ray only grazes (its tip, all blended pixels) or a stair step of an edge crossed at a
+            // shallow angle splits the ring into runs with blends between them: its outer edge ends the last of them
+            let outer = ring;
+            for (let k = ring + 1; k < runs.length && (runs[k].part === MIXED || runs[k].part === BORDER); k++) {
+                outer = runs[k].part === BORDER ? k : outer;
+            }
+            const out = runs[outer].to;
             const [u, v] = [out * Math.cos(angles[i]), out * Math.sin(angles[i])];
             thick.push(distanceTo(fullFillEdge, u, v));
             offs.push(signed(u, v));
@@ -1534,6 +1604,7 @@ export function measureNode(
         const OUTER = partIndex("outer");
         const starts: number[] = [];
         const widths: number[] = [];
+        const cornered: boolean[] = [];
         const gaps: number[] = [];
         let unseen = 0;
         let seenOnly = 0;
@@ -1554,6 +1625,9 @@ export function measureNode(
             const outer = signed(run.to * Math.cos(a), run.to * Math.sin(a));
             starts.push(inner);
             widths.push(outer - inner);
+            cornered.push(
+                pastCorner(plainEdge, run.from * Math.cos(a), run.from * Math.sin(a), Math.max(edgeTol, inner / 2)),
+            );
             const b = runs.findIndex((r) => r.part === BORDER);
             if (b >= 0 && b < k) {
                 gaps.push(
@@ -1566,6 +1640,12 @@ export function measureNode(
         });
         const start =
             override.outerStart ?? borderEdge + (s.outer === "gap" ? AMOUNTS.outerGap : 0) * PER_SIZE * sizeFactor;
+        // a mitred corner of the border and of the outer ring reaches past them, so (as the border's position is)
+        // where the outer ring starts and how wide it is are read on the rays that leave through a side
+        const onSides = (list: number[]): number[] => {
+            const side = list.filter((_, j) => !cornered[j]);
+            return side.length >= MIN_RAYS ? side : list;
+        };
         const width = outerWidth;
         checks.push(
             check(
@@ -1580,7 +1660,7 @@ export function measureNode(
             check(
                 "outer-start",
                 "the outer ring starts outerBorderOffset past the border's outer edge",
-                readMedian(starts),
+                readMedian(onSides(starts)),
                 start,
                 edgeTol * 2 + width * WIDTH_SLACK,
                 starts,
@@ -1590,7 +1670,7 @@ export function measureNode(
             check(
                 "outer-width",
                 "the outer ring is outerBorderWidth border units wide",
-                quantile(widths, 0.5),
+                quantile(onSides(widths), 0.5),
                 width,
                 edgeTol * 2 + width * WIDTH_SLACK,
                 widths,
@@ -1734,8 +1814,13 @@ export function measureNode(
     if (s.effect === "halo" && !hidden && !shifted) {
         const HALO = partIndex("halo");
         const scale = override.haloScale ?? AMOUNTS.haloScale;
-        const [gu, gv] = frames.haloGrow?.(scale, borderWorld) ?? [scale, scale];
-        const haloHull = frames.haloHull?.(scale, borderWorld) ?? [];
+        // a centered or inside border draws the fill in from the outline; the halo is measured from the outline. A
+        // solid in 3D keeps its plain fill, its ring drawn over the edge, so its ring reaches only its outer edge past it
+        const drawnOver = frames.view === "3d" && !isFlat(s.shape) && s.border !== "screen";
+        const fillInset = drawnOver ? 0 : borderWorld * (1 - fraction);
+        const haloBorder = drawnOver ? borderEdge : borderWorld;
+        const [gu, gv] = frames.haloGrow?.(scale, haloBorder, fillInset) ?? [scale, scale];
+        const haloHull = frames.haloHull?.(scale, haloBorder, fillInset) ?? [];
         const misses: number[] = [];
         const haloSigned: number[] = [];
         angles.forEach((a, i) => {
@@ -1785,21 +1870,25 @@ export function measureNode(
     if (s.effect === "outline" && !hidden) {
         const OUTLINE = partIndex("outline");
         const gaps: number[] = [];
-        fullRuns.forEach((runs) => {
+        fullRuns.forEach((runs, i) => {
             const k = runs.findIndex((r) => r.part === OUTLINE);
             if (k < 0) {
                 return;
             }
+            // what lies before the outline is read on the raw runs: tidy folds a ring a pixel or two across (an outer
+            // border under sizeSpace screen) into the blends either side of it, and an outer border's gap before it
+            // then read as background at the outline
+            const before = rawRuns[i].filter((r) => r.to <= runs[k].from);
             const drawn = lastIndex(
-                runs,
-                (r, j) => j < k && (r.part === FILL || r.part === BORDER || r.part === partIndex("outer")),
+                before,
+                (r) => r.part === FILL || r.part === BORDER || r.part === partIndex("outer"),
             );
             if (drawn < 0) {
                 return;
             }
             gaps.push(
-                runs
-                    .slice(drawn + 1, k)
+                before
+                    .slice(drawn + 1)
                     .filter((r) => r.part === partIndex("bg"))
                     .reduce((sum, r) => sum + (r.to - r.from), 0) * ppu.max,
             );
@@ -2198,4 +2287,27 @@ export function borderEdgeWorld(settings: Settings, sizeFactor: number): number 
         return 0;
     }
     return AMOUNTS.borderWidth * PER_SIZE * sizeFactor * outerEdgeFraction(settings.border);
+}
+
+/**
+ * How far a node's fill mesh is drawn in from its plain outline, and how far its border mesh's outer edge lies past
+ * the fill mesh's outline, in world units. A flat shape, or a solid in 2D, draws its fill in by the border's inset
+ * (its width inside the outline, half of it centered), so the ring ends its whole width past the fill. A solid in 3D
+ * keeps its plain size and its ring is drawn over its edge, so the fill mesh is the plain outline and the ring ends on
+ * it (inside) or half its width past it (centered).
+ * @param settings - The case's settings.
+ * @param sizeFactor - The node's view scale.
+ * @param drawnOver - Whether the node is a solid seen in 3D.
+ * @returns The inset, and the border's reach past the fill mesh.
+ */
+export function fillMeshReach(
+    settings: Settings,
+    sizeFactor: number,
+    drawnOver: boolean,
+): { inset: number; border: number } {
+    const width =
+        settings.border === "none" || settings.border === "screen" ? 0 : AMOUNTS.borderWidth * PER_SIZE * sizeFactor;
+    const edge = borderEdgeWorld(settings, sizeFactor);
+    const inset = drawnOver ? 0 : width - edge;
+    return { inset, border: inset + edge };
 }

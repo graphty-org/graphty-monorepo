@@ -8,12 +8,16 @@ import { assert, describe, it } from "vitest";
 
 import {
     allCases,
+    AMOUNTS,
     BACKGROUND,
     CLASS_DISTANCE,
     type Classes,
     classify,
     CONDITION_FACTORS,
     covering,
+    type DrawnMesh,
+    drawnMeshes,
+    fillMeshReach,
     inradius,
     measureNode,
     meshRingChecks,
@@ -25,6 +29,7 @@ import {
     PALETTE,
     type Part,
     partIndex,
+    PER_SIZE,
     type Plane,
     RING_FACTORS,
     type Run,
@@ -235,6 +240,19 @@ describe("style combination matrix", () => {
         }
         assert.isFalse(checksOn(gap).get("border-touches-fill"));
     });
+    it("expects a 3D solid's ring on its plain fill mesh, and a drawn-in fill's ring its whole width past it", () => {
+        const width = AMOUNTS.borderWidth * PER_SIZE;
+        const of = (border: string, drawnOver: boolean): { inset: number; border: number } =>
+            fillMeshReach({ ...SETTINGS, border }, 1, drawnOver);
+        // a flat shape, or a solid in 2D: the fill is drawn in, so the ring ends its whole width past it
+        assert.deepEqual(of("inside", false), { inset: width, border: width });
+        assert.deepEqual(of("center", false), { inset: width / 2, border: width });
+        // a solid in 3D keeps its plain size, the ring drawn over its edge: on its outline, or half past it
+        assert.deepEqual(of("inside", true), { inset: 0, border: 0 });
+        assert.deepEqual(of("center", true), { inset: 0, border: width / 2 });
+        assert.deepEqual(of("outside", true), { inset: 0, border: width });
+    });
+
     it("passes a ring mesh its promised distance out and centered, and fails one moved off center", () => {
         const square = (half: number, dx = 0): P2[] => [
             [-half + dx, -half],
@@ -431,6 +449,55 @@ describe("style combination matrix", () => {
         assert.isTrue(c?.pass, String(c?.measured));
     });
 
+    it("reads an outer ring too thin to hold a pure pixel as drawn between the gap and the outline", () => {
+        // the outer border's gap is background by design; past it the ring, a pixel across, blends on both sides
+        // and tidy folds its one pure sample into the blend: the gap is not background between node and outline
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            if (r <= 20) {
+                return "fill";
+            }
+            if (r <= 26) {
+                return "border";
+            }
+            if (r <= 28) {
+                return undefined;
+            }
+            if (r <= 30.4) {
+                return r > 28.8 && r <= 29.6 ? "outer" : "mixed";
+            }
+            return r <= 40 ? "outline" : undefined;
+        });
+        const c = measured({ outer: "gap", effect: "outline" }, full).get("outline-touches-node");
+        assert.isTrue(c?.pass, String(c?.measured));
+    });
+
+    it("reads a node's outline ring as part of what it covers", () => {
+        // a neighbor's ring drawn over this node's outer border hid it, and the ray read as the outer border missing
+        const mesh = (name: string, children: DrawnMesh[] = []): DrawnMesh => ({
+            name,
+            isVisible: true,
+            visibility: 1,
+            isEnabled: () => true,
+            getChildMeshes: () => children,
+        });
+        const ring = mesh("graphty-node-outline-#ff00ff");
+        const node = {
+            mesh: mesh("fill", [ring, mesh("label")]),
+            border: mesh("border"),
+            outerBorder: null,
+            underlay: null,
+            overlay: null,
+            halo: null,
+            shadow: [],
+            decorations: [],
+        };
+        assert.deepEqual(
+            drawnMeshes(node).map((m) => m.name),
+            ["fill", "border", "graphty-node-outline-#ff00ff"],
+        );
+    });
+
     it("does not count an outer ring an edge hides as missing", () => {
         const full = frame((x, y) => {
             const r = Math.hypot(x, y);
@@ -467,6 +534,49 @@ describe("style combination matrix", () => {
         // and expects the element's stretch: a halo grown 1.2 along u is not one grown 1.45
         const stretched = measured({ border: "none", effect: "halo" }, full, { haloGrow: () => [1.2, 1.45] });
         assert.isFalse(stretched.get("halo-scale")?.pass);
+    });
+
+    it("expects a halo from the node's outline, with the fill a centered or inside border drew in", () => {
+        const full = frame((x, y) => (Math.hypot(x, y) <= 20 ? "fill" : undefined));
+        // the element grows the drawn-in fill back out by the border's inset before its band (haloAxisScale)
+        for (const [border, inset] of [
+            ["inside", 0.45],
+            ["center", 0.225],
+            ["outside", 0],
+        ] as const) {
+            const insets: number[] = [];
+            const keep = (scale: number, _border: number, given: number): [number, number] => {
+                insets.push(given);
+                return [scale, scale];
+            };
+            measured({ border, effect: "halo" }, full, { haloGrow: keep, haloHull: () => [] });
+            assert.lengthOf(insets, 1, border);
+            assert.approximately(insets[0], inset, 1e-9, border);
+        }
+    });
+
+    it("expects a 3D solid's halo from its plain fill, its border reaching only its outer edge past it", () => {
+        const full = frame((x, y) => (Math.hypot(x, y) <= 20 ? "fill" : undefined));
+        const width = AMOUNTS.borderWidth * PER_SIZE;
+        for (const [border, edge] of [
+            ["inside", 0],
+            ["center", width / 2],
+            ["outside", width],
+        ] as const) {
+            const given: [number, number][] = [];
+            const keep = (scale: number, reach: number, inset: number): [number, number] => {
+                given.push([reach, inset]);
+                return [scale, scale];
+            };
+            measured({ shape: "cone", border, effect: "halo" }, full, {
+                view: "3d",
+                haloGrow: keep,
+                haloHull: () => [],
+            });
+            assert.lengthOf(given, 1, border);
+            assert.approximately(given[0][0], edge, 1e-9, `${border} reach`);
+            assert.strictEqual(given[0][1], 0, `${border} inset`);
+        }
     });
 
     it("leaves a plate unread when too few rays show its end", () => {
@@ -574,6 +684,82 @@ describe("style combination matrix", () => {
         });
         const c = measured({}, full);
         assert.isTrue(c.get("border-width-thinnest")?.pass, String(c.get("border-width-thinnest")?.measured));
+    });
+
+    it("reads the ring to its outer edge past a lobe of fill a ray only grazes, in blended pixels", () => {
+        // bs-man-outside-3d-mid-a1: a ray leaves the torso, crosses the ring between it and an arm, grazes the arm's
+        // tip along its slanted end (6 blended pixels, no pure fill), and then crosses the rest of the ring
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            if (r <= 20) {
+                return "fill";
+            }
+            if (Math.abs(degrees(x, y)) < 8 && r > 21 && r <= 27) {
+                return "mixed";
+            }
+            return r <= 29 ? "border" : undefined;
+        });
+        const c = measured({}, full);
+        assert.isTrue(c.get("border-width-thinnest")?.pass, String(c.get("border-width-thinnest")?.measured));
+    });
+
+    it("reads the plain outline under an edge the plain frame draws over the fill", () => {
+        // pw-085: in the plain frame (no ring) an edge reaches over the fill and across its outline, which the full
+        // frame's ring hides; the outline under it is where the full frame shows it, so the ring reads its width
+        // past the outline on every ray, not past the outline either side of the edge
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            if (r <= 20) {
+                return "fill";
+            }
+            return r <= 29 ? "border" : undefined;
+        });
+        const plain = frame((x, y) => {
+            if (x < -4 && x > -60 && Math.abs(y) < 5) {
+                return "edge";
+            }
+            return Math.hypot(x, y) <= 20 ? "fill" : undefined;
+        });
+        const position = measured({}, full, { plain }).get("border-position");
+        assert.exists(position);
+        const rays = (position as { rays?: number[] }).rays ?? [];
+        assert.isAbove(rays.length, 0);
+        // 9 pixels past the outline at 20 a unit, within a band edge (1.5 pixels)
+        for (const offset of rays) {
+            assert.approximately(offset, 0.45, 1.5 / 20);
+        }
+    });
+
+    it("reads where an outer ring starts, and how wide it is, on the rays that leave through a side", () => {
+        // pw-085: a shape's mitred rings reach past their widths across its corners, and where the corners are most
+        // of the rays a median over every ray is a corner's. Here a triangle with an inradius of 0.08 units, 60
+        // pixels a unit, in a 0.45 border and a 0.3 outer ring past it, both mitred (triangles too).
+        const plane: Plane = {
+            m: [60, 0, 100, 0, -60, 100, 0, 0, 1],
+            inverse: [1 / 60, 0, -100 / 60, 0, -1 / 60, 100 / 60, 0, 0, 1],
+        };
+        // how far a pixel lies out along the triangle's side normals, in units (its inradius on its outline)
+        const out = (x: number, y: number): number =>
+            Math.max(
+                ...[90, 210, 330].map(
+                    (d) => (x * Math.cos((d * Math.PI) / 180) - y * Math.sin((d * Math.PI) / 180)) / 60,
+                ),
+            );
+        const full = frame((x, y) => {
+            const r = out(x, y);
+            if (r <= 0.08) {
+                return "fill";
+            }
+            if (r <= 0.53) {
+                return "border";
+            }
+            return r <= 0.83 ? "outer" : undefined;
+        });
+        const plain = frame((x, y) => (out(x, y) <= 0.08 ? "fill" : undefined));
+        const c = measured({ shape: "triangle", outer: "abut" }, full, { plain, plane, reach: 2 });
+        // on a side the outer ring starts at the border's outer edge, 0.45 units out, within a band edge (1.5 pixels)
+        assert.approximately(c.get("outer-start")?.measured ?? Number.NaN, 0.45, 1.5 / 60);
+        assert.isTrue(c.get("outer-width")?.pass, String(c.get("outer-width")?.measured));
     });
 
     it("counts no hole in the fill as a gap between the fill and the ring", () => {

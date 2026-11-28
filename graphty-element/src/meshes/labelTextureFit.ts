@@ -108,8 +108,9 @@ class Sweep {
         }
 
         // A redrawn label changes the picture; the next frame checks every label again, and finds them matched.
+        // Only the view: the label's texture is uploaded again, at once, through the same material and shader.
         if (redrawn) {
-            work?.changed();
+            work?.viewChanged();
         }
 
         this.epoch = work?.epoch ?? -1;

@@ -939,6 +939,7 @@ export class UpdateManager implements Manager {
         this.camera = camera;
         // The new scene's switch starts off, so the next pass must write it if a window is in force.
         this.rangedUploads = false;
+        this.readyAt = null;
         this.watchFrames();
     }
 
@@ -954,13 +955,14 @@ export class UpdateManager implements Manager {
         });
         this.drawPhaseWatcher = scene.onBeforeDrawPhaseObservable.add(() => {
             if (!this.nodesDrawn) {
-                this.drawingNodes = this.dataManager.nodes.size > 0 && this.everyDrawnMeshIsReady();
+                this.drawingNodes = this.dataManager.nodes.size > 0 && this.drawnMeshesAreReady(true);
             }
             this.drewWithEveryShader =
-                !this.stateIsFinished || this.drawnFrameIsFinished || this.everyDrawnMeshIsReady();
+                !this.stateIsFinished || this.drawnFrameIsFinished || this.drawnMeshesAreReady(true);
         });
+        // Not a camera move: a new canvas size resizes the effect layers' targets, so their readiness is asked again.
         this.resizeWatcher = scene.getEngine().onResizeObservable.add(() => {
-            this.viewMoved();
+            this.pending.changed();
         });
         // A mesh built or taken down changes the picture wherever it happens -- in a pass, or
         // outside one, as a tooltip the pointer brings up does (issue #3287) -- so the frame drawn
@@ -3174,10 +3176,11 @@ export class UpdateManager implements Manager {
      * camera placed without animation, a canvas resized -- so the next frame drawn is the final one
      * and the frame before it is not (issue #3377). Nothing else here would notice: the layout is
      * at rest, no framing is owed, and no style work is queued. A reader's own drag is not counted,
-     * on purpose; see {@link UpdateManager.frameIsStable}.
+     * on purpose; see {@link UpdateManager.frameIsStable}. Only the view: the meshes drawn and their shaders are
+     * the ones drawn before, so whether each has its shader is not asked again.
      */
     viewMoved(): void {
-        this.pending.changed();
+        this.pending.viewChanged();
     }
 
     /**
@@ -3462,7 +3465,7 @@ export class UpdateManager implements Manager {
         work.watch(
             "shader",
             "a mesh is still waiting for its shader",
-            () => !this.drawnFrameIsFinished && !this.everyDrawnMeshIsReady(),
+            () => !this.drawnFrameIsFinished && !this.drawnMeshesAreReady(),
         );
     }
 
@@ -3500,6 +3503,58 @@ export class UpdateManager implements Manager {
         }
 
         return !mesh.renderOutline || mesh.subMeshes.every((sub) => scene.getOutlineRenderer().isReady(sub, instanced));
+    }
+
+    /**
+     * Say the picture is still changing: only the view, when all that is pending follows the camera (a framing, node
+     * sizes, label textures fitted to the screen), so a camera move does not make every mesh's readiness be asked
+     * again on each frame it moves.
+     */
+    private stillChanging(): void {
+        if (this.pending.pendingOnly(UpdateManager.VIEW_WORK)) {
+            this.pending.viewChanged();
+        } else {
+            this.pending.changed();
+        }
+    }
+
+    /** The kinds of pending work that move only the view; see {@link UpdateManager.stillChanging}. */
+    private static readonly VIEW_WORK: ReadonlySet<string> = new Set(["framing", "sizing", "label-texture"]);
+
+    /**
+     * The scene as {@link UpdateManager.drawnMeshesAreReady} last found every drawn mesh ready -- the content
+     * counter, the mesh count and the effect layers -- or null.
+     */
+    private readyAt: { content: number; meshes: number; layers: number } | null = null;
+
+    /**
+     * Whether every drawn mesh has its shader ({@link UpdateManager.everyDrawnMeshIsReady}), asked again only once
+     * the scene's content changed since it last answered yes. A camera move, a resting frame and the second
+     * question of a frame bring no new shader, and the walk asks every mesh: 15 to 45 ms a frame at 10,000 labeled
+     * nodes. A mesh built moves the count before its announcement moves the counter; anything that changes a
+     * material, an outline, an effect or what is shown moves the counter (a repaint, a load, a shown mesh).
+     *
+     * Only a yes read as a frame's draw starts is kept: a shader ready when a pass asks can still be missing when the
+     * frame after it draws (a material handed over inside a frame), and a yes kept from the pass would call that
+     * frame final although it skipped the mesh (issue #4237).
+     * @param atDraw - Whether this is asked as a frame's draw starts, so a yes may be kept.
+     * @returns True when no drawn mesh and no drawn effect is waiting for a shader.
+     */
+    private drawnMeshesAreReady(atDraw = false): boolean {
+        const scene = this.graphContext.getScene();
+        const at = this.readyAt;
+        const content = this.pending.contentEpoch;
+        if (at?.content === content && at.meshes === scene.meshes.length && at.layers === scene.effectLayers.length) {
+            return true;
+        }
+
+        const ready = this.everyDrawnMeshIsReady();
+        if (!ready) {
+            this.readyAt = null;
+        } else if (atDraw) {
+            this.readyAt = { content, meshes: scene.meshes.length, layers: scene.effectLayers.length };
+        }
+        return ready;
     }
 
     private everyDrawnMeshIsReady(): boolean {
@@ -3711,7 +3766,7 @@ export class UpdateManager implements Manager {
         // Work waiting for this pass -- a style edit's paint, a layout, a framing -- changes what
         // the next frame draws, so it has to be announced again once that frame is drawn.
         if (!this.pictureIsFinished()) {
-            this.pending.changed();
+            this.stillChanging();
         }
 
         // One clock reading for the whole pass, so every node of a layout transition is placed at
@@ -3733,8 +3788,9 @@ export class UpdateManager implements Manager {
         const scaled = this.sizeNodesForView() || this.sizedForFraming;
         this.sizedForFraming = false;
         // A node drawn at a new scale is a new picture: its label's texture is fitted to its size on screen again.
+        // Only the view: a scale brings no new shader.
         if (scaled) {
-            this.pending.changed();
+            this.pending.viewChanged();
         }
         if (this.viewScaled) {
             this.retrimForNodeScales(scaled);
@@ -3761,7 +3817,7 @@ export class UpdateManager implements Manager {
 
         if (!this.stateIsFinished) {
             // Something is moving again, so whatever was drawn before is no longer the last word.
-            this.pending.changed();
+            this.stillChanging();
         }
 
         // A pass that finds the drawn frame still final wakes its waiters even when it draws

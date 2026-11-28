@@ -230,7 +230,7 @@ function exactScore(search: Search, o: ClosenessOptions, n: number, v: number): 
  * @param reverse - Search the in-arcs, so a search from a source measures distances TO it
  * @returns The adjacency
  */
-export function adjacency(s: GraphSnapshot, o: ClosenessOptions, reverse: boolean): Adjacency {
+function adjacency(s: GraphSnapshot, o: ClosenessOptions, reverse: boolean): Adjacency {
     const weighted = o.weighted === true;
     if (!reverse || !s.directed) {
         return { rowPtr: s.rowPtr, colIdx: s.colIdx, weights: weighted ? (o.weights ?? s.weights) : null };
@@ -327,3 +327,6 @@ export function nodeClosenessCentrality(
     const search = searcher(s.nodeCount, adjacency(s, options, false), options.cutoff ?? Infinity);
     return exactScore(search, options, s.nodeCount, node);
 }
+
+// The searches distanceMeasures reuses, so both read weights by the same rule.
+export { adjacency };

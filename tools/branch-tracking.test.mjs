@@ -325,7 +325,11 @@ describe("the post-commit push of a branch with an open pull request", () => {
     it("does not push when the status broker's fresh file lists one, says so, and still refreshes the note", async () => {
         status(0, ["feat/512-open"]);
         const out = await commit("feat/512-open");
-        assert.match(out, /did not push feat\/512-open: it has an open pull request.*tools\/pr-open\.sh/);
+        assert.match(
+            out,
+            /left commit [0-9a-f]+ of feat\/512-open unpushed after the commit: it has an open pull request.*a later push \(tools\/pr-open\.sh, tools\/push-queue\.sh or git push\) publishes it/,
+        );
+        assert.doesNotMatch(out, /did not push/, "an explicit push may follow; the hook speaks only for itself");
         assert.ok(!remoteHas("feat/512-open"));
         assert.equal(prLists(), 0, "the fresh file answers; no GitHub call");
         assert.match(gh().issues[512].comments[0].body, /^<!-- branch-note: feat\/512-open -->/);

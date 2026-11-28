@@ -73,7 +73,7 @@ async function openOn(): Promise<{ store: WorkspaceStore; session: Session }> {
     writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
     const store = createWorkspaceStore({ project: { name: "Check", id: 1 } });
     render(<Workspace store={store} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+    await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
     const session = await waitFor(() => {
         const found = document.querySelector("graphty-element")?.session;
         assert.isDefined(found);
@@ -94,9 +94,9 @@ async function openOn(): Promise<{ store: WorkspaceStore; session: Session }> {
  * @returns the dock.
  */
 async function showInTable(text: string): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("textbox", COMPOSER));
+    await userEvent.click(page.getByRole("textbox", { ...COMPOSER, exact: true }));
     await userEvent.keyboard(`${text}{Enter}`);
-    await userEvent.click(await screen.findByRole("button", { name: "Show in table" }));
+    await userEvent.click(page.getByRole("button", { name: "Show in table", exact: true }));
     return screen.findByRole("region", { name: "Table" });
 }
 
@@ -158,9 +158,9 @@ describe("Show in table from a reply", () => {
 
         const showAll = within(dock).getByRole("button", { name: "Show all nodes" });
         assert.strictEqual(showAll.textContent, "", "an icon, named for what it does");
-        await userEvent.hover(showAll);
+        await userEvent.hover(page.elementLocator(dock).getByRole("button", { name: "Show all nodes", exact: true }));
         await screen.findByRole("tooltip", { name: "Show all nodes" });
-        await userEvent.click(showAll);
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Show all nodes", exact: true }));
         await within(dock).findByText("6 nodes");
         await waitFor(() => {
             assert.lengthOf(listed(dock, "Nodes"), 6);
@@ -182,12 +182,12 @@ describe("Show in table from a reply", () => {
         });
         assert.strictEqual(session.selection.size, 0);
         // The Nodes tab is not narrowed by an answer about edges.
-        await userEvent.click(within(dock).getByRole("tab", { name: "Nodes" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: "Nodes", exact: true }));
         await within(dock).findByText("6 nodes");
-        await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: "Edges", exact: true }));
         await within(dock).findByText("2 of 5 edges");
 
-        await userEvent.click(within(dock).getByRole("button", { name: "Show all edges" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Show all edges", exact: true }));
         await within(dock).findByText("5 edges");
         assert.strictEqual(document.activeElement, within(dock).getByRole("tab", { name: "Edges" }));
     });
@@ -199,7 +199,9 @@ describe("Show in table from a reply", () => {
         await session.visibility.set({ kind: "categories", attribute: "data.early", values: ["yes"] });
         // The toolbar's button: the composer has focus, so Shift+T would type a T into it.
         await userEvent.click(
-            within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", { name: "Table" }),
+            page
+                .getByRole("toolbar", { name: "Canvas tools", exact: true })
+                .getByRole("button", { name: "Table", exact: true }),
         );
         const dock = await screen.findByRole("region", { name: "Table" });
         await within(dock).findByText("2 of 6 nodes");
@@ -213,7 +215,7 @@ describe("Show in table from a reply", () => {
         });
         assert.isNull(within(dock).queryByRole("radiogroup", { name: "Records" }), "Shown / All waits for the x");
 
-        await userEvent.click(within(dock).getByRole("button", { name: "Show all nodes" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Show all nodes", exact: true }));
         await within(dock).findByText("2 of 6 nodes");
         within(dock).getByRole("radiogroup", { name: "Records" });
     });
@@ -232,7 +234,7 @@ describe("Show in table from a reply", () => {
 
         await session.data.removeNodes(["n2", "n4"]);
         await within(dock).findByText("0 of 3 nodes");
-        await userEvent.click(within(dock).getByRole("button", { name: "Show all nodes" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Show all nodes", exact: true }));
         await within(dock).findByText("3 nodes");
     });
 });

@@ -11,7 +11,7 @@
 import "@graphty/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -104,10 +104,10 @@ describe("models in the Shape field, on the real element", () => {
         });
 
         // Model settings: Up set to Z writes node.modelSourceUp.
-        await userEvent.click(within(tab).getByRole("button", { name: "Model settings" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Model settings", exact: true }));
         const panel = await screen.findByRole("dialog", { name: "Model settings" });
-        await userEvent.click(within(panel).getByRole("combobox", { name: /^Up, / }));
-        await userEvent.click(await screen.findByRole("option", { name: "Z" }));
+        await userEvent.click(page.elementLocator(panel).getByRole("combobox", { name: /^Up, / }));
+        await userEvent.click(page.getByRole("option", { name: "Z", exact: true }));
         await waitFor(() => {
             assert.equal(written(session, "node.modelSourceUp"), "z");
         });
@@ -115,7 +115,7 @@ describe("models in the Shape field, on the real element", () => {
 
         // A built-in shape: the model and its settings go, in one undo step.
         await userEvent.click(shapeField(tab));
-        await userEvent.click(await screen.findByRole("option", { name: "Sphere" }));
+        await userEvent.click(page.getByRole("option", { name: "Sphere", exact: true }));
         await waitFor(() => {
             assert.isUndefined(written(session, "node.model"));
             assert.equal(written(session, "node.shape"), "sphere");
@@ -137,7 +137,7 @@ describe("models in the Shape field, on the real element", () => {
         await waitFor(() => {
             assert.match(String(written(session, "node.model")), /^asset:/);
         });
-        await userEvent.click(within(tab).getByRole("button", { name: "Model settings" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Model settings", exact: true }));
         const panel = await screen.findByRole("dialog", { name: "Model settings" });
         // The dialog kept the first clip as the model's own: an unset row shows it as its default.
         const group = within(panel).getByRole("group", { name: "Animation" });
@@ -148,13 +148,13 @@ describe("models in the Shape field, on the real element", () => {
         const playing = within(group).getByRole("switch", { name: "Playing" });
         assert.isTrue((playing as HTMLInputElement).checked);
         assert.isNull(within(group).queryByRole("slider", { name: "Pose" }));
-        await userEvent.click(playing);
+        await userEvent.click(page.elementLocator(group).getByRole("switch", { name: "Playing", exact: true }));
         await waitFor(() => {
             assert.equal(written(session, "node.modelAnimation"), "", "off draws the model Still, with no clip");
         });
         assert.isNull(within(panel).queryByRole("slider", { name: "Pose" }), "a pose waits for a clip");
-        await userEvent.click(within(panel).getByRole("combobox", { name: /^Clip, / }));
-        await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
+        await userEvent.click(page.elementLocator(panel).getByRole("combobox", { name: /^Clip, / }));
+        await userEvent.click(page.getByRole("option", { name: /^spin, / }));
         const pose = await within(panel).findByRole("slider", { name: "Pose" });
         pose.focus();
         await userEvent.keyboard("{End}");
@@ -164,7 +164,7 @@ describe("models in the Shape field, on the real element", () => {
         });
         assert.equal(written(session, "node.modelAnimation"), "spin");
         // Back on, the speed 0 and the start the switch and Pose wrote both go, and the clip plays.
-        await userEvent.click(within(panel).getByRole("switch", { name: "Playing" }));
+        await userEvent.click(page.elementLocator(panel).getByRole("switch", { name: "Playing", exact: true }));
         await waitFor(() => {
             assert.isUndefined(written(session, "node.modelAnimationSpeed"), "the speed 0 is gone");
             assert.isUndefined(written(session, "node.modelAnimationOffset"), "the start is gone");
@@ -173,7 +173,7 @@ describe("models in the Shape field, on the real element", () => {
         assert.isTrue(within(panel).getByRole<HTMLInputElement>("switch", { name: "Playing" }).checked);
         assert.isNull(within(panel).queryByRole("slider", { name: "Pose" }));
         // The layer's Model settings closes by the same name as the dialog's.
-        await userEvent.click(screen.getByRole("button", { name: "Close model settings" }));
+        await userEvent.click(page.getByRole("button", { name: "Close model settings", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Model settings" }));
         });
@@ -184,18 +184,18 @@ describe("models in the Shape field, on the real element", () => {
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", ["../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb"]);
         await previewOf(dialog, "cube");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Model settings" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Model settings", exact: true }));
         const settings = await screen.findByRole("dialog", { name: "Model settings" });
-        await userEvent.click(within(settings).getByRole("switch", { name: "Playing" }));
-        await userEvent.click(within(settings).getByRole("combobox", { name: /^Clip, / }));
-        await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
+        await userEvent.click(page.elementLocator(settings).getByRole("switch", { name: "Playing", exact: true }));
+        await userEvent.click(page.elementLocator(settings).getByRole("combobox", { name: /^Clip, / }));
+        await userEvent.click(page.getByRole("option", { name: /^spin, / }));
         const held = await within(settings).findByRole("slider", { name: "Pose" });
         held.focus();
         await userEvent.keyboard("{End}");
         await waitFor(() => {
             assert.equal(held.getAttribute("aria-valuenow"), "1");
         });
-        await userEvent.click(screen.getByRole("button", { name: "Close model settings" }));
+        await userEvent.click(page.getByRole("button", { name: "Close model settings", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Model settings" }));
         });
@@ -203,14 +203,14 @@ describe("models in the Shape field, on the real element", () => {
         await waitFor(() => {
             assert.match(String(written(session, "node.model")), /^asset:/);
         });
-        await userEvent.click(within(tab).getByRole("button", { name: "Model settings" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Model settings", exact: true }));
         const panel = await screen.findByRole("dialog", { name: "Model settings" });
         assert.isUndefined(written(session, "node.modelAnimationOffset"), "the layer sets none");
         const pose = await within(panel).findByRole("slider", { name: "Pose" });
         assert.equal(pose.getAttribute("aria-valuenow"), "1", "the model's own pose");
         assert.equal(pose.getAttribute("aria-valuetext"), "1.00 s");
         // Playing on starts the clip from 0 s, as the dialog's switch does, not from the held pose.
-        await userEvent.click(within(panel).getByRole("switch", { name: "Playing" }));
+        await userEvent.click(page.elementLocator(panel).getByRole("switch", { name: "Playing", exact: true }));
         await waitFor(() => {
             assert.equal(written(session, "node.modelAnimationSpeed"), 1, "plays over the model's speed 0");
             assert.equal(written(session, "node.modelAnimationOffset"), 0, "from the start, not the pose");
@@ -247,7 +247,7 @@ describe("models in the Shape field, on the real element", () => {
         await waitFor(() => {
             assert.equal(written(session, "node.model"), "asset:sample/box");
         });
-        await userEvent.click(await within(tab).findByRole("button", { name: "Remove node shape" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Remove node shape", exact: true }));
         await waitFor(() => {
             assert.isUndefined(written(session, "node.model"));
             assert.equal(store.get().announcement, "Node shape removed");
@@ -258,7 +258,9 @@ describe("models in the Shape field, on the real element", () => {
     it("opens the Load custom model dialog in its place from Add custom model...", async () => {
         const { tab } = await openShapes();
         const models = await openModels(tab);
-        await userEvent.click(within(models).getByRole("button", { name: "Add custom model..." }));
+        await userEvent.click(
+            page.elementLocator(models).getByRole("button", { name: "Add custom model...", exact: true }),
+        );
         assert.isNotNull(await screen.findByRole("dialog", { name: "Load custom model" }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Models" }), "the pop-over closed");

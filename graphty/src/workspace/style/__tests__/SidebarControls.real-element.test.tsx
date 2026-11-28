@@ -171,9 +171,9 @@ async function openScene(): Promise<{ session: GraphSession; rows: string[] }> {
  */
 async function clickRow(name: string, add = false): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    const row = await within(tree).findByRole("treeitem", {
-        name: new RegExp(`^${name.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}, `),
-    });
+    const row = page
+        .elementLocator(tree)
+        .getByRole("treeitem", { name: new RegExp(`^${name.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}, `) });
     if (add) {
         await userEvent.keyboard("{Control>}");
         await userEvent.click(row);
@@ -185,7 +185,7 @@ async function clickRow(name: string, add = false): Promise<void> {
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
 }
 
@@ -206,7 +206,7 @@ describe("the Style sidebar draws only approved controls", () => {
         await clickRow("Key people");
         await showKind("node");
         const tab = await screen.findByTestId("style-tab");
-        await userEvent.click(within(tab).getByRole("button", { name: /^Which nodes/ }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: /^Which nodes/ }));
         await screen.findByRole("group", { name: "Which nodes" });
         await checkSidebar("Key people, Which open");
     });

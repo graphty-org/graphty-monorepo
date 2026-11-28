@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, Layer, RuleTree, UnionLeaf, UnionStep } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
@@ -86,8 +86,8 @@ async function openStep(
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Calm, / }));
-    await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Calm, / }));
+    await userEvent.click(page.getByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
     const modal = await waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the workspace is open");
@@ -126,7 +126,7 @@ function pane(modal: HTMLElement): HTMLElement {
  * @returns the settings.
  */
 async function openSettings(modal: HTMLElement): Promise<HTMLElement> {
-    await userEvent.click(within(pane(modal)).getByRole("button", { name: /^Settings for / }));
+    await userEvent.click(page.elementLocator(pane(modal)).getByRole("button", { name: /^Settings for / }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".ws-options-rows");
         assert.isNotNull(found, "the settings are open");
@@ -141,7 +141,7 @@ describe("a selection step's controls", () => {
             PEOPLE_GML,
         );
         const field = within(pane(modal)).getByRole("button", { name: /^Value: / });
-        await userEvent.click(field);
+        await userEvent.click(page.elementLocator(pane(modal)).getByRole("button", { name: /^Value: / }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -162,8 +162,9 @@ describe("a selection step's controls", () => {
         const { session, layer, modal } = await openStep(
             oneStep("nodes", { kind: "hops", of: { nodes: ["Valjean"] }, max: 1 }),
         );
-        const hops = within(pane(modal)).getByRole("textbox", { name: "Hops" });
-        await userEvent.tripleClick(hops);
+        const hops = (): Locator =>
+            page.elementLocator(pane(modal)).getByRole("textbox", { name: "Hops", exact: true });
+        await userEvent.tripleClick(hops());
         await userEvent.keyboard("2");
         await waitFor(() => {
             assert.strictEqual((stepOf(session, layer)?.rule as { max?: number }).max, 2);
@@ -176,7 +177,7 @@ describe("a selection step's controls", () => {
         );
         const settings = await openSettings(modal);
         const ends = within(settings).getByRole("radiogroup", { name: "Edge ends" });
-        await userEvent.click(within(ends).getByText("Both"));
+        await userEvent.click(page.elementLocator(ends).getByText("Both", { exact: true }));
         await waitFor(() => {
             assert.strictEqual((stepOf(session, layer)?.rule as { ends?: string }).ends, "both");
         });
@@ -188,12 +189,14 @@ describe("a selection step's controls", () => {
             PEOPLE_GML,
         );
         const settings = await openSettings(modal);
-        const include = within(settings).getByRole("checkbox", { name: "Include not measured" });
+        const include = page
+            .elementLocator(settings)
+            .getByRole("checkbox", { name: "Include not measured", exact: true });
         await userEvent.click(include);
         await waitFor(() => {
             assert.strictEqual((stepOf(session, layer)?.rule as { missing?: string }).missing, "include");
         });
-        await userEvent.click(within(document.body).getByRole("checkbox", { name: "Include not measured" }));
+        await userEvent.click(page.getByRole("checkbox", { name: "Include not measured", exact: true }));
         await waitFor(() => {
             assert.isUndefined((stepOf(session, layer)?.rule as { missing?: string }).missing);
         });
@@ -211,7 +214,9 @@ describe("a selection step's controls", () => {
         const measure = (): Extract<RuleTree, { kind: "measure" }> =>
             stepOf(session, layer)?.rule as Extract<RuleTree, { kind: "measure" }>;
         // The chip says the changed setting and opens the settings that hold it.
-        await userEvent.click(await within(pane(modal)).findByRole("button", { name: "Max Iterations 1, settings" }));
+        await userEvent.click(
+            page.elementLocator(pane(modal)).getByRole("button", { name: "Max Iterations 1, settings", exact: true }),
+        );
         await waitFor(() => {
             assert.isNotNull(document.querySelector(".ws-options-rows"), "the settings are open");
         });
@@ -219,13 +224,16 @@ describe("a selection step's controls", () => {
         await waitFor(() => {
             assert.isNull(document.querySelector(".ws-options-rows"), "Escape shut them");
         });
-        await userEvent.click(within(pane(modal)).getByRole("button", { name: "Reset Max Iterations" }));
+        await userEvent.click(
+            page.elementLocator(pane(modal)).getByRole("button", { name: "Reset Max Iterations", exact: true }),
+        );
         await waitFor(() => {
             assert.notProperty(measure().params ?? {}, "maxIterations", "back to its default");
         });
 
-        const output = within(pane(modal)).getByRole("combobox", { name: "Louvain output" });
-        await userEvent.click(output);
+        const output = (): Locator =>
+            page.elementLocator(pane(modal)).getByRole("combobox", { name: "Louvain output", exact: true });
+        await userEvent.click(output());
         const options = await screen.findAllByRole("option");
         const other = options.find((option) => option.getAttribute("aria-selected") !== "true");
         assert.isDefined(other, "another output to pick");
@@ -243,7 +251,7 @@ describe("a selection step's text, edge-end, run and reference controls", () => 
             PEOPLE_GML,
         );
         const settings = await openSettings(modal);
-        await userEvent.click(within(settings).getByRole("checkbox", { name: "Match case" }));
+        await userEvent.click(page.elementLocator(settings).getByRole("checkbox", { name: "Match case", exact: true }));
         await waitFor(() => {
             assert.isTrue((stepOf(session, layer)?.rule as { caseSensitive?: boolean }).caseSensitive);
         });
@@ -256,11 +264,11 @@ describe("a selection step's text, edge-end, run and reference controls", () => 
         );
         const settings = await openSettings(modal);
         const ends = within(settings).getByRole("radiogroup", { name: "Edge ends" });
-        await userEvent.click(within(ends).getByText("Either"));
+        await userEvent.click(page.elementLocator(ends).getByText("Either", { exact: true }));
         await waitFor(() => {
             assert.strictEqual(stepOf(session, layer)?.ends, "either");
         });
-        await userEvent.click(within(ends).getByText("Both"));
+        await userEvent.click(page.elementLocator(ends).getByText("Both", { exact: true }));
         await waitFor(() => {
             assert.strictEqual(stepOf(session, layer)?.ends, "both");
         });
@@ -277,9 +285,9 @@ describe("a selection step's text, edge-end, run and reference controls", () => 
             },
         );
         // Waiting, the step says no count: the number would be what comes into it.
-        const run = await within(pane(modal)).findByRole("button", { name: /^Run/ });
+        await within(pane(modal)).findByRole("button", { name: /^Run/ });
         assert.notInclude(pane(modal).getAttribute("aria-label") ?? "", "so far");
-        await userEvent.click(run);
+        await userEvent.click(page.elementLocator(pane(modal)).getByRole("button", { name: /^Run/ }));
         await waitFor(() => {
             assert.isNull(within(pane(modal)).queryByRole("button", { name: /^(Run|Cancel)/ }), "the run is done");
             assert.include(pane(modal).getAttribute("aria-label") ?? "", "of 77 nodes so far", "its count is said");
@@ -296,10 +304,10 @@ describe("a selection step's text, edge-end, run and reference controls", () => 
             ["From", "source", "Valjean"],
             ["To", "target", "Myriel"],
         ] as const) {
-            await userEvent.click(within(pane(modal)).getByRole("button", { name: row }));
+            await userEvent.click(page.elementLocator(pane(modal)).getByRole("button", { name: row, exact: true }));
             await screen.findByRole("listbox", { name: "References" });
             await userEvent.keyboard(node.slice(0, 4));
-            await userEvent.click(await screen.findByRole("option", { name: node }));
+            await userEvent.click(page.getByRole("option", { name: node, exact: true }));
             await waitFor(() => {
                 assert.property(bind(), name, `${row} is bound`);
             });
@@ -368,7 +376,11 @@ describe("a selection step's date and category cards", () => {
             name: "joined before, a date or a year",
         });
         assert.strictEqual(box.value, "2005");
-        await userEvent.tripleClick(box);
+        await userEvent.tripleClick(
+            page
+                .elementLocator(pane(modal))
+                .getByRole("combobox", { name: "joined before, a date or a year", exact: true }),
+        );
         await userEvent.keyboard("{Backspace}");
         await waitFor(() => {
             assert.isUndefined((stepOf(session, layer)?.rule as { max?: number }).max, "the bound is gone");
@@ -379,8 +391,10 @@ describe("a selection step's date and category cards", () => {
         assert.strictEqual(box.getAttribute("aria-invalid"), "true");
         assert.isNotNull(document.querySelector(".sel-ws"), "Escape in the box leaves the workspace open");
 
-        await userEvent.click(within(pane(modal)).getByRole("combobox", { name: "joined: how to match" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Has a value" }));
+        await userEvent.click(
+            page.elementLocator(pane(modal)).getByRole("combobox", { name: "joined: how to match", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: "Has a value", exact: true }));
         await waitFor(() => {
             assert.notStrictEqual(stepOf(session, layer)?.rule.kind, "range", "no longer a date range");
         });
@@ -407,12 +421,14 @@ describe("a selection step's date and category cards", () => {
             await session.styles.settled();
             return session.styles.counts(layer.id).matched;
         };
-        await userEvent.click(within(values).getByRole("checkbox", { name: "blue, 1 node" }));
+        await userEvent.click(page.elementLocator(values).getByRole("checkbox", { name: "blue, 1 node", exact: true }));
         await waitFor(() => {
             assert.deepEqual((stepOf(session, layer)?.rule as { values?: readonly unknown[] }).values, ["blue"]);
         });
         assert.strictEqual(await matched(), 1, "Cy");
-        await userEvent.click(within(values).getByRole("checkbox", { name: "(no value), 1 node" }));
+        await userEvent.click(
+            page.elementLocator(values).getByRole("checkbox", { name: "(no value), 1 node", exact: true }),
+        );
         await waitFor(() => {
             assert.isTrue(
                 within(values).getByRole<HTMLInputElement>("checkbox", { name: "(no value), 1 node" }).checked,
@@ -432,16 +448,20 @@ describe("a selection step's date and category cards", () => {
         assert.strictEqual(search.getAttribute("placeholder"), "Search 10");
         // Eight rows drawn, and the rest said.
         await within(pane(modal)).findByText("2 more");
-        await userEvent.click(search);
+        await userEvent.click(
+            page.elementLocator(pane(modal)).getByRole("textbox", { name: "Search kind", exact: true }),
+        );
         await userEvent.keyboard("1");
         // k1 and k10.
         const matched = 2;
-        await userEvent.click(await within(pane(modal)).findByRole("button", { name: "Check 2" }));
+        await userEvent.click(page.elementLocator(pane(modal)).getByRole("button", { name: "Check 2", exact: true }));
         await waitFor(() => {
             const picked = (stepOf(session, layer)?.rule as { values?: readonly unknown[] }).values ?? [];
             assert.lengthOf(picked, matched, "every match is checked");
         });
-        const uncheck = await within(pane(modal)).findByRole("button", { name: `Uncheck ${String(matched)}` });
+        const uncheck = page
+            .elementLocator(pane(modal))
+            .getByRole("button", { name: `Uncheck ${String(matched)}`, exact: true });
         await userEvent.click(uncheck);
         await waitFor(() => {
             assert.lengthOf((stepOf(session, layer)?.rule as { values?: readonly unknown[] }).values ?? [], 0);
@@ -455,7 +475,7 @@ describe("a card's count chip", () => {
             oneStep("nodes", { kind: "range", attribute: "data.age", min: 0 }),
             PEOPLE_GML,
         );
-        await userEvent.click(await within(modal).findByRole("button", { name: /^Select 2 of 4 nodes/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Select 2 of 4 nodes/ }));
         await waitFor(() => {
             assert.lengthOf(session.selection.nodes, 2, "Ana and Bo");
         });
@@ -481,10 +501,14 @@ describe("a selection step's ties, touching ends and an algorithm's not measured
         );
         const settings = await openSettings(modal);
         await userEvent.click(
-            within(within(settings).getByRole("radiogroup", { name: "Test" })).getByText("By position"),
+            page
+                .elementLocator(settings)
+                .getByRole("radiogroup", { name: "Test", exact: true })
+                .getByText("By position", { exact: true }),
         );
-        const count = await within(pane(modal)).findByRole("textbox", { name: "score: how many" });
-        await userEvent.click(count);
+        const count = (): Locator =>
+            page.elementLocator(pane(modal)).getByRole("textbox", { name: "score: how many", exact: true });
+        await userEvent.click(count());
         await userEvent.keyboard("{Control>}a{/Control}1{Enter}");
         // Ana and Bo tie for the top score: both are kept, and the pane says so.
         await within(pane(modal)).findByText("1 asked, 2 kept: tied");
@@ -498,7 +522,7 @@ describe("a selection step's ties, touching ends and an algorithm's not measured
         );
         const settings = await openSettings(modal);
         const ends = within(settings).getByRole("radiogroup", { name: "Edge ends" });
-        await userEvent.click(within(ends).getByText("One"));
+        await userEvent.click(page.elementLocator(ends).getByText("One", { exact: true }));
         await waitFor(() => {
             assert.strictEqual((stepOf(session, layer)?.rule as { ends?: string }).ends, "one");
         });
@@ -519,7 +543,9 @@ describe("a selection step's ties, touching ends and an algorithm's not measured
         const settings = await openSettings(modal);
         const include = within(settings).getByRole<HTMLInputElement>("checkbox", { name: "Include not measured" });
         assert.isTrue(include.checked);
-        await userEvent.click(include);
+        await userEvent.click(
+            page.elementLocator(settings).getByRole("checkbox", { name: "Include not measured", exact: true }),
+        );
         await waitFor(() => {
             assert.deepEqual(measure().test, { kind: "range", min: 0 }, "the test keeps its bound, not measured gone");
         });
@@ -562,7 +588,9 @@ describe("a selection step's less traveled controls", () => {
             }),
         );
         await within(pane(modal)).findByRole("button", { name: "Linkage complete, settings" });
-        await userEvent.click(within(pane(modal)).getByRole("button", { name: "Reset Linkage" }));
+        await userEvent.click(
+            page.elementLocator(pane(modal)).getByRole("button", { name: "Reset Linkage", exact: true }),
+        );
         await waitFor(() => {
             const rule = stepOf(session, layer)?.rule as Extract<RuleTree, { kind: "measure" }>;
             assert.notProperty(rule.params ?? {}, "linkage", "back to its default");
@@ -578,16 +606,20 @@ describe("a selection step's less traveled controls", () => {
         const rule = (): Record<string, unknown> => (stepOf(session, layer)?.rule ?? {}) as Record<string, unknown>;
         let settings = await openSettings(modal);
         await userEvent.click(
-            within(within(settings).getByRole("radiogroup", { name: "Test" })).getByText("By position"),
+            page
+                .elementLocator(settings)
+                .getByRole("radiogroup", { name: "Test", exact: true })
+                .getByText("By position", { exact: true }),
         );
-        const count = await within(pane(modal)).findByRole("textbox", { name: "score: how many" });
-        await userEvent.click(count);
+        const count = (): Locator =>
+            page.elementLocator(pane(modal)).getByRole("textbox", { name: "score: how many", exact: true });
+        await userEvent.click(count());
         await userEvent.keyboard("{Control>}a{/Control}1{Enter}");
         await within(pane(modal)).findByText("1 asked, 2 kept: tied");
 
         const pick = async (box: string, option: string): Promise<void> => {
-            await userEvent.click(within(pane(modal)).getByRole("combobox", { name: box }));
-            await userEvent.click(await screen.findByRole("option", { name: option }));
+            await userEvent.click(page.elementLocator(pane(modal)).getByRole("combobox", { name: box, exact: true }));
+            await userEvent.click(page.getByRole("option", { name: option, exact: true }));
         };
         await pick("score: which end", "Bottom");
         await session.styles.settled();
@@ -604,7 +636,12 @@ describe("a selection step's less traveled controls", () => {
         await within(pane(modal)).findByRole("textbox", { name: "score: how many" });
 
         settings = await openSettings(modal);
-        await userEvent.click(within(within(settings).getByRole("radiogroup", { name: "Test" })).getByText("By value"));
+        await userEvent.click(
+            page
+                .elementLocator(settings)
+                .getByRole("radiogroup", { name: "Test", exact: true })
+                .getByText("By value", { exact: true }),
+        );
         await waitFor(() => {
             assert.isNull(within(pane(modal)).queryByRole("textbox", { name: "score: how many" }), "no count box");
             assert.notInclude(JSON.stringify(rule()), '"top"', "the step tests values again");
@@ -638,11 +675,11 @@ describe("a selection step's less traveled controls", () => {
         const { session, layer, modal } = await openStep(where);
         const settings = await openSettings(modal);
         const on = within(settings).getByRole("radiogroup", { name: "Computed on" });
-        await userEvent.click(within(on).getByText("So far"));
+        await userEvent.click(page.elementLocator(on).getByText("So far", { exact: true }));
         await waitFor(() => {
             assert.strictEqual(stepOf(session, layer)?.computedOn, "so-far");
         });
-        await userEvent.click(within(on).getByText("Filtered graph"));
+        await userEvent.click(page.elementLocator(on).getByText("Filtered graph", { exact: true }));
         await waitFor(() => {
             assert.notStrictEqual(stepOf(session, layer)?.computedOn, "so-far");
         });
@@ -652,8 +689,9 @@ describe("a selection step's less traveled controls", () => {
         const { session, layer, modal } = await openStep(
             oneStep("nodes", { kind: "hops", of: { nodes: ["Valjean"] }, max: 2 }),
         );
-        const hops = within(pane(modal)).getByRole("textbox", { name: "Hops" });
-        await userEvent.tripleClick(hops);
+        const hops = (): Locator =>
+            page.elementLocator(pane(modal)).getByRole("textbox", { name: "Hops", exact: true });
+        await userEvent.tripleClick(hops());
         await userEvent.keyboard("0");
         await userEvent.tab();
         await session.styles.settled();
@@ -683,7 +721,10 @@ describe("a selection step's less traveled controls", () => {
         const { session, layer, modal } = await openStep(where);
         const settings = await openSettings(modal);
         await userEvent.click(
-            within(within(settings).getByRole("radiogroup", { name: "Edges" })).getByText("All edges"),
+            page
+                .elementLocator(settings)
+                .getByRole("radiogroup", { name: "Edges", exact: true })
+                .getByText("All edges", { exact: true }),
         );
         await waitFor(() => {
             assert.isUndefined(stepOf(session, layer)?.links, "every link counts again");

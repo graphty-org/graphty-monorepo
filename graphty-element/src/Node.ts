@@ -3863,6 +3863,10 @@ export class Node implements ModelUser {
         }
 
         const built = this.build(fit.meshKey, fit.style);
+        // the new mesh is drawn at scale 1 until the sizing pass scales it for its size space: a view scale left from
+        // the old mesh built a screen-pixel border for a size the node is no longer drawn at (#10434). Leaving a batch
+        // builds a mesh too, but moves the old scale onto it, so the view scale is kept there.
+        this.#wholeScale = 1;
 
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);

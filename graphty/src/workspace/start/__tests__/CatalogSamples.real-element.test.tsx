@@ -15,7 +15,7 @@ import {
     type GeneratorDescriptor,
 } from "@graphty/graphty-element/catalog";
 import { afterEach, assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -77,12 +77,16 @@ describe("the start page lists graphty-element's catalog", () => {
             GENERATOR_DESCRIPTORS.length + 1,
         );
 
-        await userEvent.click(library.getByRole("button", { name: "Generate a graph: Fake ring" }));
+        await userEvent.click(
+            page
+                .getByRole("region", { name: "Sample library", exact: true })
+                .getByRole("button", { name: "Generate a graph: Fake ring", exact: true }),
+        );
         const dialog = await screen.findByRole("dialog", { name: "Fake ring" });
         assert.include(dialog.textContent, FAKE_GENERATOR.description);
         assert.equal(within(dialog).getByRole<HTMLInputElement>("textbox", { name: "Nodes" }).value, "9");
         assert.isTrue(within(dialog).getByRole<HTMLInputElement>("switch", { name: "Closed" }).checked);
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
         });

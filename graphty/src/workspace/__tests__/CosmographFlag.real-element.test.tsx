@@ -40,11 +40,11 @@ async function openEdgeStyle(): Promise<GraphSession> {
     await session.styles.addRow({ name: "Both", target: "both", selector: { match: "everything" } });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Both, / }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Both, / }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     await screen.findByTestId("style-tab");
     await showKind("edge");
@@ -68,7 +68,7 @@ function line(): HTMLElement {
  * @returns the menu items' names.
  */
 async function lineMenu(): Promise<string[]> {
-    await userEvent.click(within(line()).getByRole("button", { name: "Add to edge line" }));
+    await userEvent.click(page.elementLocator(line()).getByRole("button", { name: "Add to edge line", exact: true }));
     const items = await screen.findAllByRole("menuitem");
     return items.map((item) => item.textContent);
 }
@@ -110,7 +110,7 @@ describe("the cosmograph experiment's switch in the app", () => {
         const offered = await lineMenu();
         assert.include(offered, "Fade end");
         assert.include(offered, "Blending");
-        await userEvent.click(screen.getByRole("menuitem", { name: "Blending" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Blending", exact: true }));
         const row = await waitFor(() => {
             const found = line().querySelector<HTMLElement>('.ws-row[data-line="edge.blending"]');
             assert.isNotNull(found);
@@ -119,8 +119,8 @@ describe("the cosmograph experiment's switch in the app", () => {
         if (row === null) {
             throw new Error("no blending row");
         }
-        await userEvent.click(within(row).getByLabelText(/^Edge blending/));
-        await userEvent.click(await screen.findByRole("option", { name: "Off" }));
+        await userEvent.click(page.elementLocator(row).getByLabelText(/^Edge blending/));
+        await userEvent.click(page.getByRole("option", { name: "Off", exact: true }));
         await waitFor(() => {
             const layer = session.styles
                 .list()

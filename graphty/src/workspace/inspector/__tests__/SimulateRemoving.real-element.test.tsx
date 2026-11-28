@@ -59,8 +59,8 @@ async function simulate(
     store: WorkspaceStore,
     kind: "Node" | "Edge",
 ): Promise<{ params: Readonly<Record<string, unknown>>; cutOff: string[]; graph: Record<string, unknown> }> {
-    await userEvent.click(await screen.findByRole("button", { name: `${kind} actions` }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Simulate removing/ }));
+    await userEvent.click(page.getByRole("button", { name: `${kind} actions`, exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: /Simulate removing/ }));
     let id = "";
     await waitFor(() => {
         const { inspected } = store.get();

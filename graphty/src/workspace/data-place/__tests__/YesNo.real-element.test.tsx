@@ -72,7 +72,7 @@ describe("A yes-or-no column", () => {
         assert.equal(is.getAttribute("aria-label"), "trained is");
         assert.equal(is.value, "");
         assert.lengthOf(session.visibility.conditions, 0);
-        await userEvent.click(is);
+        await userEvent.click(page.getByRole("combobox", { name: /^trained[: ]/ }));
         const listbox = await screen.findByRole("listbox");
         assert.deepEqual(
             within(listbox)
@@ -80,12 +80,14 @@ describe("A yes-or-no column", () => {
                 .map((option) => option.textContent),
             ["Yes", "No"],
         );
-        await userEvent.click(within(listbox).getByRole("option", { name: "Yes" }));
+        await userEvent.click(page.elementLocator(listbox).getByRole("option", { name: "Yes", exact: true }));
         // The card is a draft until Done writes it as one step (design/working-graph/design.md, section 3).
         assert.lengthOf(session.visibility.conditions, 0, "a draft writes nothing before Done");
         const modal = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(modal, "the new card opens in the selection workspace");
-        await userEvent.click(within(modal ?? document.body).getByRole("button", { name: "Done" }));
+        await userEvent.click(
+            page.elementLocator(modal ?? document.body).getByRole("button", { name: "Done", exact: true }),
+        );
 
         await waitFor(() => {
             assert.equal(session.visibility.conditions.length, 1);
@@ -116,7 +118,11 @@ describe("A yes-or-no column", () => {
         const values = async (): Promise<void> => {
             const tab = await inspector.findByRole("tab", { name: "Values" });
             if (tab.getAttribute("aria-selected") !== "true") {
-                await userEvent.click(tab);
+                await userEvent.click(
+                    page
+                        .getByRole("complementary", { name: "Inspector", exact: true })
+                        .getByRole("tab", { name: "Values", exact: true }),
+                );
             }
         };
 
@@ -134,7 +140,7 @@ describe("A yes-or-no column", () => {
         await inspector.findByText("Yes (3)");
 
         session.selection.clear();
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "true");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "true");
         const list = await screen.findByRole("listbox", { name: "Find results" });
         await waitFor(() => {
             const words = within(list)

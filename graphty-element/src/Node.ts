@@ -1104,6 +1104,9 @@ export class Node implements ModelUser {
     /** How far toward the camera the halo is moved from the node: a 2D halo's lift over the edges. */
     private haloLift = 0;
 
+    /** How many times the node's size the halo is drawn: its look's `scale`. */
+    private haloScale = 1;
+
     /**
      * Which shader path draws this node's surface or sprite (design/rendering/shader-styles.md
      * section 5), or null while it is drawn plainly. Part of its source mesh's key: an impostor or
@@ -2605,6 +2608,11 @@ export class Node implements ModelUser {
             this.#anchor.scaling.setAll(scale);
         } else {
             built.scaleToRef(scale, this.#anchor.scaling);
+        }
+
+        if (this.halo?.isEnabled() === true && !this.halo.isDisposed()) {
+            this.scaleHalo(this.halo);
+            this.syncOverlayPositions();
         }
 
         this.measureRow();
@@ -4338,14 +4346,8 @@ export class Node implements ModelUser {
             // The node's own geometry, stretched about its center so its band is one width all
             // round (haloAxisScale): a box gets a box, a cylinder a cylinder, and a node drawn
             // wider than tall a halo as thick at its top as at its sides.
-            const own = this.#anchor.scaling;
-            const grow = haloAxisScale(
-                overlay.getBoundingInfo().boundingBox.extendSize,
-                selection.scale,
-                own.x === 0 ? 0 : this.borderReach / Math.abs(own.x),
-            );
-            overlay.scaling.copyFromFloats(own.x * grow.x, own.y * grow.y, own.z * grow.z);
-            this.haloLift = flatHaloLift(overlay, this.#anchor.scaling.z);
+            this.haloScale = selection.scale;
+            this.scaleHalo(overlay);
         } else {
             this.contextPoint = overlay;
             overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
@@ -4358,6 +4360,25 @@ export class Node implements ModelUser {
 
         overlay.setEnabled(true);
         this.context.getNodeBatches?.()?.rewalk(this);
+    }
+
+    /**
+     * Scale the halo to the node's drawn scale, stretched about its center so its band is one
+     * width all round (haloAxisScale). Run again whenever the node is drawn at a new scale: the
+     * halo hangs from graph-root, not from the anchor, so a node shrunk to its size on screen
+     * (`node.sizeSpace` "screen" or "pivot") would otherwise sit on a halo at its old size
+     * (issue #10404).
+     * @param halo - The halo.
+     */
+    private scaleHalo(halo: AbstractMesh): void {
+        const own = this.#anchor.scaling;
+        const grow = haloAxisScale(
+            halo.getBoundingInfo().boundingBox.extendSize,
+            this.haloScale,
+            own.x === 0 ? 0 : this.borderReach / Math.abs(own.x),
+        );
+        halo.scaling.copyFromFloats(own.x * grow.x, own.y * grow.y, own.z * grow.z);
+        this.haloLift = flatHaloLift(halo, own.z);
     }
 
     /**

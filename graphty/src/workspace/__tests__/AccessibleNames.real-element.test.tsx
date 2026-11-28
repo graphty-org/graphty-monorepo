@@ -13,7 +13,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../test/features";
 import { openSampleFromStart } from "../../test/open";
@@ -71,11 +71,11 @@ async function kinds(session: GraphSession): Promise<void> {
  */
 async function openStyle(name: string): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     return screen.findByTestId("style-tab");
 }
@@ -130,19 +130,19 @@ describe("accessible names in the workspace", () => {
     it("Escape in the background color box names the kept color in the box's words", async () => {
         await open(kinds);
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Everything, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Everything, / }));
         const place = screen.getByRole("region", { name: "Graph place" });
-        await userEvent.click(within(place).getByRole("button", { name: "Graph Kinds" }));
+        await userEvent.click(page.elementLocator(place).getByRole("button", { name: "Graph Kinds", exact: true }));
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
-        const styleTab = await within(inspector).findByRole("tab", { name: "Style" });
-        await userEvent.click(styleTab);
+        const styleTab = (): Locator => page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true });
+        await userEvent.click(styleTab());
         const group = await within(inspector).findByRole("group", { name: "Background color" });
         // One control per name in the tab: the dry runs heard two "Background color".
         assert.lengthOf(within(inspector).getAllByRole("textbox", { name: /^Background color/ }), 1);
         const box = within(group).getByRole<HTMLInputElement>("textbox", { name: /^Background color/ });
         const kept = box.value;
         assert.include(box.getAttribute("aria-label") ?? "", colorName(`#${kept}`), "the box names its color");
-        await userEvent.click(box);
+        await userEvent.click(page.elementLocator(group).getByRole("textbox", { name: /^Background color/ }));
         await userEvent.keyboard("123456{Escape}");
         // Waits for the note, whatever its words, so wrong words fail rather than wait.
         const said = await waitFor(() => {
@@ -171,7 +171,7 @@ describe("accessible names in the workspace", () => {
         await element.waitForStableFrame();
         const at = element.nodeScreenPosition("34");
         assert.isTrue(at?.visible, "node 34 is on screen");
-        await userEvent.click(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        await userEvent.click(page.getByCss("graphty-element").first(), { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
         // Waits for the selection to be said, whatever the words, so wrong words fail rather than wait.
         const said = await waitFor(() => {
             const words = store.get().announcement ?? "";
@@ -201,15 +201,19 @@ describe("accessible names in the workspace", () => {
         await openStyle("Mine");
         await userEvent.keyboard("{Control>}");
         await userEvent.click(
-            within(screen.getByRole("tree", { name: "Style layers" })).getByRole("treeitem", { name: /^Mine too, / }),
+            page
+                .getByRole("tree", { name: "Style layers", exact: true })
+                .getByRole("treeitem", { name: /^Mine too, / }),
         );
         await userEvent.keyboard("{/Control}");
         if (screen.queryByRole("group", { name: "Which nodes" }) === null) {
-            await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+            await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
         }
         const region = await screen.findByRole("group", { name: "Which nodes" });
         if (screen.queryByRole("combobox", { name: FIND_ATTRIBUTE }) === null) {
-            await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+            await userEvent.click(
+                page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+            );
         }
         const list = await screen.findByRole("listbox", { name: "Attributes" });
         const data = within(list).getByRole("group", { name: "Data" });
@@ -225,7 +229,7 @@ describe("accessible names in the workspace", () => {
         const tab = await openStyle("Kinds");
         await tooltipIsName(await within(tab).findByRole("button", { name: "Stop varying node color by data" }));
         // The color box opens the popover listing each kind.
-        await userEvent.click(await within(tab).findByRole("button", { name: /^Node color: kind/ }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: /^Node color: kind/ }));
         const grid = await screen.findByRole("grid", { name: /groups$/ });
         const company = within(grid)
             .getAllByRole("row")
@@ -244,10 +248,12 @@ describe("accessible names in the workspace", () => {
         if (nodes === null) {
             throw new Error("the Style tab draws no Nodes group");
         }
-        await userEvent.click(within(nodes).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(
+            page.elementLocator(nodes).getByRole("button", { name: "Add to node text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Label(?! at )/ }));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: /^kind(,|$)/ }));
+        await userEvent.click(page.elementLocator(list).getByRole("option", { name: /^kind(,|$)/ }));
         const source = await screen.findByRole("button", { name: "Label source: kind" });
         await tooltipIsName(source);
         const entry = source.closest<HTMLElement>("[data-line]");
@@ -263,7 +269,7 @@ describe("accessible names in the workspace", () => {
         }
         await element.waitForStableFrame();
         const at = element.nodeScreenPosition("n0");
-        await userEvent.click(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        await userEvent.click(page.getByCss("graphty-element").first(), { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         const values = await within(inspector).findByRole("group", { name: "Summary values" });
         const degree = await within(values).findByRole("button", { name: /^Degree/ });
@@ -275,7 +281,7 @@ describe("accessible names in the workspace", () => {
         await session.styles.encode({ column: { kind: "node", name: "kind" }, channel: "node.color", name: "Kinds" });
         await session.styles.settled();
         const tab = await openStyle("Kinds");
-        await userEvent.click(await within(tab).findByRole("button", { name: /^Node color: kind/ }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: /^Node color: kind/ }));
         const grid = await screen.findByRole("grid", { name: /groups$/ });
         const popover = grid.closest<HTMLElement>("[role=dialog]");
         if (popover === null) {
@@ -285,8 +291,8 @@ describe("accessible names in the workspace", () => {
         assert.notEqual(title, "", "the pop-out has a title");
         assert.isNotNull(within(popover).queryByRole("button", { name: `Close ${title}` }), "Close names its panel");
 
-        await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
-        await userEvent.click(await screen.findByRole("option", { name: "Seven bright colors" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: /^Palette/ }));
+        await userEvent.click(page.getByRole("option", { name: "Seven bright colors", exact: true }));
         // Waits for the reset, whatever its words, so wrong words fail rather than wait.
         const reset = await within(popover).findByRole("button", { name: /^Reset .*palette/i });
         assert.equal(reset.getAttribute("aria-label"), "Reset the node color palette to default");
@@ -300,10 +306,10 @@ describe("accessible names in the workspace", () => {
         await session.styles.encode({ column: { kind: "node", name: "score" }, channel: "node.color", name: "Scores" });
         await session.styles.settled();
         const tab = await openStyle("Scores");
-        await userEvent.click(await within(tab).findByRole("button", { name: /^Node color: score/ }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: /^Node color: score/ }));
         const popover = await screen.findByRole("dialog", { name: /score/ });
-        await userEvent.click(within(popover).getByRole("combobox", { name: /^Scale/ }));
-        await userEvent.click(await screen.findByRole("option", { name: /^Equal bins/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: /^Scale/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Equal bins/ }));
         const steps = await within(popover).findByRole("list", { name: "Steps" });
         const [first] = within(steps).getAllByRole("listitem");
         await tooltipIsName(within(first).getByRole("button", { name: / actions$/ }));
@@ -329,8 +335,8 @@ describe("accessible names in the workspace", () => {
         const { session, store } = await openSampleFromStart("Les Miserables");
         assert.isAbove(session.data.sources().length, 0, "the sample is a source");
         store.set({ place: "data" });
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
+        await userEvent.click(page.getByRole("button", { name: "Add source", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /Samples/ }));
         const dialog = await screen.findByRole("dialog", { name: "Samples" });
         // The tiles draw with the dialog, so a missing icon fails at once rather than waits.
         // Gephi and D3 each have a Les Miserables too, so each button carries its card's whole name.

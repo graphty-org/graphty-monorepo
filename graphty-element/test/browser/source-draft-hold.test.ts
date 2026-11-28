@@ -160,6 +160,38 @@ describe("a source draft's preview held still", () => {
         assert.isNull(d.graph.getLayoutManager().layoutEngine?.holdMask ?? null, "and the hold ends");
     });
 
+    test("after the commit the layout goes on from the preview's places, over every node (issue #10215)", async () => {
+        const d = await drawn();
+        link(d);
+        await d.draft.display(true, { hold: true });
+        await d.graph.waitForStableFrame();
+        const motions: string[] = [];
+        d.session.on("layout:motion-changed", ({ motion }) => motions.push(motion));
+        const held = places(d.graph, PEOPLE);
+        await d.draft.commit();
+        await d.graph.waitForStableFrame();
+        assert.include(motions, "running", "the layout runs again");
+        assert.isAbove(farthest(held, places(d.graph, PEOPLE)), 0, "the people the preview held move");
+    });
+
+    test.each([
+        ["cancelled", (draft: SourceDraft) => Promise.resolve(draft.dispose())],
+        ["no longer shown", (draft: SourceDraft) => draft.display(false)],
+    ] as const)("a draft %s lets the preview's hold go and leaves the graph as it was", async (_, end) => {
+        const d = await drawn();
+        const was = places(d.graph, PEOPLE);
+        link(d);
+        await d.draft.display(true, { hold: true });
+        await d.graph.waitForStableFrame();
+        const manager = d.graph.getLayoutManager();
+        assert.isNotNull(layoutManagerInternals.draftHeld(manager), "held while shown");
+        await end(d.draft);
+        await d.graph.waitForStableFrame();
+        assert.isNull(layoutManagerInternals.draftHeld(manager), "let go");
+        assert.isNull(manager.layoutEngine?.holdMask ?? null);
+        assert.strictEqual(farthest(was, places(d.graph, PEOPLE)), 0, "the graph as it was");
+    });
+
     test("a node the draft adds is not left drawn over a node the graph holds", async () => {
         const d = await drawn();
         d.draft.add(d.visits);
@@ -191,6 +223,50 @@ describe("a source draft's preview held still", () => {
             "V0 is drawn clear of P0",
         );
     });
+
+    test.each(["2d", "3d"] as const)(
+        "in %s the nodes the draft adds are not left drawn over each other",
+        async (view) => {
+            const d = await drawn((graph) => graph.setViewMode(view));
+            d.draft.add(d.visits);
+            // Three visits start in a row in front of P0 along the camera's line of sight: the forces between
+            // them run along that line, so the layout leaves them drawn over one another and only the push parts them.
+            const camera = d.graph.scene.activeCamera?.position;
+            const p0 = places(d.graph, ["P0"]).get("P0");
+            assert.isDefined(camera);
+            assert.isDefined(p0);
+            if (camera === undefined || p0 === undefined) {
+                return;
+            }
+            const toward = [camera.x - p0[0], camera.y - p0[1], camera.z - p0[2]];
+            const length = Math.hypot(...toward);
+            const seeded = ["V0", "V1", "V2"];
+            const along = (step: number): { x: number; y: number; z: number } => {
+                const [x, y, z] = p0.map((v, i) => v + (toward[i] / length) * 0.5 * (step + 1));
+                return { x, y, z };
+            };
+            layoutManagerInternals.seedPlaces(
+                d.graph.getLayoutManager(),
+                new Map(seeded.map((id, step) => [id, along(step)])),
+            );
+            await d.draft.display(true, { hold: true });
+            await d.graph.waitForStableFrame();
+            const spots = seeded.map((id) => d.graph.nodeScreenPosition(id));
+            let pairs = 0;
+            for (const [i, a] of spots.entries()) {
+                for (const b of spots.slice(i + 1)) {
+                    assert.isDefined(a);
+                    assert.isDefined(b);
+                    if (a === undefined || b === undefined) {
+                        return;
+                    }
+                    assert.isAtLeast(Math.hypot(a.x - b.x, a.y - b.y), a.radius + b.radius, "drawn clear");
+                    pairs++;
+                }
+            }
+            assert.strictEqual(pairs, 3, "every pair of seeded visits is measured");
+        },
+    );
 
     test("without hold the layout runs over the whole of After, as over any graph", async () => {
         const d = await drawn();

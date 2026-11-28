@@ -105,7 +105,9 @@ describe("the binding popover's rows and readings", () => {
         // No way out of varying in here: that is the field's own Stop varying button.
         assert.isNull(within(popover).queryByRole("button", { name: /^Use one (color|value)/ }));
 
-        await userEvent.click(within(popover).getByRole("button", { name: "One color per value" }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("button", { name: "One color per value", exact: true }),
+        );
         await waitFor(() => {
             const binding = session.styles.get(layer.id)?.encode?.["node.color"];
             assert.equal(binding !== undefined && "by" in binding ? binding.scale : undefined, "ordinal");
@@ -133,8 +135,8 @@ describe("the binding popover's rows and readings", () => {
 
         // Recolor the first row through its chip.
         const [first] = dataRows();
-        await userEvent.click(within(first).getByTestId("compact-color-input-chip"));
-        const hex = await screen.findByTestId("color-picker-value");
+        await userEvent.click(page.elementLocator(first).getByTestId("compact-color-input-chip"));
+        const hex = page.getByTestId("color-picker-value");
         await userEvent.tripleClick(hex);
         await userEvent.keyboard("00AA00{Enter}");
         await waitFor(() => {
@@ -174,12 +176,14 @@ describe("the binding popover's rows and readings", () => {
 
         // Clear on a set select is a minus, never an "x"; the recolored row's Clear is in its menu.
         const firstName = rows[0].querySelector("[data-group-name]")?.firstChild?.textContent ?? "";
-        await userEvent.click(within(rows[0]).getByRole("button", { name: new RegExp(` ${firstName} actions$`) }));
+        await userEvent.click(
+            page.elementLocator(rows[0]).getByRole("button", { name: new RegExp(` ${firstName} actions$`) }),
+        );
         assert.isDefined(await within(popover).findByRole("menuitem", { name: /^Clear color/ }));
         await userEvent.keyboard("{Escape}");
         // A set select's own Clear: the palette, once one is picked.
-        await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
-        await userEvent.click(await screen.findByRole("option", { name: "Seven bright colors" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: /^Palette/ }));
+        await userEvent.click(page.getByRole("option", { name: "Seven bright colors", exact: true }));
         const reset = await within(popover).findByRole("button", { name: /^Reset the node color palette/ });
         assert.isDefined(reset, "the palette select's Clear");
         const marks = reset.querySelectorAll("svg line, svg path");
@@ -204,26 +208,32 @@ describe("the binding popover's rows and readings", () => {
         // A click on its tree row opens its Style tab in place of Everything's, which the project
         // opened on.
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${layer.name}, `) }));
+        await userEvent.click(
+            page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${layer.name}, `) }),
+        );
         await waitFor(() => {
             assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer.id });
         });
         const tab = await screen.findByTestId("style-tab", {});
 
         // The vary picker on Node size, every value unfolded.
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Size", exact: true }));
         const field = await waitFor(() => {
             const found = screen.getByTestId("style-tab").querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
             assert.isNotNull(found, "a Size row");
             return found;
         });
         await userEvent.hover(field);
-        await userEvent.click(await within(field).findByRole("button", { name: "Node size by attribute" }));
+        await userEvent.click(
+            page.elementLocator(field).getByRole("button", { name: "Node size by attribute", exact: true }),
+        );
         const picker = await findValuePicker();
         const fold = within(picker).queryByRole("option", { name: /^\d+ attributes?, (hidden|shown)$/ });
         if (fold !== null) {
-            await userEvent.click(fold);
+            await userEvent.click(
+                page.elementLocator(picker).getByRole("option", { name: /^\d+ attributes?, (hidden|shown)$/ }),
+            );
         }
         const picked = optionNames(picker);
         for (const name of ["Degree", "Louvain"]) {
@@ -243,7 +253,7 @@ describe("the binding popover's rows and readings", () => {
             .getByRole("option", { name: /^Degree(,|$)/ })
             .getBoundingClientRect();
         assert.isAtMost(row.height, 32, "a picker row takes one line");
-        await userEvent.click(within(picker).getByRole("combobox"));
+        await userEvent.click(page.elementLocator(picker).getByRole("combobox"));
         await userEvent.keyboard("Louvain");
         await waitFor(() => {
             assert.include(optionNames(picker), "Louvain", "typing Louvain finds its value");
@@ -253,8 +263,8 @@ describe("the binding popover's rows and readings", () => {
         // The Which picker's add menu: the cards of two selected layers (one alone opens the
         // selection editor).
         await selectWithTwin(session, "Mine");
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
-        await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
+        await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
+        await userEvent.click(page.getByRole("button", { name: "Add a condition", exact: true }));
         const listbox = await screen.findByRole("listbox");
         const ruled = optionNames(listbox);
         for (const name of picked.filter((n) => !/^\d+ attributes?$|^Fixed /.test(n))) {

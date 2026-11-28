@@ -1407,9 +1407,10 @@ function withoutStep(value: SourceSteps, index: number): SourceSteps {
     }
     const proposal = src.stagedType ?? undefined;
     const back = (s: string | undefined): string | undefined => (s === own ? proposal : s);
+    // Unpicked as a staged source is, with no spacePicked: the same source as before it was added.
+    const { spacePicked: _picked, ...unpicked } = src;
     const proposed: StepsSource = {
-        ...src,
-        spacePicked: false,
+        ...unpicked,
         mapping: {
             ...(nodes === undefined ? {} : { nodes: { ...nodes, space: back(nodes.space) } }),
             ...(edges === undefined

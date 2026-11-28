@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -60,7 +60,7 @@ async function openEntry(name: string): Promise<HTMLElement> {
     const entry = await screen.findByRole("listitem", { name });
     const toggle = entry.querySelector<HTMLElement>("[aria-expanded]");
     if (toggle?.getAttribute("aria-expanded") === "false") {
-        await userEvent.click(toggle);
+        await userEvent.click(page.elementLocator(entry).getByCss("[aria-expanded]").first());
     }
     await within(entry).findByRole("radiogroup", { name: "Rows are" });
     return entry;
@@ -72,7 +72,7 @@ async function openEntry(name: string): Promise<HTMLElement> {
  */
 async function workspace(): Promise<HTMLElement> {
     const place = await screen.findByRole("region", { name: "Data place" });
-    await userEvent.click(await within(place).findByRole("button", { name: "Join" }));
+    await userEvent.click(page.elementLocator(place).getByRole("button", { name: "Join", exact: true }));
     return screen.findByRole("dialog", { name: "Join" });
 }
 
@@ -85,7 +85,9 @@ async function workspace(): Promise<HTMLElement> {
 async function readAs(modal: HTMLElement, name: string): Promise<HTMLElement> {
     await choose(modal, "Source 1", name);
     const settings = await within(modal).findByRole("group", { name: `${name} rows` });
-    await userEvent.click(within(settings).getByRole("button", { name: `Expand ${name} rows` }));
+    await userEvent.click(
+        page.elementLocator(settings).getByRole("button", { name: `Expand ${name} rows`, exact: true }),
+    );
     return settings;
 }
 
@@ -106,13 +108,13 @@ describe("a second source arrives staged (source-steps)", () => {
 
         const modal = await workspace();
         await choose(modal, "Source 1", "buildings");
-        await userEvent.click(await within(modal).findByRole("button", { name: "Add as is" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Add as is", exact: true }));
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["buildings, added"]);
         });
         assert.strictEqual(session.data.staged()[0]?.name, "buildings.csv", "nothing is added before Done");
 
-        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
         });
@@ -135,7 +137,7 @@ describe("a second source arrives staged (source-steps)", () => {
         assert.strictEqual(within(entry).getByLabelText("Rows").textContent, "2");
         const toggle = entry.querySelector<HTMLElement>("[aria-expanded]");
         if (toggle !== null) {
-            await userEvent.click(toggle);
+            await userEvent.click(page.elementLocator(entry).getByCss("[aria-expanded]").first());
         }
         await waitFor(() => {
             const summary = entry.querySelector("[data-testid=control-section-summary]");
@@ -154,8 +156,8 @@ describe("a second source arrives staged (source-steps)", () => {
         const modal = await workspace();
         const settings = await readAs(modal, "visitors");
         await choose(settings, "Node id", "badge");
-        const type = within(settings).getByRole("combobox", { name: "Type" });
-        await userEvent.click(type);
+        const type = (): Locator => page.elementLocator(settings).getByRole("combobox", { name: "Type", exact: true });
+        await userEvent.click(type());
         await userEvent.keyboard("person{Enter}");
         await waitFor(() => {
             assert.strictEqual(
@@ -169,19 +171,19 @@ describe("a second source arrives staged (source-steps)", () => {
         // Distinct and Repeats read the key's profile.
         assert.strictEqual(within(settings).getByLabelText("Distinct").textContent, "2 keys");
 
-        await userEvent.click(within(modal).getByRole("button", { name: "Add as is" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Add as is", exact: true }));
         await within(modal).findByText("Same person?");
         assert.include(modal.textContent, "1 of 2");
-        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Done", exact: true }));
         await within(modal).findByRole("alert");
         assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }), "Done waits for an answer");
         assert.lengthOf(session.data.staged(), 1, "nothing is committed");
 
-        await userEvent.click(within(modal).getByRole("button", { name: "Merge" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Merge", exact: true }));
         await waitFor(() => {
             assert.isNull(within(modal).queryByText("Same person?"));
         });
-        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.data.nodes().length, 4, "B1 merged, V1 added");
         });
@@ -210,9 +212,9 @@ describe("a second source arrives staged (source-steps)", () => {
             "",
             "the saved Space is only a proposal",
         );
-        await userEvent.click(within(modal).getByRole("button", { name: "Add as is" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Add as is", exact: true }));
         await within(modal).findByText("Same person?");
-        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Done", exact: true }));
         await within(modal).findByRole("alert");
         assert.lengthOf(session.data.staged(), 1, "nothing is added before the answer");
 
@@ -231,18 +233,18 @@ describe("a second source arrives staged (source-steps)", () => {
         });
         assert.include(joinLines(modal), "visitors, added", "its own line");
         assert.isNull(within(modal).queryByText("Same person?"), "another card is selected");
-        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Done", exact: true }));
         await within(modal).findByText("Same person?");
         assert.strictEqual(
             (await within(modal).findByRole("alert")).textContent,
             "Question unanswered",
             "Done selects the line that waits, and says so",
         );
-        await userEvent.click(within(modal).getByRole("button", { name: "Keep separate" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Keep separate", exact: true }));
         await waitFor(() => {
             assert.isNull(within(modal).queryByText("Same person?"));
         });
-        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
         });
@@ -261,7 +263,7 @@ describe("a second source arrives staged (source-steps)", () => {
         );
         const modal = await workspace();
         await choose(modal, "Source 1", "visitors");
-        await userEvent.click(await within(modal).findByRole("button", { name: "Add as is" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Add as is", exact: true }));
         await within(modal).findByText("Same person?");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -275,8 +277,10 @@ describe("a second source arrives staged (source-steps)", () => {
     it("Remove in the entry menu takes it away, and Undo brings it back", async () => {
         await withPeopleDropped();
         const entry = await stage("buildings.csv", BUILDINGS);
-        await userEvent.click(within(entry).getByRole("button", { name: "buildings.csv menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+        await userEvent.click(
+            page.elementLocator(entry).getByRole("button", { name: "buildings.csv menu", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Remove", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("listitem", { name: "buildings.csv" }));
         });
@@ -339,14 +343,14 @@ describe("a second source arrives staged (source-steps)", () => {
     it("has its own Filters: a card lists its columns, counts its rows, and judges them once it is joined", async () => {
         const { session } = await withPeopleDropped();
         const entry = await stage("rooms.csv", "room,wing,floor\nR1,east,1\nR2,east,2\nR3,west,3\nR4,west,9");
-        await userEvent.click(within(entry).getByRole("button", { name: "Add filter" }));
+        await userEvent.click(page.elementLocator(entry).getByRole("button", { name: "Add filter", exact: true }));
         const modal = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found, "the filter's workspace is open");
             return found;
         });
         if (screen.queryByRole("combobox", { name: "Find attributes, results" }) === null) {
-            await userEvent.click(await screen.findByRole("button", { name: "Value" }));
+            await userEvent.click(page.getByRole("button", { name: "Value", exact: true }));
         }
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         const offered = screen.getAllByRole("option").map((each) => each.textContent ?? "");
@@ -359,13 +363,14 @@ describe("a second source arrives staged (source-steps)", () => {
             `nothing of the graph: ${offered.join(", ")}`,
         );
         await userEvent.keyboard("floor{Enter}");
-        const from = await within(modal).findByRole("textbox", { name: "floor from, number" });
-        await userEvent.clear(from);
-        await userEvent.type(from, "3{Enter}");
+        const from = (): Locator =>
+            page.elementLocator(modal).getByRole("textbox", { name: "floor from, number", exact: true });
+        await userEvent.clear(from());
+        await userEvent.type(from(), "3{Enter}");
         await waitFor(() => {
             assert.include(modal.querySelector(".sel-ws-head")?.textContent ?? "", "2 of 4");
         });
-        await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Done/ }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
         });
@@ -389,7 +394,7 @@ describe("a second source arrives staged (source-steps)", () => {
         const entry = await stage("visitors.csv", VISITORS);
         // The radio itself is visually hidden: a reader clicks its label.
         const rows = within(entry).getByRole("radiogroup", { name: "Rows are" });
-        await userEvent.click(within(rows).getByText("Edges"));
+        await userEvent.click(page.elementLocator(rows).getByText("Edges", { exact: true }));
         await within(entry).findByRole("combobox", { name: "From" });
         assert.strictEqual(
             session.data.sourceTable(session.data.staged()[0]?.key ?? "").summary().mapping.rows,
@@ -413,8 +418,9 @@ describe("a second source arrives staged (source-steps)", () => {
         drop("buildings.csv", BUILDINGS);
         await screen.findByRole("listitem", { name: "buildings.csv" });
         const settings = await readAs(await workspace(), "buildings");
-        const space = within(settings).getByRole("combobox", { name: "Same nodes as" });
-        await userEvent.click(space);
+        const space = (): Locator =>
+            page.elementLocator(settings).getByRole("combobox", { name: "Same nodes as", exact: true });
+        await userEvent.click(space());
         await userEvent.keyboard("{Control>}{ArrowDown}{/Control}");
         const names = (await screen.findAllByRole("option")).map((option) => option.textContent ?? "");
         assert.include(names, "people.csv");

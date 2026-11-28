@@ -90,11 +90,11 @@ describe("the workspace frame", () => {
     it("switches the left panel between the Graph and Data places from the rail", async () => {
         renderWorkspace(OPEN);
 
-        await userEvent.click(screen.getByRole("button", { name: "Data" }));
+        await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
         assert.isNotNull(screen.getByRole("region", { name: "Data place" }));
         assert.isNull(screen.queryByRole("region", { name: "Graph place" }));
 
-        await userEvent.click(screen.getByRole("button", { name: "Graph" }));
+        await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
         assert.isNotNull(screen.getByRole("region", { name: "Graph place" }));
     });
 
@@ -104,7 +104,7 @@ describe("the workspace frame", () => {
         const rail = screen.getByRole("toolbar", { name: "Places" });
         const settings = within(rail).getByRole("button", { name: "Settings" });
         assert.equal(settings.getAttribute("aria-expanded"), "false");
-        await userEvent.click(settings);
+        await userEvent.click(page.elementLocator(rail).getByRole("button", { name: "Settings", exact: true }));
 
         assert.isNotNull(await screen.findByRole("dialog", { name: "Settings" }));
         assert.equal(settings.getAttribute("aria-expanded"), "true");
@@ -182,7 +182,7 @@ describe("the workspace frame", () => {
     it("lists built commands in the main menu and leaves stubs out", async () => {
         renderWorkspace(OPEN);
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
         const menu = await screen.findByRole("menu");
 
         assert.isNotNull(within(menu).getByRole("menuitem", { name: "New project" }));
@@ -195,7 +195,7 @@ describe("the workspace frame", () => {
         renderWorkspace(OPEN);
 
         assert.lengthOf(screen.getAllByRole("button", { name: "Main menu" }), 1);
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
         const rows = within(await screen.findByRole("menu"))
             .getAllByRole("menuitem")
             .map(rowLabel);
@@ -207,7 +207,7 @@ describe("the workspace frame", () => {
         assert.lengthOf(new Set(rows), rows.length, rows.join(", "));
         await userEvent.keyboard("{Escape}");
 
-        await userEvent.click(screen.getByRole("button", { name: "Project: Les Miserables" }));
+        await userEvent.click(page.getByRole("button", { name: "Project: Les Miserables", exact: true }));
         assert.isNotNull(await screen.findByRole("textbox", { name: "Project name" }));
         assert.isNull(screen.queryByRole("menu"));
     });
@@ -221,18 +221,18 @@ describe("the workspace frame", () => {
         // A dimmed Undo and Redo stay Tab stops, so the reason is reachable by keyboard.
         assert.notStrictEqual(undo.tabIndex, -1);
         assert.notStrictEqual(screen.getByRole("button", { name: "Redo" }).tabIndex, -1);
-        await userEvent.hover(undo);
+        await userEvent.hover(page.getByRole("button", { name: "Undo", exact: true }));
         assert.isNotNull(await screen.findByText("Nothing to undo", undefined));
     });
 
     it("says the Main menu's name and where the privacy chip leads, in tooltips", async () => {
         renderWorkspace(OPEN);
 
-        await userEvent.hover(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.hover(page.getByRole("button", { name: "Main menu", exact: true }));
         // The tooltip says the button's name (decided.md: a tooltip and its name say the same words).
         assert.equal((await screen.findByRole("tooltip", undefined)).textContent, "Main menu");
-        await userEvent.unhover(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.hover(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
+        await userEvent.unhover(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.hover(page.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
         assert.isNotNull(await screen.findByText(/Opens Settings > Privacy$/, undefined));
     });
 
@@ -240,13 +240,13 @@ describe("the workspace frame", () => {
         renderWorkspace(OPEN);
 
         await userEvent.keyboard("{F2}");
-        const field = screen.getByRole("textbox", { name: "Project name" });
+        const field = page.getByRole("textbox", { name: "Project name", exact: true });
         await userEvent.clear(field);
         await userEvent.type(field, "My copy{Enter}");
         assert.isNotNull(screen.getByRole("button", { name: "Project: My copy" }));
 
-        await userEvent.click(screen.getByRole("button", { name: "Project: My copy" }));
-        const again = await screen.findByRole("textbox", { name: "Project name" });
+        await userEvent.click(page.getByRole("button", { name: "Project: My copy", exact: true }));
+        const again = page.getByRole("textbox", { name: "Project name", exact: true });
         // Esc abandons the rename and keeps the name.
         await userEvent.type(again, "Other{Escape}");
         assert.isNotNull(screen.getByRole("button", { name: "Project: My copy" }));
@@ -284,7 +284,7 @@ describe("the workspace frame", () => {
         assert.strictEqual(names[0], "All");
         assert.includeMembers(names, ["Project", "Selection"]);
 
-        await userEvent.click(within(groups).getByRole("gridcell", { name: "Project" }));
+        await userEvent.click(page.elementLocator(groups).getByRole("gridcell", { name: "Project", exact: true }));
         const shown = within(dialog).getByRole("region", { name: "Project" });
         assert.deepEqual(
             within(shown)
@@ -312,7 +312,7 @@ describe("the workspace frame", () => {
         renderWorkspace(OPEN);
 
         await userEvent.keyboard("{F2}");
-        await userEvent.type(screen.getByRole("textbox", { name: "Project name" }), "?");
+        await userEvent.type(page.getByRole("textbox", { name: "Project name", exact: true }), "?");
         assert.isNull(screen.queryByRole("dialog", { name: "Keyboard shortcuts" }));
     });
 
@@ -323,9 +323,9 @@ describe("the workspace frame", () => {
         document.head.append(meta);
         renderWorkspace(OPEN);
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Help" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "About" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Help", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "About", exact: true }));
 
         const stamp = await screen.findByTestId("build-stamp");
         assert.equal(stamp.textContent, "Build 0123456789ab, release graphty@0.8.35");
@@ -433,14 +433,14 @@ describe("the workspace frame", () => {
                 },
             });
         });
-        await userEvent.click(screen.getByRole("button", { name: "Restore" }));
+        await userEvent.click(page.getByRole("button", { name: "Restore", exact: true }));
         assert.isTrue(undone);
         assert.isNull(store.get().notice);
     });
 
     it("gives no two reachable controls one accessible name", async () => {
         renderWorkspace(OPEN);
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
         await screen.findByRole("menu");
 
         const names = new Map<string, number>();

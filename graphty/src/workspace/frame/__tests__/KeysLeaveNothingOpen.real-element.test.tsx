@@ -67,7 +67,7 @@ async function fillEverything(session: GraphSession): Promise<void> {
  */
 async function openRow(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
 /**
@@ -93,8 +93,8 @@ withFeatures([]);
 describe("keys that close what they leave and land focus in the right place", () => {
     it("Done on a new layer with no condition hands focus back to its Which row", async () => {
         await openGraph();
-        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Layer", exact: true }));
         await screen.findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Escape}");
         // The cards of two selected layers: one alone opens the selection editor.
@@ -116,7 +116,7 @@ describe("keys that close what they leave and land focus in the right place", ()
     it("Remove node color hands focus to the Fill + that adds it back", async () => {
         await openGraph();
         await openRow("Everything");
-        const remove = await screen.findByRole("button", { name: "Remove node color" });
+        const remove = page.getByRole("button", { name: "Remove node color", exact: true });
         // A pointer press, as a reader with a mouse makes it: the next section slides up under it.
         await userEvent.click(remove);
         await waitFor(() => {
@@ -159,7 +159,11 @@ describe("keys that close what they leave and land focus in the right place", ()
         const analyze = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
             name: "Analyze",
         });
-        await userEvent.click(analyze);
+        await userEvent.click(
+            page
+                .getByRole("toolbar", { name: "Canvas tools", exact: true })
+                .getByRole("button", { name: "Analyze", exact: true }),
+        );
         await screen.findByRole("combobox", { name: "Filter analyses" });
         await userEvent.keyboard("{Tab}");
         await waitFor(() => {
@@ -168,7 +172,11 @@ describe("keys that close what they leave and land focus in the right place", ()
         assert.notStrictEqual(document.activeElement, document.body, "focus fell to the page");
         assert.notStrictEqual(document.activeElement, analyze, "Tab went back, not on");
 
-        await userEvent.click(analyze);
+        await userEvent.click(
+            page
+                .getByRole("toolbar", { name: "Canvas tools", exact: true })
+                .getByRole("button", { name: "Analyze", exact: true }),
+        );
         await screen.findByRole("combobox", { name: "Filter analyses" });
         await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
         await waitFor(() => {
@@ -187,7 +195,7 @@ describe("keys that close what they leave and land focus in the right place", ()
         });
         // The inspector shows the selection; on its Style tab, Add to node shape is a button, not a field.
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-        await userEvent.click(await within(inspector).findByRole("tab", { name: "Style" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
         const field = await within(inspector).findByRole("button", { name: "Add to node shape" });
         field.focus();
         await userEvent.keyboard("{Escape}");
@@ -198,7 +206,7 @@ describe("keys that close what they leave and land focus in the right place", ()
     it("Enter on Undo with nothing left to undo says so", async () => {
         const { store } = await openGraph();
         await openRow("Picked");
-        await userEvent.click(await screen.findByRole("button", { name: "Remove node color" }));
+        await userEvent.click(page.getByRole("button", { name: "Remove node color", exact: true }));
         const undo = screen.getByRole("button", { name: /^Undo( |$)/ });
         await waitFor(() => {
             assert.strictEqual(undo.getAttribute("aria-disabled"), "false");
@@ -234,7 +242,7 @@ describe("keys that close what they leave and land focus in the right place", ()
         assert.notStrictEqual(document.activeElement, fill, focused());
         assert.notStrictEqual(document.activeElement, document.body, "focus fell to the page");
         // The pointer still hears why.
-        await userEvent.hover(fill);
+        await userEvent.hover(page.getByRole("button", { name: "Add to node fill", exact: true }));
         // A hang guard: the tooltip waits its 1 s open delay, as long as findBy's default.
         const tip = await screen.findByRole("tooltip", {});
         assert.strictEqual(tip.textContent, "Everything in node fill is set");

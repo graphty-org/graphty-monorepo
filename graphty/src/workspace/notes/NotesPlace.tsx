@@ -433,7 +433,7 @@ export function NoteList({
 }
 
 /** The Notes place's filter and order: every field "all" or null shows every note. */
-interface NoteView {
+export interface NoteView {
     readonly status: "all" | "open" | "done";
     readonly tag: string | null;
     readonly author: string | null;
@@ -532,12 +532,15 @@ function NoteFilters({
  * @returns The Notes place
  */
 export function NotesPlace(): React.JSX.Element {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     // Re-reads the notes on every change to them, or to what their targets point at.
     useNotesVersion(session);
     const editing = useWorkspaceState((state) => state.noteDraft !== null);
-    // on reload: gap #9702: the reader's Status, Tag, Author and Sort over the notes
-    const [view, setView] = useState(ALL_NOTES);
+    // The reader's Status, Tag, Author and Sort live in the kept notesView, so a reload keeps them.
+    const view = useWorkspaceState((state) => state.notesView) ?? ALL_NOTES;
+    const setView = (next: NoteView): void => {
+        store.set({ notesView: next });
+    };
     const any = (session?.notes.counts().notes ?? 0) > 0;
     const tags = session?.notes.tags() ?? [];
     const authors = session?.notes.authors() ?? [];

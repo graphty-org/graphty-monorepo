@@ -41,7 +41,7 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
     const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
     const row = within(where).queryByRole("treeitem", { name: /^(And|Add)\.\.\.$/ });
     if (row !== null) {
-        await userEvent.click(row);
+        await userEvent.click(page.elementLocator(where).getByRole("treeitem", { name: /^(And|Add)\.\.\.$/ }));
         return;
     }
     if (document.querySelector(".sel-ws") === null) {
@@ -114,7 +114,7 @@ async function openScene(store: WorkspaceStore): Promise<GraphSession> {
  */
 async function openRow(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
 beforeEach(async () => {
@@ -210,10 +210,12 @@ describe("focus after a command that moves the reader", () => {
             return found;
         });
         await session?.data.import({ type: "gml", name: "les-miserables.gml", config: { data: GRAPH_FILE_GML } });
-        await userEvent.click(screen.getByRole("button", { name: /^Table/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Table/ }));
         const dock = await screen.findByRole("region", { name: "Table" });
-        await userEvent.click(await within(dock).findByRole("tab", { name: "Edges" }));
-        await userEvent.click(await within(dock).findByRole("button", { name: "Options for value" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: "Edges", exact: true }));
+        await userEvent.click(
+            page.elementLocator(dock).getByRole("button", { name: "Options for value", exact: true }),
+        );
         const menu = await screen.findByRole("menu");
         const item = within(menu).getByRole("menuitem", { name: "Filter to..." });
         for (let press = 0; press < 8 && document.activeElement !== item; press++) {
@@ -252,7 +254,7 @@ describe("focus after a command that moves the reader", () => {
         const group = cardFields(session, "node").find((field) => field.path.endsWith(".group"));
         const name = group?.name ?? "";
         await startCondition();
-        await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
+        await userEvent.click(page.getByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
         const values = await screen.findByRole("group", { name: new RegExp(`values$`) });
         const [first] = within(values).getAllByRole<HTMLInputElement>("checkbox");
         assert.isFalse(first.checked);
@@ -267,7 +269,7 @@ describe("focus after a command that moves the reader", () => {
 
     it("Escape on Back to analyses steps back to the list", async () => {
         await openScene(createWorkspaceStore({ project: { name: "Untitled", id: 1 } }));
-        await userEvent.click(screen.getByRole("button", { name: /^Analyze/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Analyze/ }));
         const filter = await screen.findByRole("combobox", { name: "Filter analyses" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, filter, focused());
@@ -290,7 +292,7 @@ describe("focus after a command that moves the reader", () => {
         const session = await openScene(createWorkspaceStore({ project: { name: "Untitled", id: 1 } }));
         const [node] = session.data.nodes();
         await session.selection.apply({ nodes: [node.id] });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+        await userEvent.click(page.getByRole("tab", { name: "Style", exact: true }));
         const why = await waitFor(() => {
             const found = [...document.querySelectorAll<HTMLElement>('[data-testid="why-line"]')].find(
                 (line) => within(line).queryByRole("button", { name: "Open layer Everything" }) !== null,

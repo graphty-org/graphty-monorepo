@@ -13,7 +13,7 @@ import type { CommonExportOptions, GraphExporter } from "@graphty/graph-io";
 import { afterEach, assert, describe, it } from "vitest";
 
 import { formatDescriptor } from "../../src/catalog/formats";
-import type { FormatDescriptor } from "../../src/catalog/types";
+import type { FormatDescriptor, FormatId } from "../../src/catalog/types";
 import {
     catalogFormatDescriptors,
     clearRegisteredFormatWritersForTesting,
@@ -21,8 +21,9 @@ import {
 } from "../../src/catalog/writerRegistry";
 import { DataConfig } from "../../src/config/DataConfig";
 import { DataSource, type DataSourceChunk } from "../../src/data/DataSource";
-import { buildExportSnapshot, exportSession, exportSnapshot } from "../../src/data/export";
+import { buildExportSnapshot, type ExportGraphOptions, exportSession, exportSnapshot } from "../../src/data/export";
 import { type GraphtyError, isGraphtyError } from "../../src/errors";
+import { pageDefaultFeatures, setDefaultFeatures } from "../../src/features/resolve";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { makeSession } from "../session/helpers";
@@ -260,6 +261,48 @@ describe("the export snapshot", () => {
         // graph-format's own weight shadow is read by role, as the weight; nothing internal is written.
         assert.notInclude(text, "graphty.");
         assert.include(text, ">2<", "the explicit weight is written");
+        harness.session.dispose();
+    });
+
+    it("builds each node and edge record once per export, whatever the scope, with styles or without", async () => {
+        const before = pageDefaultFeatures();
+        setDefaultFeatures([...before, "file-styles"]);
+        const harness = makeSession();
+        // The session settles its experiments on the first read.
+        assert.include(harness.session.features.enabled, "file-styles");
+        setDefaultFeatures(before);
+        harness.add(
+            [{ id: "a" }, { id: "b" }, { id: "c" }],
+            [
+                { src: "a", dst: "b" },
+                { src: "b", dst: "c" },
+            ],
+        );
+        const { data } = harness.session;
+        const nodes = data.nodes.bind(data);
+        const edges = data.edges.bind(data);
+        let built = { nodes: 0, edges: 0 };
+        data.nodes = (...args) => {
+            const records = nodes(...args);
+            built.nodes += records.length;
+            return records;
+        };
+        data.edges = (...args) => {
+            const records = edges(...args);
+            built.edges += records.length;
+            return records;
+        };
+        const cases: [string, FormatId, ExportGraphOptions][] = [
+            ["no scope", "csv", {}],
+            ["scope all", "csv", { scope: "all" }],
+            ["scope shown", "csv", { scope: "shown" }],
+            ["with styles", "graphml", { styles: true }],
+        ];
+        for (const [name, format, options] of cases) {
+            built = { nodes: 0, edges: 0 };
+            await exportSession(harness.session, format, options).text();
+            assert.deepEqual(built, { nodes: 3, edges: 2 }, `${name}: one record per element`);
+        }
         harness.session.dispose();
     });
 

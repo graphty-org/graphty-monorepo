@@ -12,31 +12,26 @@ import type { ProviderOptions } from "../../src/ai/providers/types";
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
 import type { Graph } from "../../src/Graph";
 import { assistantSession } from "../helpers/assistant";
+import { graphHandle } from "../helpers/session-graph";
 
 afterEach(() => {
     vi.restoreAllMocks();
 });
 
 /**
- * A stand-in graph with what `init` reads.
+ * A graph handle over a real session.
  * @returns the graph.
  */
-async function stubGraph(): Promise<Graph> {
+async function sessionGraph(): Promise<Graph> {
     const session = await assistantSession();
-    return {
-        getSession: () => session,
-        eventManager: { emit: () => undefined, addListener: () => Symbol("l"), removeListener: () => undefined },
-        getDataManager: () => ({ nodes: new Map(), edges: new Map() }),
-        getNodeCount: () => 0,
-        getEdgeCount: () => 0,
-        getXRSessionManager: () => undefined,
-    } as unknown as Graph;
+    // Nothing runs XR in a node test.
+    return graphHandle(session, { getXRSessionManager: () => undefined }).graph;
 }
 
 describe("AiManager model options", () => {
     it("keeps a given key in the key store beside a provider instance", async () => {
         const ai = createAiManager();
-        ai.init(await stubGraph(), {
+        ai.init(await sessionGraph(), {
             toolset: "generated",
             provider: "google",
             apiKey: "AIza-test-key-0123",
@@ -48,7 +43,7 @@ describe("AiManager model options", () => {
 
     it("configures the provider with them, and keeps them when the key changes", async () => {
         const configure = vi.spyOn(VercelAiProvider.prototype, "configure");
-        const graph = await stubGraph();
+        const graph = await sessionGraph();
         const ai = createAiManager();
         ai.init(graph, {
             toolset: "generated",

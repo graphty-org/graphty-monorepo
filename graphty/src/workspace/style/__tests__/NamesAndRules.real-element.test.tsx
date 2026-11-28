@@ -79,11 +79,11 @@ function escape(name: string): string {
  */
 async function openRow(name: string, tab: "Style" | "Values"): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escape(name)}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${escape(name)}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const button = await within(inspector).findByRole("tab", { name: tab });
     if (button.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(button);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: tab, exact: true }));
     }
     return inspector;
 }
@@ -108,7 +108,7 @@ describe("one name per value, rules in words", () => {
         const line = await whichLine();
         // At rest the line is Style Edges... alone (issue #6810); the rule is read in its workspace.
         assert.strictEqual(line.textContent, "Style Edges...");
-        await userEvent.click(within(line).getByRole("button", { name: /^Style Edges\.\.\./ }));
+        await userEvent.click(page.elementLocator(line).getByRole("button", { name: /^Style Edges\.\.\./ }));
         const card = await screen.findByRole("group", { name: /^On the route(,|$)/ });
         const match = within(card).getByRole<HTMLInputElement>("combobox", { name: "On the route is" });
         assert.equal(match.value, "Yes");
@@ -139,7 +139,7 @@ describe("one name per value, rules in words", () => {
         const { session, store, rows } = await openScene();
         await openRow(rows.degree, "Style");
         const kinds = await screen.findByRole("tablist", { name: "Style for" });
-        await userEvent.click(within(kinds).getByRole("tab", { name: /^Edge/ }));
+        await userEvent.click(page.elementLocator(kinds).getByRole("tab", { name: /^Edge/ }));
         const edges = await screen.findByRole<HTMLInputElement>("checkbox", { name: "Style edges" });
         assert.isFalse(edges.checked);
         edges.focus();
@@ -158,16 +158,16 @@ describe("one name per value, rules in words", () => {
 
     it("a new layer with a name card on 'Mme' counts 6 nodes before any value is set", async () => {
         const { session } = await openScene();
-        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Layer", exact: true }));
         await screen.findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Escape}");
         // A new layer's Which nodes is edited in the selection workspace: its first step's value.
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
-        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
+        await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: "Value", exact: true }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("name{Enter}");
-        await userEvent.type(await screen.findByRole("combobox", { name: "name: text to match" }), "Mme{Enter}");
+        await userEvent.type(page.getByRole("combobox", { name: "name: text to match", exact: true }), "Mme{Enter}");
         await waitFor(() => {
             const node = session.styles
                 .list()
@@ -190,7 +190,7 @@ describe("one name per value, rules in words", () => {
         }
         const more = within(section).queryByRole("button", { name: /^\d+ more$/ });
         if (more !== null) {
-            await userEvent.click(more);
+            await userEvent.click(page.elementLocator(section).getByRole("button", { name: /^\d+ more$/ }));
         }
         const names = [...section.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent);
         // The key's Louvain block: the one whose rows are ranked groups.

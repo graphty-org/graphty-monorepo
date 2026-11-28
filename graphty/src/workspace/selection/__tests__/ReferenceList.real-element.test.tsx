@@ -54,7 +54,7 @@ async function openLayer(): Promise<{ session: GraphSession; layer: Layer; set: 
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Near, / }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Near, / }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -89,7 +89,7 @@ function optionNames(): string[] {
 describe("the reference picker's list", () => {
     it("opens on the live references, the sets and the node count, finds nodes by name and takes a set or a node", async () => {
         const { session, layer, set } = await openLayer();
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
         await waitFor(() => {
             assert.isNotNull(document.querySelector(".sel-ws"), "the workspace is open");
         });
@@ -108,7 +108,7 @@ describe("the reference picker's list", () => {
         }
 
         // Nothing typed: the live references, the sets and the Nodes heading with no rows.
-        await userEvent.click(await within(card).findByRole("button", { name: /^Reference/ }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: /^Reference/ }));
         await screen.findByRole("listbox", { name: "References" });
         const live = optionNames();
         assert.includeMembers(live, ["Hovered or selected", "Selected (0)", "So far", "Friends"]);
@@ -118,14 +118,16 @@ describe("the reference picker's list", () => {
         assert.isNotNull(screen.getByText(`Nodes ${String(session.data.statistics().nodeCount)}`));
 
         // The set is the reference.
-        await userEvent.click(screen.getByRole("option", { name: "Friends" }));
+        await userEvent.click(page.getByRole("option", { name: "Friends", exact: true }));
         await waitFor(() => {
             assert.include(firstRule(session, layer.id), JSON.stringify({ set }), "the set is the reference");
         });
         await within(card).findByRole("button", { name: "Reference: Friends" });
 
         // Typed: what matches nothing says Nodes 0, and a name finds its node.
-        await userEvent.click(within(card).getByRole("button", { name: "Reference: Friends" }));
+        await userEvent.click(
+            page.elementLocator(card).getByRole("button", { name: "Reference: Friends", exact: true }),
+        );
         await screen.findByRole("listbox", { name: "References" });
         assert.strictEqual(
             screen.getByRole("option", { name: "Friends" }).getAttribute("data-combobox-active"),
@@ -139,7 +141,7 @@ describe("the reference picker's list", () => {
         await waitFor(() => {
             assert.include(optionNames(), "Valjean");
         });
-        await userEvent.click(screen.getByRole("option", { name: "Valjean" }));
+        await userEvent.click(page.getByRole("option", { name: "Valjean", exact: true }));
         await waitFor(() => {
             assert.include(firstRule(session, layer.id), '"nodes":["Valjean"]', "the node is the reference");
         });

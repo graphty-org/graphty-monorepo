@@ -507,6 +507,17 @@ function layoutJson(session: GraphSession): JsonObject {
 }
 
 /**
+ * The saved views as the file holds them, in project order. One pose reader serves them all, so
+ * the drawing is measured once, not once a following view (#10314).
+ * @param w - The writer.
+ * @returns The entries.
+ */
+function savedViewsJson(w: Writer): JsonObject[] {
+    const poseOf = dispatcherOf(w.session).services.camera?.poser?.();
+    return [...w.session.views].flatMap(([name, view]) => savedViewJson(w, name, view, poseOf));
+}
+
+/**
  * One saved view as the file holds it: its name, its camera, and every part it keeps. A following
  * view is written with the pose it gives now as well, so a reader that does not know `follows`
  * still opens it at a camera. Node ids are written as element references; a node that names no
@@ -514,11 +525,16 @@ function layoutJson(session: GraphSession): JsonObject {
  * @param w - The writer.
  * @param name - The view's name.
  * @param view - The view.
+ * @param poseOf - Gives a followed view's pose now; absent headless.
  * @returns The entry, or none when it has neither a camera nor a followed view.
  */
-function savedViewJson(w: Writer, name: string, view: SavedView): JsonObject[] {
-    const state =
-        view.follows === undefined ? view.camera : dispatcherOf(w.session).services.camera?.pose?.(view.follows);
+function savedViewJson(
+    w: Writer,
+    name: string,
+    view: SavedView,
+    poseOf: ((follows: string) => CameraState | undefined) | undefined,
+): JsonObject[] {
+    const state = view.follows === undefined ? view.camera : poseOf?.(view.follows);
     const camera = state === undefined ? undefined : cameraJson(state);
     if (camera === undefined && view.follows === undefined) {
         return [];
@@ -591,7 +607,7 @@ function freshBody(w: Writer): JsonObject {
     const layers = layersJson(w);
     return compact({
         camera: liveCamera(session),
-        views: [...session.views].flatMap(([name, view]) => savedViewJson(w, name, view)),
+        views: savedViewsJson(w),
         selection: compact(selection as JsonObject),
         pinned: pinnedJson(w),
         groups: groupsJson(w),

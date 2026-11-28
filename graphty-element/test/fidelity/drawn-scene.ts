@@ -2167,24 +2167,33 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         color = cssColor(fields.color).hex;
         ({ opacity } = fields);
         dashPx = elementDashes(pm.elements, p);
-    } else if (internal.pulled?.curve === false) {
+    } else if (internal.pulled !== null) {
         // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centers, stopped at
         // a translucent end's outline as its shader stops it (`PULLED_TRIM_GLSL`, the object line's bare ends), in the
         // color, opacity and width its piece carries (`PulledLineBatch.setLook`): the batched path's plain lines
         // A line under a head pulled with it stops at the head's back (`lineInWorld`), and its dashes or dots are its
         // pattern's, spaced along it as the shader spaces them (`patternSpacing`)
+        // A pulled curve runs through the points its pieces are placed at (`Edge.drawnCurve`), in 3D and, since #10083,
+        // in 2D, in the look its first piece carries
         const [src, dst] = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];
-        world = edgeInternals.lineInWorld(edge) ?? [
-            edgeInternals.bareEnd(edge, "source", src, dst),
-            edgeInternals.bareEnd(edge, "target", dst, src),
-        ];
+        if (internal.pulled.curve) {
+            world = edge.drawnCurve ?? [];
+            kind = "curve";
+        } else {
+            world = edgeInternals.lineInWorld(edge) ?? [
+                edgeInternals.bareEnd(edge, "source", src, dst),
+                edgeInternals.bareEnd(edge, "target", dst, src),
+            ];
+        }
         const { batch, piece } = internal.pulled;
         const look = batch as unknown as { rows: Float32Array; pieceFloats: number };
         const at = piece * look.pieceFloats;
         const meta = batch.mesh.metadata as { joinedLine?: boolean; pattern?: EdgeLineMeta["pattern"] } | null;
         pattern = meta?.pattern?.kind ?? null;
         dashPx = pulledDashes(meta?.pattern, world, p);
-        thicknessPx = lineThickness(batch.mesh, Vector3.Center(world[0], world[1]), p, look.rows[at + 2]);
+        const mid =
+            world.length === 2 ? Vector3.Center(world[0], world[1]) : (world[Math.floor(world.length / 2)] ?? src);
+        thicknessPx = lineThickness(batch.mesh, mid, p, look.rows[at + 2]);
         screenFloored = thicknessPx > 0 && thicknessPx <= screenFloorOf(batch.mesh);
         color = hex({ r: look.rows[at + 4], g: look.rows[at + 5], b: look.rows[at + 6] });
         opacity = look.rows[at + 3] * (meta?.joinedLine === true ? 1 : batch.mesh.visibility);

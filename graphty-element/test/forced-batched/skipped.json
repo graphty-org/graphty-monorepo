@@ -34,6 +34,7 @@
         "reason": "Measures the objects path's frozen instance matrices, set by hand"
     },
     { "file": "test/browser/view-switch-draws-every-node.test.ts", "reason": "Sets each case's render path by hand" },
+    { "file": "test/browser/view-switch-keeps-node-meshes.test.ts", "reason": "Sets its render path by hand" },
     { "file": "test/interactions/xr/xr-batched-rows.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/framing-skips-plain-edges.test.ts", "reason": "Sets each case's render path by hand" },
     {
@@ -53,5 +54,9 @@
     {
         "file": "test/browser/node-label-table-unfitted.test.ts",
         "reason": "Its one node has a table label, which no batch draws (shape.labelTable is not a batchable key), so it is an object on either path"
+    },
+    {
+        "file": "test/browser/node-border-keeps-shape-3d-zoom.test.ts",
+        "reason": "Its nodes have a border, which no batch draws (a node batch has no border), so they are objects on either path"
     }
 ]

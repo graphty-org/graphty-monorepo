@@ -98,7 +98,7 @@ async function openWithNodes(): Promise<GraphSession> {
         { id: "b", group: "odd" },
         { id: "c", group: "even" },
     ]);
-    await userEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
     await screen.findByRole("region", { name: "Assistant" });
     return session;
 }
@@ -108,7 +108,7 @@ async function openWithNodes(): Promise<GraphSession> {
  * @param text - the message.
  */
 async function say(text: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("textbox", { name: "Message the assistant" }));
+    await userEvent.click(page.getByRole("textbox", { name: "Message the assistant", exact: true }));
     await userEvent.keyboard(`${text}{Enter}`);
 }
 
@@ -165,7 +165,7 @@ describe("a reply's steps", () => {
         const group = await screen.findByRole("button", { name: "1 step" });
         assert.strictEqual(group.getAttribute("aria-expanded"), "false");
         assert.isNull(screen.queryByRole("button", { name: "Steps" }), "no separate Steps icon");
-        await userEvent.click(group);
+        await userEvent.click(page.getByRole("button", { name: "1 step", exact: true }));
         assert.strictEqual(group.getAttribute("aria-expanded"), "true");
 
         // Each step is the model's own words, and opens by Enter and closes by Space.
@@ -233,7 +233,7 @@ describe("a reply's steps", () => {
         model.turns = COLOR_EVEN;
         await say("Color the even ones");
         await screen.findByText("Colored them.");
-        await userEvent.click(screen.getByRole("button", { name: "Copy chat" }));
+        await userEvent.click(page.getByRole("button", { name: "Copy chat", exact: true }));
         await screen.findAllByText("Chat copied");
         const text = await navigator.clipboard.readText();
         assert.match(text, /\nSteps:\n1\. Checking the color channels\n/);

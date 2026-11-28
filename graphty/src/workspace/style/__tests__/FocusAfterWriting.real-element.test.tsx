@@ -55,11 +55,11 @@ async function openScene(): Promise<GraphSession> {
  */
 async function openStyle(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     await screen.findByTestId("style-tab");
 }
@@ -86,7 +86,7 @@ async function lineOf(channel: Channel): Promise<HTMLElement> {
  * @returns the new line.
  */
 async function addLine(kind: "node" | "edge", title: string, item: string, channel: Channel): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: `Add to ${kind} ${title}` }));
+    await userEvent.click(page.getByRole("button", { name: `Add to ${kind} ${title}`, exact: true }));
     const menu = await waitFor(() => {
         const found = screen.queryByRole("menuitem", { name: item });
         const line = document.querySelector(`[data-testid="style-tab"] .ws-row[data-line="${channel}"]`);
@@ -216,7 +216,7 @@ describe("focus after a style line is written or removed", () => {
         if (set === null) {
             await addLine("node", "fill", "Color", "node.color");
         } else {
-            await userEvent.click(within(set).getByRole("textbox", { name: /^Node color(,|$)/ }));
+            await userEvent.click(page.elementLocator(set).getByRole("textbox", { name: /^Node color(,|$)/ }));
             await userEvent.keyboard("{Control>}a{/Control}");
         }
         await userEvent.keyboard("red{Enter}");
@@ -228,7 +228,11 @@ describe("focus after a style line is written or removed", () => {
             );
         });
         await drawn(session);
-        await userEvent.click(within(await lineOf("node.color")).getByRole("button", { name: "Remove node color" }));
+        await userEvent.click(
+            page
+                .elementLocator(await lineOf("node.color"))
+                .getByRole("button", { name: "Remove node color", exact: true }),
+        );
         await waitFor(() => {
             assert.isNull(document.querySelector('[data-testid="style-tab"] .ws-row[data-line="node.color"]'));
         });
@@ -361,7 +365,7 @@ describe("focus after a style line is written or removed", () => {
         });
         await session.styles.settled();
         await openStyle("Paint");
-        await userEvent.click(await screen.findByRole("button", { name: "Stop varying node color by data" }));
+        await userEvent.click(page.getByRole("button", { name: "Stop varying node color by data", exact: true }));
         await waitFor(() => {
             assert.lengthOf(written(session, "node.color"), 1, "one color again");
         });
@@ -386,7 +390,7 @@ describe("focus after a style line is written or removed", () => {
         await act(async () => {
             await session.selection.apply({ nodes: [valjean] });
         });
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.getByRole("tab", { name: "Values", exact: true }));
         const memberships = await screen.findByRole("heading", { name: "Memberships" });
         const section = memberships.closest("section") ?? document.body;
         const entry = within(section).getByRole("button", { name: /^Louvain/ });

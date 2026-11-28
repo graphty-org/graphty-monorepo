@@ -5,7 +5,7 @@
 import type { AiEffect } from "@graphty/graphty-element/catalog";
 import React from "react";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
@@ -48,7 +48,7 @@ describe("ChangeRows", () => {
         const mark = first.parentElement?.querySelector("svg");
         assert.isOk(mark);
         assert.isBelow(mark.getBoundingClientRect().right, first.getBoundingClientRect().left + 1);
-        await userEvent.click(screen.getByRole("button", { name: "and 2 more" }));
+        await userEvent.click(page.getByRole("button", { name: "and 2 more", exact: true }));
         assert.strictEqual(more, 1);
         assert.isNull(screen.queryByRole("button", { name: "and 2 more" }));
         const fourth = await screen.findByText("Computed d");

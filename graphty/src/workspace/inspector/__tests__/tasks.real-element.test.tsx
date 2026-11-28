@@ -14,7 +14,7 @@ import "@graphty/graphty-element";
 
 import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
@@ -182,7 +182,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
 
         // The node's own menu in the inspector, where the Neighborhood command lives.
         await userEvent.click(await inspector().findByRole("button", { name: "Node actions" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Neighborhood/ }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Neighborhood/ }));
         const list = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
         assert.deepEqual(
             rowButtons(list).map((row) => row.textContent),
@@ -251,7 +251,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
 
     it("T12 from the find box: a pick moves focus to the inspector's title, not a value row", async () => {
         const { session } = await openRings();
-        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "Node 0");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "Node 0");
         // The node first, then the edges named by it.
         await screen.findAllByRole("option", { name: /Node 0/ });
         await userEvent.keyboard("{Enter}");
@@ -276,7 +276,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
     it("T12 from the find box: an edge picked with Down and Enter moves focus to the inspector's title", async () => {
         const { session } = await openRings();
         const box = screen.getByRole("combobox", { name: "Find" });
-        await userEvent.type(box, "Node 0");
+        await userEvent.type(page.getByRole("combobox", { name: "Find", exact: true }), "Node 0");
         // The node first, then the edges named by it: Down to the first edge.
         await screen.findByRole("option", { name: /Node 0 -> Node 1/ });
         const options = screen.getAllByRole("option");
@@ -316,7 +316,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         if (line === undefined) {
             throw new Error("no Why this look line for Color");
         }
-        await userEvent.click(within(line).getByRole("button"));
+        await userEvent.click(page.elementLocator(line).getByRole("button"));
         await waitFor(() => {
             assert.equal(store.get().inspected?.kind, "layer-row");
         });
@@ -334,8 +334,11 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         const madeWith = inspector().getByRole("group", { name: "Made with" });
         const field = within(madeWith).getByRole("spinbutton", { name: /^Damping factor(,|$)/ });
         const before = field.getAttribute("value");
-        await userEvent.clear(field);
-        await userEvent.type(field, "0.5{Enter}");
+        await userEvent.clear(page.elementLocator(madeWith).getByRole("spinbutton", { name: /^Damping factor(,|$)/ }));
+        await userEvent.type(
+            page.elementLocator(madeWith).getByRole("spinbutton", { name: /^Damping factor(,|$)/ }),
+            "0.5{Enter}",
+        );
         // Revert drops the change: the bar goes and the field shows the run's value again.
         await userEvent.click(await inspector().findByRole("button", { name: "Revert" }));
         await waitFor(() => {
@@ -348,9 +351,9 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             before,
         );
 
-        const again = within(inspector().getByRole("group", { name: "Made with" })).getByRole("spinbutton", {
-            name: /^Damping factor(,|$)/,
-        });
+        const again = page
+            .elementLocator(inspector().getByRole("group", { name: "Made with" }))
+            .getByRole("spinbutton", { name: /^Damping factor(,|$)/ });
         await userEvent.clear(again);
         await userEvent.type(again, "0.5{Enter}");
         await waitFor(() => {
@@ -390,7 +393,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 .querySelector("[data-inspected] .mantine-ColorSwatch-root"),
         );
         // The line's name opens the layer that paints n3, then Louvain's row shows its groups.
-        await userEvent.click(within(louvain).getByRole("button"));
+        await userEvent.click(page.elementLocator(louvain).getByRole("button"));
         const painter = session.styles.explain({ node: "n3" }).channels.find((c) => c.channel === "node.color");
         // On its Style tab: the line is about the layer's look.
         assert.deepEqual(store.get().inspected, {
@@ -503,9 +506,10 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             store.set({ inspected: { kind: "selection-row", id: "selection" } });
         });
         const highlight = await inspector().findByRole("group", { name: "Highlight" });
-        const hex = within(within(highlight).getByRole("group", { name: "Nodes" })).getByRole("textbox", {
-            name: /Color/,
-        });
+        const hex = page
+            .elementLocator(highlight)
+            .getByRole("group", { name: "Nodes", exact: true })
+            .getByRole("textbox", { name: /Color/ });
         await userEvent.clear(hex);
         await userEvent.type(hex, "FF0000{Enter}");
         await waitFor(() => {
@@ -540,9 +544,9 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         });
         // The group's Style: its own detail, every property its run varies by group (color here).
         const fill = await inspector().findByRole("group", { name: / properties$/ });
-        const fillHex = within(fill).getByRole("textbox", { name: /color/i });
-        await userEvent.clear(fillHex);
-        await userEvent.type(fillHex, "123456{Enter}");
+        const fillHex = (): Locator => page.elementLocator(fill).getByRole("textbox", { name: /color/i });
+        await userEvent.clear(fillHex());
+        await userEvent.type(fillHex(), "123456{Enter}");
         await act(async () => {
             await session.styles.settled();
         });

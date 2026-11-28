@@ -12,7 +12,7 @@ import "../../../src/graphty-element";
 
 import { type AbstractMesh, Ray, Vector3, WebXRHandJoint, type WebXRHandTracking } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../../index.js";
 import type { AiVoiceOptions } from "../../../src/ai/AiManager";
@@ -342,7 +342,7 @@ describe("the microphone", () => {
         const vr = element.shadowRoot?.querySelector('[data-xr-mode="immersive-vr"]');
         assert.exists(vr);
 
-        await userEvent.click(vr);
+        await userEvent.click(page.getByRole("button", { name: "VR", exact: true }));
         await vi.waitFor(() => {
             assert.strictEqual(element.getXRSessionManager()?.getActiveMode(), "immersive-vr", "VR did not start");
         });

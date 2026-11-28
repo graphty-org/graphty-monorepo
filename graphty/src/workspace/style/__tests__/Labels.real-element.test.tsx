@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { findValuePicker, queryValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
@@ -123,8 +123,8 @@ function labelStyle(session: GraphSession): LabelStyle {
  * @param within_ - where the select is.
  */
 async function choose(name: string, option: string, within_: HTMLElement): Promise<void> {
-    await userEvent.click(within(within_).getByRole("combobox", { name: new RegExp(`^${name}(,|$)`) }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
+    await userEvent.click(page.elementLocator(within_).getByRole("combobox", { name: new RegExp(`^${name}(,|$)`) }));
+    await userEvent.click(page.getByRole("option", { name: option, exact: true }));
 }
 
 /**
@@ -146,18 +146,20 @@ describe("label entries on the real element", () => {
         await screen.findByTestId("style-tab", {});
         const keyRows = document.querySelectorAll(".ws-legend-section").length;
 
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Add to node text", exact: true }),
+        );
         const items = await screen.findAllByRole("menuitem");
         assert.deepEqual(
             items.map((item) => item.textContent),
             ["Label", "Card", "Tooltip"],
             "the Text menu lists both kinds of node text, and a label as a card",
         );
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Label(?! at )/ }));
         // Nothing is written before a source is picked.
         assert.isUndefined(writer(session, "node.label"));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
+        await userEvent.click(page.elementLocator(list).getByRole("option", { name: /^name(,|$)/ }));
 
         await waitFor(() => {
             const binding = writer(session, "node.label")?.encode?.["node.label"];
@@ -186,12 +188,14 @@ describe("label entries on the real element", () => {
             "one kind left: the list's '+' adds it, with no menu of the label's settings",
         );
         // The label's look, size and position are its own: its own "+" lists them.
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node label" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Add to node label", exact: true }),
+        );
         assert.deepEqual(
             (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
             ["Look", "Size", "Position"],
         );
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Look" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Look", exact: true }));
         await within(textList()).findByRole("combobox", { name: /^Node label look/ });
 
         // Picking a look applies it.
@@ -201,14 +205,18 @@ describe("label entries on the real element", () => {
             assert.equal(shown("Node label look"), "Dark");
         });
         // A font of the reader's own makes the look read edited; the font's reset clears it back.
-        await userEvent.click(within(textList()).getByRole("button", { name: "Node label settings" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Node label settings", exact: true }),
+        );
         const settings = await screen.findByRole("dialog", { name: "Label settings" });
         await choose("Font", "Serif", settings);
         await waitFor(() => {
             assert.equal(labelStyle(session).font, "serif");
             assert.equal(shown("Node label look"), "Dark, edited");
         });
-        await userEvent.click(within(settings).getByRole("button", { name: "Reset Font to default" }));
+        await userEvent.click(
+            page.elementLocator(settings).getByRole("button", { name: "Reset Font to default", exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(labelStyle(session).font);
             assert.equal(shown("Node label look"), "Dark");
@@ -216,7 +224,9 @@ describe("label entries on the real element", () => {
         await userEvent.keyboard("{Escape}");
 
         // The minus takes the look back off, and its line with it.
-        await userEvent.click(within(textList()).getByRole("button", { name: "Remove node label look" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Remove node label look", exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(labelStyle(session).look);
             assert.isNull(within(textList()).queryByRole("combobox", { name: /^Node label look/ }));
@@ -226,15 +236,19 @@ describe("label entries on the real element", () => {
     it("the entry has no eye, and the minus removes the entry", async () => {
         const { session, element } = await openWithGraph();
         await screen.findByTestId("style-tab", {});
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Add to node text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(page.elementLocator(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
         await waitFor(() => {
             assert.equal(element.labelOf("2")?.text, "Beta");
         });
         assert.isNull(within(textList()).queryByRole("button", { name: /^(Hide|Show) label$/ }));
 
-        await userEvent.click(within(textList()).getByRole("button", { name: "Remove label" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Remove label", exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(writer(session, "node.label"));
             assert.isUndefined(writer(session, "node.labelStyle"));
@@ -286,18 +300,24 @@ describe("label entries on the real element", () => {
         const { runId } = await session.runs.start("degree");
         await session.styles.settled();
         await screen.findByTestId("style-tab", {});
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Add to node text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(page.elementLocator(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
         await waitFor(() => {
             assert.isDefined(writer(session, "node.label"));
         });
-        await userEvent.click(await within(textList()).findByRole("button", { name: "Add to node label" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Add to node label", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Size", exact: true }));
 
-        await userEvent.click(await within(textList()).findByRole("button", { name: "Node label size by attribute" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Node label size by attribute", exact: true }),
+        );
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: /^Degree(,|$)/ }));
+        await userEvent.click(page.elementLocator(list).getByRole("option", { name: /^Degree(,|$)/ }));
         const path = session.results.path(runId);
         await waitFor(() => {
             const size = writer(session, "node.labelSize")?.encode?.["node.labelSize"];
@@ -310,8 +330,10 @@ describe("label entries on the real element", () => {
         const { session } = await openWithGraph();
         await screen.findByTestId("style-tab", {});
         const before = textList().querySelectorAll("[data-line], [data-beneath]").length;
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Add to node text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Tooltip/ }));
         await findValuePicker();
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -353,10 +375,12 @@ describe("label entries on the real element", () => {
     it("a label of fixed text: Fixed text, type Hello, and the canvas label reads Hello", async () => {
         const { session, element } = await openWithGraph();
         await screen.findByTestId("style-tab", {});
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Add to node text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Label(?! at )/ }));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: "Fixed text" }));
+        await userEvent.click(page.elementLocator(list).getByRole("option", { name: "Fixed text", exact: true }));
         const field = await within(textList()).findByRole("textbox", { name: "Node label text" });
         await waitFor(() => {
             assert.equal(document.activeElement, field, "focus lands in the words field");
@@ -375,9 +399,13 @@ describe("label entries on the real element", () => {
         const { session } = await openWithGraph();
         await screen.findByTestId("style-tab", {});
         await showKind("edge");
-        await userEvent.click(within(edgeTextList()).getByRole("button", { name: "Add to edge text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
+        await userEvent.click(
+            page.elementLocator(edgeTextList()).getByRole("button", { name: "Add to edge text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(
+            page.elementLocator(await findValuePicker()).getByRole("option", { name: "Fixed text", exact: true }),
+        );
         await within(edgeTextList()).findByRole("textbox", { name: "Edge label text" });
         await userEvent.keyboard("Bob{Enter}");
         const mine = (): Layer[] => session.styles.list().filter((l) => l.source.by !== "element");
@@ -403,9 +431,13 @@ describe("label entries on the real element", () => {
     it("a label bound to a number prints three significant digits", async () => {
         const { session, element } = await openWithGraph();
         await screen.findByTestId("style-tab", {});
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^score(,|$)/ }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Add to node text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(
+            page.elementLocator(await findValuePicker()).getByRole("option", { name: /^score(,|$)/ }),
+        );
         await waitFor(() => {
             const binding = writer(session, "node.label")?.encode?.["node.label"];
             assert.deepEqual(binding !== undefined && "format" in binding ? binding.format : undefined, {
@@ -420,10 +452,14 @@ describe("label entries on the real element", () => {
     it("Label settings starts below the header, shows no gradient editor until a gradient is on, reads what lies beneath, and Escape closes it", async () => {
         await openWithGraph();
         await screen.findByTestId("style-tab", {});
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
-        const button = await within(textList()).findByRole("button", { name: "Node label settings" });
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Add to node text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(page.elementLocator(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
+        const button = page
+            .elementLocator(textList())
+            .getByRole("button", { name: "Node label settings", exact: true });
         await userEvent.click(button);
         const settings = await screen.findByRole("dialog", { name: "Label settings" });
         const header = document.querySelector(".ws-header");
@@ -473,9 +509,11 @@ describe("a label entry's size, keys, lists and widths", () => {
      */
     async function addNameLabel(session: GraphSession): Promise<void> {
         await screen.findByTestId("style-tab", {});
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Add to node text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(page.elementLocator(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
         await waitFor(() => {
             assert.isDefined(writer(session, "node.label"));
         });
@@ -486,7 +524,9 @@ describe("a label entry's size, keys, lists and widths", () => {
      * @returns the pop-out.
      */
     async function openSettings(): Promise<HTMLElement> {
-        await userEvent.click(await within(textList()).findByRole("button", { name: "Node label settings" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Node label settings", exact: true }),
+        );
         return screen.findByRole("dialog", { name: "Label settings" });
     }
 
@@ -513,7 +553,7 @@ describe("a label entry's size, keys, lists and widths", () => {
                 "Size, default 48 px",
             );
         });
-        await userEvent.tripleClick(size);
+        await userEvent.tripleClick(page.elementLocator(settings).getByLabelText(/^Size(,|$)/));
         await userEvent.keyboard("14{Enter}");
         await waitFor(() => {
             assert.equal(labelStyle(session).sizePx, 14);
@@ -525,8 +565,8 @@ describe("a label entry's size, keys, lists and widths", () => {
         const { session } = await openWithGraph();
         await addNameLabel(session);
         const settings = await openSettings();
-        const size = within(settings).getByLabelText<HTMLInputElement>(/^Size(,|$)/);
-        await userEvent.click(size);
+        const size = (): Locator => page.elementLocator(settings).getByLabelText(/^Size(,|$)/);
+        await userEvent.click(size());
         await userEvent.keyboard("96{Escape}");
         assert.isNotNull(screen.queryByRole("dialog", { name: "Label settings" }), "the settings stay open");
         const field = within(settings).getByLabelText<HTMLInputElement>(/^Size(,|$)/);
@@ -545,8 +585,8 @@ describe("a label entry's size, keys, lists and widths", () => {
         const { session } = await openWithGraph();
         await addNameLabel(session);
         const settings = await openSettings();
-        const lineHeight = within(settings).getByLabelText<HTMLInputElement>(/^Line height(,|$)/);
-        await userEvent.tripleClick(lineHeight);
+        const lineHeight = (): Locator => page.elementLocator(settings).getByLabelText(/^Line height(,|$)/);
+        await userEvent.tripleClick(lineHeight());
         await userEvent.keyboard("1.5{Enter}");
         await waitFor(() => {
             assert.equal(labelStyle(session).lineHeight, 1.5);
@@ -570,7 +610,9 @@ describe("a label entry's size, keys, lists and widths", () => {
     it("the source list reopened on a label read from name highlights name; Tab from its search closes it", async () => {
         const { session } = await openWithGraph();
         await addNameLabel(session);
-        await userEvent.click(within(textList()).getByRole("button", { name: "Label source: name" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Label source: name", exact: true }),
+        );
         const list = await findValuePicker();
         assert.equal(
             list.querySelector('[role="option"][aria-selected="true"]')?.textContent?.trim().startsWith("name"),
@@ -592,9 +634,9 @@ describe("a label entry's size, keys, lists and widths", () => {
         const { session } = await openWithGraph();
         await screen.findByTestId("style-tab", {});
         await userEvent.click(
-            within(screen.getByTestId("style-tab")).getByRole("button", { name: "Add to node shape" }),
+            page.getByTestId("style-tab").getByRole("button", { name: "Add to node shape", exact: true }),
         );
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Shape", exact: true }));
         // A line "+" adds waits for a value, with focus in its field once the line is drawn; typed
         // before that, the keys go to the menu's button and no shape is picked.
         await waitFor(() => {
@@ -616,9 +658,13 @@ describe("a label entry's size, keys, lists and widths", () => {
             });
         const before = (await shapeBox()).getBoundingClientRect().width;
 
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Add to node text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(
+            page.elementLocator(await findValuePicker()).getByRole("option", { name: "Fixed text", exact: true }),
+        );
         const field = await within(textList()).findByRole<HTMLInputElement>("textbox", { name: "Node label text" });
         await userEvent.keyboard("Volunteer");
         assert.isAtMost(field.scrollWidth, field.clientWidth, "the typed word is not cut");
@@ -634,8 +680,12 @@ describe("a label entry's size, keys, lists and widths", () => {
     it("a label read from name switched to Fixed text opens its words box focused, and the typing is written", async () => {
         const { session } = await openWithGraph();
         await addNameLabel(session);
-        await userEvent.click(within(textList()).getByRole("button", { name: "Label source: name" }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Label source: name", exact: true }),
+        );
+        await userEvent.click(
+            page.elementLocator(await findValuePicker()).getByRole("option", { name: "Fixed text", exact: true }),
+        );
         const field = await within(textList()).findByRole<HTMLInputElement>("textbox", { name: "Node label text" });
         await waitFor(() => {
             assert.equal(document.activeElement, field, "focus is in the words box");
@@ -650,20 +700,24 @@ describe("a label entry's size, keys, lists and widths", () => {
     it("the source list, opened again, marks the choice in force: the value this line reads, then Fixed text", async () => {
         const { session } = await openWithGraph();
         await addNameLabel(session);
-        await userEvent.click(within(textList()).getByRole("button", { name: "Label source: name" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Label source: name", exact: true }),
+        );
         let picker = await findValuePicker();
         const name = within(within(picker).getByRole("group", { name: "In use" })).getByRole("option", {
             name: /^name(,|$)/,
         });
         assert.equal(name.getAttribute("aria-selected"), "true", "the value this line reads is marked");
-        await userEvent.click(within(picker).getByRole("option", { name: "Fixed text" }));
+        await userEvent.click(page.elementLocator(picker).getByRole("option", { name: "Fixed text", exact: true }));
         await within(textList()).findByRole("textbox", { name: "Node label text" });
         await userEvent.keyboard("Hello{Enter}");
         await waitFor(() => {
             assert.equal(writer(session, "node.label")?.set?.["node.label"], "Hello");
         });
 
-        await userEvent.click(await within(textList()).findByRole("button", { name: "Label source: Fixed text" }));
+        await userEvent.click(
+            page.elementLocator(textList()).getByRole("button", { name: "Label source: Fixed text", exact: true }),
+        );
         picker = await findValuePicker();
         assert.equal(
             within(picker).getByRole("option", { name: "Fixed text" }).getAttribute("aria-selected"),

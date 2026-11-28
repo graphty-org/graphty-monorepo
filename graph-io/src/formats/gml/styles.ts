@@ -80,6 +80,7 @@ import { gephiRules } from "../gexf/styles.js";
 import {
     configurationOutline,
     FONT_STYLES,
+    putLostYedHeads,
     putOutline,
     putRaisedBorder,
     putYedEdgeLabel,
@@ -1519,6 +1520,8 @@ function sizeOf(snapshot: GraphSnapshot, i: number): BendPoint {
  * @param bendsOnly - whether the points are the bends alone (OGDF)
  * @param put - receives the values
  * @param arcs - whether a yEd arc edge's one bend is its arc's control point (`yedArc`)
+ * @param drawnByYed - whether yEd drew it, so a head whose bend sits on its port is lost (`putLostYedHeads`); graphty
+ * writes yEd's vocabulary too, but draws every head it wrote
  */
 function readLineRoute(
     snapshot: GraphSnapshot,
@@ -1527,6 +1530,7 @@ function readLineRoute(
     bendsOnly: boolean,
     put: (property: string, value: string) => void,
     arcs = false,
+    drawnByYed = false,
 ): void {
     const raw = isRec(g) && isRec(g.Line) ? g.Line.point : undefined;
     const list = isRec(raw) ? [raw] : raw;
@@ -1557,8 +1561,35 @@ function readLineRoute(
         put("bends", bends);
     }
     if (!bendsOnly) {
-        putLinePort(snapshot, "sourcePort", s, anchored[0] ?? all[0], put);
-        putLinePort(snapshot, "targetPort", t, anchored[1] ?? all.at(-1) ?? all[0], put);
+        putLineEnds(snapshot, [s, t], anchored, all, drawnByYed, control, put);
+    }
+}
+
+/**
+ * Puts where a `Line` attaches to its two nodes (`edgeAnchor`'s ports, else its first and last points), and takes off
+ * the heads yEd loses (`putLostYedHeads`).
+ * @param snapshot - the graph
+ * @param nodes - its source and target nodes
+ * @param anchored - each end's `edgeAnchor` port, or null
+ * @param line - the Line's points: its ends, and its bends between them
+ * @param drawnByYed - whether yEd drew it
+ * @param control - its arc's control point, or null for a polyline, whose heads yEd aims from its bends
+ * @param put - receives the values
+ */
+function putLineEnds(
+    snapshot: GraphSnapshot,
+    nodes: readonly [number, number],
+    anchored: readonly (BendPoint | null)[],
+    line: readonly BendPoint[],
+    drawnByYed: boolean,
+    control: readonly BendPoint[] | null,
+    put: (property: string, value: string) => void,
+): void {
+    const ends: [BendPoint, BendPoint] = [anchored[0] ?? line[0], anchored[1] ?? line.at(-1) ?? line[0]];
+    putLinePort(snapshot, "sourcePort", nodes[0], ends[0], put);
+    putLinePort(snapshot, "targetPort", nodes[1], ends[1], put);
+    if (drawnByYed && control === null) {
+        putLostYedHeads(ends, line.slice(1, -1), put);
     }
 }
 
@@ -1989,6 +2020,7 @@ function readValues(
                         out.put(i, property, value);
                     },
                     writer.vocabulary === "yed",
+                    writer.tool === "yed",
                 );
             }
         }

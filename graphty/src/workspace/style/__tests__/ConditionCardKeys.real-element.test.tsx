@@ -107,8 +107,8 @@ function textOf(session: GraphSession, id: string): string | undefined {
  * @returns The card.
  */
 async function addCard(region: HTMLElement, field: string): Promise<HTMLElement> {
-    await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${field}(,|$)`) }));
+    await userEvent.click(page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }));
+    await userEvent.click(page.getByRole("option", { name: new RegExp(`^${field}(,|$)`) }));
     return waitFor(() => within(region).getByRole("group", { name: new RegExp(`^${field}(,|$)`) }));
 }
 
@@ -193,7 +193,12 @@ describe("keys in the condition cards, on the real element", () => {
         // A suggestion taken from the list (not typing, which the box's own undo would take back).
         await userEvent.keyboard("{ArrowDown}");
         const list = await screen.findByRole("listbox");
-        await userEvent.click(within(list).getAllByRole("option", { name: /^Mlle ./ })[0]);
+        await userEvent.click(
+            page
+                .elementLocator(list)
+                .getByRole("option", { name: /^Mlle ./ })
+                .nth(0),
+        );
         await waitFor(() => {
             assert.match(textOf(session, id) ?? "", /^Mlle ./);
         });
@@ -230,7 +235,7 @@ describe("keys in the condition cards, on the real element", () => {
         const name = group?.name ?? "";
         const region = await openCards();
         const card = await addCard(region, name);
-        await userEvent.click(within(card).getAllByRole("checkbox")[0]);
+        await userEvent.click(page.elementLocator(card).getByRole("checkbox").nth(0));
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("group", { name: "Which nodes" }), "Enter on the value closed the cards");
@@ -258,8 +263,10 @@ describe("keys in the condition cards, on the real element", () => {
         assert.match((await whichRow()).getAttribute("aria-label") ?? "", /^Which nodes, 77 of 77 nodes, /);
         const region = await openCards();
         const card = await addCard(region, name);
-        await userEvent.click(within(card).getByRole("combobox", { name: `${name}: how to match` }));
-        await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
+        await userEvent.click(
+            page.elementLocator(card).getByRole("combobox", { name: `${name}: how to match`, exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: "Highest", exact: true }));
         const box = within(card).getByRole("textbox", { name: `${name}: how many` });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, box, "focus is on the number box");
@@ -275,8 +282,10 @@ describe("keys in the condition cards, on the real element", () => {
         const { session, store, id } = await openLayer("Names", { match: "everything" });
         const region = await openCards();
         const card = await addCard(region, "name");
-        await userEvent.click(within(card).getByRole("combobox", { name: "name: how to match" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Starts with" }));
+        await userEvent.click(
+            page.elementLocator(card).getByRole("combobox", { name: "name: how to match", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: "Starts with", exact: true }));
         const box = within(card).getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, box, "focus is in the text box");
@@ -317,7 +326,9 @@ describe("keys in the condition cards, on the real element", () => {
         const region = await openCards();
         const card = await addCard(region, "name");
         const box = within(card).getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
-        await userEvent.click(box);
+        await userEvent.click(
+            page.elementLocator(card).getByRole("combobox", { name: "name: text to match", exact: true }),
+        );
         await userEvent.keyboard("Mlle");
         // The first Escape closes the list of names holding the text; the next keeps the picker.
         await userEvent.keyboard("{Escape}{Escape}");

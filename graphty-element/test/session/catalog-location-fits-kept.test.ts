@@ -17,10 +17,11 @@ describe("catalog.optionsFor keeps its location column reading", () => {
             estimate: () => ({}) as never,
             runs: () => [],
             resolve: () => ({ resolution: {}, graph: {} }) as never,
-            attributes: () => [
-                { name: "lat", kind: "node", plainName: "Lat" },
-                { name: "lon", kind: "node", plainName: "Lon" },
-            ] as never,
+            attributes: () =>
+                [
+                    { name: "lat", kind: "node", plainName: "Lat" },
+                    { name: "lon", kind: "node", plainName: "Lon" },
+                ] as never,
             nodeValues: (path) => {
                 reads++;
                 return path === "lat" ? [40.7, 51.5] : [-74, -0.1];

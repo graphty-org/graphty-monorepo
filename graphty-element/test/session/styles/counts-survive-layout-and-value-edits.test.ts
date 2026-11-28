@@ -219,7 +219,12 @@ describe("styles.counts keeps what a change cannot move", () => {
         const outside = (session: GraphSession): ReturnType<GraphSession["styles"]["list"]>[number] => {
             const layer = session.styles
                 .list()
-                .find((each) => each.target === "node" && each.selector.match === "state" && each.selector.state === "outsideWindow");
+                .find(
+                    (each) =>
+                        each.target === "node" &&
+                        each.selector.match === "state" &&
+                        each.selector.state === "outsideWindow",
+                );
             assert.isDefined(layer);
             return layer;
         };

@@ -85,7 +85,7 @@ export function pickAsDrawn(scene: Scene, x: number, y: number): TransformNode |
     // While a layout transition moves the nodes, a click reads the layout's answer, not the
     // moving picture: what is selected is where the node is going.
     return pickAtLayout(scene, () => {
-        const scan = rowScans.get(scene);
+        const scan = rowScans.get(scene) ?? frozenRowScanOf(scene);
         return scan === undefined ? pickMeshes(scene, x, y, drawnPickable).info.pickedMesh : scan.pickPoint(x, y);
     });
 }
@@ -185,7 +185,7 @@ export function filterPointerPicks(scene: Scene): void {
                         pickWork.pointerPicks++;
                         const pointer = scene.unTranslatedPointer;
                         scene.createPickingRayToRef(pointer.x, pointer.y, null, ray, scene.cameraToUseForPointers);
-                        test = alongRay(scene, ray, base);
+                        test = withFrozenRows(scene, pointer.x, pointer.y, alongRay(scene, ray, base), base);
                     } else {
                         test = (candidate, index) => candidate === pressed && base(candidate, index);
                     }
@@ -226,10 +226,14 @@ const pressAnswers = new WeakMap<
 export function pickPressedNodeId(scene: Scene): NodeIdType | undefined {
     const { pointerX: x, pointerY: y } = scene;
     lastMeshPick = null;
-    const id = pickNodeId(scene, x, y);
+    const picked = pickAsDrawn(scene, x, y);
+    const id = (picked?.metadata as { nodeId?: NodeIdType } | null | undefined)?.nodeId;
     const pick = meshPickMade();
+    // The frozen scan (objects path, no row table) answers a node with its own mesh, which is its anchor there: the
+    // answer Babylon's nearest-hit pick gives too. The batched path's rows have no mesh to answer with.
+    const frozen = !rowScans.has(scene) && frozenRowScanOf(scene) !== undefined;
     if (pick !== null && pick.scene === scene && !pick.onTop && !rowScans.has(scene) && !transitionUnderWay(scene)) {
-        pressAnswers.set(scene, { x, y, mesh: pick.mesh });
+        pressAnswers.set(scene, { x, y, mesh: frozen ? (picked as AbstractMesh | null) : pick.mesh });
     } else {
         pressAnswers.delete(scene);
     }
@@ -736,8 +740,9 @@ export class RowScan {
      * Whether the scan answers for a mesh, so Babylon's pick must leave it out.
      * @param mesh - The mesh.
      * @returns True for the own mesh of a row the table holds, unless its kind stays on Babylon.
+     * @internal
      */
-    private covers(mesh: AbstractMesh): boolean {
+    covers(mesh: AbstractMesh): boolean {
         const node = (mesh.metadata as { graphNode?: ScannedRow } | null | undefined)?.graphNode;
         return node?.drawnPickMesh === mesh && node.index < this.table.rows && node.drawnByRowScan;
     }
@@ -1020,6 +1025,123 @@ export function openRowScan(
  */
 export function rowScanOf(scene: Scene): RowScan | undefined {
     return rowScans.get(scene);
+}
+
+/**
+ * Where a graph on the `"objects"` path, which keeps no row table, tells the picks its nodes while nothing moves.
+ */
+export interface FrozenRows {
+    /**
+     * A number that stays the same while the scene draws the frozen list of what is drawn, so nothing moved, and
+     * changes when it thaws; or null while it is not frozen.
+     */
+    epoch(): number | null;
+    /** The built nodes. */
+    nodes(): Iterable<ScannedRow & { readonly drawnBoundingRadius: number }>;
+    /** What node meshes are placed inside. */
+    root(): TransformNode | null;
+}
+
+/** The table of a frozen graph's nodes: each row's place in graph-root's space and its radius, 0 when not drawn. */
+class FrozenRowTable implements ScannedTable {
+    readonly rowBounds: Float32Array;
+    readonly rows: number;
+    readonly byRow: (ScannedRow | undefined)[] = [];
+
+    constructor(nodes: Iterable<ScannedRow & { readonly drawnBoundingRadius: number }>) {
+        const listed: (ScannedRow & { readonly drawnBoundingRadius: number })[] = [];
+        let rows = 0;
+        for (const node of nodes) {
+            if (node.index !== INVALID_INDEX) {
+                listed.push(node);
+                rows = Math.max(rows, node.index + 1);
+            }
+        }
+
+        this.rows = rows;
+        this.rowBounds = new Float32Array(rows * 4);
+        for (const node of listed) {
+            const at = node.index * 4;
+            const { x, y, z } = node.drawnAnchor.position;
+            const mesh = node.drawnPickMesh;
+            this.rowBounds[at] = x;
+            this.rowBounds[at + 1] = y;
+            this.rowBounds[at + 2] = z;
+            // As the row table's bound: the drawn radius, or 0 for a node Babylon's pick would not find.
+            this.rowBounds[at + 3] = mesh !== null && drawnPickable(mesh) ? node.drawnBoundingRadius : 0;
+            this.byRow[node.index] = node;
+        }
+    }
+
+    centerOf(row: number): Vector3 {
+        const at = row * 4;
+        return new Vector3(this.rowBounds[at] ?? 0, this.rowBounds[at + 1] ?? 0, this.rowBounds[at + 2] ?? 0);
+    }
+}
+
+/** Each objects-path scene's nodes, and the scan of them made for the frozen list now drawn. */
+const frozenRows = new WeakMap<Scene, { readonly rows: FrozenRows; scan: RowScan | null; epoch: number | null }>();
+
+/**
+ * Let the picks of a scene with no row table answer its nodes from a table of them while its list of what is drawn
+ * is frozen: nothing moves then, so the table made at the first pick stands until the list thaws, and a pick tests
+ * the nodes a ray reaches instead of evaluating every node's mesh (issue #10128).
+ * @param scene - The scene.
+ * @param rows - Its nodes and its freeze, or null to stop.
+ */
+export function useFrozenRows(scene: Scene, rows: FrozenRows | null): void {
+    if (rows === null) {
+        frozenRows.delete(scene);
+    } else {
+        frozenRows.set(scene, { rows, scan: null, epoch: null });
+    }
+}
+
+/**
+ * The scan of a frozen scene's nodes, made once per freeze.
+ * @param scene - The scene.
+ * @returns The scan, or undefined while the scene is not frozen or keeps no such table.
+ */
+function frozenRowScanOf(scene: Scene): RowScan | undefined {
+    const held = frozenRows.get(scene);
+    const epoch = held?.rows.epoch() ?? null;
+    if (held === undefined || epoch === null) {
+        return undefined;
+    }
+
+    if (held.scan === null || held.epoch !== epoch) {
+        const table = new FrozenRowTable(held.rows.nodes());
+        held.scan = new RowScan(scene, table, (row) => table.byRow[row], held.rows.root());
+        held.epoch = epoch;
+    }
+
+    return held.scan;
+}
+
+/**
+ * A pointer pick's test with the nodes answered by the frozen scan: a node's mesh passes only when it is the node the
+ * scan finds nearest at the pointer, so Babylon evaluates no other node's mesh; every other mesh takes `test`.
+ * @param scene - The scene.
+ * @param x - The pointer's x.
+ * @param y - The pointer's y.
+ * @param test - The pick's test of every mesh.
+ * @param base - The pick's own predicate, which the nearest node must pass too.
+ * @returns The test.
+ */
+function withFrozenRows(scene: Scene, x: number, y: number, test: PickPredicate, base: PickPredicate): PickPredicate {
+    const camera = scene.cameraToUseForPointers;
+    const scan =
+        rowScans.has(scene) || (camera !== null && camera !== scene.activeCamera) ? undefined : frozenRowScanOf(scene);
+    if (scan === undefined) {
+        return test;
+    }
+
+    const hit = scan.shapeRayHit(x, y);
+    const nearest = hit === null ? null : (scan.nodeAt(hit.row)?.drawnPickMesh ?? null);
+    return (mesh, thinInstanceIndex = -1) =>
+        thinInstanceIndex < 0 && scan.covers(mesh)
+            ? mesh === nearest && base(mesh, thinInstanceIndex)
+            : test(mesh, thinInstanceIndex);
 }
 
 /**

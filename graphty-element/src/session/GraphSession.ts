@@ -1758,6 +1758,8 @@ class Session implements ElementSession {
         // Style edits are runs the runs list does not hold, so they are canceled on their own.
         this.stopStyleEdits();
         this.shadersController.dispose();
+        // The element left the page: its model and picture downloads stop with it (#10329).
+        this.assets.dispose();
         // The last event: a host drops the session here, before anything re-reads it.
         publish(this.watchers, "session:disposed", {});
         this.watchers.clear();
@@ -3718,6 +3720,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let stateRevisionBesidesPointer = 0;
     // Set once the selection and the filter exist: what a `state` leaf and a state layer read.
     let elementInState: NonNullable<FilterSources["inState"]> = () => false;
+    // Set with it: one read of the stack with each element state resolved once (`SelectorSource.reading`).
+    let readingStates = <T>(read: () => T): T => read();
     // The query engine, late-bound for the same reason: it reads the style layers' selector
     // source, which reads the runs, and the scope and visibility APIs are built before both.
     let query: QueryEngine | null = null;
@@ -3807,7 +3811,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             ceilings,
             slice,
             measure: async (command, config) => {
-                const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });
+                // Held to the ceilings in force, so the report's tooLarge agrees with the load (#10365).
+                const scratch = createGraphSession({
+                    config: { data: config, acceleration: { policy: "off" } },
+                    limits: ceilings.effective,
+                });
                 try {
                     await dispatcherOf(scratch).dispatch(command);
                     const report = scratch.data.lastImport();
@@ -4781,7 +4789,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         createLayerRepaint({
             nodeCount: () => snapshot().nodeCount,
             edgeCount: () => snapshot().edgeCount,
-            elements,
+            elements: { ...elements, reading: (read) => readingStates(read) },
             // `session.hidden`: drawn as not visible over whatever the layers paint.
             // So are the nodes the active layout keeps off the canvas.
             hidden: hiddenRowsOf(
@@ -5379,13 +5387,73 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const id = focusedNode();
         return id === null ? undefined : nodeIndex(id);
     });
-    elementInState = (state, target, index) => {
-        if (state === "ghosted") {
-            return visibility.ghosted(target, index);
+    // Inside one read of the stack (a count, a legend), what each state reads, resolved once: a
+    // read tests every element, and resolving per element re-checked the time window's masks, the
+    // selection and the snapshot each time (layers x elements of it on every timeline step).
+    type Bytes = ReturnType<typeof visibility.ghosts>;
+    let resolved: {
+        ghosts?: Bytes;
+        outside?: Bytes;
+        hovered?: number | undefined | null;
+        nodes?: ReturnType<SelectionOwner["nodeMembers"]>;
+        edges?: ReturnType<SelectionOwner["edgeMembers"]>;
+    } | null = null;
+    readingStates = <T>(read: () => T): T => {
+        if (resolved !== null) {
+            return read();
         }
 
-        if (state === "outsideWindow") {
-            return visibility.outsideWindow(target, index);
+        resolved = {};
+        try {
+            return read();
+        } finally {
+            resolved = null;
+        }
+    };
+    const selectedNodes = (owner: SelectionOwner): ReturnType<SelectionOwner["nodeMembers"]> => {
+        if (resolved === null) {
+            return owner.nodeMembers();
+        }
+
+        resolved.nodes ??= owner.nodeMembers();
+        return resolved.nodes;
+    };
+    const hoveredRow = (owner: SelectionOwner): number | undefined | null => {
+        if (resolved === null) {
+            return owner.hovered === null ? null : nodeIndex(owner.hovered);
+        }
+
+        if (!("hovered" in resolved)) {
+            resolved.hovered = owner.hovered === null ? null : nodeIndex(owner.hovered);
+        }
+
+        return resolved.hovered;
+    };
+    const selectedEdges = (owner: SelectionOwner): ReturnType<SelectionOwner["edgeMembers"]> => {
+        if (resolved === null) {
+            return owner.edgeMembers();
+        }
+
+        resolved.edges ??= owner.edgeMembers();
+        return resolved.edges;
+    };
+    const resolvedBytes = (key: "ghosts" | "outside"): Bytes => {
+        const now = resolved as NonNullable<typeof resolved>;
+        if (now[key] === undefined) {
+            now[key] = key === "ghosts" ? visibility.ghosts() : visibility.outsideWindowBytes();
+        }
+
+        return now[key] ?? null;
+    };
+    elementInState = (state, target, index) => {
+        if (state === "ghosted" || state === "outsideWindow") {
+            if (resolved === null) {
+                return state === "ghosted"
+                    ? visibility.ghosted(target, index)
+                    : visibility.outsideWindow(target, index);
+            }
+
+            return resolvedBytes(state === "ghosted" ? "ghosts" : "outside")?.[target][index] === 1;
         }
 
         if (state === "pinned") {
@@ -5396,12 +5464,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         if (state === "hovered") {
             return (
                 target === "node" &&
-                ((owner.hovered !== null && nodeIndex(owner.hovered) === index) ||
-                    (owner.hoverPreview && owner.nodeMembers().has(index)))
+                (hoveredRow(owner) === index || (owner.hoverPreview && selectedNodes(owner).has(index)))
             );
         }
 
-        return (target === "node" ? owner.nodeMembers() : owner.edgeMembers()).has(index);
+        return (target === "node" ? selectedNodes(owner) : selectedEdges(owner)).has(index);
     };
     const styles = createStylesApi({
         dispatcher,
@@ -5413,6 +5480,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             edgeIndex,
             scope: (spec: Scope) => layerScopes.live(spec),
             inState: elementInState,
+            reading: readingStates,
             hover: hoverSource,
             focus: focusSource,
         },
@@ -5859,7 +5927,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
-        nodeColumns: (paths) => readNodeColumns(session, snapshot(), paths).map((column) => column?.values ?? null),
+        nodeColumns: (paths, rows) =>
+            readNodeColumns(session, snapshot(), paths, rows).map((column) => column?.values ?? null),
         runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
         nodeAttributes: () => data.columns().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
         locationDesignation: () => session.config.data.knownFields,
@@ -6017,6 +6086,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
             // The input tick less the pointer's moves: a write, a freeze or a run moves a column.
             columnsRevision: () => inputs.tick.value - pointerTicks,
+            nodeColumns: planning.nodeColumns,
             fileStyles: fileStylesOn,
             timeCandidates: () => time.api.candidates(),
             query: {

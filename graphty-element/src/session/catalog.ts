@@ -329,7 +329,7 @@ function validateQuery(
  */
 export function createSessionCatalog(
     source: MetricsSource &
-        Pick<OptionsForSource, "resolve" | "attributes" | "results" | "nodeValues"> & {
+        Pick<OptionsForSource, "resolve" | "attributes" | "results" | "nodeValues" | "nodeColumns"> & {
             /** The project's own shaders, listed after the presets and registered ones. */
             readonly projectShaders?: () => readonly ShaderDescriptor[];
             /** Whether the file styles experiment is on; absent reads on. */
@@ -448,6 +448,7 @@ export function createSessionCatalog(
                         attributes: source.attributes,
                         results: source.results,
                         nodeValues: source.nodeValues,
+                        nodeColumns: source.nodeColumns,
                         ...(keptFits === undefined ? {} : { keptFits }),
                     },
                     key,

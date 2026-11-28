@@ -101,6 +101,36 @@ describe("source-steps drafts: the session around a draft", () => {
         session.dispose();
     });
 
+    it("a commit's fact counts the joins it adds and takes out, so an application can name what it did", async () => {
+        const { session } = await phase2();
+        const a = await session.data.stage(ACCOUNTS_CSV, { key: "account_id", type: "account" });
+        const factOfNext = (): Readonly<Record<string, unknown>> => {
+            const next = session.history.nextUndo;
+            assert.strictEqual(next?.kind, "undo");
+            const fact = next?.kind === "undo" ? next.step.fact : null;
+            assert.strictEqual(fact?.code, "data.steps-set");
+            return fact?.params ?? {};
+        };
+        const join = session.data.draft();
+        join.merge({ from: { source: a, field: "account_id" }, into: { space: "account" } });
+        await join.commit();
+        assert.include(factOfNext(), { kind: "set", joinsAdded: 1, joinsRemoved: 0 });
+
+        const change = session.data.draft();
+        change.editStep(
+            change.steps().findIndex((s) => s.op === "join.merge"),
+            { clash: { holder: "overwrite" } },
+        );
+        await change.commit();
+        assert.include(factOfNext(), { joinsAdded: 1, joinsRemoved: 1 }, "a changed join is one of each");
+
+        const remove = session.data.draft();
+        remove.removeStep(remove.steps().findIndex((s) => s.op === "join.merge"));
+        await remove.commit();
+        assert.include(factOfNext(), { joinsAdded: 0, joinsRemoved: 1 });
+        session.dispose();
+    });
+
     it("a draft asked for while a commit is landing is refused, so it never starts from before it", async () => {
         const { session } = await phase2();
         const a = await session.data.stage(ACCOUNTS_CSV, { key: "account_id", type: "account" });

@@ -378,4 +378,12 @@ export default tseslint.config(
         files: ["src/lib/analytics.ts", "src/lib/analytics*.test.ts", "src/workspace/privacy/**"],
         rules: { camelcase: ["error", { properties: "never" }] },
     },
+    {
+        // Temporary: about 3,500 calls in the app's tests still hand vitest's userEvent an element
+        // (screen.getByRole(...), within(...).getByText(...)), which it turns into a selector at once.
+        // The rule (root eslint.config.js, local/no-element-to-user-event) is off here until they move
+        // to page locators; then delete this block (#10194). No `files`: a block naming "**" makes ESLint
+        // lint every file it matches, CSV and PNG included.
+        rules: { "local/no-element-to-user-event": "off" },
+    },
 );

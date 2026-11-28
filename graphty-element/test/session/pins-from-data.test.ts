@@ -1,13 +1,13 @@
 /**
  * A load with `pins: "data"` pins the nodes the file marks fixed (issue #2004): a Graphviz node
  * written `pos="x,y!"` or `pin=true`, a Cytoscape.js node with `"locked": true`, a sample dataset's
- * `fixed` column. Without the option the load pins nothing, as before.
+ * `fixed` column, a network source's file. Without the option the load pins nothing, as before.
  */
 
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../src/session";
+import { createGraphSession, defineSource, type GraphSession, registerSource } from "../../session";
 
 /** A DOT graph: a pinned with `!`, b pinned with `pin=true`, c placed but free. */
 const DOT = 'digraph { a [pos="0,0!"]; b [pos="10,0", pin=true]; c [pos="0,10"]; a -> b; a -> c; }';
@@ -53,6 +53,15 @@ function serveFixedDataset(): void {
         .toBytes();
     vi.stubGlobal("fetch", () => Promise.resolve(new Response(bytes.slice())));
 }
+
+/** A network source, read in memory, that answers with the DOT graph above. */
+registerSource(
+    defineSource({
+        id: "pins-dot",
+        descriptor: { plainName: "Pinned DOT", defaultEndpoint: "https://pins.example.test/", params: [] },
+        file: () => Promise.resolve({ body: DOT, format: "dot" }),
+    }),
+);
 
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -133,5 +142,26 @@ describe("pins from data", () => {
         const session = createGraphSession();
         await session.data.loadDataset("karate", { baseUrl: "https://datasets.test/" });
         assert.strictEqual(session.positions.pinned.size, 0);
+    });
+
+    it("pins the nodes a network source's file marks fixed", async () => {
+        const session = createGraphSession();
+        await session.data.import({ source: "pins-dot", config: {} }, { pins: "data" });
+        assert.sameMembers([...session.positions.pinned], ["a", "b"]);
+    });
+
+    it("pins none of a network source's nodes by default", async () => {
+        const session = createGraphSession();
+        await session.data.import({ source: "pins-dot", config: {} });
+        assert.strictEqual(session.snapshot().nodeCount, 3);
+        assert.strictEqual(session.positions.pinned.size, 0);
+    });
+
+    it("undoes a network source's pins with its load", async () => {
+        const session = createGraphSession();
+        await session.data.import({ source: "pins-dot", config: {} }, { pins: "data" });
+        await session.undo();
+        assert.strictEqual(session.positions.pinned.size, 0);
+        assert.strictEqual(session.snapshot().nodeCount, 0);
     });
 });

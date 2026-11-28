@@ -184,7 +184,10 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
         { nodes, edges, placeGroups: () => undefined } as unknown as LayoutManager,
         dataManager,
         null as never,
-        { getScene: () => babylon } as unknown as GraphContext,
+        {
+            getScene: () => babylon,
+            getStyles: () => ({ config: { graph: { startingRows: false } } }),
+        } as unknown as GraphContext,
     );
     manager.bindViewMasks({
         selection: { nodes: () => session.selection.nodeMembers(), edges: () => session.selection.edgeMembers() },

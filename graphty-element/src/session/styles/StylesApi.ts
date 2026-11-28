@@ -1919,6 +1919,8 @@ export interface StylesSources {
     readonly stateRevisionBesidesPointer?: () => number;
     /** {@link inputRevision} less its moves for the selection, the hover and the pins; see `stateRevisionBesidesPointer`. */
     readonly inputRevisionBesidesPointer?: () => number;
+    /** Moves on every commit of a set's members, which a `member` selector reads with no input move. */
+    readonly setsRevision?: () => number;
     /**
      * Aborted when the session holding the stack is disposed. Every edit still pending is
      * canceled with it, so a caller awaiting one gets an `AbortError` rather than waiting for
@@ -1957,6 +1959,37 @@ function readsReader(value: Scope | RuleTree): boolean {
 }
 
 /**
+ * Whether a count reads a channel's fixed value, not only whether it paints: an end caption
+ * counts against its arrow's type, a lift against 0, a shader list use by use, and what is drawn
+ * against whether an element is visible.
+ * @param channel - The channel.
+ * @returns True when the value is read.
+ */
+const COUNTED_BY_VALUE = (channel: string): boolean =>
+    channel === "edge.arrowHead" ||
+    channel === "edge.arrowTail" ||
+    channel === "edge.lift" ||
+    channel.endsWith(".visible") ||
+    channel.includes("shader");
+
+/**
+ * A layer's fixed values as its counts read them: each value no count reads by value stands as
+ * whether it is set.
+ * @param set - The layer's fixed values.
+ * @returns The values as counted.
+ */
+function shapeOfSet(set: Layer["set"]): Record<string, unknown> | undefined {
+    return set === undefined
+        ? undefined
+        : Object.fromEntries(
+              Object.entries(set).map(([channel, value]) => [
+                  channel,
+                  COUNTED_BY_VALUE(channel) || value === undefined || value === null ? value : true,
+              ]),
+          );
+}
+
+/**
  * Whether a layer can paint differently when the selection, the hover or the pins move: its
  * selector follows the reader (a state or hover selector, a member of the selection, a rule
  * reading either), or the selector or a binding reads the pins' column. Decided by the selector's
@@ -1969,6 +2002,8 @@ function followsReader(layer: Layer): boolean {
     const { selector } = layer;
     switch (selector.match) {
         case "state":
+            // The filter and the time window move these, and they move both state revisions.
+            return selector.state !== "ghosted" && selector.state !== "outsideWindow";
         case "hover":
             return true;
         case "member":
@@ -2448,19 +2483,99 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         sources.elements.reading === undefined ? read() : sources.elements.reading(read);
     /** A reading of the stack, kept while nothing it reads changes (see `readingCache.ts`). */
     const kept = createReadingCache(readingToken, reading);
-    /**
-     * Counts kept across selection, hover and pin changes, for a layer those states cannot move
-     * ({@link pointerFree}): the same token with the state revision that ignores them.
-     */
-    const keptPointerFree = createReadingCache(() => {
-        const token = readingToken();
-        const { inputRevisionBesidesPointer: input, stateRevisionBesidesPointer: state } = sources;
-        return token === null || input === undefined || state === undefined
-            ? null
-            : [...token.slice(0, 4), input(), state(), ...token.slice(6)];
-    }, reading);
     /** The selector answers of one moment, kept apart from the readings: a reading asks for them mid-read. */
     const keptMatches = createReadingCache(readingToken, reading);
+    /**
+     * What a layer's counts read of the stack, kept while the reading token stands: each layer's
+     * spec with the fixed values no count reads left out, and the bindings the counts walk with.
+     */
+    const keptShape = createReadingCache(readingToken, reading);
+    /**
+     * What a layer's counts read of the stack. A fixed value is read only for whether it paints
+     * and how the element adjusts it, except on the channels a count reads by value; a bound one
+     * is its prepared binding. So a color or size edit, which moves the reading token, leaves the
+     * shape where it was (issue #10296).
+     * @returns The shape, one part per layer and per binding.
+     */
+    const countShape = (): readonly unknown[] =>
+        keptShape("countShape", () =>
+            basePainting(current()).flatMap(({ layer }) => [
+                JSON.stringify({ ...layer, set: shapeOfSet(layer.set) }),
+                ...encodingOf(layer.id).flatMap((binding): readonly unknown[] =>
+                    binding.path === null && !COUNTED_BY_VALUE(binding.channel)
+                        ? [binding.channel, binding.paint(undefined) === undefined, binding.adjustment(undefined)]
+                        : [binding],
+                ),
+            ]),
+        );
+    /**
+     * Whether any layer paints `edge.lift`, the one channel whose count reads the layout.
+     * @returns True when one does.
+     */
+    const liftPainted = (): boolean =>
+        keptShape("liftPainted", () =>
+            basePainting(current()).some(
+                ({ layer }) => layer.set?.["edge.lift"] !== undefined || layer.encode?.["edge.lift"] !== undefined,
+            ),
+        );
+    /**
+     * Counts kept while nothing they read moves: the reading token less the stack's identity, the
+     * style and binding revisions and the layout, with the stack's {@link countShape} instead. A
+     * layout switch or an edit of a value no count reads keeps every layer's counts.
+     * @param input - The input revision to read.
+     * @param state - The state revision to read.
+     * @returns The cache.
+     */
+    const countCache = (
+        input: (() => number) | undefined,
+        state: (() => number) | undefined,
+    ): ReturnType<typeof createReadingCache> =>
+        createReadingCache(
+            () =>
+                readingToken() === null || input === undefined || state === undefined
+                    ? null
+                    : [
+                          branchesShown,
+                          viewPending,
+                          input(),
+                          state(),
+                          sources.setsRevision?.() ?? 0,
+                          dispatcher.state.config.get("editableBase"),
+                          ...countShape(),
+                      ],
+            reading,
+        );
+    const keptCounts = countCache(sources.inputRevision ?? ((): number => 0), sources.stateRevision);
+    /** {@link keptCounts} across selection, hover and pin changes, for a layer they cannot move ({@link pointerFree}). */
+    const keptCountsPointerFree = countCache(sources.inputRevisionBesidesPointer, sources.stateRevisionBesidesPointer);
+    /** Each kept count stamped with a later revision, so a kept answer still says when counts may have moved. */
+    const restamped = new WeakMap<StyleCounts, StyleCounts>();
+    /**
+     * A kept count with the revision of now.
+     * @param counts - The kept count.
+     * @param revision - The revision now.
+     * @returns The count, the same object while the revision stands.
+     */
+    const stampedWith = (counts: StyleCounts, revision: string): StyleCounts => {
+        if (counts.revision === revision) {
+            return counts;
+        }
+        const last = restamped.get(counts);
+        if (last?.revision === revision) {
+            return last;
+        }
+        const next = { ...counts, revision };
+        restamped.set(counts, next);
+        return next;
+    };
+    // What a layer selects among the drawn elements, kept as its counts are: what is drawn reads
+    // the stack too (a hidden look, the time window's layer between ghost and hide).
+    const keptMembership = countCache(sources.inputRevision ?? ((): number => 0), sources.stateRevision);
+    /** {@link keptMembership} across selection, hover and pin changes, for a selector that does not follow them. */
+    const keptMembershipPointerFree = countCache(
+        sources.inputRevisionBesidesPointer,
+        sources.stateRevisionBesidesPointer,
+    );
 
     /** One disabled stand-in per element base layer, so a repaint sees the same object each time. */
     const baseStandIns = new WeakMap<CompiledLayer, CompiledLayer>();
@@ -2852,10 +2967,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param id - The layer.
      * @returns The two counts.
      */
-    const amongDrawn = (id: LayerId): { readonly matched: number; readonly of: number } =>
+    const amongDrawn = (id: LayerId): { readonly matched: number; readonly of: number } => {
         // Kept as `counts` is: the graphty app reads the legend on every run and style event, and
         // each read walked every drawn element through the layer's selector (issue #10227).
-        kept(JSON.stringify(["amongDrawn", id, sources.workingGraph?.() === true]), () => walkDrawn(id));
+        const layer = byId().get(id)?.layer;
+        const cache = layer === undefined || followsReader(layer) ? keptMembership : keptMembershipPointerFree;
+        const key = ["amongDrawn", id, sources.workingGraph?.() === true, layer?.target, layer?.selector];
+        return cache(JSON.stringify(key), () => walkDrawn(id));
+    };
     /**
      * The walk behind {@link amongDrawn}.
      * @param id - The layer.
@@ -4891,13 +5010,19 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * The revision a count carries: it moves on every style change and every input move.
+     * @returns The revision.
+     */
+    const countsRevision = (): string => `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
+
+    /**
      * Count what one layer covers and where it wins: {@link StylesApi.counts}, read fresh.
      * @param id - The layer.
      * @param scope - Over the whole graph, or over what is shown.
      * @returns The counts.
      */
     const countsOf = (id: LayerId, scope: "graph" | "visible"): StyleCounts => {
-        const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
+        const revision = countsRevision();
         const shown = elementsOf(DRAWN);
 
         // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
@@ -5796,8 +5921,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // Kept while nothing it reads moves, as `agreement` is: a read walks the layer's kind of
             // element, and the graphty app's panels read the same layer several times a render
             // (issue #7966).
-            const key = JSON.stringify(["counts", id, scope]);
-            return (pointerFree(id) ? keptPointerFree : kept)(key, () => countsOf(id, scope));
+            // An edge layer's counts read whether a lift is drawn, which the layout decides, once a
+            // layer paints a lift at all.
+            const lift =
+                byId().get(id)?.layer.target === "edge" && liftPainted() ? (sources.liftDrawn?.() ?? false) : null;
+            const key = JSON.stringify(["counts", id, scope, lift]);
+            const counts = (pointerFree(id) ? keptCountsPointerFree : keptCounts)(key, () => countsOf(id, scope));
+            return stampedWith(counts, countsRevision());
         },
 
         drawnCount(id: LayerId): number {

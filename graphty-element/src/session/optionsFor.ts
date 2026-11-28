@@ -30,7 +30,7 @@ import {
 } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import { detectionRows } from "../layout/locationMap/sample";
-import { columnFits, type ColumnValues, type LocationRole } from "../layout/locationMap/source";
+import { type ColumnFit, columnFits, type ColumnValues, type LocationRole } from "../layout/locationMap/source";
 import { fieldMeasurement, type ResultsApi } from "./results/types";
 import type { Resolution } from "./sets/resolve";
 
@@ -58,6 +58,14 @@ export interface OptionsForSource {
     nodeColumns?(paths: readonly string[], rows?: readonly number[]): readonly (readonly unknown[] | null)[];
     /** The session's results, for a partition's choices; none when absent. */
     results?(): ResultsApi;
+    /**
+     * Keeps a role's column fits while the node columns stand: reading every column and guessing
+     * which hold locations is the cost of an answer. Absent, each answer reads them fresh.
+     * @param role - The role.
+     * @param read - Reads the fits.
+     * @returns The kept fits, or fresh ones.
+     */
+    keptFits?(role: LocationRole, read: () => readonly ColumnFit[]): readonly ColumnFit[];
 }
 
 /**
@@ -181,14 +189,15 @@ const LOCATION_ROLES: ReadonlySet<string> = new Set<LocationRole>(["latitude", "
  * @returns The choices.
  */
 function locationChoices(
-    columns: readonly ColumnValues[],
+    columns: () => readonly ColumnValues[],
     role: LocationRole,
     source: OptionsForSource,
 ): OptionDescriptor["values"] {
     const names = new Map(
         (source.attributes?.() ?? []).filter((a) => a.kind === "node").map((a) => [a.name, a.plainName]),
     );
-    return columnFits(columns, role).map((fit) => ({
+    const read = (): readonly ColumnFit[] => columnFits(columns(), role);
+    return (source.keptFits?.(role, read) ?? read()).map((fit) => ({
         value: fit.name,
         label: names.get(fit.name) ?? fit.name,
         ...(fit.fits
@@ -273,8 +282,9 @@ export function optionsFor(
         }
 
         if (key === "location-map" && LOCATION_ROLES.has(option.name)) {
-            locationColumns ??= locationValues(source, graph.nodeCount);
-            resolved.values = locationChoices(locationColumns, option.name as LocationRole, source);
+            const columns = (): readonly ColumnValues[] =>
+                (locationColumns ??= locationValues(source, graph.nodeCount));
+            resolved.values = locationChoices(columns, option.name as LocationRole, source);
         }
 
         // ponytail: node partitions only; an edge partition keeps no choices until one exists.

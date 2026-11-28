@@ -2401,21 +2401,31 @@ export class UpdateManager implements Manager {
      * are made when its first row is painted, and opaque looks at one depth draw in the order their
      * meshes were made, so painting the built rows first drew a `Node` read before the frame (issue
      * #9185) under looks the objects path draws it over.
+     *
+     * A batch is sized from the last batch's speed, which can be a far cheaper repaint than this one: a color pass
+     * paints a node in microseconds, and turning labels on builds each node a label in about half a millisecond, so
+     * the size a color pass set built 10,000 labels in one 7 s task. So a batch that rebuilds no mesh looks at the
+     * clock every {@link NODE_PAINT_BATCH} nodes once it has painted `least`, and leaves the rest waiting at the
+     * deadline. One that rebuilds a mesh paints every node it took: their meshes are already torn down, together.
+     * So does every batch on the `"batched"` path (see below).
      * @param painter - Where the paint is read from.
      * @param rows - Every node, by index.
      * @param size - The most nodes the batch takes.
+     * @param least - How many it paints whatever the clock says.
+     * @param deadline - When the frame's paint budget runs out, by `performance.now()`.
      * @returns Each node of the batch and its paint, how many rows were taken, and what painting them resized and rebuilt.
      */
     private paintNodeBatch(
         painter: StylePainter,
         rows: Pick<ReadonlyMap<number, Node>, "get">,
         size: number,
+        least: number,
+        deadline: number,
     ): { painted: [Node, NodePaint][]; taken: number; resized: ReadonlySet<Node>; rebuilt: boolean } {
         const painted: [Node, NodePaint][] = [];
-        const taken = painter.takeNodes(size);
-        this.notePaintedRows(taken);
+        const planned = painter.peekNodes(size);
         const existing: [Node, NodePaint][] = [];
-        for (const index of taken) {
+        for (const index of planned) {
             const node = rows.get(index);
             const paint = node === undefined ? null : painter.nodePaint(index);
             if (node !== undefined && paint !== null) {
@@ -2425,28 +2435,57 @@ export class UpdateManager implements Manager {
 
         // one teardown for the whole batch, before any of it is painted (see `paintNodes`)
         const rebuilt = releaseRebuiltMeshes(existing);
+        // Not under "batched": a row built there is painted when `buildRowsTogether` ends, after the loop, so the
+        // clock in it sees none of that paint, and stopping early only split a label build into more batches,
+        // each walking the scene's textures once (batched-label-restyle-scene-scans.test.ts).
+        const stops = rebuilt.length === 0 && (this.graphContext.getNodeBatches?.() ?? null) === null;
+        let taken = 0;
         let resized: ReadonlySet<Node> = new Set();
         dataManagerInternals.buildRowsTogether(this.dataManager, () => {
             resized = collectResizedNodes(() => {
-                for (const index of taken) {
-                    const own = rows.get(index);
-                    const node = own ?? this.unbuiltPainted(painter, index);
-                    const paint = node === undefined ? null : painter.nodePaint(index);
-                    if (node === undefined || paint === null) {
-                        continue;
-                    }
-
-                    painted.push([node, paint]);
-                    if (own !== undefined) {
-                        const toggles = own.togglesOwnMeshes();
-                        own.applySessionPaint(paint);
-                        this.ownMeshesPainted ||= toggles || own.togglesOwnMeshes();
-                    }
+                while (taken < planned.length && !(stops && taken >= least && performance.now() >= deadline)) {
+                    const end = stops
+                        ? Math.min(planned.length, Math.max(least, taken + NODE_PAINT_BATCH))
+                        : planned.length;
+                    const chunk = painter.takeNodes(end - taken);
+                    taken = end;
+                    this.notePaintedRows(chunk);
+                    this.paintTakenNodes(painter, rows, chunk, painted);
                 }
             });
         });
 
-        return { painted, taken: taken.length, resized, rebuilt: rebuilt.length > 0 };
+        return { painted, taken, resized, rebuilt: rebuilt.length > 0 };
+    }
+
+    /**
+     * Paint rows a batch took, in row order, building a `Node` for a row drawn with none when it needs one.
+     * @param painter - Where the paint is read from.
+     * @param rows - Every node, by index.
+     * @param taken - The rows.
+     * @param painted - Receives each node painted and its paint.
+     */
+    private paintTakenNodes(
+        painter: StylePainter,
+        rows: Pick<ReadonlyMap<number, Node>, "get">,
+        taken: readonly number[],
+        painted: [Node, NodePaint][],
+    ): void {
+        for (const index of taken) {
+            const own = rows.get(index);
+            const node = own ?? this.unbuiltPainted(painter, index);
+            const paint = node === undefined ? null : painter.nodePaint(index);
+            if (node === undefined || paint === null) {
+                continue;
+            }
+
+            painted.push([node, paint]);
+            if (own !== undefined) {
+                const toggles = own.togglesOwnMeshes();
+                own.applySessionPaint(paint);
+                this.ownMeshesPainted ||= toggles || own.togglesOwnMeshes();
+            }
+        }
     }
 
     /**
@@ -2625,6 +2664,12 @@ export class UpdateManager implements Manager {
     /** How many nodes the last node batch painted a millisecond, or 0 before one has been timed. */
     private nodePaintRate = 0;
 
+    /** How long the render loop's last pass spent applying paint, in ms. */
+    private lastPaintMs = 0;
+
+    /** The render loop's last frame less the paint the pass before it applied, in ms; none before a frame. */
+    private lastDrawnMs = Number.POSITIVE_INFINITY;
+
     /**
      * How many nodes a frame's batch takes: what the last batch's speed says fits in the budget,
      * never fewer than {@link NODE_PAINT_BATCH}, and never fewer than a {@link REPAINT_FRAMES}-th of
@@ -2674,13 +2719,22 @@ export class UpdateManager implements Manager {
         // takes one batch: as many nodes as the last batch's speed says fit in the budget, and never
         // less than a REPAINT_FRAMES-th of the graph, so the pass is paid at most that many times
         // however large the graph. Labels the batch's rebuilds drop are released together too.
+        const nodes = this.dataManager.nodes.size;
         const { resized, rebuilt } = disposeLabelsTogether(() => {
             const start = performance.now();
             const {
                 painted: batch,
                 taken,
                 ...painted
-            } = this.paintNodeBatch(painter, rows, this.nodeBatchSize(deadline - start, this.dataManager.nodes.size));
+            } = this.paintNodeBatch(
+                painter,
+                rows,
+                this.nodeBatchSize(deadline - start, nodes),
+                minimumWorkPerFrame()
+                    ? MINIMUM_PAINT_BATCH
+                    : Math.max(NODE_PAINT_BATCH, Math.ceil(nodes / REPAINT_FRAMES)),
+                deadline,
+            );
             if (painter.nodesFromBuildsOnly) {
                 for (const [node] of batch) {
                     this.builtNodesPainted.add(node);
@@ -3907,8 +3961,20 @@ export class UpdateManager implements Manager {
             // applies the whole repaint, as a caller drawing one frame to read the result expects.
             // In the minimum-work mode a frame applies one batch of each kind and leaves the rest.
             const heldBatched = this.dataManager.drawHeld && (this.graphContext.getNodeBatches?.() ?? null) !== null;
-            const budget = minimumWorkPerFrame() ? 0 : styleBudgetFor(frameMs, heldBatched);
+            // A frame long because of this repaint, or of one stretch of page work (the app's panel re-rendering
+            // after the click that asked for the repaint), says nothing about how slow drawing is. Taken as a slow
+            // frame, its whole length became the next repaint budget, so each frame grew by the last one's paint: the
+            // frames of a label build at 10,000 nodes. So the slow-frame rule reads the frame less its own paint, and
+            // the smaller of that and the frame before. A held draw still takes the whole frame: nothing waits on it.
+            const drawnMs = Math.max(0, frameMs - this.lastPaintMs);
+            const steadyMs = heldBatched ? frameMs : Math.min(drawnMs, this.lastDrawnMs);
+            const budget = minimumWorkPerFrame() ? 0 : styleBudgetFor(steadyMs, heldBatched);
+            const began = performance.now();
             this.syncStyles(frameMs > 0 ? budget : Number.POSITIVE_INFINITY);
+            if (frameMs > 0) {
+                this.lastDrawnMs = drawnMs;
+                this.lastPaintMs = performance.now() - began;
+            }
         });
     }
 

@@ -60,6 +60,10 @@
         "reason": "Its one node has a table label, which no batch draws (shape.labelTable is not a batchable key), so it is an object on either path"
     },
     {
+        "file": "test/browser/labels-on-spreads-over-frames.test.ts",
+        "reason": "Sets the objects path by hand: it counts labels built by the objects path's per-frame batch"
+    },
+    {
         "file": "test/browser/node-border-keeps-shape-3d-zoom.test.ts",
         "reason": "Its nodes have a border, which no batch draws (a node batch has no border), so they are objects on either path"
     }

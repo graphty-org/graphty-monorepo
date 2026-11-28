@@ -205,7 +205,11 @@ describe("distanceMeasures", () => {
                 for (const [c, agg] of perComponent) {
                     assert.strictEqual(r.componentDiameter[c], agg.max);
                     assert.strictEqual(r.componentRadius[c], agg.min);
-                    assert.closeTo(r.componentAverageShortestPathLength[c], agg.pairs === 0 ? 0 : agg.sum / agg.pairs, 1e-12);
+                    assert.closeTo(
+                        r.componentAverageShortestPathLength[c],
+                        agg.pairs === 0 ? 0 : agg.sum / agg.pairs,
+                        1e-12,
+                    );
                 }
                 s.validate({ checksum: true });
             }

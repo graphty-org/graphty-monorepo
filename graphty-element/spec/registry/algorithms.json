@@ -2299,6 +2299,105 @@
                     "type": "number"
                 }
             ]
+        },
+        {
+            "key": "distance-measures",
+            "formerKeys": [],
+            "shape": "node-metric",
+            "scopeInput": "subgraph",
+            "weightMeaning": "distance",
+            "options": [
+                {
+                    "name": "k",
+                    "type": "integer",
+                    "default": null,
+                    "min": 1
+                },
+                {
+                    "name": "weight",
+                    "type": "attribute",
+                    "default": null,
+                    "on": "edge"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "value",
+                    "kind": "node",
+                    "type": "number",
+                    "polarity": "lower"
+                },
+                {
+                    "name": "rank",
+                    "kind": "node",
+                    "type": "integer",
+                    "polarity": "lower"
+                },
+                {
+                    "name": "percentile",
+                    "kind": "node",
+                    "type": "number",
+                    "domain": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                {
+                    "name": "min",
+                    "kind": "graph",
+                    "type": "number"
+                },
+                {
+                    "name": "max",
+                    "kind": "graph",
+                    "type": "number"
+                },
+                {
+                    "name": "median",
+                    "kind": "graph",
+                    "type": "number"
+                },
+                {
+                    "name": "mean",
+                    "kind": "graph",
+                    "type": "number"
+                },
+                {
+                    "name": "measured",
+                    "kind": "graph",
+                    "type": "integer"
+                },
+                {
+                    "name": "normalization",
+                    "kind": "graph",
+                    "type": "string"
+                },
+                {
+                    "name": "tiedAtMin",
+                    "kind": "graph",
+                    "type": "integer"
+                },
+                {
+                    "name": "diameter",
+                    "kind": "graph",
+                    "type": "number"
+                },
+                {
+                    "name": "radius",
+                    "kind": "graph",
+                    "type": "number"
+                },
+                {
+                    "name": "averageShortestPathLength",
+                    "kind": "graph",
+                    "type": "number"
+                },
+                {
+                    "name": "componentCount",
+                    "kind": "graph",
+                    "type": "integer"
+                }
+            ]
         }
     ]
 }

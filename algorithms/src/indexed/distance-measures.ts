@@ -124,7 +124,13 @@ export function distanceMeasures(s: GraphSnapshot, options: DistanceMeasuresOpti
     const searched = new Uint8Array(count);
 
     const adj = adjacency(s, options, false);
-    checkWeights("distanceMeasures", adj.weights, s.arcCount, false, options.weights === undefined ? s.flags : undefined);
+    checkWeights(
+        "distanceMeasures",
+        adj.weights,
+        s.arcCount,
+        false,
+        options.weights === undefined ? s.flags : undefined,
+    );
     const search = searcher(n, adj, Infinity);
     for (const source of sources) {
         const { furthest, sum, others } = searchFrom(search, source);

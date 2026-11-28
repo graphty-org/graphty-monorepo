@@ -15,7 +15,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, Layer, RuleTree, Selector } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
@@ -75,13 +75,13 @@ async function layerOf(
  */
 async function clickRow(name: string, modifier?: "Control"): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    const row = await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) });
+    const row = (): Locator => page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) });
     if (modifier === undefined) {
-        await userEvent.click(row);
+        await userEvent.click(row());
         return;
     }
     await userEvent.keyboard(`{${modifier}>}`);
-    await userEvent.click(row);
+    await userEvent.click(row());
     await userEvent.keyboard(`{/${modifier}}`);
 }
 
@@ -123,8 +123,8 @@ async function addCard(field: string, kind: "nodes" | "edges" = "nodes"): Promis
         await userEvent.click(await whichRow(kind));
     }
     const region = await screen.findByRole("group", { name: `Which ${kind}` });
-    await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${field}(,|$)`) }));
+    await userEvent.click(page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }));
+    await userEvent.click(page.getByRole("option", { name: new RegExp(`^${field}(,|$)`) }));
     return waitFor(() => {
         const card = within(region).getByRole("group", { name: new RegExp(`^${field}(,|$)`) });
         // Focus goes to the new card's first control.
@@ -185,7 +185,7 @@ async function chipCount(words: string): Promise<number> {
  */
 async function done(kind: "nodes" | "edges" = "nodes"): Promise<void> {
     const region = await screen.findByRole("group", { name: `Which ${kind}` });
-    await userEvent.click(within(region).getByRole("button", { name: "Done" }));
+    await userEvent.click(page.elementLocator(region).getByRole("button", { name: "Done", exact: true }));
     const row = await whichRow(kind);
     await waitFor(() => {
         assert.strictEqual(document.activeElement, row, "focus returns to the Which row");
@@ -274,7 +274,9 @@ describe("the combined Style panel", () => {
         const layer = await layerOf(session, "Busy");
         await cardsFor(session, "Busy");
         const card = await addCard(degree?.name ?? "");
-        const from = within(card).getByRole("textbox", { name: `${degree?.name ?? ""} from, number` });
+        const from = page
+            .elementLocator(card)
+            .getByRole("textbox", { name: `${degree?.name ?? ""} from, number`, exact: true });
         await userEvent.clear(from);
         await userEvent.type(from, "10");
         await userEvent.tab();
@@ -296,8 +298,12 @@ describe("the combined Style panel", () => {
         // Highest 5 of all nodes: a threshold leaf.
         await userEvent.click(await whichRow());
         const open = await screen.findByRole("group", { name: new RegExp(`^${degree?.name ?? ""}(,|$)`) });
-        await userEvent.click(within(open).getByRole("combobox", { name: `${degree?.name ?? ""}: how to match` }));
-        await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
+        await userEvent.click(
+            page
+                .elementLocator(open)
+                .getByRole("combobox", { name: `${degree?.name ?? ""}: how to match`, exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: "Highest", exact: true }));
         assert.isNotNull(within(open).getByText("of all nodes"));
         await waitFor(() => {
             const top = leafOfLayer(session, layer.id);
@@ -314,9 +320,8 @@ describe("the combined Style panel", () => {
         await cardsFor(session, "Groups");
         const card = await addCard(group?.name ?? "");
         const values = within(card).getByRole("group", { name: `${group?.name ?? ""} values` });
-        const boxes = within(values).getAllByRole("checkbox");
-        await userEvent.click(boxes[0]);
-        await userEvent.click(boxes[1]);
+        await userEvent.click(page.elementLocator(values).getByRole("checkbox").nth(0));
+        await userEvent.click(page.elementLocator(values).getByRole("checkbox").nth(1));
         await waitFor(() => {
             const leaf = leafOfLayer(session, layer.id);
             assert.strictEqual(leaf?.kind, "categories");
@@ -333,7 +338,10 @@ describe("the combined Style panel", () => {
         await cardsFor(session, "Names");
         const steps = session.history.position;
         const card = await addCard("name");
-        await userEvent.type(within(card).getByRole("combobox", { name: "name: text to match" }), "Mme");
+        await userEvent.type(
+            page.elementLocator(card).getByRole("combobox", { name: "name: text to match", exact: true }),
+            "Mme",
+        );
         await waitFor(() => {
             assert.deepEqual(leafOfLayer(session, layer.id), {
                 kind: "text",
@@ -345,7 +353,7 @@ describe("the combined Style panel", () => {
         // The first Escape closes the list of names that hold the text; the second keeps the
         // picker open, and Done closes it.
         await userEvent.keyboard("{Escape}{Escape}");
-        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await userEvent.click(page.getByRole("button", { name: "Done", exact: true }));
         const row = await whichRow();
         await waitFor(() => {
             assert.strictEqual(document.activeElement, row, "Done closes the picker onto its row");
@@ -388,9 +396,9 @@ describe("the combined Style panel", () => {
         });
         await cardsFor(session, "Thenardiers");
         await userEvent.click(
-            within(await screen.findByRole("tablist", { name: "Style for" })).getByRole("tab", { name: /^Edge/ }),
+            page.getByRole("tablist", { name: "Style for", exact: true }).getByRole("tab", { name: /^Edge/ }),
         );
-        await userEvent.click(screen.getByRole("checkbox", { name: "Style edges" }));
+        await userEvent.click(page.getByRole("checkbox", { name: "Style edges", exact: true }));
         const edgePart = await waitFor(() => {
             const id = session.styles.parts(layer.id)?.edge;
             assert.isDefined(id, "an edge part");
@@ -404,13 +412,16 @@ describe("the combined Style panel", () => {
 
         // A node card edited on the Node tab moves the edges with it.
         await userEvent.click(
-            within(screen.getByRole("tablist", { name: "Style for" })).getByRole("tab", { name: "Node" }),
+            page
+                .getByRole("tablist", { name: "Style for", exact: true })
+                .getByRole("tab", { name: "Node", exact: true }),
         );
         await userEvent.click(await whichRow());
         const card = await screen.findByRole("group", { name: /^name/ });
-        const text = within(card).getByRole("combobox", { name: "name: text to match" });
-        await userEvent.clear(text);
-        await userEvent.type(text, "Mme");
+        const text = (): Locator =>
+            page.elementLocator(card).getByRole("combobox", { name: "name: text to match", exact: true });
+        await userEvent.clear(text());
+        await userEvent.type(text(), "Mme");
         await waitFor(() => {
             const edge = session.styles.get(edgePart)?.selector;
             assert.deepEqual(edge, {
@@ -438,19 +449,22 @@ describe("the combined Style panel", () => {
         // Each layer's value, top first as the tree lists them, without the field's name again.
         const summary = within(byLayer).getByRole("button", { name: /from each layer/ });
         assert.match(summary.getAttribute("aria-label") ?? "", /Group 1, Group 2, Group 3, \+\d/);
-        await userEvent.click(summary);
+        await userEvent.click(page.elementLocator(byLayer).getByRole("button", { name: /from each layer/ }));
         // Each line draws its layer and value; its count is its tooltip, never drawn (#8739).
         await waitFor(() => {
             const first = within(byLayer).getAllByRole("listitem")[0]?.textContent ?? "";
             assert.strictEqual(first, "Group 1: Group 1", "the first line is the tree's first layer");
         });
         // The open cards say the union, as the closed row does (counted the same way), in Done's tooltip.
-        await userEvent.hover(within(region).getByRole("button", { name: "Done" }));
+        await userEvent.hover(page.elementLocator(region).getByRole("button", { name: "Done", exact: true }));
         assert.isNotNull(await screen.findByText(/^77 of 77 nodes$/));
 
         const steps = session.history.position;
         const card = await addCard("name");
-        await userEvent.type(within(card).getByRole("combobox", { name: "name: text to match" }), "e");
+        await userEvent.type(
+            page.elementLocator(card).getByRole("combobox", { name: "name: text to match", exact: true }),
+            "e",
+        );
         await waitFor(() => {
             for (const id of layers) {
                 const selector = session.styles.get(id)?.selector;
@@ -472,7 +486,9 @@ describe("the combined Style panel", () => {
         await userEvent.click(await whichRow());
         const open = await screen.findByRole("group", { name: "Which nodes" });
         const groupCard = within(open).getByRole("group", { name: /from each layer/ });
-        await userEvent.click(within(groupCard).getByRole("button", { name: /^Remove .* from every layer$/ }));
+        await userEvent.click(
+            page.elementLocator(groupCard).getByRole("button", { name: /^Remove .* from every layer$/ }),
+        );
         await waitFor(() => {
             for (const id of folderLayers(session)) {
                 assert.notInclude(JSON.stringify(session.styles.get(id)?.selector), "categories", id);
@@ -490,8 +506,9 @@ describe("the combined Style panel", () => {
         await userEvent.click(await whichRow());
         const steps = session.history.position;
         const card = await screen.findByRole("group", { name: /^name/ });
-        const text = within(card).getByRole("combobox", { name: "name: text to match" });
-        await userEvent.type(text, "me");
+        const text = (): Locator =>
+            page.elementLocator(card).getByRole("combobox", { name: "name: text to match", exact: true });
+        await userEvent.type(text(), "me");
         await waitFor(() => {
             for (const id of [a.id, b.id]) {
                 assert.deepEqual(leafOfLayer(session, id), { ...leaf, text: "Mme" }, id);
@@ -508,9 +525,9 @@ describe("the combined Style panel", () => {
         await louvainLayers(session);
         await clickRow("Louvain");
         await userEvent.click(
-            within(await screen.findByRole("tablist", { name: "Style for" })).getByRole("tab", { name: /^Edge/ }),
+            page.getByRole("tablist", { name: "Style for", exact: true }).getByRole("tab", { name: /^Edge/ }),
         );
-        await userEvent.click(await screen.findByRole("checkbox", { name: "Style edges" }));
+        await userEvent.click(page.getByRole("checkbox", { name: "Style edges", exact: true }));
         const row = await whichRow("edges");
         assert.match(row.getAttribute("aria-label") ?? "", /^Which edges, Ends/, "no 'of 254 edges' without a number");
         assert.include(row.getAttribute("aria-label") ?? "", "Ends: both in this layer's nodes");
@@ -592,7 +609,7 @@ describe("the combined Style panel", () => {
             .getAllByRole("group")
             .filter((each) => each.hasAttribute("data-card"));
         assert.lengthOf(cards, 2);
-        await userEvent.click(within(cards[0]).getByRole("button", { name: /^Remove / }));
+        await userEvent.click(page.elementLocator(cards[0]).getByRole("button", { name: /^Remove / }));
         await waitFor(() => {
             const left = within(region)
                 .getAllByRole("group")
@@ -603,7 +620,7 @@ describe("the combined Style panel", () => {
         const last = within(region)
             .getAllByRole("group")
             .filter((each) => each.hasAttribute("data-card"))[0];
-        await userEvent.click(within(last).getByRole("button", { name: /^Remove / }));
+        await userEvent.click(page.elementLocator(last).getByRole("button", { name: /^Remove / }));
         await waitFor(() => {
             assert.strictEqual(
                 document.activeElement,
@@ -631,8 +648,10 @@ describe("the combined Style panel", () => {
         assert.isNotNull(screen.queryByRole("group", { name: "Which nodes" }), "and leaves the cards open");
 
         const region = screen.getByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-        await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
+        await userEvent.click(
+            page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
         await waitFor(() => {
             const cards = within(region).getAllByRole("group", { name: new RegExp(`^${name}(,|$)`) });
             assert.lengthOf(cards, 1, "no second card on the field");

@@ -18,7 +18,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -74,7 +74,7 @@ async function openLayer(session: GraphSession, name: string, where?: UnionLeaf)
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -99,7 +99,7 @@ async function opened(): Promise<HTMLElement> {
  * @returns the open workspace.
  */
 async function edit(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
     return opened();
 }
 
@@ -144,7 +144,7 @@ describe("the preview is the canvas", () => {
                 assert.closeTo(box?.[side] ?? 0, want?.[side] ?? 0, 1, `the drawing's ${side} is the cell's`);
             }
         });
-        await userEvent.click(within(ws).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
             assert.closeTo(element?.getBoundingClientRect().width ?? 0, before?.width ?? 0, 1, "the canvas again");
@@ -192,9 +192,9 @@ describe("Redo", () => {
         await session.visibility.updateCondition("c1", {
             rule: { kind: "range", attribute: "graphty.degree", min: 12 },
         });
-        const toolbar = await screen.findByRole("button", { name: /^Undo/ });
+        const toolbar = page.getByRole("button", { name: /^Undo/ });
         await userEvent.click(toolbar);
-        await userEvent.click(await screen.findByRole("button", { name: /^Redo/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Redo/ }));
         await waitFor(() => {
             const said = store.get().announcement ?? "";
             assert.match(said, /^Redid /);

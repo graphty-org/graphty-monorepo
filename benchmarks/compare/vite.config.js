@@ -1,6 +1,9 @@
 // One build per measured source. BENCH_LABEL names the output directory, builds/<label>.
 // `vite build` also needs BENCH_SOURCE: the checkout whose dist is measured. Its identity is baked
 // into the page, so a result row always names the build that really ran, not the one you meant.
+// Vite 8 (Rolldown), like the rest of the repository: the page bundles the whole element, about 5,400 modules
+// and 50 MB of source, and Vite 7's Rollup held that graph and its sourcemaps in the JS heap, past Node's
+// default 4 GB limit for a sourcemapped build (#10400). Rolldown keeps it in native memory.
 import { defineConfig } from "vite";
 import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";

@@ -56,7 +56,7 @@ const place = (): HTMLElement => screen.getByRole("region", { name: "Data place"
  * @returns the row.
  */
 async function calculatedRow(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
+    await userEvent.click(page.getByRole("tab", { name: "Calculated", exact: true }));
     const list = await screen.findByRole("list", { name: "Results" });
     return waitFor(() => {
         const found = list.querySelector<HTMLElement>("[data-run]");
@@ -103,7 +103,7 @@ describe("the Data place's Sources and Calculated tabs", () => {
             },
         });
         await within(place()).findByRole("list", { name: "Filters" });
-        await userEvent.click(within(list).getByRole("tab", { name: "Calculated" }));
+        await userEvent.click(page.elementLocator(list).getByRole("tab", { name: "Calculated", exact: true }));
         await waitFor(() => {
             assert.strictEqual(
                 within(list).getByRole("tab", { name: "Calculated" }).getAttribute("aria-selected"),
@@ -116,23 +116,23 @@ describe("the Data place's Sources and Calculated tabs", () => {
 
     it("an empty Calculated tab offers Analyze with its key, and no sentence", async () => {
         await openData();
-        await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
+        await userEvent.click(page.getByRole("tab", { name: "Calculated", exact: true }));
         const analyze = await within(place()).findByRole("button", { name: /^Analyze/ });
         assert.strictEqual(analyze.getAttribute("aria-keyshortcuts"), "Shift+A");
         assert.include(analyze.textContent ?? "", "A", "the key on the button");
         assert.isNull(analyze.querySelector(".mantine-Kbd-root"), "the key as a menu's quiet hint, not a filled box");
-        await userEvent.click(analyze);
+        await userEvent.click(page.elementLocator(place()).getByRole("button", { name: /^Analyze/ }));
         await screen.findByRole("dialog", { name: /Analyze/ });
     });
 
     it("keeps the tab chosen across a visit to another place", async () => {
         const { store } = await openData();
-        await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
+        await userEvent.click(page.getByRole("tab", { name: "Calculated", exact: true }));
         store.set({ place: "graph" });
         await waitFor(() => {
             assert.isNull(document.querySelector('[aria-label="Data place"]'));
         });
-        await userEvent.click(screen.getByRole("button", { name: /^Data/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Data/ }));
         const calculated = await within(place()).findByRole("tab", { name: "Calculated" });
         assert.strictEqual(calculated.getAttribute("aria-selected"), "true");
     });
@@ -152,7 +152,7 @@ describe("the Data place's Sources and Calculated tabs", () => {
         assert.isNotNull(used.querySelector(".lucide-paintbrush"), "a style's own glyph, not a link");
         assert.isNull(row.querySelector(".lucide-link-2"), "no link glyph, which Sources uses for a source");
 
-        await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: /^More for / }));
         const items = await screen.findAllByRole("menuitem");
         assert.deepEqual(
             items.map(
@@ -185,10 +185,10 @@ describe("the Data place's Sources and Calculated tabs", () => {
         await waitFor(() => {
             assert.isNull(within(row).queryByRole("img", { name: /^Styles/ }), "nothing uses it now");
         });
-        await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: /^More for / }));
         const apply = await screen.findByRole("menuitem", { name: /^Apply style/ });
         assert.notInclude(apply.textContent ?? "", "Already styled");
-        await userEvent.click(apply);
+        await userEvent.click(page.getByRole("menuitem", { name: /^Apply style/ }));
         await waitFor(() => {
             assert.isAbove(session.runs.bindings(id).length, 0, "its style is applied");
         });
@@ -241,8 +241,8 @@ describe("the Data place's Sources and Calculated tabs", () => {
         assert.strictEqual(values.getAttribute("aria-selected"), "true");
         assert.isNull(inspector.queryByRole("tab", { name: "Style" }), "no empty Style tab");
 
-        await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Apply style/ }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: /^More for / }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Apply style/ }));
         await inspector.findByRole("tab", { name: "Style" });
     });
 
@@ -261,7 +261,7 @@ describe("the Data place's Sources and Calculated tabs", () => {
         const group = await within(place()).findByRole("group", { name: /^Degree 3\+, \d+ of 77 nodes$/u });
         within(group).getByRole("checkbox", { name: "Use" });
         within(group).getByRole("button", { name: "Edit" });
-        await userEvent.click(within(group).getByRole("button", { name: "More" }));
+        await userEvent.click(page.elementLocator(group).getByRole("button", { name: "More", exact: true }));
         const edit = await screen.findByRole("menuitem", { name: /^Edit/ });
         assert.include(edit.textContent ?? "", "Enter", "Edit shows its key");
     });

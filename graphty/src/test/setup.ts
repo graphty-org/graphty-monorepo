@@ -4,8 +4,20 @@ import "@mantine/core/styles.css";
 
 import { cleanup, configure } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach } from "vitest";
+import { type Locator, locators } from "vitest/browser";
 
 import { WAIT_GUARD_MS } from "../../../tools/test-wait-guard.mjs";
+
+// A CSS locator, for the few things userEvent acts on that have no role, name or text (the
+// drawing's host, a modal's backdrop). Like page.getByRole, Playwright resolves it when it acts;
+// an element handed to userEvent is turned into a selector at once, which can match a second
+// element by then (#10194, lint rule local/no-element-to-user-event).
+locators.extend({ getByCss: (css: string) => `css=${css}` });
+declare module "vitest/browser" {
+    interface LocatorSelectors {
+        getByCss(css: string): Locator;
+    }
+}
 
 // Every waitFor and findBy* waits until the monorepo's one hang guard, not Testing Library's 1000 ms:
 // a deadline on a wait fails a test whenever the machine is busy (tools/test-wait-guard.mjs).

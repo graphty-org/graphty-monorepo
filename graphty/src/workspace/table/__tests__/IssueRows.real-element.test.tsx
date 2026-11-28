@@ -89,9 +89,11 @@ describe("the table's rows with issues", () => {
             assert.deepEqual(tinted, ["BRISTOL"], "its affected cell is tinted");
         });
 
-        const warning = within(headerCell(dock, "city")).getByRole("img", { name: "Issues in city" });
+        const warning = page
+            .elementLocator(headerCell(dock, "city"))
+            .getByRole("img", { name: "Issues in city", exact: true });
         await userEvent.hover(warning);
-        await userEvent.click(await screen.findByRole("button", { name: "Ignore all issues in city" }));
+        await userEvent.click(page.getByRole("button", { name: "Ignore all issues in city", exact: true }));
         await waitFor(() => {
             assert.isNull(within(headerCell(dock, "city")).queryByRole("img", { name: "Issues in city" }));
             assert.lengthOf(session.data.issues(), 0);
@@ -124,7 +126,7 @@ describe("the table's rows with issues", () => {
 
         await userEvent.keyboard("{Shift>}T{/Shift}");
         const dock = await screen.findByRole("region", { name: "Table" });
-        await userEvent.click(await within(dock).findByRole("tab", { name: "Edges" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: "Edges", exact: true }));
         const chip = await within(dock).findByRole("checkbox", { name: /^With issues/ });
         const label = (chip as HTMLInputElement).labels?.[0];
         assert.isDefined(label, "the chip has a label");

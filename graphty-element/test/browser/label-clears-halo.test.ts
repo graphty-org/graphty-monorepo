@@ -233,4 +233,41 @@ describe("a label and the ring around its node", () => {
         const after = words(graph, node);
         assert.approximately(after.bottom, before.bottom, 0.5, "with no ring the label is where it was");
     });
+
+    it("keep the gap from the drawn ring below a node stretched wide", async () => {
+        // The ring is the node's own shape grown one band all round, so below a node three times as wide as tall it
+        // reaches a band past the node's bottom -- not as far as its WIDTH times the ring's scale, which once put
+        // the label far below the ring actually drawn.
+        const graph = await labelled([{ id: "wide", position: { x: 0, y: 0, z: 0 } }]);
+        const node = graph.getNode("wide");
+        assert.isOk(node);
+        await graph.getSession().styles.add({
+            name: "wide",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.width": 3, "node.height": 1, "node.labelLocation": "bottom" },
+        });
+        await operationQueueOf(graph).waitForCompletion();
+        await draw(graph);
+        const { mesh } = node;
+        mesh.computeWorldMatrix(true);
+        const nodeBottom = project(graph, new Vector3(0, mesh.getBoundingInfo().boundingBox.minimumWorld.y, 0)).y;
+        const gap = words(graph, node).top - nodeBottom;
+
+        await graph.getSession().styles.add({
+            name: "ring",
+            target: "node",
+            selector: { match: "ids", nodes: ["wide"] },
+            set: { "node.haloColor": "#FFD700", "node.haloScale": 1.45, "node.haloOpacity": 1 },
+        });
+        await operationQueueOf(graph).waitForCompletion();
+        await draw(graph);
+        const { halo } = nodeInternals.drawn(node);
+        assert.isOk(halo);
+        halo.computeWorldMatrix(true);
+        const ringBottom = project(graph, new Vector3(0, halo.getBoundingInfo().boundingBox.minimumWorld.y, 0)).y;
+        const top = words(graph, node).top;
+        assert.isAtLeast(top, ringBottom, "the words are clear of the ring");
+        assert.approximately(top - ringBottom, gap, 2, "the words keep the same gap from the ring as from the node");
+    });
 });

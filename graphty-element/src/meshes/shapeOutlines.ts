@@ -901,7 +901,7 @@ export function outlineOfTriangles(points: readonly Point2[], triangles: ArrayLi
  * @param cells - How many grid cells across the shape's larger side.
  * @returns The outline, counter-clockwise; empty when the triangles have no extent.
  */
-function silhouetteOutline(points: readonly Point2[], triangles: ArrayLike<number>, cells = 256): Point2[] {
+export function silhouetteOutline(points: readonly Point2[], triangles: ArrayLike<number>, cells = 256): Point2[] {
     let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
     for (const [x, y] of points) {
         [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];

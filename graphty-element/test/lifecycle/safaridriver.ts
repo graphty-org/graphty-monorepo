@@ -121,36 +121,43 @@ async function registered(pid: number, since: string): Promise<void> {
 }
 
 /**
- * Launch Safari once and wait until it has loaded a page and webinspectord has registered it, unless
- * Safari is already running (then only the registration is awaited). Safari is left running, so every
- * session adopts a Safari that is already up instead of safaridriver launching one. Runs with
- * safaridriver already started, so the webinspectord that registers it is the one the sessions use.
+ * Make Safari ready for the sessions before the first one starts: unless Safari is already running,
+ * launch it once, wait until it has loaded a page and webinspectord has registered it, and quit it; then
+ * launch it again in automation mode, as safaridriver would, wait until webinspectord has registered that
+ * one, and leave it running. Runs with safaridriver already started, so the webinspectord that registers
+ * it is the one the sessions use.
  *
  * A Safari that safaridriver launches itself has to launch and become ready inside safaridriver's own
- * fixed windows, and three first-time costs can miss them on a fresh macOS runner:
+ * fixed windows, and three costs can miss them on a fresh macOS runner:
  *
- * - Safari's own first launch, its first-run setup on cold disk caches (#4580).
+ * - Safari's own first launch, its first-run setup on cold disk caches (#4580). The first, ordinary
+ *   launch pays it.
  * - webinspectord's first application lookup (#8368). safaridriver starts a fresh webinspectord, which
  *   exits again when safaridriver does. Its sandbox cannot reach the LaunchServices database, so the
  *   first time it looks up an application's icon it builds that database itself, on its main thread:
- *   24 seconds on macos-26, during which it answers no application, Safari included.
- * - the relaunch itself (#5564, #10536). This warm-up used to quit its Safari so that safaridriver
- *   launched a warm one; in run 46130326107 that Safari finished launching in 2.63 s and webinspectord
- *   registered it, yet it never became ready: safaridriver sent it no session request and failed the
- *   POST /session 5 s after the launch with "The host application never became ready". Every session
- *   that found Safari already running (the probe's second session, every lifecycle step) has started.
+ *   24 seconds on macos-26, during which it answers no application, Safari included. Waiting for the
+ *   first launch's registration pays it.
+ * - the launch inside the session request itself (#5564, #10536). In run 46130326107 the Safari that
+ *   safaridriver launched for the first session finished launching in 2.63 s and webinspectord
+ *   registered it, yet safaridriver sent it no session request and failed the POST /session 5 s later
+ *   with "The host application never became ready". Every session that found an automation-mode Safari
+ *   already running (the probe's second session, every lifecycle step, each adopting the Safari an
+ *   earlier safaridriver launched) has started. So the second launch is in automation mode (the
+ *   arguments safaridriver passes) and stays running, and no session launches Safari. An ordinary
+ *   Safari left running is not adopted: every first session then timed out "while connecting to a
+ *   Safari instance" (run 46140259062).
  *
- * Leaving the warm Safari running pays the first two before the session's clock starts and removes
- * the third. A Safari already running (left by an earlier step: ending a session does not quit Safari,
- * or a developer's own) is registered by the fresh webinspectord within a moment of its start, once,
- * which is why the registrations are read from before safaridriver starts (#9324: the wait began after
- * that registration was written, and watched only for new ones).
+ * A Safari already running (left by an earlier step: ending a session does not quit Safari) is
+ * registered by the fresh webinspectord within a moment of its start, once, which is why the
+ * registrations are read from before safaridriver starts (#9324: the wait began after that
+ * registration was written, and watched only for new ones).
  * @param since - Before safaridriver started, from logTime.
  */
 async function warmSafari(since: string): Promise<void> {
-    const running = processes().find((p) => p.cmdline.includes("Safari.app/Contents/MacOS/Safari"));
+    const running = processes().find((p) => p.cmdline.includes(SAFARI));
     if (running === undefined) {
-        await launchSafari(since);
+        await launchAndQuitSafari(since);
+        await launchAutomationSafari(since);
     } else {
         step(`waiting for webinspectord to register Safari ${running.pid}, already running`);
         await registered(running.pid, since);
@@ -158,11 +165,14 @@ async function warmSafari(since: string): Promise<void> {
     }
 }
 
+/** Safari's own executable, as a process's command line names it. */
+const SAFARI = "Safari.app/Contents/MacOS/Safari";
+
 /**
- * Launch Safari and wait until it has loaded a page and is registered; it is left running.
+ * Launch Safari, wait until it has loaded a page and is registered, and quit it.
  * @param since - Before safaridriver started, from logTime.
  */
-async function launchSafari(since: string): Promise<void> {
+async function launchAndQuitSafari(since: string): Promise<void> {
     let loaded = (): void => undefined;
     const seen = new Promise<void>((resolve) => (loaded = resolve));
     const server = http.createServer((_request, response) => {
@@ -171,12 +181,15 @@ async function launchSafari(since: string): Promise<void> {
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const started = Date.now();
-    await promisify(execFile)("open", [
+    // -W: `open` exits when Safari does, which is how its quit is awaited below.
+    const safari = spawn("open", [
+        "-W",
         "-g",
         "-a",
         "Safari",
         `http://127.0.0.1:${(server.address() as net.AddressInfo).port}/`,
     ]);
+    const quit = new Promise<void>((resolve) => safari.once("exit", () => resolve()));
     step("launched Safari; waiting for it to load a page");
     try {
         await seen; // a launch that never loads the page is bounded by the workflow step's limit
@@ -185,18 +198,50 @@ async function launchSafari(since: string): Promise<void> {
     }
 
     console.log(`[safari] first launch loaded a page after ${Date.now() - started} ms`);
-    const safariPid = processes().find((p) => p.cmdline.includes("Safari.app/Contents/MacOS/Safari"))?.pid;
+    const safariPid = processes().find((p) => p.cmdline.includes(SAFARI))?.pid;
     if (safariPid !== undefined) {
         step(`waiting for webinspectord to register Safari ${safariPid}`);
         await registered(safariPid, since); // a Safari that never registers is bounded by the workflow step's limit
-        console.log(
-            `[safari] webinspectord registered it after ${Date.now() - started} ms; left running: ${safariProcesses()}`,
-        );
+        console.log(`[safari] webinspectord registered it after ${Date.now() - started} ms`);
     }
+
+    const killed = Date.now();
+    await promisify(execFile)("killall", ["Safari"]);
+    await quit;
+    console.log(`[safari] first launch quit after ${Date.now() - killed} ms; still running: ${safariProcesses()}`);
 }
 
 /**
- * Start safaridriver and wait until it answers, then launch Safari once and leave it running (warmSafari).
+ * Launch Safari in automation mode, with the arguments safaridriver gives it, wait until webinspectord
+ * has registered it, and leave it running for the sessions to adopt.
+ * @param since - Before safaridriver started, from logTime.
+ */
+async function launchAutomationSafari(since: string): Promise<void> {
+    const started = Date.now();
+    // `open` returns once Safari has launched, so its process is there when it does.
+    await promisify(execFile)("open", [
+        "-g",
+        "-a",
+        "Safari",
+        "--args",
+        "-ApplePersistenceIgnoreStateQuietly",
+        "YES",
+        "--automation",
+    ]);
+    const safari = processes().find((p) => p.cmdline.includes(SAFARI));
+    if (safari === undefined) {
+        throw new Error(`Safari is not running after its automation launch; running: ${safariProcesses()}`);
+    }
+
+    step(`waiting for webinspectord to register automation Safari ${safari.pid}`);
+    await registered(safari.pid, since); // a Safari that never registers is bounded by the workflow step's limit
+    console.log(
+        `[safari] automation Safari registered after ${Date.now() - started} ms; running: ${safariProcesses()}`,
+    );
+}
+
+/**
+ * Start safaridriver and wait until it answers, then make Safari ready for the sessions (warmSafari).
  * @returns The driver.
  */
 export async function startSafariDriver(): Promise<SafariDriver> {

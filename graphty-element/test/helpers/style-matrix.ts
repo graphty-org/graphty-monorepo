@@ -1675,7 +1675,11 @@ export function measureNode(
         }
     }
 
-    if (s.shadow === "offset" && !hidden) {
+    // the shadow shows past the node only by its offset: an offset narrower than SEEN_BAND_PX across in the plane's
+    // thinnest direction (a slab seen near edge-on) shows no pure shadow pixel to read
+    const shadowAcross = AMOUNTS.shadowOffset * PER_SIZE * sizeFactor * Math.SQRT2 * ppu.min;
+    numbers.shadowAcrossPx = shadowAcross;
+    if (s.shadow === "offset" && !hidden && shadowAcross >= SEEN_BAND_PX) {
         const SHADOW = partIndex("shadow");
         const [ou, ov] = override.shadowOffset ?? [
             AMOUNTS.shadowOffset * PER_SIZE * sizeFactor,
@@ -1733,6 +1737,7 @@ export function measureNode(
         const [gu, gv] = frames.haloGrow?.(scale, borderWorld) ?? [scale, scale];
         const haloHull = frames.haloHull?.(scale, borderWorld) ?? [];
         const misses: number[] = [];
+        const haloSigned: number[] = [];
         angles.forEach((a, i) => {
             if (!Number.isFinite(plainExit[i])) {
                 return;
@@ -1757,9 +1762,12 @@ export function measureNode(
             // no halo on this ray (an edge or a label crossed it first): unread
             if (last !== undefined) {
                 misses.push(Math.abs(last.to - edge) * ppu.max);
+                haloSigned.push((last.to - edge) * ppu.max);
             }
         });
         numbers.haloRays = misses.length;
+        // how far the drawn halo ends past where it should, in device pixels: positive is too large
+        numbers.haloPastPx = quantile(haloSigned, 0.5);
         // a halo hidden on every ray by the parts in front of it (a wide border) is drawn as promised
         if (misses.length > 0) {
             checks.push(

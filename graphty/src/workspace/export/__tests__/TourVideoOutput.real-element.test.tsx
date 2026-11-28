@@ -79,11 +79,11 @@ async function openWithTours(tours: readonly (readonly [string, number])[]): Pro
  */
 async function exportVideo(name: string): Promise<HTMLElement> {
     await userEvent.click(
-        within(screen.getByRole("toolbar", { name: "Places" })).getByRole("button", { name: "Views" }),
+        page.getByRole("toolbar", { name: "Places", exact: true }).getByRole("button", { name: "Views", exact: true }),
     );
     const place = await screen.findByRole("region", { name: "Views place" });
-    await userEvent.click(within(place).getByRole("button", { name: `More for ${name}` }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /^Export video/ }));
+    await userEvent.click(page.elementLocator(place).getByRole("button", { name: `More for ${name}`, exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: /^Export video/ }));
     return screen.findByRole("dialog", { name: "Export video" });
 }
 
@@ -109,8 +109,8 @@ describe("Export video", () => {
         });
         const at30 = Number.parseInt(frames.textContent ?? "", 10);
 
-        await userEvent.click(within(dialog).getByRole("combobox", { name: "Tour" }));
-        await userEvent.click(await screen.findByRole("option", { name: "First" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Tour", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "First", exact: true }));
         await waitFor(() => {
             assert.equal(within(dialog).getByTestId("video-length").textContent, "0:01");
         });
@@ -119,7 +119,7 @@ describe("Export video", () => {
         });
         const first30 = Number.parseInt(frames.textContent ?? "", 10);
 
-        await userEvent.click(within(dialog).getByText("60 fps"));
+        await userEvent.click(page.elementLocator(dialog).getByText("60 fps", { exact: true }));
         await waitFor(() => {
             assert.isAbove(Number.parseInt(frames.textContent ?? "", 10), first30, "twice the rate, more frames");
         });
@@ -130,17 +130,17 @@ describe("Export video", () => {
         await openWithTours([["Walk", 1000]]);
         const dialog = await exportVideo("Walk");
 
-        await userEvent.click(within(dialog).getByText("Still"));
+        await userEvent.click(page.elementLocator(dialog).getByText("Still", { exact: true }));
         const camera = await within(dialog).findByRole<HTMLInputElement>("combobox", { name: "Camera" });
         assert.isNull(within(dialog).queryByRole("combobox", { name: "Tour" }), "a still has no tour");
         assert.isNull(within(dialog).queryByTestId("video-length"));
         const frames = within(dialog).getByTestId("video-frames");
 
-        await userEvent.click(within(dialog).getByText("10 s"));
+        await userEvent.click(page.elementLocator(dialog).getByText("10 s", { exact: true }));
         await waitFor(() => {
             assert.equal(frames.textContent, "300 frames");
         });
-        await userEvent.click(within(dialog).getByText("3 s"));
+        await userEvent.click(page.elementLocator(dialog).getByText("3 s", { exact: true }));
         await waitFor(() => {
             assert.equal(frames.textContent, "90 frames");
         });
@@ -158,10 +158,10 @@ describe("Export video", () => {
     it("goes back from Still to the tour it was on", async () => {
         await openWithTours([["Walk", 2000]]);
         const dialog = await exportVideo("Walk");
-        await userEvent.click(within(dialog).getByText("Still"));
+        await userEvent.click(page.elementLocator(dialog).getByText("Still", { exact: true }));
         await within(dialog).findByRole("combobox", { name: "Camera" });
 
-        await userEvent.click(within(dialog).getByText("Tour"));
+        await userEvent.click(page.elementLocator(dialog).getByText("Tour", { exact: true }));
         const tour = await within(dialog).findByRole<HTMLInputElement>("combobox", { name: "Tour" });
         assert.equal(tour.value, "Walk");
         assert.equal(within(dialog).getByTestId("video-length").textContent, "0:02");
@@ -194,8 +194,8 @@ describe("Export video", () => {
         const tour = within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Tour" });
         assert.equal(tour.value, "Second");
 
-        await userEvent.click(tour);
-        await userEvent.click(await screen.findByRole("option", { name: "First" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Tour", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "First", exact: true }));
         await waitFor(() => {
             assert.isFalse(recordButton(dialog).disabled);
         });
@@ -213,7 +213,7 @@ describe("Export video", () => {
             "the fields wait while it records",
         );
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Stop" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Stop", exact: true }));
         await waitFor(() => {
             assert.isNull(within(dialog).queryByRole("progressbar", { name: "Recording" }));
         });

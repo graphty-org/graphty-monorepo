@@ -202,7 +202,7 @@ describe("what the inspector opens, on the real element", () => {
             throw new Error("no line names Louvain's group");
         }
         assert.include(color.textContent, "Color");
-        await userEvent.click(within(color).getByRole("button"));
+        await userEvent.click(page.elementLocator(color).getByRole("button"));
         assert.deepEqual(store.get().inspected, { kind: "layer-row", id: row, tab: "style" });
         // Focus lands on the Color line the link explained, not on the opened row's heading.
         await waitFor(() => {
@@ -238,7 +238,7 @@ describe("what the inspector opens, on the real element", () => {
             throw new Error(lines.map((line) => line.textContent).join(" | "));
         }
         assert.include(everything.textContent, "Color");
-        await userEvent.click(within(everything).getByRole("button"));
+        await userEvent.click(page.elementLocator(everything).getByRole("button"));
         await waitFor(() => {
             assert.equal(store.get().inspected?.tab, "style");
             const focused = document.activeElement;
@@ -307,7 +307,7 @@ describe("what the inspector opens, on the real element", () => {
             point = at?.visible === true ? { x: at.x, y: at.y } : undefined;
             assert.equal(point === undefined ? undefined : element.elementAt(point)?.id, "n3");
         });
-        await userEvent.click(element, { position: point });
+        await userEvent.click(page.getByCss("graphty-element").first(), { position: point });
         await waitFor(() => {
             assert.equal(drawn(), "node");
         });
@@ -378,13 +378,13 @@ describe("what the inspector opens, on the real element", () => {
         });
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Framed, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Framed, / }));
         const framed = await waitFor(() => {
             const open = store.get().inspected;
             assert.equal(open?.kind, "layer-row");
             return open;
         });
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
         const ws = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found, "the workspace is open");
@@ -393,7 +393,7 @@ describe("what the inspector opens, on the real element", () => {
         });
         // Styled draws the layers' own look in the preview, the outline among it; Card colors would
         // paint the rule's groups instead.
-        await userEvent.click(within(ws).getByText("Styled"));
+        await userEvent.click(page.elementLocator(ws).getByText("Styled", { exact: true }));
         const element = await settledElement();
         await waitFor(() => {
             assert.isDefined(element.drawnShaders().groupOutlines.find((each) => each.layer === outlined.id));
@@ -415,7 +415,7 @@ describe("what the inspector opens, on the real element", () => {
         assert.deepEqual(store.get().inspected, framed);
         assert.isNotNull(document.querySelector(".sel-ws"), "the workspace stays open");
 
-        await userEvent.click(within(ws).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
             assert.isNull(store.get().inspected);

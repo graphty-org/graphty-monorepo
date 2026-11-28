@@ -80,7 +80,7 @@ async function runLayer(
 async function openValues(store: WorkspaceStore, rowId: string): Promise<HTMLElement> {
     store.set({ inspected: { kind: "layer-row", id: rowId } });
     const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-    await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+    await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Values", exact: true }));
     return inspector;
 }
 
@@ -142,7 +142,7 @@ describe("a layer row's Values tab on the real element", () => {
         }
         const more = within(section).queryByRole("button", { name: /^\d+ more$/ });
         if (more !== null) {
-            await userEvent.click(more);
+            await userEvent.click(page.elementLocator(section).getByRole("button", { name: /^\d+ more$/ }));
         }
         const rows = await waitFor(() => {
             const found = [...section.querySelectorAll<HTMLElement>("[data-testid=data-row-button]")];
@@ -168,7 +168,7 @@ describe("a layer row's Values tab on the real element", () => {
         assert.isDefined(folder, "Run makes a Louvain folder");
         store.set({ inspected: { kind: "folder-row", id: folder?.id ?? "" } });
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-        await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Values", exact: true }));
         const header = await within(inspector).findByText("Groups, largest first");
         const section = header.closest<HTMLElement>("[role=group]");
         if (section === null) {
@@ -176,7 +176,7 @@ describe("a layer row's Values tab on the real element", () => {
         }
         const more = within(section).queryByRole("button", { name: /^\d+ more$/ });
         if (more !== null) {
-            await userEvent.click(more);
+            await userEvent.click(page.elementLocator(section).getByRole("button", { name: /^\d+ more$/ }));
         }
         const groups = session.runs.get(runId)?.result?.groups() ?? [];
         const rows = await waitFor(() => {
@@ -280,7 +280,7 @@ describe("a layer row's Values tab on the real element", () => {
         const shows = await within(inspector).findByRole("group", { name: "Where its look shows" });
         const { matched } = session.styles.counts(base.id);
         assert.match(statValue(shows, "Node color"), new RegExp(`^on 0 of ${formatNumber(matched)} nodes?$`));
-        await userEvent.click(within(shows).getByText("Covered by Top blue"));
+        await userEvent.click(page.elementLocator(shows).getByText("Covered by Top blue", { exact: true }));
         await waitFor(() => {
             assert.equal(session.selection.nodes.length, matched);
         });
@@ -330,7 +330,7 @@ describe("a layer row's Values tab on the real element", () => {
         const inspector = await openValues(store, listed.row ?? listed.id);
         const members = await within(inspector).findByRole("group", { name: "Members" });
         assert.lengthOf(members.querySelectorAll("[data-testid=data-row-button]"), 8);
-        await userEvent.click(within(members).getByRole("button", { name: "2 more" }));
+        await userEvent.click(page.elementLocator(members).getByRole("button", { name: "2 more", exact: true }));
         await waitFor(() => {
             assert.lengthOf(members.querySelectorAll("[data-testid=data-row-button]"), 10);
         });
@@ -425,7 +425,7 @@ describe("a layer row's Values tab on the real element", () => {
 
         store.set({ inspected: { kind: "folder-row", id: folder.id } });
         let inspector = await screen.findByRole("complementary", { name: "Inspector" });
-        await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Values", exact: true }));
         const reads = await within(inspector).findByRole("group", { name: "Values read" });
         const values = [...reads.querySelectorAll("[data-testid=data-row-value]")].map((v) => v.textContent);
         assert.isNotEmpty(values);
@@ -433,7 +433,7 @@ describe("a layer row's Values tab on the real element", () => {
 
         store.set({ inspected: { kind: "folder-row", id: empty.id } });
         inspector = await screen.findByRole("complementary", { name: "Inspector" });
-        await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Values", exact: true }));
         await within(inspector).findByText("Its layers read no values");
     });
     it("a color drawn in steps lists each step's count, and a run changed since reads Out of date", async () => {
@@ -526,7 +526,7 @@ describe("a layer row's Values tab on the real element", () => {
         await session.styles.settled();
         store.set({ inspected: { kind: "folder-row", id: outer.id } });
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-        await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Values", exact: true }));
         const reads = await within(inspector).findByRole("group", { name: "Values read" });
         const values = [...reads.querySelectorAll("[data-testid=data-row-value]")].map((v) => v.textContent);
         assert.deepEqual(values, [findName(session, layer.row ?? layer.id)]);
@@ -537,7 +537,7 @@ describe("a layer row's Values tab on the real element", () => {
         const values = async (): Promise<HTMLElement> => {
             store.set({ inspected: { kind: "everything-row" } });
             const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-            await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+            await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Values", exact: true }));
             return inspector;
         };
         const matched = async (inspector: HTMLElement): Promise<(string | null)[]> => {

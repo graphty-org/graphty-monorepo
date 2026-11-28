@@ -4,7 +4,7 @@
  * not read by many screen readers. A failure stays an alert.
  */
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
@@ -33,7 +33,7 @@ describe("spoken messages", () => {
         render(<Workspace store={createWorkspaceStore()} />);
         const before = new Set(liveRegions());
 
-        await userEvent.click(screen.getByRole("button", { name: "No thanks" }));
+        await userEvent.click(page.getByRole("button", { name: "No thanks", exact: true }));
 
         const words = "Usage data stays off. Change this in Settings > Privacy";
         await waitFor(() => {

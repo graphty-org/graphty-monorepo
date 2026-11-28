@@ -50,7 +50,7 @@ describe("the data table beside a selection editor", () => {
 
         // The edge column `value`'s Filter to... opens a new card in the selection workspace.
         await columnVerb("edge", "value", "Filter to...");
-        const from = await screen.findByRole("textbox", { name: "value from, number" });
+        const from = page.getByRole("textbox", { name: "value from, number", exact: true });
         await userEvent.clear(from);
         await userEvent.type(from, "9{Enter}");
 
@@ -66,7 +66,7 @@ describe("the data table beside a selection editor", () => {
         assert.equal(dock === null ? "" : getComputedStyle(dock).visibility, "hidden");
         assert.isNull(screen.queryByRole("region", { name: "Table" }));
 
-        await userEvent.click(within(ws).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
         });

@@ -68,11 +68,11 @@ async function addLayer(
  */
 async function openStyle(name: string, kind: "node" | "edge" = "node"): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     await showKind(kind);
     return screen.findByTestId("style-tab");
@@ -138,8 +138,8 @@ function listen(): { readonly said: string[]; readonly stop: () => void } {
  * @param item - the property's name in the menu.
  */
 async function add(tab: HTMLElement, section: string, item: string): Promise<void> {
-    await userEvent.click(within(tab).getByRole("button", { name: section }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+    await userEvent.click(page.elementLocator(tab).getByRole("button", { name: section, exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: item, exact: true }));
 }
 
 describe("the Style tab's property rows, side paths", () => {
@@ -180,7 +180,11 @@ describe("the Style tab's property rows, side paths", () => {
         });
 
         await add(tab, "Add to node shape", "Size");
-        await userEvent.click(within(await row(tab, "node.size")).getByRole("button", { name: "Remove node size" }));
+        await userEvent.click(
+            page
+                .elementLocator(await row(tab, "node.size"))
+                .getByRole("button", { name: "Remove node size", exact: true }),
+        );
         await gone(tab, "node.size");
         stop();
         assert.strictEqual(session.history.position, steps, "nothing was written");
@@ -194,8 +198,10 @@ describe("the Style tab's property rows, side paths", () => {
         const size = await row(tab, "node.size");
         const { said, stop } = listen();
 
-        await userEvent.click(within(size).getByRole("button", { name: "Node size by attribute" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^Fixed size/ }));
+        await userEvent.click(
+            page.elementLocator(size).getByRole("button", { name: "Node size by attribute", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: /^Fixed size/ }));
         await waitFor(() => {
             assert.include(said, "Node size stays a fixed value");
         });
@@ -214,7 +220,9 @@ describe("the Style tab's property rows, side paths", () => {
         await row(tab, "node.outlineWidth");
 
         await userEvent.click(
-            within(await row(tab, "node.outline")).getByRole("button", { name: "Remove node outline" }),
+            page
+                .elementLocator(await row(tab, "node.outline"))
+                .getByRole("button", { name: "Remove node outline", exact: true }),
         );
         await waitFor(() => {
             const set = session.styles.get(layer.id)?.set ?? {};
@@ -251,7 +259,9 @@ describe("the Style tab's property rows, side paths", () => {
         const shape = await row(tab, "node.shape");
 
         // Which groups have their own opens the binding's popover.
-        await userEvent.click(within(shape).getByRole("button", { name: /^Node shape: Box for 1 group by / }));
+        await userEvent.click(
+            page.elementLocator(shape).getByRole("button", { name: /^Node shape: Box for 1 group by / }),
+        );
         const dialog = await screen.findByRole("dialog", { name: /^Shape by / });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -259,8 +269,8 @@ describe("the Style tab's property rows, side paths", () => {
         });
 
         // The rest's shape is a field of its own.
-        await userEvent.click(within(shape).getByLabelText(/^Node shape, /));
-        await userEvent.click(await screen.findByRole("option", { name: /cylinder/i }));
+        await userEvent.click(page.elementLocator(shape).getByLabelText(/^Node shape, /));
+        await userEvent.click(page.getByRole("option", { name: /cylinder/i }));
         await waitFor(() => {
             const binding = session.styles.get(layer.id)?.encode?.["node.shape"];
             assert.deepInclude(binding, { by: "data.name", map: { Valjean: "box" }, otherwise: "cylinder" });

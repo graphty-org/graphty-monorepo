@@ -106,7 +106,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
 
                 const after = await reload(before, { lostSession });
                 const join = await screen.findByRole("region", { name: "Join depts.csv" });
-                await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+                await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join", exact: true }));
                 const reopened = await sessionNow();
                 await waitFor(() => {
                     assert.lengthOf(reopened.data.joins(), 1);
@@ -122,14 +122,16 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 });
                 drop("depts.csv", DEPTS);
                 const join = await screen.findByRole("region", { name: "Join depts.csv" });
-                await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+                await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join", exact: true }));
                 await waitFor(() => {
                     assert.lengthOf(session.data.joins(), 1);
                 });
                 const row = await screen.findByRole("listitem", { name: "depts.csv" });
-                await userEvent.hover(row);
-                await userEvent.click(within(row).getByRole("button", { name: "depts.csv menu" }));
-                await userEvent.click(await screen.findByRole("menuitem", { name: "Edit join" }));
+                await userEvent.hover(page.getByRole("listitem", { name: "depts.csv", exact: true }));
+                await userEvent.click(
+                    page.elementLocator(row).getByRole("button", { name: "depts.csv menu", exact: true }),
+                );
+                await userEvent.click(page.getByRole("menuitem", { name: "Edit join", exact: true }));
                 await screen.findByRole("region", { name: "Join depts.csv" });
 
                 const after = await reload(before, {
@@ -153,7 +155,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 await pickFields(modal, "badge", "badge");
                 await joinAs(modal, "Node per entries row, linked to people");
                 await advanced(modal);
-                await userEvent.click(await within(modal).findByLabelText("Edge type"));
+                await userEvent.click(page.elementLocator(modal).getByLabelText("Edge type", { exact: true }));
                 await userEvent.keyboard("entered{Enter}");
                 await waitFor(() => {
                     assert.strictEqual(session.data.currentDraft()?.steps().at(-1)?.act?.edgeType, "entered");
@@ -176,7 +178,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 const chip = within(back).getByRole("radiogroup", { name: "Before / After" });
                 assert.isTrue(within(chip).getByRole<HTMLInputElement>("radio", { name: "Before" }).checked);
 
-                await userEvent.click(within(back).getByRole("button", { name: "Done" }));
+                await userEvent.click(page.elementLocator(back).getByRole("button", { name: "Done", exact: true }));
                 await waitFor(() => {
                     assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
                 });
@@ -190,8 +192,10 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 const people = session.data.sources()[0]?.key;
                 assert.isDefined(people);
                 const row = await screen.findByRole("listitem", { name: "people.csv" });
-                await userEvent.click(within(row).getByRole("button", { name: "people.csv menu" }));
-                await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+                await userEvent.click(
+                    page.elementLocator(row).getByRole("button", { name: "people.csv menu", exact: true }),
+                );
+                await userEvent.click(page.getByRole("menuitem", { name: "Remove", exact: true }));
                 const modal = await screen.findByRole("dialog", { name: "Join" });
                 await within(modal).findByRole("region", { name: "Remove people" });
 
@@ -200,7 +204,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 await within(back).findByRole("region", { name: "Remove people" });
                 const reopened = await sessionNow();
                 assert.lengthOf(reopened.data.sources(), 1, "nothing removed yet");
-                await userEvent.click(within(back).getByRole("button", { name: "Done" }));
+                await userEvent.click(page.elementLocator(back).getByRole("button", { name: "Done", exact: true }));
                 await waitFor(() => {
                     assert.lengthOf(reopened.data.sources(), 0);
                 });
@@ -211,11 +215,13 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 const { before, session } = await peopleProject();
                 const nodes = session.data.nodes().length;
                 const row = await screen.findByRole("listitem", { name: "people.csv" });
-                await userEvent.click(within(row).getByRole("button", { name: "people.csv menu" }));
-                await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+                await userEvent.click(
+                    page.elementLocator(row).getByRole("button", { name: "people.csv menu", exact: true }),
+                );
+                await userEvent.click(page.getByRole("menuitem", { name: "Remove", exact: true }));
                 const modal = await screen.findByRole("dialog", { name: "Join" });
                 await within(modal).findByRole("region", { name: "Remove people" });
-                await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
+                await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Undo/ }));
                 await waitFor(() => {
                     assert.isNull(within(modal).queryByRole("region", { name: "Remove people" }));
                 });
@@ -225,7 +231,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 assert.isNull(within(back).queryByRole("region", { name: "Remove people" }));
                 const reopened = await sessionNow();
                 assert.strictEqual(reopened.data.currentDraft()?.preview().after.nodes, nodes);
-                await userEvent.click(within(back).getByRole("button", { name: "Done" }));
+                await userEvent.click(page.elementLocator(back).getByRole("button", { name: "Done", exact: true }));
                 await waitFor(() => {
                     assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
                 });

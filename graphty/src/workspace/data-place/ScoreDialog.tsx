@@ -1,7 +1,7 @@
 import { FieldRow, ModalFooter, PanelField } from "@graphty/compact-mantine";
 import type { GraphSession, ScoreTerm } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Modal, Stack } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import type React from "react";
 
 import { GLYPHS } from "../glyphs";
 import { runName } from "../runWords";
@@ -59,23 +59,20 @@ export function ScoreDialog(): React.JSX.Element | null {
     const opened = useWorkspaceState((state) => state.dialog === "score");
     const scoreOn = useWorkspaceState((state) => state.scoreOn);
     const kind = scoreOn?.kind ?? "node";
-    const [name, setName] = useState(NAME);
-    // The metric rows the reader is building live in the kept `scoreOn`, so a reload reopens the
-    // dialog on them.
+    // The metric rows the reader is building, and the name typed, live in the kept `scoreOn`, so a
+    // reload reopens the dialog on them.
     const terms = scoreOn?.terms ?? [];
     const setTerms = (change: (all: readonly ScoreTerm[]) => readonly ScoreTerm[]): void => {
-        store.set({ scoreOn: { kind, terms: change(terms) } });
+        store.set({ scoreOn: { ...scoreOn, kind, terms: change(terms) } });
     };
-
-    useEffect(() => {
-        if (opened && session !== null) {
-            setName(freeName(session, kind));
-        }
-    }, [opened, session, kind]);
 
     if (session === null) {
         return null;
     }
+    const name = scoreOn?.name ?? (opened ? freeName(session, kind) : NAME);
+    const setName = (next: string): void => {
+        store.set({ scoreOn: { kind, terms, name: next } });
+    };
 
     const options = opened ? metricOptions(session, kind) : [];
     const close = (): void => {

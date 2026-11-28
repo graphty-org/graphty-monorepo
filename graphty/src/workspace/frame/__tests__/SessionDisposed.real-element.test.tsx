@@ -12,7 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
@@ -86,7 +86,7 @@ describe("a disposed session", () => {
         place.remove();
         await waitFor(() => assert.isFalse(element.session.status.ready));
 
-        await userEvent.click(screen.getByRole("button", { name: /Render again/ }));
+        await userEvent.click(page.getByRole("button", { name: /Render again/ }));
         await waitFor(() => assert.include(screen.getByRole("button", { name: /Render again/ }).textContent, "1"));
         assert.equal(screen.getByTestId("reader").textContent, "no session");
     });

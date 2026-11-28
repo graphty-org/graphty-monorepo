@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { CommandMenuItem } from "../frame/menus";
 import { RenameInput } from "../frame/RenameInput";
+import { useRenaming } from "../frame/useRenaming";
 import { GLYPHS } from "../glyphs";
 import { errorWords } from "../project/words";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -47,7 +48,8 @@ interface ChatListRowProps {
  * @returns the row
  */
 function ChatListRow({ row, current, onOpen, onRename, onDelete }: ChatListRowProps): React.JSX.Element {
-    const [renaming, setRenaming] = useState(false);
+    const [renaming, startRenaming] = useRenaming(`chat:${row.id}`, row.title);
+    // on reload: fresh: pointer: Delete's ask on the row, which a reload drops without deleting
     const [deleting, setDeleting] = useState(false);
     const keep = useRef<HTMLButtonElement>(null);
     const date = row.updatedAt === null ? null : shortDate(row.updatedAt);
@@ -90,14 +92,12 @@ function ChatListRow({ row, current, onOpen, onRename, onDelete }: ChatListRowPr
             {renaming ? (
                 <RenameInput
                     name={row.title}
+                    on={`chat:${row.id}`}
                     label={WORDS["assistant.list.name-field"]}
                     container=".ws-chat-row"
                     maxLength={NAME_MAX}
                     className="ws-chat-rename"
-                    onDone={(name, how) => {
-                        setRenaming(false);
-                        onRename(name, how);
-                    }}
+                    onDone={onRename}
                 />
             ) : (
                 <Button
@@ -121,7 +121,7 @@ function ChatListRow({ row, current, onOpen, onRename, onDelete }: ChatListRowPr
                     onKeyDown={(event) => {
                         if (event.key === "F2" && row.updatedAt !== null) {
                             event.preventDefault();
-                            setRenaming(true);
+                            startRenaming();
                         }
                     }}
                 >
@@ -146,7 +146,7 @@ function ChatListRow({ row, current, onOpen, onRename, onDelete }: ChatListRowPr
                                 shortcut="F2"
                                 reason={null}
                                 onRun={() => {
-                                    setRenaming(true);
+                                    startRenaming();
                                 }}
                             />
                             <CommandMenuItem
@@ -190,6 +190,7 @@ export function ConversationList({ id, rows, openId, reload, onClose }: Conversa
     const { element, store } = useWorkspace();
     const list = useRef<HTMLElement>(null);
     // The row whose button takes focus once it is drawn: the open chat's at first.
+    // on reload: fresh: pointer: where focus goes once the row is drawn
     const [focusTo, setFocusTo] = useState<string | null>(openId);
     useEffect(() => {
         if (focusTo === null) {

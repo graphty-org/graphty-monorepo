@@ -1095,17 +1095,21 @@ function paintedByKeyAlone(resolved: ResolvedStyle): boolean {
  * and `arrowTail.opacity` here, once, and every renderer gets an opaque color and an opacity.
  *
  * A cap with no color of its own is drawn in its line's color, so it takes the line color's
- * alpha too. A cap that is not in the style is left out of it.
+ * alpha too. Every cap is drawn at its line's opacity (`edge.opacity`) times its own, so a faded
+ * edge's arrowheads fade with it (#9294). A cap that is not in the style is left out of it.
  * @param style - The filled-out style, its colors spelled as lowercase hex; edited in place.
  * @returns The same style.
  */
 function foldEdgeAlpha(style: EdgeStyleConfig): EdgeStyleConfig {
     const line = toColorValue(typeof style.line?.color === "string" ? style.line.color : undefined);
+    // The line's own opacity, before its color's alpha is folded in below: a line that does not
+    // blend is drawn whole (EdgeMesh.opacityOf), and so are its caps.
+    const lineOpacity = style.line?.blending === false ? 1 : (style.line?.opacity ?? 1);
 
-    for (const end of ["arrowHead", "arrowTail"] as const) {
+    for (const end of ["arrowHead", "arrowTail", "arrowMiddleHead", "arrowMiddleTail"] as const) {
         const cap = style[end];
         const own = toColorValue(typeof cap?.color === "string" ? cap.color : undefined);
-        const alpha = (own ?? line)?.a ?? 1;
+        const alpha = ((own ?? line)?.a ?? 1) * lineOpacity;
 
         if (cap !== undefined && alpha < 1) {
             cap.opacity = (cap.opacity ?? 1) * alpha;

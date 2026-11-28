@@ -51,13 +51,9 @@ const CASES: readonly AlphaCase[] = [
     {
         target: "edge",
         channel: "edge.color",
-        // Both caps have no color of their own here, so they follow the line, alpha included.
-        equivalent: {
-            "edge.color": "#ff0000",
-            "edge.opacity": HALF,
-            "edge.arrowHeadOpacity": HALF,
-            "edge.arrowTailOpacity": HALF,
-        },
+        // Both caps have no color of their own here, so they follow the line, alpha included; and
+        // every cap is drawn at its line's opacity, so edge.opacity alone fades them too (#9294).
+        equivalent: { "edge.color": "#ff0000", "edge.opacity": HALF },
     },
     {
         target: "edge",

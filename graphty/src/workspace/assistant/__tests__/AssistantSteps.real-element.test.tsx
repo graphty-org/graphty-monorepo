@@ -8,7 +8,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/ai";
+import { MockLlmProvider } from "@graphty/graphty-element/ai";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
@@ -17,6 +17,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { scriptEnable } from "./script-enable";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -66,20 +67,6 @@ class ScriptedModel extends MockLlmProvider {
 
 let model = new ScriptedModel();
 
-/** Every enable reaches the scripted model instead of the network. */
-function scriptEnable(): void {
-    const tag = customElements.get("graphty-element") as unknown as {
-        prototype: HTMLElementTagNameMap["graphty-element"];
-    };
-    const real = tag.prototype.enableAiControl;
-    vi.spyOn(tag.prototype, "enableAiControl").mockImplementation(async function enable(
-        this: HTMLElementTagNameMap["graphty-element"],
-        config: AiManagerConfig,
-    ) {
-        await real.call(this, { ...config, providerInstance: model });
-    });
-}
-
 /**
  * The workspace with three nodes and the panel open on the mock provider.
  * @returns the element's session.
@@ -98,7 +85,7 @@ async function openWithNodes(): Promise<GraphSession> {
         { id: "b", group: "odd" },
         { id: "c", group: "even" },
     ]);
-    await userEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
     await screen.findByRole("region", { name: "Assistant" });
     return session;
 }
@@ -108,7 +95,7 @@ async function openWithNodes(): Promise<GraphSession> {
  * @param text - the message.
  */
 async function say(text: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("textbox", { name: "Message the assistant" }));
+    await userEvent.click(page.getByRole("textbox", { name: "Message the assistant", exact: true }));
     await userEvent.keyboard(`${text}{Enter}`);
 }
 
@@ -147,7 +134,7 @@ describe("a reply's steps", () => {
             indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
         });
         model = new ScriptedModel();
-        scriptEnable();
+        scriptEnable((config) => ({ ...config, providerInstance: model }));
     });
 
     afterEach(() => {
@@ -165,7 +152,7 @@ describe("a reply's steps", () => {
         const group = await screen.findByRole("button", { name: "1 step" });
         assert.strictEqual(group.getAttribute("aria-expanded"), "false");
         assert.isNull(screen.queryByRole("button", { name: "Steps" }), "no separate Steps icon");
-        await userEvent.click(group);
+        await userEvent.click(page.getByRole("button", { name: "1 step", exact: true }));
         assert.strictEqual(group.getAttribute("aria-expanded"), "true");
 
         // Each step is the model's own words, and opens by Enter and closes by Space.
@@ -233,7 +220,7 @@ describe("a reply's steps", () => {
         model.turns = COLOR_EVEN;
         await say("Color the even ones");
         await screen.findByText("Colored them.");
-        await userEvent.click(screen.getByRole("button", { name: "Copy chat" }));
+        await userEvent.click(page.getByRole("button", { name: "Copy chat", exact: true }));
         await screen.findAllByText("Chat copied");
         const text = await navigator.clipboard.readText();
         assert.match(text, /\nSteps:\n1\. Checking the color channels\n/);

@@ -4346,9 +4346,7 @@ export interface ModelLimits extends ModelLimits_2 {
 export interface ModelPart {
     readonly file?: string;
     readonly name: string;
-    // (undocumented)
     readonly role: ModelPartRole;
-    // (undocumented)
     readonly state: ModelPartState;
 }
 
@@ -4370,11 +4368,8 @@ export type MultipleTestingCorrection = "benjamini-hochberg" | "bonferroni" | "h
 
 // @public
 export interface NamedBlob {
-    // (undocumented)
     arrayBuffer(): Promise<ArrayBuffer>;
-    // (undocumented)
     readonly name: string;
-    // (undocumented)
     readonly size: number;
     readonly webkitRelativePath?: string;
 }

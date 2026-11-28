@@ -65,7 +65,7 @@ async function openBinding(store: WorkspaceStore, layer: Layer, name: "Color" | 
     store.set({ inspected: { kind: "layer-row", id: layer.id } });
     const tab = await screen.findByTestId("style-tab", {});
     await userEvent.click(
-        await within(tab).findByRole("button", { name: new RegExp(`^Node ${name.toLowerCase()}: `) }),
+        page.elementLocator(tab).getByRole("button", { name: new RegExp(`^Node ${name.toLowerCase()}: `) }),
     );
     return screen.findByRole("group", { name: `${name} binding` });
 }
@@ -88,8 +88,8 @@ function bindingOf(session: GraphSession, layer: Layer, channel: string): DataBi
  * @param option - the option's name.
  */
 async function pick(popover: HTMLElement, label: RegExp, option: RegExp): Promise<void> {
-    await userEvent.click(within(popover).getByRole("combobox", { name: label }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
+    await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: label, exact: true }));
+    await userEvent.click(page.getByRole("option", { name: option, exact: true }));
 }
 
 /**
@@ -116,7 +116,7 @@ describe("a number binding's popover on the real element", () => {
             assert.equal(bindingOf(session, layer, "node.color").bins, 4, "Steps writes the bins");
             assert.lengthOf(within(within(popover).getByRole("list", { name: "Steps" })).getAllByRole("listitem"), 4);
         });
-        await userEvent.click(within(popover).getByRole("button", { name: /^Reset Steps/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: /^Reset Steps/ }));
         await waitFor(() => {
             assert.isUndefined(bindingOf(session, layer, "node.color").bins, "the reset clears the bins");
         });
@@ -126,8 +126,8 @@ describe("a number binding's popover on the real element", () => {
             within(within(popover).getByRole("list", { name: "Steps" })).getAllByRole("listitem");
         const first = steps()[0];
         const count = Number.parseInt((first.getAttribute("aria-label") ?? "").split(", ").pop() ?? "", 10);
-        await userEvent.click(within(first).getByRole("button", { name: / actions$/ }));
-        await userEvent.click(await within(popover).findByRole("menuitem", { name: /^Select these / }));
+        await userEvent.click(page.elementLocator(first).getByRole("button", { name: / actions$/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("menuitem", { name: /^Select these / }));
         await waitFor(() => {
             assert.equal(session.selection.nodes.length, count, "the step's nodes are selected");
         });
@@ -136,8 +136,8 @@ describe("a number binding's popover on the real element", () => {
         const again = await openBinding(store, layer, "Color");
         const step = within(within(again).getByRole("list", { name: "Steps" })).getAllByRole("listitem")[1];
         const before = session.styles.list().length;
-        await userEvent.click(within(step).getByRole("button", { name: / actions$/ }));
-        await userEvent.click(await within(again).findByRole("menuitem", { name: /^New layer for / }));
+        await userEvent.click(page.elementLocator(step).getByRole("button", { name: / actions$/ }));
+        await userEvent.click(page.elementLocator(again).getByRole("menuitem", { name: /^New layer for / }));
         const added = await waitFor(() => {
             const stack = session.styles.list();
             assert.equal(stack.length, before + 1, "one layer is added");
@@ -155,7 +155,9 @@ describe("a number binding's popover on the real element", () => {
     it("the clamp's percentiles, One color per value, and Use a ramp back", async () => {
         const { session, store, layer } = await open("node.color");
         const popover = await openBinding(store, layer, "Color");
-        await userEvent.click(within(popover).getByRole("switch", { name: "Clamp outliers" }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("switch", { name: "Clamp outliers", exact: true }),
+        );
         await waitFor(() => {
             assert.deepEqual(bindingOf(session, layer, "node.color").clamp, [2, 98]);
         });
@@ -169,13 +171,15 @@ describe("a number binding's popover on the real element", () => {
         });
 
         // Twenty distinct scores can take a color each.
-        await userEvent.click(within(popover).getByRole("button", { name: "One color per value" }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("button", { name: "One color per value", exact: true }),
+        );
         await waitFor(() => {
             const binding = bindingOf(session, layer, "node.color");
             assert.equal(binding.scale, "ordinal");
             assert.isUndefined(binding.clamp, "the ramp's settings go with it");
         });
-        await userEvent.click(await within(popover).findByRole("button", { name: "Use a ramp" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Use a ramp", exact: true }));
         await waitFor(() => {
             assert.isUndefined(bindingOf(session, layer, "node.color").scale, "back on the ramp");
         });

@@ -63,7 +63,7 @@ async function stage(name: string, text: string): Promise<void> {
  */
 async function joinPlus(): Promise<HTMLElement> {
     const place = await screen.findByRole("region", { name: "Data place" });
-    await userEvent.click(within(place).getByRole("button", { name: "Join" }));
+    await userEvent.click(page.elementLocator(place).getByRole("button", { name: "Join", exact: true }));
     return screen.findByRole("dialog", { name: "Join" });
 }
 
@@ -74,7 +74,7 @@ async function joinPlus(): Promise<HTMLElement> {
  * @param text - the name typed.
  */
 async function typeInto(where: HTMLElement, name: string, text: string): Promise<void> {
-    await userEvent.click(within(where).getByLabelText(name));
+    await userEvent.click(page.elementLocator(where).getByLabelText(name, { exact: true }));
     await userEvent.keyboard(`${text}{Enter}`);
 }
 
@@ -129,13 +129,15 @@ describe("the founding example through the app (source-steps)", () => {
         let modal = await joinPlus();
         await choose(modal, "Source 1", "people");
         let settings = await within(modal).findByRole("group", { name: "people rows" });
-        await userEvent.click(within(settings).getByRole("button", { name: "Expand people rows" }));
+        await userEvent.click(
+            page.elementLocator(settings).getByRole("button", { name: "Expand people rows", exact: true }),
+        );
         await typeInto(settings, "Type", "person");
         await waitFor(() => {
             const key = session.data.staged()[0]?.key ?? "";
             assert.strictEqual(session.data.currentDraft()?.sourceTable(key).summary().mapping.type, "person");
         });
-        await userEvent.click(within(modal).getByRole("button", { name: "Add as is" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Add as is", exact: true }));
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["people, added"]);
         });
@@ -147,7 +149,7 @@ describe("the founding example through the app (source-steps)", () => {
         modal = await joinPlus();
         await pickSources(modal, "people", "entries");
         await pickFields(modal, "badge", "badge");
-        await userEvent.click(within(modal).getByRole("switch", { name: "Ignore case" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("switch", { name: "Ignore case", exact: true }));
         await joinAs(modal, "Node per entries row, linked to people");
         await advanced(modal);
         await typeInto(modal, "Edge type", "entered");
@@ -157,10 +159,10 @@ describe("the founding example through the app (source-steps)", () => {
         });
 
         // The test badge's entry is left out, from the workspace table's rows.
-        await userEvent.click(await within(modal).findByRole("button", { name: /new edges$/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /new edges$/ }));
         const rows = await within(modal).findByRole("grid", { name: "Rows" });
         await select(rowWith(rows, "T0"));
-        await userEvent.click(within(modal).getByRole("button", { name: "Exclude" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Exclude", exact: true }));
         await waitFor(() => {
             assert.strictEqual(newEdges(), 5);
         });
@@ -207,10 +209,10 @@ describe("the founding example through the app (source-steps)", () => {
         await pickFields(modal, "badge", "badge");
         await joinAs(modal, "Fields of hr on people");
         await choose(modal, "Both have dept", "Use incoming");
-        await userEvent.click(await within(modal).findByRole("button", { name: "Cells dept" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Cells dept", exact: true }));
         const cells = await within(modal).findByRole("grid", { name: "Cells" });
         await select(rowWith(cells, "B2"));
-        await userEvent.click(within(modal).getByRole("button", { name: "Use existing" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Use existing", exact: true }));
         await waitFor(() => {
             assert.strictEqual(
                 session.data.currentDraft()?.preview().cells({ column: "dept", only: "decided" }).total,
@@ -226,17 +228,19 @@ describe("the founding example through the app (source-steps)", () => {
         modal = await joinPlus();
         await choose(modal, "Source 1", "visitors");
         settings = await within(modal).findByRole("group", { name: "visitors rows" });
-        await userEvent.click(within(settings).getByRole("button", { name: "Expand visitors rows" }));
+        await userEvent.click(
+            page.elementLocator(settings).getByRole("button", { name: "Expand visitors rows", exact: true }),
+        );
         await typeInto(settings, "Type", "person");
         await waitFor(() => {
             const key = session.data.staged()[0]?.key ?? "";
             assert.strictEqual(session.data.currentDraft()?.sourceTable(key).summary().mapping.type, "person");
         });
-        await userEvent.click(within(modal).getByRole("button", { name: "Add as is" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Add as is", exact: true }));
         await within(modal).findByText("Same person?");
         assert.include(modal.textContent, "1 of 2");
         assert.notInclude(modal.textContent, "source:", "no internal id");
-        await userEvent.click(within(modal).getByRole("button", { name: "Merge" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Merge", exact: true }));
         history = session.history.steps.length;
         await done(modal);
         assert.strictEqual(session.history.steps.length, history + 1, "one undo step");

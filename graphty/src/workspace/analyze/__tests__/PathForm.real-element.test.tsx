@@ -9,7 +9,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
@@ -105,16 +105,16 @@ describe("the Path popover, on the real element", () => {
         });
         // A partial name lists the nodes it matches, the first marked as the one Enter picks;
         // clicking one fills the field and moves on to To, as Enter does.
-        await userEvent.type(from, "Av");
+        await userEvent.type(page.elementLocator(form).getByRole("combobox", { name: "From node", exact: true }), "Av");
         const ava = await within(form).findByRole("option", { name: "Ava" });
         assert.equal(from.getAttribute("aria-activedescendant"), ava.id);
-        await userEvent.click(ava);
+        await userEvent.click(page.elementLocator(form).getByRole("option", { name: "Ava", exact: true }));
         assert.equal((from as HTMLInputElement).value, "Ava");
         assert.isNull(within(form).queryByRole("listbox", { name: "From nodes" }));
         const to = within(form).getByRole("combobox", { name: "To node" });
         assert.equal(document.activeElement, to);
-        await userEvent.type(to, "lee");
-        await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+        await userEvent.type(page.elementLocator(form).getByRole("combobox", { name: "To node", exact: true }), "lee");
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Find path", exact: true }));
 
         let runId = "";
         await waitFor(() => {
@@ -139,23 +139,26 @@ describe("the Path popover, on the real element", () => {
         element.focus();
         await userEvent.keyboard("p");
         let form = await pathForm();
-        await userEvent.type(within(form).getByRole("combobox", { name: "From node" }), "Ava");
-        await userEvent.click(await within(form).findByRole("option", { name: "Ava" }));
-        await userEvent.type(within(form).getByRole("combobox", { name: "To node" }), "Lee");
-        await userEvent.click(await within(form).findByRole("option", { name: "Lee" }));
-        await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+        await userEvent.type(
+            page.elementLocator(form).getByRole("combobox", { name: "From node", exact: true }),
+            "Ava",
+        );
+        await userEvent.click(page.elementLocator(form).getByRole("option", { name: "Ava", exact: true }));
+        await userEvent.type(page.elementLocator(form).getByRole("combobox", { name: "To node", exact: true }), "Lee");
+        await userEvent.click(page.elementLocator(form).getByRole("option", { name: "Lee", exact: true }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Find path", exact: true }));
         await screen.findByText("Shortest path added: Ava to Lee, 2 hops");
 
         await userEvent.keyboard("p");
         form = await pathForm();
         // The form opens empty again: both ends are picked for the re-run.
         for (const end of ["From node", "To node"]) {
-            const field = within(form).getByRole("combobox", { name: end });
-            await userEvent.clear(field);
-            await userEvent.type(field, "Ava");
-            await userEvent.click(await within(form).findByRole("option", { name: "Ava" }));
+            const field = (): Locator => page.elementLocator(form).getByRole("combobox", { name: end, exact: true });
+            await userEvent.clear(field());
+            await userEvent.type(field(), "Ava");
+            await userEvent.click(page.elementLocator(form).getByRole("option", { name: "Ava", exact: true }));
         }
-        await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Find path", exact: true }));
         await screen.findByText("Shortest path updated, layer style kept: Ava to Ava, 0 hops");
         const run = session.runs.list().find((r) => r.algorithm === "shortest-path");
         assert.equal(run?.params.target, "Ava");
@@ -191,7 +194,7 @@ describe("the Path popover, on the real element", () => {
         });
 
         // "e" is in Ben, Lee, Dev, Zed and Zoe: the shown three are offered, the hidden two are not.
-        await userEvent.type(from, "e");
+        await userEvent.type(page.elementLocator(form).getByRole("combobox", { name: "From node", exact: true }), "e");
         const list = await within(form).findByRole("listbox", { name: "From nodes" });
         await waitFor(() => {
             assert.sameMembers(
@@ -208,7 +211,7 @@ describe("the Path popover, on the real element", () => {
         await session.selection.apply({ nodes: ["Ava", "Zoe"] });
         await userEvent.keyboard("p");
         const form = await pathForm();
-        await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Find path", exact: true }));
         await screen.findByText("No path from Ava to Zoe.", undefined);
     });
 
@@ -236,15 +239,15 @@ describe("the Path popover, on the real element", () => {
         assert.isTrue(within(follow).getByRole<HTMLInputElement>("radio", { name: "All" }).checked);
         assert.isNull(within(follow).queryByRole("radio", { name: "In" }));
         // Lee to Dev runs against two arrows (Ava -> Ben -> Lee, Ava -> Dev).
-        await userEvent.click(within(follow).getByText("Out"));
-        await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+        await userEvent.click(page.elementLocator(follow).getByText("Out", { exact: true }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Find path", exact: true }));
         await screen.findByText("No path from Lee to Dev.", undefined);
         assert.equal(session.runs.list().at(-1)?.params.direction, "out");
 
         await userEvent.keyboard("p");
         form = await pathForm();
         assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "All" }).checked);
-        await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Find path", exact: true }));
         await screen.findByText("Shortest path updated, layer style kept: Lee to Dev, 3 hops", undefined);
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
         const madeWith = within(await inspector.findByRole("group", { name: "Made with" }));
@@ -306,14 +309,18 @@ describe("the Path popover, on the real element", () => {
         const pickTo = within(form).getByRole("button", { name: "Pick To on the canvas" });
         // Esc stops a pick before it closes the popover. The click hid the button's tooltip,
         // and a hidden tooltip does not take the Escape (#3380).
-        await userEvent.click(pickTo);
+        await userEvent.click(
+            page.elementLocator(form).getByRole("button", { name: "Pick To on the canvas", exact: true }),
+        );
         assert.equal(pickTo.getAttribute("aria-pressed"), "true");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.equal(pickTo.getAttribute("aria-pressed"), "false");
         });
         assert.isNotNull(screen.queryByRole("form", { name: "Shortest path" }));
-        await userEvent.click(pickTo);
+        await userEvent.click(
+            page.elementLocator(form).getByRole("button", { name: "Pick To on the canvas", exact: true }),
+        );
 
         // Aim at Lee only once the picture is final: until the layout converges and the camera
         // has framed it, Lee moves tens of pixels a frame, and a click aimed where Lee was a
@@ -350,7 +357,7 @@ describe("the Path popover, on the real element", () => {
             assert.equal(weight.value, "None");
             assert.isNotNull(within(form).getByText(why));
         });
-        await userEvent.click(weight);
+        await userEvent.click(page.elementLocator(form).getByRole("combobox", { name: "Weight", exact: true }));
         const unread = await screen.findByRole("option", { name: "weight (loaded, not read)" });
         assert.isTrue(unread.hasAttribute("data-combobox-disabled"), "listed, but not a choice that differs from None");
         // Esc closes only the open list: the form stays, with what was typed in it.
@@ -359,7 +366,7 @@ describe("the Path popover, on the real element", () => {
             assert.isNull(screen.queryByRole("option", { name: "weight (loaded, not read)" }));
         });
         assert.isNotNull(screen.queryByRole("form", { name: "Shortest path" }));
-        await userEvent.click(within(form).getByRole("combobox", { name: "From node" }));
+        await userEvent.click(page.elementLocator(form).getByRole("combobox", { name: "From node", exact: true }));
 
         await userEvent.keyboard("Ava{Enter}Lee{Enter}{Enter}");
         let runId = "";
@@ -442,7 +449,7 @@ describe("the Path popover, on the real element", () => {
 
     it("P does nothing while focus is in a text field", async () => {
         const { store } = await openFriends();
-        await userEvent.click(screen.getByRole("combobox", { name: "Find" }));
+        await userEvent.click(page.getByRole("combobox", { name: "Find", exact: true }));
         await userEvent.keyboard("p");
         assert.isNull(store.get().dialog);
         assert.isNull(screen.queryByRole("form", { name: "Shortest path" }));
@@ -452,7 +459,7 @@ describe("the Path popover, on the real element", () => {
         await openFriends();
         await userEvent.click(analyzeTool());
         const box = await screen.findByRole("combobox", { name: "Filter analyses" });
-        await userEvent.type(box, "shortest path");
+        await userEvent.type(page.getByRole("combobox", { name: "Filter analyses", exact: true }), "shortest path");
         const target = await screen.findByRole("option", { name: /^Shortest path/ });
         // The keys walk the list to Shortest path, as a keyboard user does.
         for (let i = 0; i < 10 && box.getAttribute("aria-activedescendant") !== target.id; i++) {
@@ -487,11 +494,11 @@ describe("the Path popover, on the real element", () => {
     it("opens from Analyze > Shortest path with a way back to the list", async () => {
         await openFriends();
         await userEvent.click(analyzeTool());
-        const box = await screen.findByRole("combobox", { name: "Filter analyses" });
+        const box = page.getByRole("combobox", { name: "Filter analyses", exact: true });
         await userEvent.type(box, "Shortest");
-        await userEvent.click(await screen.findByRole("option", { name: /^Shortest path/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Shortest path/ }));
         const form = await pathForm();
-        await userEvent.click(within(form).getByRole("button", { name: "Back to analyses" }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Back to analyses", exact: true }));
         assert.isNotNull(await screen.findByRole("combobox", { name: "Filter analyses" }));
     });
 });

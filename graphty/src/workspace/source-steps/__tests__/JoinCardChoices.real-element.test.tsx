@@ -98,7 +98,9 @@ async function match(modal: HTMLElement, other: string, field = "badge", named =
  * @param way - the way.
  */
 async function pickWay(modal: HTMLElement, name: string | RegExp, way: string): Promise<void> {
-    await userEvent.click(within(within(modal).getByRole("radiogroup", { name })).getByText(way));
+    await userEvent.click(
+        page.elementLocator(modal).getByRole("radiogroup", { name, exact: true }).getByText(way, { exact: true }),
+    );
 }
 
 /**
@@ -108,7 +110,7 @@ async function pickWay(modal: HTMLElement, name: string | RegExp, way: string): 
  * @param text - what to type.
  */
 async function typeIn(modal: HTMLElement, name: string, text: string): Promise<void> {
-    await userEvent.fill(within(modal).getByRole("combobox", { name }), text);
+    await userEvent.fill(page.elementLocator(modal).getByRole("combobox", { name, exact: true }), text);
     await userEvent.keyboard("{Enter}");
 }
 
@@ -119,8 +121,8 @@ async function typeIn(modal: HTMLElement, name: string, text: string): Promise<v
  * @param column - the column.
  */
 async function pickColumn(modal: HTMLElement, name: string, column: string): Promise<void> {
-    await userEvent.click(within(modal).getByLabelText(name, { selector: "input" }));
-    await userEvent.click(await screen.findByRole("option", { name: column }));
+    await userEvent.click(page.elementLocator(modal).getByLabelText(name, { exact: true }).and(page.getByCss("input")));
+    await userEvent.click(page.getByRole("option", { name: column, exact: true }));
 }
 
 /**
@@ -157,7 +159,7 @@ describe("a join card's choices (source-steps)", () => {
         assert.lengthOf(boxes(), 2, "fields wait for both sources");
         await choose(modal, "Source 2", "entries");
         assert.deepStrictEqual(boxes(), ["Source 1: people", "Source 2: entries", "Field 1: ", "Field 2: "]);
-        await userEvent.click(within(modal).getByRole("combobox", { name: "Field 2" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("combobox", { name: "Field 2", exact: true }));
         const likely = await screen.findByRole("option", { name: /suggested$/ });
         assert.strictEqual(
             likely.textContent,
@@ -197,7 +199,7 @@ describe("a join card's choices (source-steps)", () => {
         await joinAs(modal, MIDDLE);
         await newest(session, (step) => step.act?.to?.keepRow === true, "each entry between the two");
         assert.strictEqual(draftOf(session).preview().after.nodes, 11, "and the five entries");
-        await userEvent.click(within(modal).getByRole("button", { name: "Remove match 2" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Remove match 2", exact: true }));
         await joinAs(modal, NODE);
         const one = await newest(
             session,
@@ -359,15 +361,15 @@ describe("a join card's choices (source-steps)", () => {
         await joinAs(modal, "Fields of devices on people");
         await pickWay(modal, "Rows per node", "List all");
         await newest(session, (step) => step.act?.aggregate?.["*"] === "list", "a list of devices");
-        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Join", exact: true }));
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["people + devices", "New join"]);
         });
         await pickSources(modal, "people", "watch");
-        await userEvent.click(within(modal).getByRole("combobox", { name: "Field 1" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("combobox", { name: "Field 1", exact: true }));
         const brought = await screen.findByRole("option", { name: /^device / });
         assert.strictEqual(brought.textContent, "device devices, repeats, 1 empty");
-        await userEvent.click(brought);
+        await userEvent.click(page.getByRole("option", { name: /^device / }));
         await pickField(modal, "Field 2", "value");
         assert.strictEqual(cardCount(modal), "1 of 1 row matched");
         await joinAs(modal, "Fields of watch on people");
@@ -396,7 +398,7 @@ describe("a join card's choices (source-steps)", () => {
         await newest(session, (step) => step.act?.unmatchedFrom === "drop", "Skip to start with");
         assert.strictEqual(added(), 0);
         assert.isNull(within(modal).queryByRole("button", { name: "1 new node" }));
-        await userEvent.click(within(modal).getByText("Only hr"));
+        await userEvent.click(page.elementLocator(modal).getByText("Only hr", { exact: true }));
         const rows = within(modal).getByRole("grid", { name: "hr" });
         await waitFor(() => {
             assert.deepStrictEqual(
@@ -415,7 +417,9 @@ describe("a join card's choices (source-steps)", () => {
         const { session, modal } = await opened(["hr.csv", HR]);
         await match(modal, "hr");
         await joinAs(modal, "Fields of hr on people");
-        await userEvent.click(await within(modal).findByRole("combobox", { name: "Both have dept" }));
+        await userEvent.click(
+            page.elementLocator(modal).getByRole("combobox", { name: "Both have dept", exact: true }),
+        );
         await screen.findByRole("option", { name: "Use incoming" });
         assert.isNull(screen.queryByRole("option", { name: "Min" }), "no Min on a text column");
         await userEvent.keyboard("{Escape}");
@@ -478,7 +482,9 @@ describe("a join card's choices (source-steps)", () => {
             assert.strictEqual(session.history.steps.length, steps, `Enter on ${where} writes no step`);
             assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }), `Enter on ${where} keeps the workspace`);
         };
-        await userEvent.click(await within(modal).findByRole("combobox", { name: "Both have dept" }));
+        await userEvent.click(
+            page.elementLocator(modal).getByRole("combobox", { name: "Both have dept", exact: true }),
+        );
         await screen.findByRole("option", { name: "Use incoming" });
         await userEvent.keyboard("{Enter}");
         keeps("an open list");
@@ -500,7 +506,7 @@ describe("a join card's choices (source-steps)", () => {
         await joinAs(modal, "Fields of hr on people");
         await pickWay(modal, WORKSPACE_WORDS.unmatchedRows, WORKSPACE_WORDS.addNode);
         await newest(session, (step) => step.act?.unmatchedFrom === "keep", "B7 is a person now");
-        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Join", exact: true }));
         await pickSources(modal, "person", "person");
         await pickFields(modal, "dept", "dept");
         await joinAs(modal, "Edge between person sharing dept");
@@ -528,7 +534,7 @@ describe("a join card's choices (source-steps)", () => {
         });
         drop("buildings.csv", "door,building\nD1,North");
         const dialog = await screen.findByRole("dialog", { name: "Draft open" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Draft open" }));
         });

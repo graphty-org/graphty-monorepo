@@ -578,7 +578,10 @@ describe("a join card's ways to join (source-steps)", () => {
                         .sort();
                 const was = edges();
                 await advanced(again);
-                await userEvent.fill(within(again).getByRole("combobox", { name: "Edge type" }), "linked");
+                await userEvent.fill(
+                    page.elementLocator(again).getByRole("combobox", { name: "Edge type", exact: true }),
+                    "linked",
+                );
                 await userEvent.keyboard("{Enter}");
                 await waitFor(() => {
                     const [row] = joinsOf(session);
@@ -633,7 +636,7 @@ describe("a join card's ways to join (source-steps)", () => {
         assert.deepStrictEqual(joinLines(modal), ["accounts + identifiers + watch"], "one card");
         const ring = (id: string): number => session.styles.explain({ node: id }).merged["node.haloScale"] ?? 0;
         for (const look of ["Card colors", "Styled"]) {
-            await userEvent.click(within(modal).getByText(look));
+            await userEvent.click(page.elementLocator(modal).getByText(look, { exact: true }));
             await waitFor(() => {
                 assert.strictEqual(keyCount(modal, ["merged node", "merged nodes"]), 3, look);
                 const wider = ["A1", "A2", "A3"].filter((id) => ring(id) > ring("A2"));
@@ -653,10 +656,13 @@ describe("a join card's ways to join (source-steps)", () => {
         await pickFields(modal, "account", "account_id");
         await joinAs(modal, "Fields of identifiers on accounts");
         await userEvent.click(
-            within(within(modal).getByRole("radiogroup", { name: "Rows per node" })).getByText("List all"),
+            page
+                .elementLocator(modal)
+                .getByRole("radiogroup", { name: "Rows per node", exact: true })
+                .getByText("List all", { exact: true }),
         );
         await newest(session, (step) => step.act?.aggregate?.["*"] === "list", "every phone");
-        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Join", exact: true }));
         await pickSources(modal, "accounts", "watch");
         await pickFields(modal, "account", "value");
         assert.isNotEmpty(waysToJoin(modal), "no account is a watched value: its ways still show");

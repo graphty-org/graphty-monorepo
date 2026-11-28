@@ -15,7 +15,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore } from "../../state/store";
 import { DEFAULT_NAME_KEY } from "../../style/cards";
@@ -88,7 +88,7 @@ describe("summaries and cards that say true, complete things", () => {
     it("never averages the node ids: all of karate selected shows no mean on id", async () => {
         const session = await openKarate();
         await session.selection.apply({ nodes: allIds(session) });
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.getByRole("tab", { name: "Values", exact: true }));
         await waitFor(() => {
             const id = screen.getByRole("group", { name: "id" });
             assert.notInclude(id.textContent ?? "", "mean");
@@ -102,7 +102,7 @@ describe("summaries and cards that say true, complete things", () => {
         );
         assert.equal(session.data.statistics().nodeCount, 6);
         await session.selection.apply({ nodes: allIds(session) });
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.getByRole("tab", { name: "Values", exact: true }));
         await waitFor(() => {
             assert.include(screen.getByRole("group", { name: "hours" }).textContent ?? "", "30 to 52");
         });
@@ -115,7 +115,7 @@ describe("summaries and cards that say true, complete things", () => {
         assert.equal(columns.getAttribute("aria-disabled"), "true");
         assert.include(columns.getAttribute("aria-description") ?? "", "No other columns");
         // Playwright refuses a click on a control marked disabled unless forced; a reader's click lands.
-        await userEvent.click(columns, { force: true });
+        await userEvent.click(page.getByRole("button", { name: "Columns: 1 of 1", exact: true }), { force: true });
         assert.isNull(screen.queryByRole("menu"));
     });
 
@@ -133,9 +133,11 @@ describe("summaries and cards that say true, complete things", () => {
         await session.styles.settled();
         // The cards of two selected layers: one alone opens the selection editor.
         await selectWithTwin(session, "Layer 1");
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+        await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await userEvent.click(
+            page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+        );
         await userEvent.keyboard("chapters");
         const go = await screen.findByRole("button", { name: "Add shared_chapters on the Edge tab" });
         const list = screen.getByRole("listbox", { name: "Attributes" });
@@ -149,8 +151,8 @@ describe("summaries and cards that say true, complete things", () => {
         );
         assert.equal(session.data.statistics().nodeCount, 6);
         await session.selection.apply({ nodes: allIds(session).slice(0, 1) });
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
-        await userEvent.hover(await screen.findByRole("button", { name: /^Degree/ }));
+        await userEvent.click(page.getByRole("tab", { name: "Values", exact: true }));
+        await userEvent.hover(page.getByRole("button", { name: /^Degree/ }));
         // It opens after the theme's one-second hover delay, so the wait has no deadline to race it.
         const tip = await screen.findByRole("tooltip", {});
         assert.include(tip.textContent ?? "", "Select this node and its neighbors");
@@ -160,12 +162,14 @@ describe("summaries and cards that say true, complete things", () => {
         const session = await openKarate();
         await session.selection.apply({ nodes: allIds(session) });
         await userEvent.click(
-            within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", { name: "Analyze" }),
+            page
+                .getByRole("toolbar", { name: "Canvas tools", exact: true })
+                .getByRole("button", { name: "Analyze", exact: true }),
         );
         const flow = await screen.findByRole("option", { name: "Most flow" });
         assert.equal(flow.getAttribute("aria-disabled"), "true");
         assert.include(flow.getAttribute("aria-description") ?? "", "Select only 2 nodes; 34 are selected");
-        await userEvent.click(flow, { force: true });
+        await userEvent.click(page.getByRole("option", { name: "Most flow", exact: true }), { force: true });
         assert.isNull(screen.queryByRole("form", { name: "Most flow" }));
     });
 });

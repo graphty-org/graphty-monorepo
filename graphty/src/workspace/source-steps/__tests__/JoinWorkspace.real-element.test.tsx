@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, SourceStepRow } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { clickCardBlank } from "../../../test/cards";
 import { withFeatures } from "../../../test/features";
@@ -172,7 +172,9 @@ describe("the join workspace looks and works like the selection workspace (#1036
         });
         assert.strictEqual(head?.querySelector(".sel-ws-title")?.textContent, "Join", "the header is the workspace's");
         assert.isNull(within(modal).queryByRole("button", { name: "Frame" }), "no Frame under the tables");
-        await userEvent.click(within(head ?? modal).getByRole("button", { name: "More for Join" }));
+        await userEvent.click(
+            page.elementLocator(head ?? modal).getByRole("button", { name: "More for Join", exact: true }),
+        );
         await screen.findByRole("menuitem", { name: /Frame the matches/ });
     });
 
@@ -263,8 +265,8 @@ describe("the join workspace (source-steps)", () => {
         );
         await joinAs(modal, NODE);
         await advanced(modal);
-        const edgeType = within(modal).getByLabelText("Edge type");
-        await userEvent.click(edgeType);
+        const edgeType = (): Locator => page.elementLocator(modal).getByLabelText("Edge type", { exact: true });
+        await userEvent.click(edgeType());
         await userEvent.keyboard("entered{Enter}");
         await waitFor(() => {
             assert.strictEqual(session.data.currentDraft()?.steps().at(-1)?.act?.edgeType, "entered");
@@ -301,7 +303,7 @@ describe("the join workspace (source-steps)", () => {
             ["Last", "last"],
             ["Count", "count"],
         ] as const) {
-            await userEvent.click(within(many).getByText(label));
+            await userEvent.click(page.elementLocator(many).getByText(label, { exact: true }));
             await waitFor(() => {
                 assert.strictEqual(merge()?.act?.repeated, repeated, `${label} is the element's ${repeated}`);
                 assert.isTrue(
@@ -318,7 +320,7 @@ describe("the join workspace (source-steps)", () => {
         const { session, modal } = await opened();
         const history = session.history.steps.length;
         await connect(modal, session);
-        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
         });
@@ -386,9 +388,9 @@ describe("the join workspace (source-steps)", () => {
 
     it("removing one unfinished card keeps the others, by its x and by Del", async () => {
         const { modal } = await opened();
-        const add = within(modal).getByRole("button", { name: "Join" });
-        await userEvent.click(add);
-        await userEvent.click(add);
+        const add = (): Locator => page.elementLocator(modal).getByRole("button", { name: "Join", exact: true });
+        await userEvent.click(add());
+        await userEvent.click(add());
         assert.lengthOf(joinLines(modal), 3);
         await removeOpen(modal);
         await waitFor(() => {
@@ -408,7 +410,7 @@ describe("the join workspace (source-steps)", () => {
     it("selecting a card in the list shows it and the rows of its sources", async () => {
         const { modal } = await opened();
         await matchBadge(modal);
-        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Join", exact: true }));
         assert.deepStrictEqual(joinLines(modal), ["people + entries", "New join"]);
         assert.isNull(within(modal).queryByRole("grid", { name: "people" }), "the new card has none yet");
         await selectJoin(modal, "people + entries");
@@ -452,7 +454,7 @@ describe("the join workspace (source-steps)", () => {
     it("a second match takes its sources in either order", async () => {
         const { modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
         await matchBadge(modal);
-        await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "+ Match", exact: true }));
         await choose(modal, "Match 2 source 2", "doors");
         assert.strictEqual(
             within(modal).getByRole<HTMLInputElement>("combobox", { name: "Match 2 source 2" }).value,
@@ -467,14 +469,14 @@ describe("the join workspace (source-steps)", () => {
     it("+ Match on a written card waits until its picks are made, then joins by an edge type at once", async () => {
         const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
         await connect(modal, session);
-        await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "+ Match", exact: true }));
         await pickSources(modal, "entries", "doors", 2);
         assert.strictEqual(
             draftOf(session).steps().at(-1)?.op,
             "join.edges",
             "its step stays while the match is not whole",
         );
-        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Done", exact: true }));
         assert.strictEqual((await within(modal).findByRole("alert")).textContent, "Unfinished");
         await pickFields(modal, "door", "door", 2);
         assert.deepStrictEqual(waysToJoin(modal), [
@@ -505,9 +507,14 @@ describe("the join workspace (source-steps)", () => {
     it("a refused write is drawn on its card, not behind the modal", async () => {
         const { store, modal } = await opened();
         await pickSources(modal, "people", "entries");
-        await userEvent.click(within(modal).getByRole("button", { name: "Expand entries rows" }));
+        await userEvent.click(
+            page.elementLocator(modal).getByRole("button", { name: "Expand entries rows", exact: true }),
+        );
         // A reserved space.
-        await userEvent.fill(within(modal).getByRole("combobox", { name: "Same nodes as" }), "graph:x");
+        await userEvent.fill(
+            page.elementLocator(modal).getByRole("combobox", { name: "Same nodes as", exact: true }),
+            "graph:x",
+        );
         await userEvent.keyboard("{Enter}");
         await within(modal).findByRole("alert");
         assert.isNull(store.get().notice, "no notice behind the modal");
@@ -516,8 +523,13 @@ describe("the join workspace (source-steps)", () => {
     it("never offers rows as nodes in the space they would connect to", async () => {
         const { modal } = await opened();
         await pickSources(modal, "people", "entries");
-        await userEvent.click(within(modal).getByRole("button", { name: "Expand entries rows" }));
-        await userEvent.fill(within(modal).getByRole("combobox", { name: "Same nodes as" }), "person");
+        await userEvent.click(
+            page.elementLocator(modal).getByRole("button", { name: "Expand entries rows", exact: true }),
+        );
+        await userEvent.fill(
+            page.elementLocator(modal).getByRole("combobox", { name: "Same nodes as", exact: true }),
+            "person",
+        );
         await userEvent.keyboard("{Enter}");
         await pickFields(modal, "badge", "badge");
         // The type picked for the reader the moment the match is whole is one of those offered then.
@@ -532,9 +544,11 @@ describe("the join workspace (source-steps)", () => {
     it("door entries read as edges connect a person to the door each names, one edge per entry", async () => {
         const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
         await pickSources(modal, "people", "entries");
-        await userEvent.click(within(modal).getByRole("button", { name: "Expand entries rows" }));
+        await userEvent.click(
+            page.elementLocator(modal).getByRole("button", { name: "Expand entries rows", exact: true }),
+        );
         const rows = within(modal).getByRole("radiogroup", { name: "Rows are" });
-        await userEvent.click(within(rows).getByText("Edges"));
+        await userEvent.click(page.elementLocator(rows).getByText("Edges", { exact: true }));
         await choose(modal, "From", "badge");
         await choose(modal, "To", "door");
         await pickFields(modal, "badge", "badge");
@@ -557,23 +571,28 @@ describe("the join workspace (source-steps)", () => {
         });
         assert.strictEqual(merged().at(-1)?.act?.unmatchedFrom, "drop", "Skip to start with");
         await userEvent.click(
-            within(within(modal).getByRole("radiogroup", { name: "Rows per node" })).getByText("Last"),
+            page
+                .elementLocator(modal)
+                .getByRole("radiogroup", { name: "Rows per node", exact: true })
+                .getByText("Last", { exact: true }),
         );
         await waitFor(() => {
             assert.strictEqual(merged().at(-1)?.act?.repeated, "last");
         });
         await userEvent.click(
-            within(within(modal).getByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows })).getByText(
-                WORKSPACE_WORDS.addNode,
-            ),
+            page
+                .elementLocator(modal)
+                .getByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows, exact: true })
+                .getByText(WORKSPACE_WORDS.addNode, { exact: true }),
         );
         await waitFor(() => {
             assert.notStrictEqual(merged().at(-1)?.act?.unmatchedFrom, "drop");
         });
         await userEvent.click(
-            within(within(modal).getByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows })).getByText(
-                WORKSPACE_WORDS.skipRow,
-            ),
+            page
+                .elementLocator(modal)
+                .getByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows, exact: true })
+                .getByText(WORKSPACE_WORDS.skipRow, { exact: true }),
         );
         await waitFor(() => {
             assert.strictEqual(merged().at(-1)?.act?.unmatchedFrom, "drop");
@@ -684,7 +703,7 @@ describe("the join workspace (source-steps)", () => {
         const look = (id: string): Readonly<Record<string, unknown>> => session.styles.explain({ node: id }).merged;
         for (const styled of [false, true]) {
             if (styled) {
-                await userEvent.click(within(modal).getByText("Styled", { exact: true }));
+                await userEvent.click(page.elementLocator(modal).getByText("Styled", { exact: true }));
             }
             await waitFor(() => {
                 assert.strictEqual(session.styles.shownDraft?.steps === undefined, styled);
@@ -713,7 +732,7 @@ describe("the join workspace (source-steps)", () => {
         const look = (id: string): Readonly<Record<string, unknown>> => session.styles.explain({ node: id }).merged;
         for (const styled of [false, true]) {
             if (styled) {
-                await userEvent.click(within(modal).getByText("Styled", { exact: true }));
+                await userEvent.click(page.elementLocator(modal).getByText("Styled", { exact: true }));
             }
             await waitFor(() => {
                 assert.strictEqual(session.styles.shownDraft?.steps === undefined, styled);
@@ -735,7 +754,7 @@ describe("the join workspace (source-steps)", () => {
         await matchBadge(modal);
         await joinAs(modal, FIELDS);
         await newest(session, (row) => row.act !== null, "the entries' fields on people");
-        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Join", exact: true }));
         await pickSources(modal, "flags", "people");
         await pickFields(modal, "badge", "badge");
         await joinAs(modal, "Fields of flags on people");
@@ -751,7 +770,7 @@ describe("the join workspace (source-steps)", () => {
         const scale = (id: string): unknown => session.styles.explain({ node: id }).merged["node.haloScale"];
         for (const styled of [false, true]) {
             if (styled) {
-                await userEvent.click(within(modal).getByText("Styled", { exact: true }));
+                await userEvent.click(page.elementLocator(modal).getByText("Styled", { exact: true }));
             }
             await waitFor(() => {
                 assert.strictEqual(session.styles.shownDraft?.steps === undefined, styled);
@@ -766,7 +785,7 @@ describe("the join workspace (source-steps)", () => {
     it("draws two cards for two joins from one source", async () => {
         const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
         await connect(modal, session);
-        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Join", exact: true }));
         await pickSources(modal, "doors", "entries");
         await pickFields(modal, "door", "door");
         await joinAs(modal, "Edge from doors to entries");
@@ -803,17 +822,19 @@ describe("the join workspace's cards work as the selection workspace's cards do 
      * @param item - the item.
      */
     async function fromCardMenu(modal: HTMLElement, item: string): Promise<void> {
-        await userEvent.click(within(openCard(modal)).getByRole("button", { name: /^More for / }));
+        await userEvent.click(page.elementLocator(openCard(modal)).getByRole("button", { name: /^More for / }));
         const menu = await screen.findByRole("menu");
-        await userEvent.click(within(menu).getByRole("menuitem", { name: new RegExp(`^${item}`, "u") }));
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: new RegExp(`^${item}`, "u") }));
     }
 
     it("renames a join on its card: the card and the Data panel read the name, and the header stays Join", async () => {
         const { store, session, modal } = await opened();
         await connect(modal, session);
         await fromCardMenu(modal, "Rename");
-        const box = await within(modal).findByRole("textbox", { name: "Rename people + entries" });
-        await userEvent.fill(box, "Badge entries");
+        await userEvent.fill(
+            page.elementLocator(modal).getByRole("textbox", { name: "Rename people + entries", exact: true }),
+            "Badge entries",
+        );
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["Badge entries"]);
@@ -839,7 +860,10 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         });
         // Reopened from its row, as a reader opens a join (Shift+J starts a new one beside it).
         await userEvent.click(
-            within(within(place).getByRole("grid", { name: "Joins" })).getByRole("gridcell", { name: "Badge entries" }),
+            page
+                .elementLocator(place)
+                .getByRole("grid", { name: "Joins", exact: true })
+                .getByRole("gridcell", { name: "Badge entries", exact: true }),
         );
         const again = await screen.findByRole("dialog", { name: "Join" });
         assert.deepStrictEqual(joinLines(again), ["Badge entries"], "reopened, it keeps the name");
@@ -849,14 +873,17 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         const { store, session, modal } = await opened();
         await clickCardBlank(openCard(modal));
         await userEvent.keyboard("{F2}");
-        await userEvent.fill(await within(modal).findByRole("textbox", { name: "Rename New join" }), "Badges");
+        await userEvent.fill(
+            page.elementLocator(modal).getByRole("textbox", { name: "Rename New join", exact: true }),
+            "Badges",
+        );
         await userEvent.keyboard("{Enter}");
         await connect(modal, session);
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["Badges"]);
         });
         await fromCardMenu(modal, "Rename");
-        await userEvent.clear(await within(modal).findByRole("textbox", { name: "Rename Badges" }));
+        await userEvent.clear(page.elementLocator(modal).getByRole("textbox", { name: "Rename Badges", exact: true }));
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["people + entries"]);
@@ -866,9 +893,10 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         const nodes = (): number => draftOf(session).preview().after.nodes;
         const before = nodes();
         await userEvent.click(
-            within(within(modal).getByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows })).getByText(
-                WORKSPACE_WORDS.skipRow,
-            ),
+            page
+                .elementLocator(modal)
+                .getByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows, exact: true })
+                .getByText(WORKSPACE_WORDS.skipRow, { exact: true }),
         );
         await waitFor(() => {
             assert.strictEqual(nodes(), before - 1, "E4, naming no one, is skipped: the join is written again");
@@ -886,8 +914,10 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         const { session, modal } = await opened();
         await clickCardBlank(openCard(modal));
         await userEvent.keyboard("{F2}");
-        const box = await within(modal).findByRole("textbox", { name: "Rename New join" });
-        await userEvent.fill(box, "Badges");
+        await userEvent.fill(
+            page.elementLocator(modal).getByRole("textbox", { name: "Rename New join", exact: true }),
+            "Badges",
+        );
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["Badges"]);
@@ -926,7 +956,7 @@ describe("the join workspace's cards work as the selection workspace's cards do 
             assert.strictEqual(edges(), before);
         });
         // A second card, then the first moved below it.
-        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Join", exact: true }));
         await pickSources(modal, "doors", "entries");
         await pickFields(modal, "door", "door");
         await joinAs(modal, "Edge from doors to entries");
@@ -940,10 +970,10 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["doors + entries", "people + entries"]);
         });
-        await userEvent.click(within(openCard(modal)).getByRole("button", { name: /^More for / }));
+        await userEvent.click(page.elementLocator(openCard(modal)).getByRole("button", { name: /^More for / }));
         const menu = await screen.findByRole("menu");
         assert.isNull(within(menu).queryByRole("menuitem", { name: /^Remove/ }), "it says Delete");
-        await userEvent.click(within(menu).getByRole("menuitem", { name: /^Delete/ }));
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: /^Delete/ }));
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["doors + entries"], "only that card goes");
         });
@@ -1004,7 +1034,7 @@ describe("the join workspace's cards work as the selection workspace's cards do 
             assert.isNull(modal.querySelector(".jw-lower"), "Hide table hides it");
         });
         // A second card, not joined yet: opening it shows its own table, and so does going back.
-        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Join", exact: true }));
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["people + entries", "New join"]);
         });
@@ -1064,7 +1094,7 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         const { session, modal } = await opened();
         await connect(modal, session);
         await advanced(modal);
-        await userEvent.click(within(modal).getByLabelText("Edge type"));
+        await userEvent.click(page.elementLocator(modal).getByLabelText("Edge type", { exact: true }));
         await userEvent.keyboard("entry{Enter}");
         await waitFor(() => {
             assert.strictEqual(draftOf(session).steps().at(-1)?.act?.edgeType, "entry");
@@ -1074,9 +1104,10 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         assert.isDefined(type, "the element names the edges' type");
         // A reader picks an edge in the Table, by a click on its row.
         await userEvent.keyboard("{Shift>}T{/Shift}");
-        await userEvent.click(await screen.findByRole("tab", { name: /^Edges/ }));
+        await userEvent.click(page.getByRole("tab", { name: /^Edges/ }));
         const grid = await screen.findByRole("grid", { name: "Edges" });
-        await userEvent.click((await within(grid).findAllByRole("rowheader"))[0]);
+        await within(grid).findAllByRole("rowheader");
+        await userEvent.click(page.elementLocator(grid).getByRole("rowheader").nth(0));
         await waitFor(() => {
             assert.lengthOf(session.selection.edges, 1);
         });
@@ -1093,7 +1124,7 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         const { session, modal } = await opened();
         await connect(modal, session);
         await advanced(modal);
-        await userEvent.click(within(modal).getByLabelText("Edge type"));
+        await userEvent.click(page.elementLocator(modal).getByLabelText("Edge type", { exact: true }));
         await userEvent.keyboard("entry{Enter}");
         await waitFor(() => {
             assert.strictEqual(draftOf(session).steps().at(-1)?.act?.edgeType, "entry");
@@ -1129,7 +1160,7 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         if (spot === undefined) {
             throw new Error("no edge on screen");
         }
-        await userEvent.click(element, { position: spot.middle });
+        await userEvent.click(page.getByCss("graphty-element").first(), { position: spot.middle });
         await waitFor(() => {
             assert.lengthOf(session.selection.edges, 1, "the click picked one edge");
             assert.lengthOf(session.selection.nodes, 0, "and no node");

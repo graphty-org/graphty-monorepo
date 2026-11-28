@@ -82,7 +82,7 @@ describe("summaries that tell the whole truth", () => {
     it("names every value with its count, says the column none holds, gives the degree range, cuts no name", async () => {
         const { session } = await openPeople();
         await session.selection.apply({ nodes: idsOf(session, ["Ana", "Ben", "Cy", "Di"]) });
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.getByRole("tab", { name: "Values", exact: true }));
 
         await waitFor(() => {
             const role = screen.getByRole("group", { name: "role" });
@@ -98,7 +98,7 @@ describe("summaries that tell the whole truth", () => {
 
     it("reads a one-value bin as its value, and lists an attribute's values with counts", async () => {
         const { store, session } = await openPeople();
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.getByRole("tab", { name: "Values", exact: true }));
         // Degrees 2, 2, 3, 2, 1: the bin of degree 1 holds one node.
         await waitFor(() => {
             assert.include(document.body.textContent ?? "", "1: 1 node");
@@ -121,7 +121,7 @@ describe("summaries that tell the whole truth", () => {
     it("heads an undirected graph's edge ends Node A and Node B, and spells a score as the inspector does", async () => {
         const { session } = await openPeople();
         await userEvent.keyboard("{Shift>}T{/Shift}");
-        await userEvent.click(await screen.findByRole("tab", { name: /^Edges/ }));
+        await userEvent.click(page.getByRole("tab", { name: /^Edges/ }));
         const grid = await screen.findByRole("grid", { name: "Edges" });
         await waitFor(() => {
             const headers = within(grid)

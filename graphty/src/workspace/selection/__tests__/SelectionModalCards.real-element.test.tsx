@@ -82,7 +82,7 @@ async function openLayer(
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${layerName}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${layerName}, `) }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -105,7 +105,7 @@ function unionOf(session: GraphSession, id: string): UnionLeaf | undefined {
  * @returns the modal.
  */
 async function openModal(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the modal is open");
@@ -176,7 +176,7 @@ describe("the selection modal with colored group cards", () => {
         // Its controls are inside the step, in the card: no separate settings column.
         assert.isNotNull(cards()[0].querySelector('[data-step-pane] input[aria-label="Degree from, number"]'));
         // The card's Except, along its bottom, adds the next step to the same card.
-        await userEvent.click(within(cards()[0]).getByRole("button", { name: /^Except$/ }));
+        await userEvent.click(page.elementLocator(cards()[0]).getByRole("button", { name: /^Except$/ }));
         await pickValue("Isolated");
         await waitFor(() => {
             assert.lengthOf(cards()[0].querySelectorAll(".sel-card-step [data-step-pane]"), 2);
@@ -186,7 +186,7 @@ describe("the selection modal with colored group cards", () => {
             );
         });
 
-        await userEvent.click(within(modal).getByRole("button", { name: /^Card$/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Card$/ }));
         await pickValue("Degree");
         await waitFor(() => {
             assert.lengthOf(cards(), 2, "a second card");
@@ -195,7 +195,7 @@ describe("the selection modal with colored group cards", () => {
         const color = (card: HTMLElement): string => getComputedStyle(card).getPropertyValue("--sel-card-color").trim();
         assert.notStrictEqual(color(first), "", "a card has its group's color");
         assert.notEqual(color(first), color(second), "each card in its group's own color");
-        await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Done/ }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"), "Done closes it");
             assert.lengthOf(unionOf(session, layer.id)?.branches ?? [], 2, "both groups kept");
@@ -210,7 +210,7 @@ describe("the selection modal with colored group cards", () => {
         await waitFor(() => {
             assert.lengthOf(unionOf(session, layer.id)?.branches[0]?.steps ?? [], 1, "the edit is live");
         });
-        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Cancel/ }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
             const steps = unionOf(session, layer.id)?.branches.flatMap((branch) => branch.steps) ?? [];
@@ -222,7 +222,9 @@ describe("the selection modal with colored group cards", () => {
         const { session, layer } = await openLayer();
         await openModal();
         await pickValue("Within hops of");
-        await userEvent.click(await within(cards()[0]).findByRole("button", { name: "Pick on canvas" }));
+        await userEvent.click(
+            page.elementLocator(cards()[0]).getByRole("button", { name: "Pick on canvas", exact: true }),
+        );
         const element = document.querySelector("graphty-element");
         if (element === null) {
             throw new Error("no element");
@@ -233,7 +235,7 @@ describe("the selection modal with colored group cards", () => {
             at = element.nodeScreenPosition("Valjean");
             assert.isTrue(at?.visible);
         });
-        await userEvent.click(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        await userEvent.click(page.getByCss("graphty-element").first(), { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
         await waitFor(() => {
             const step = unionOf(session, layer.id)?.branches[0]?.steps[0];
             assert.include(JSON.stringify(step?.rule), "Valjean", "the clicked node is the reference");
@@ -254,7 +256,7 @@ async function twoCards(): Promise<{ session: GraphSession; layer: Layer; modal:
     const { session, layer, heard } = await openLayer();
     const modal = await openModal();
     await pickValue("Degree");
-    const min = await within(cards()[0]).findByRole("textbox", { name: "Degree from, number" });
+    const min = page.elementLocator(cards()[0]).getByRole("textbox", { name: "Degree from, number", exact: true });
     await userEvent.clear(min);
     await userEvent.type(min, "10{Enter}");
     await waitFor(() => {
@@ -263,7 +265,7 @@ async function twoCards(): Promise<{ session: GraphSession; layer: Layer; modal:
             10,
         );
     });
-    await userEvent.click(within(modal).getByRole("button", { name: /^Card$/ }));
+    await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Card$/ }));
     await pickValue("Degree");
     await waitFor(() => {
         assert.lengthOf(unionOf(session, layer.id)?.branches[1]?.steps ?? [], 1);
@@ -306,7 +308,7 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         const modal = await openModal();
         const strip = await within(modal).findByRole("region", { name: "Matches" });
         await within(strip).findByText("No matches");
-        const min = await within(cards()[0]).findByRole("textbox", { name: "Degree from, number" });
+        const min = page.elementLocator(cards()[0]).getByRole("textbox", { name: "Degree from, number", exact: true });
         await userEvent.clear(min);
         await userEvent.type(min, "10{Enter}");
         await waitFor(() => {
@@ -347,11 +349,11 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         const list = screen.getByRole("group", { name: "Cards" });
         assert.notMatch(list.textContent ?? "", /\bor\b/u, "no or between the cards");
         // The chevron unfolds it again.
-        await userEvent.click(within(cards()[0]).getByRole("button", { name: "Expand A" }));
+        await userEvent.click(page.elementLocator(cards()[0]).getByRole("button", { name: "Expand A", exact: true }));
         await waitFor(() => {
             assert.lengthOf(cards()[0].querySelectorAll(".sel-card-step"), 1);
         });
-        await userEvent.click(within(cards()[0]).getByRole("button", { name: "Collapse A" }));
+        await userEvent.click(page.elementLocator(cards()[0]).getByRole("button", { name: "Collapse A", exact: true }));
         await waitFor(() => {
             assert.isTrue(cards()[0].hasAttribute("data-folded"));
         });
@@ -359,16 +361,16 @@ describe("the owner's review of the cards (2026-11-04)", () => {
 
     it("a card added after deleting the top card is named after the last letter, never the deleted one", async () => {
         const { session, layer, modal } = await twoCards();
-        await userEvent.click(within(modal).getByRole("button", { name: /^Card$/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Card$/ }));
         await pickValue("Degree");
         await waitFor(() => {
             assert.lengthOf(unionOf(session, layer.id)?.branches ?? [], 3);
         });
-        await userEvent.click(within(cards()[0]).getByRole("button", { name: "Delete A" }));
+        await userEvent.click(page.elementLocator(cards()[0]).getByRole("button", { name: "Delete A", exact: true }));
         await waitFor(() => {
             assert.lengthOf(cards(), 2);
         });
-        await userEvent.click(within(modal).getByRole("button", { name: /^Card$/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Card$/ }));
         await pickValue("Degree");
         await waitFor(() => {
             assert.deepEqual(
@@ -382,12 +384,12 @@ describe("the owner's review of the cards (2026-11-04)", () => {
 
     it("a card the reader named like a letter keeps its name when the other card is deleted", async () => {
         const { session, layer } = await twoCards();
-        await userEvent.click(within(cards()[1]).getByRole("button", { name: /^Rename B/ }));
+        await userEvent.click(page.elementLocator(cards()[1]).getByRole("button", { name: /^Rename B/ }));
         await userEvent.keyboard("{Control>}a{/Control}NY{Enter}");
         await waitFor(() => {
             assert.strictEqual(unionOf(session, layer.id)?.branches[1]?.name, "NY");
         });
-        await userEvent.click(within(cards()[0]).getByRole("button", { name: "Delete A" }));
+        await userEvent.click(page.elementLocator(cards()[0]).getByRole("button", { name: "Delete A", exact: true }));
         await waitFor(() => {
             assert.deepEqual(
                 (unionOf(session, layer.id)?.branches ?? []).map((each) => each.name),
@@ -400,7 +402,7 @@ describe("the owner's review of the cards (2026-11-04)", () => {
 
     it("the last card left loses only the letter it was given", async () => {
         const { session, layer } = await twoCards();
-        await userEvent.click(within(cards()[0]).getByRole("button", { name: "Delete A" }));
+        await userEvent.click(page.elementLocator(cards()[0]).getByRole("button", { name: "Delete A", exact: true }));
         await waitFor(() => {
             const branches = unionOf(session, layer.id)?.branches ?? [];
             assert.lengthOf(branches, 1);
@@ -464,7 +466,9 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         const { session } = await openLayer();
         await openModal();
         await pickValue("Within hops of");
-        await userEvent.click(await within(cards()[0]).findByRole("button", { name: "Pick on canvas" }));
+        await userEvent.click(
+            page.elementLocator(cards()[0]).getByRole("button", { name: "Pick on canvas", exact: true }),
+        );
         const element = document.querySelector("graphty-element");
         if (element === null) {
             throw new Error("no element");
@@ -475,7 +479,7 @@ describe("the owner's review of the cards (2026-11-04)", () => {
             at = element.nodeScreenPosition("Valjean");
             assert.isTrue(at?.visible);
         });
-        await userEvent.click(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        await userEvent.click(page.getByCss("graphty-element").first(), { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
         const nodeColor = (id: unknown): string =>
             JSON.stringify(
                 (session.styles.explain({ node: String(id) }).merged as Record<string, unknown>)["node.color"],
@@ -502,7 +506,7 @@ describe("a card's settings pop-out closes like Figma's (the owner, 2026-11-04)"
      * @returns the settings panel.
      */
     async function openSettings(): Promise<HTMLElement> {
-        await userEvent.click(screen.getByRole("button", { name: "Settings for Degree" }));
+        await userEvent.click(page.getByRole("button", { name: "Settings for Degree", exact: true }));
         return screen.findByRole("dialog", { name: "Degree" });
     }
 
@@ -516,7 +520,9 @@ describe("a card's settings pop-out closes like Figma's (the owner, 2026-11-04)"
         assert.isNotNull(list);
         const { height } = list.getBoundingClientRect();
         // The bottom of the card list, below the one card: empty space.
-        await userEvent.click(list, { position: { x: 12, y: height - 12 } });
+        await userEvent.click(page.elementLocator(modal).getByCss(".sel-ws-cards").first(), {
+            position: { x: 12, y: height - 12 },
+        });
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Degree" }), "the empty card list closes it");
         });
@@ -525,7 +531,7 @@ describe("a card's settings pop-out closes like Figma's (the owner, 2026-11-04)"
         await openSettings();
         const count = modal.querySelector<HTMLElement>(".sel-ws-head .sel-count");
         assert.isNotNull(count);
-        await userEvent.click(count);
+        await userEvent.click(page.elementLocator(modal).getByCss(".sel-ws-head .sel-count").first());
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Degree" }), "the header closes it");
         });
@@ -608,7 +614,7 @@ describe("long names in the selection modal (the owner, 2026-11-04)", () => {
         await openLayer();
         await openModal();
         await pickValue("Degree");
-        await userEvent.click(within(cards()[0]).getByRole("button", { name: /^Rename A/ }));
+        await userEvent.click(page.elementLocator(cards()[0]).getByRole("button", { name: /^Rename A/ }));
         await userEvent.keyboard("Members of the organisation with long names{Enter}");
         const name = await waitFor(() => {
             const found = cards()[0].querySelector<HTMLElement>(".cm-card-name");
@@ -629,17 +635,17 @@ describe("long names in the selection modal (the owner, 2026-11-04)", () => {
 describe("the start button of an empty card", () => {
     it("takes All nodes before the first value, and the value then narrows All", async () => {
         const { session, layer } = await openLayer();
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
         const modal = await screen.findByRole("dialog", { name: /Which nodes/ });
-        await userEvent.click(within(modal).getByRole("button", { name: "No nodes" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "No nodes", exact: true }));
         await within(modal).findByRole("button", { name: "All nodes" });
         await waitFor(() => {
             assert.strictEqual(modal.querySelector(".sel-ws-head .sel-count")?.textContent, "77 of 77");
         });
-        await userEvent.click(within(modal).getByRole("button", { name: "Value" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Isolated" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Value", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "Isolated", exact: true }));
         await within(modal).findByRole("button", { name: "All nodes" });
-        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
             const held = session.styles.list().find((each) => each.id === layer.id)?.selector;
@@ -654,13 +660,13 @@ describe("Escape on the workspace, wherever focus was left", () => {
     it("cancels after a press on the drawing or on the title bar's empty space", async () => {
         await openLayer();
         for (const spot of [".sel-ws-preview", ".sel-ws-head"]) {
-            await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+            await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
             await screen.findByRole("dialog", { name: /Which nodes/ });
             const box = document.querySelector(spot);
             if (box === null) {
                 throw new Error(`no ${spot}`);
             }
-            await userEvent.click(box, { position: { x: 300, y: 8 }, force: true });
+            await userEvent.click(page.getByCss(spot).first(), { position: { x: 300, y: 8 }, force: true });
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
                 assert.isNull(document.querySelector(".sel-ws"), "Cancel's key, Esc, cancels");
@@ -696,8 +702,8 @@ describe("Escape on the workspace, wherever focus was left", () => {
 describe("a style layer's scope at the top of its panel (the owner, 2026-11-04)", () => {
     it("a new layer shows Style Nodes... and Style Edges... with no hover, and each opens the modal", async () => {
         await openLayer();
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Layer", exact: true }));
         await screen.findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Escape}");
         const tab = await screen.findByTestId("style-tab");
@@ -705,13 +711,15 @@ describe("a style layer's scope at the top of its panel (the owner, 2026-11-04)"
             ["Node", "nodes"],
             ["Edge", "edges"],
         ]) {
-            await userEvent.click(within(tab).getByRole("tab", { name: new RegExp(`^${side}`) }));
+            await userEvent.click(page.elementLocator(tab).getByRole("tab", { name: new RegExp(`^${side}`) }));
             const edit = await within(tab).findByRole("button", { name: `Style ${side}s...` });
             assert.strictEqual(getComputedStyle(edit).opacity, "1", `Style ${side}s... is drawn at rest`);
             assert.isAbove(edit.getBoundingClientRect().width, 0);
-            await userEvent.click(edit);
+            await userEvent.click(
+                page.elementLocator(tab).getByRole("button", { name: `Style ${side}s...`, exact: true }),
+            );
             const modal = await screen.findByRole("dialog", { name: new RegExp(`Which ${word}`) });
-            await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+            await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Cancel/ }));
             await waitFor(() => {
                 assert.isNull(document.querySelector(".sel-ws"));
             });
@@ -726,8 +734,8 @@ describe("a card's More menu and the title's", () => {
      * @param item - the item's label.
      */
     async function runItem(name: string, item: RegExp): Promise<void> {
-        await userEvent.click(screen.getByRole("button", { name: `More for ${name}` }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+        await userEvent.click(page.getByRole("button", { name: `More for ${name}`, exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: item, exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("menu"), "the menu closed");
         });

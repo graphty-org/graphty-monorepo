@@ -93,11 +93,14 @@ import {
     VERB_WORDS,
 } from "./words";
 
-/** Whether a host's preview shows group colors while picking, for the session (spec 9). */
-const groupColors: Record<Host, boolean> = { selector: true, filter: true };
-
-/** Whether the workspace shows its matches strip, per host for the session (spec 3.0). */
-const stripShown: Record<Host, boolean> = { selector: true, filter: true };
+/**
+ * Whether each host's preview shows group colors while picking (spec 9) and its workspace shows
+ * the matches strip (spec 3.0), until the reader switches one: kept in the store's selectionShown.
+ */
+const SHOWN_START = {
+    colors: { selector: true, filter: true },
+    strip: { selector: true, filter: true },
+} as const;
 
 /** Where focus returns when the workspace was opened by the sidebar's Edit button. */
 const EDIT = "edit";
@@ -316,13 +319,17 @@ export function SelectionEditor({
     const escaped = useRef(false);
     // `open`: its value picker is open; `back`: the row that was selected before, selected again
     // if the step is not added.
-    // on reload: gap #9702: a step being added, its value picker open
+    // Kept with the open workspace (selectionWorkspace.adding), so a reload reopens the step.
+    // on reload: fresh: derived: read back from the kept selectionWorkspace when the editor mounts
     const [adding, setAdding] = useState<{
         branch: string;
         op: Verb;
         open: boolean;
         back?: string | null;
-    } | null>(null);
+    } | null>(() => {
+        const kept = store.get().selectionWorkspace;
+        return kept?.owner === owner ? (kept.adding ?? null) : null;
+    });
     // The step being added as the last render drew it: a picker that closes twice takes it back once.
     const addingNow = useRef(adding);
     addingNow.current = adding;
@@ -338,9 +345,13 @@ export function SelectionEditor({
     const setRenamingTitle = (on: boolean): void => {
         setRenaming(on ? TITLE : null);
     };
-    // The cards folded to their header line; a new group folds every card before it.
-    // on reload: gap #9702: cards the reader folded
-    const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
+    // The cards folded to their header line; a new group folds every card before it. Kept with the
+    // open workspace (selectionWorkspace.folded), so a reload keeps them folded.
+    // on reload: fresh: derived: read back from the kept selectionWorkspace when the editor mounts
+    const [folded, setFolded] = useState<ReadonlySet<string>>(() => {
+        const kept = store.get().selectionWorkspace;
+        return new Set(kept?.owner === owner ? kept.folded : []);
+    });
     const fold = (id: string, to: boolean): void => {
         setFolded((was) => {
             const next = new Set(was);
@@ -352,10 +363,16 @@ export function SelectionEditor({
             return next;
         });
     };
-    // on reload: gap #9702: the reader's group colors switch
-    const [colors, setColors] = useState(groupColors[host]);
-    // on reload: gap #9702: the reader's strip switch
-    const [strip, setStrip] = useState(stripShown[host]);
+    // The reader's group colors and strip switches, kept in the store's selectionShown.
+    const shownNow = useWorkspaceState((state) => state.selectionShown) ?? SHOWN_START;
+    const colors = shownNow.colors[host];
+    const strip = shownNow.strip[host];
+    const setShown = (part: "colors" | "strip", on: boolean): void => {
+        store.set((state) => {
+            const now = state.selectionShown ?? SHOWN_START;
+            return { selectionShown: { ...now, [part]: { ...now[part], [host]: on } } };
+        });
+    };
     // Where the workspace lies over the frame, once measured (below).
     // on reload: fresh: derived: measured from the frame
     const [wsPlace, setPlace] = useState<React.CSSProperties | null>(null);
@@ -617,16 +634,26 @@ export function SelectionEditor({
         const kept = store.get().selectionWorkspace?.selected ?? null;
         setSelected(kept);
         setRenaming(store.get().selectionWorkspace?.renaming ?? null);
+        setAdding(store.get().selectionWorkspace?.adding ?? null);
+        setFolded(new Set(store.get().selectionWorkspace?.folded));
         focusAfter.current =
             kept === null ? [`[data-row="${TITLE}"]`] : [`[data-row="${CSS.escape(kept)}"]`, `[data-row="${TITLE}"]`];
     }, [named, store, restoredFrom, reading.rule, session.scope, onEmptyCancel]);
-    // The step shown, and the name being edited, are kept with the open workspace.
+    // The step shown, the name being edited, the step being added and the folded cards are kept
+    // with the open workspace.
     useEffect(() => {
         const was = store.get().selectionWorkspace;
-        if (was?.owner === owner && ((was.selected ?? null) !== selected || (was.renaming ?? null) !== renaming)) {
-            store.set({ selectionWorkspace: { ...was, selected, renaming } });
+        const foldedNow = [...folded];
+        if (
+            was?.owner === owner &&
+            ((was.selected ?? null) !== selected ||
+                (was.renaming ?? null) !== renaming ||
+                (was.adding ?? null) !== adding ||
+                (was.folded ?? []).join("\n") !== foldedNow.join("\n"))
+        ) {
+            store.set({ selectionWorkspace: { ...was, selected, renaming, adding, folded: foldedNow } });
         }
-    }, [store, owner, selected, renaming, named]);
+    }, [store, owner, selected, renaming, adding, folded, named]);
     // Leaving the place it was opened in is Done.
     useEffect(() => {
         if (open && place !== openedIn.current) {
@@ -793,8 +820,7 @@ export function SelectionEditor({
 
     // The workspace's Table: the matches strip under the preview, hidden or shown for the session.
     const toggleStrip = (): void => {
-        stripShown[host] = !strip;
-        setStrip(!strip);
+        setShown("strip", !strip);
     };
     const select = (id: string | null): void => {
         setSelected(id);
@@ -918,8 +944,7 @@ export function SelectionEditor({
         if (held !== null) {
             store.set({ editingSelection: { ...held, branch } });
         }
-        stripShown[host] = true;
-        setStrip(true);
+        setShown("strip", true);
     };
 
     // Each step's row words, read once per reading rather than on every hover or key.
@@ -1631,8 +1656,7 @@ export function SelectionEditor({
                                               { value: "styled", label: "Styled" },
                                           ]}
                                           onChange={(value) => {
-                                              groupColors[host] = value === "colors";
-                                              setColors(value === "colors");
+                                              setShown("colors", value === "colors");
                                           }}
                                       />
                                       <RowMore name={wsTitle} items={titleItems} />
@@ -1851,7 +1875,7 @@ function NewStepPane({
     // on reload: fresh: pointer: a value picker open
     const [open, setOpen] = useState(openAtFirst);
     // A letter typed on the closed field opens the picker with it in the search (ws-polish 3).
-    // on reload: gap #9702: a letter typed to open the picker
+    // on reload: fresh: pointer: the search a letter opened the value picker with, which goes with that open picker
     const [seed, setSeed] = useState("");
     const picked = useRef(false);
     // A press on the field itself closes the open list as a click outside it does; the step stays,

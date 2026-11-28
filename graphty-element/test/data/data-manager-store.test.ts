@@ -71,10 +71,9 @@ function makeManager(): { dm: DataManager; events: GraphEvent[] } {
     eventManager.onGraphEvent.add((event) => {
         events.push(event);
     });
+    // No graph context: the manager's own state before an element attaches one. Nothing on the
+    // store path reads it; the one case that needs it as an event payload sets it itself.
     const dm = new DataManager(eventManager, Styles.default());
-    // The context is only ever read back out as the event payload, so a sentinel is enough and is
-    // honest about how little of it this path uses.
-    dm.setGraphContext({} as unknown as GraphContext);
     return { dm, events };
 }
 
@@ -189,6 +188,9 @@ describe("DataManager owns the graph store", () => {
 
     it("emits snapshot-replaced once per freeze, carrying the superseded snapshot", () => {
         const { dm, events } = makeManager();
+        // The event names the graph it came from, so the manager emits it only once a context is
+        // attached. The context is only that payload here: nothing on this path calls into it.
+        dm.setGraphContext({} as unknown as GraphContext);
         dm.addEdges([{ src: "a", dst: "b" }]);
         const first = dm.getSnapshot();
         dm.getSnapshot();
@@ -434,7 +436,6 @@ describe("DataManager answers edge lookups from the store", () => {
         const styles = Styles.default();
         styles.config.data.directed = false;
         const dm = new DataManager(eventManager, styles);
-        dm.setGraphContext({} as unknown as GraphContext);
         dm.addEdges([
             { src: "a", dst: "b" },
             { src: "b", dst: "a" },

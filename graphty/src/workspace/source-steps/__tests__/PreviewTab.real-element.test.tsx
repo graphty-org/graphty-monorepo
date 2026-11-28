@@ -14,7 +14,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -96,16 +96,17 @@ describe("the join workspace's table (source-steps)", () => {
         const newEdges = (): number => draftOf(session).preview().steps.at(-1)?.buckets?.newEdges ?? -1;
         assert.strictEqual(newEdges(), 5, "E1, E2, E3, E6 and E7");
 
-        await userEvent.click(await within(modal).findByRole("button", { name: /new edges$/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /new edges$/ }));
         const grid = await within(modal).findByRole("grid", { name: "Rows" });
         assert.lengthOf(within(grid).getAllByRole("rowheader"), 5, "one row per new edge");
         await select(rowWith(grid, "T0"));
-        await userEvent.click(within(modal).getByRole("button", { name: "Exclude" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Exclude", exact: true }));
         await waitFor(() => {
             assert.strictEqual(newEdges(), 4);
         });
-        const include = await within(modal).findByRole("button", { name: "Include E7" });
-        await userEvent.click(include);
+        const include = (): Locator =>
+            page.elementLocator(modal).getByRole("button", { name: "Include E7", exact: true });
+        await userEvent.click(include());
         await waitFor(() => {
             assert.strictEqual(newEdges(), 5);
         });
@@ -134,14 +135,14 @@ describe("the join workspace's table (source-steps)", () => {
         await waitFor(() => {
             assert.deepStrictEqual(drawn(), all);
         });
-        await userEvent.click(await within(modal).findByRole("button", { name: "5 new edges" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "5 new edges", exact: true }));
         await select(rowWith(await within(modal).findByRole("grid", { name: "Rows" }), "T0"));
-        await userEvent.click(await within(modal).findByRole("button", { name: "Exclude" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Exclude", exact: true }));
         await waitFor(() => {
             assert.deepStrictEqual(drawn(), all.slice(0, 4), "redrawn without the test badge's edge");
         });
         await within(modal).findByRole("button", { name: "4 new edges" });
-        await userEvent.click(await within(modal).findByRole("button", { name: "Include E7" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Include E7", exact: true }));
         await waitFor(() => {
             assert.deepStrictEqual(drawn(), all);
         });
@@ -153,11 +154,11 @@ describe("the join workspace's table (source-steps)", () => {
             draftOf(session).preview().cells({ column: "dept", only }).total;
         assert.strictEqual(cells("open"), 2, "B1 and B2");
 
-        await userEvent.click(await within(modal).findByRole("button", { name: "Cells dept" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Cells dept", exact: true }));
         const grid = await within(modal).findByRole("grid", { name: "Cells" });
         assert.lengthOf(within(grid).getAllByRole("rowheader"), 2);
         await select(rowWith(grid, "B2"));
-        await userEvent.click(within(modal).getByRole("button", { name: "Use incoming" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Use incoming", exact: true }));
         await waitFor(() => {
             assert.strictEqual(cells("decided"), 1);
         });
@@ -168,27 +169,27 @@ describe("the join workspace's table (source-steps)", () => {
         });
 
         const filter = within(modal).getByRole("radiogroup", { name: "Cells" });
-        await userEvent.click(within(filter).getByText("Open"));
+        await userEvent.click(page.elementLocator(filter).getByText("Open", { exact: true }));
         const open = await within(modal).findByRole("grid", { name: "Cells" });
         await waitFor(() => {
             assert.lengthOf(within(open).getAllByRole("rowheader"), 1);
         });
         await select(rowWith(open, "B1"));
         await userEvent.keyboard("{Control>}a{/Control}");
-        await userEvent.click(within(modal).getByRole("button", { name: "Use existing" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Use existing", exact: true }));
         await waitFor(() => {
             assert.strictEqual(cells("open"), 0);
         });
         assert.strictEqual(cells("decided"), 2);
 
-        await userEvent.click(within(filter).getByText("Decided"));
+        await userEvent.click(page.elementLocator(filter).getByText("Decided", { exact: true }));
         const decided = await within(modal).findByRole("grid", { name: "Cells" });
         await waitFor(() => {
             assert.lengthOf(within(decided).getAllByRole("rowheader"), 2);
         });
         await select(rowWith(decided, "B1"));
         await userEvent.keyboard("{Control>}a{/Control}");
-        await userEvent.click(within(modal).getByRole("button", { name: "Clear" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Clear", exact: true }));
         await waitFor(() => {
             assert.strictEqual(cells("open"), 2);
         });
@@ -202,11 +203,11 @@ describe("the join workspace's table (source-steps)", () => {
             draftOf(session).preview().cells({ column: "dept", only }).total;
         assert.strictEqual(cells("open"), 2, "B1 from people.csv and B5 from staff.csv");
 
-        await userEvent.click(await within(modal).findByRole("button", { name: "Cells dept" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Cells dept", exact: true }));
         const grid = await within(modal).findByRole("grid", { name: "Cells" });
         await select(rowWith(grid, "B5"));
         await userEvent.keyboard("{Control>}a{/Control}");
-        await userEvent.click(within(modal).getByRole("button", { name: "Use existing" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Use existing", exact: true }));
         await waitFor(() => {
             assert.strictEqual(cells("decided"), 2);
         });

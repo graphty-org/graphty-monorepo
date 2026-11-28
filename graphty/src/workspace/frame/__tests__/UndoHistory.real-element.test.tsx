@@ -100,7 +100,7 @@ describe("Undo from the reader's keys", () => {
         const layers = session.styles.list().length;
 
         const find = await screen.findByRole("combobox", { name: "Find" });
-        await userEvent.click(find);
+        await userEvent.click(page.getByRole("combobox", { name: "Find", exact: true }));
         await userEvent.keyboard("undo");
         await userEvent.keyboard("{Enter}");
         await userEvent.keyboard("{Control>}z{/Control}");
@@ -121,8 +121,8 @@ describe("Undo from the reader's keys", () => {
     it("names the act when Control+Z is pressed on the drawing", async () => {
         answerUsageData("declined");
         const { session, store } = await openSampleFromStart("Les Miserables");
-        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Layer/ }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Layer/ }));
         await waitFor(() => {
             assert.isTrue(session.canUndo);
         });
@@ -150,7 +150,10 @@ describe("Undo from the reader's keys", () => {
         await element.waitForSettled();
         await element.waitForStableFrame();
         const rightClickEmpty = async (): Promise<HTMLElement> => {
-            await userEvent.click(element, { button: "right", position: await emptyPoint(element) });
+            await userEvent.click(page.getByCss("graphty-element:not([data-start-page])").first(), {
+                button: "right",
+                position: await emptyPoint(element),
+            });
             await screen.findByRole("menu");
             return screen.getByRole("menuitem", { name: /^Clear selection/ });
         };

@@ -75,7 +75,7 @@ async function treeRow(name: string): Promise<HTMLElement> {
 async function fromMenu(name: string, command: string): Promise<void> {
     await userEvent.click(await treeRow(name), { button: "right" });
     const menu = await screen.findByRole("menu");
-    await userEvent.click(within(menu).getByRole("menuitem", { name: new RegExp(`^${command}`) }));
+    await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: new RegExp(`^${command}`) }));
 }
 
 /**
@@ -115,8 +115,8 @@ async function addCondition(name: string): Promise<void> {
     await screen.findByRole("combobox", { name: "Find attributes, results" });
     await userEvent.keyboard("label");
     await userEvent.keyboard("{Enter}");
-    await userEvent.click(await within(editor).findByRole("checkbox", { name: /^first/ }));
-    await userEvent.click(within(editor).getByRole("button", { name: "Done" }));
+    await userEvent.click(page.elementLocator(editor).getByRole("checkbox", { name: /^first/ }));
+    await userEvent.click(page.elementLocator(editor).getByRole("button", { name: "Done", exact: true }));
 }
 
 describe("the starting layers", () => {
@@ -140,7 +140,9 @@ describe("the starting layers", () => {
         const header = document.querySelector<HTMLElement>(".ws-header");
         assert.isNotNull(header, "the header");
         await userEvent.click(
-            within(header ?? document.body).getByRole("button", { name: "Undo deleting Everything" }),
+            page
+                .elementLocator(header ?? document.body)
+                .getByRole("button", { name: "Undo deleting Everything", exact: true }),
         );
         await waitFor(() => {
             assert.isTrue(hasRow("Everything"));

@@ -99,6 +99,26 @@ interface Member {
     readonly checked?: boolean;
 }
 
+/** What the reader set for one model: its Name, its own settings and the pictures drawn without. */
+interface KeptMember {
+    readonly name: string;
+    readonly settings?: ModelDraft;
+    readonly hidden?: readonly string[];
+}
+
+/**
+ * What the dialog keeps across a reload (the workspace's `customModelDraft`): the address loaded,
+ * the layer's own settings, each model's Name and settings by what names it, and what the dialog
+ * added that it lets go of on Cancel. The loaded files cannot come back: the reader loads the
+ * address again with Enter, and each model it brings takes back what the reader set for it.
+ */
+export interface KeptCustomModel {
+    readonly address: string;
+    readonly draft: ModelDraft;
+    readonly models: Readonly<Record<string, KeptMember>>;
+    readonly added: readonly string[];
+}
+
 /** A model of a set refused outright: never held, said by its file. */
 interface Refused {
     readonly name: string;
@@ -932,15 +952,30 @@ export function CustomModelDialog({
     onClose,
 }: Readonly<CustomModelDialogProps>): React.JSX.Element | null {
     const { session, store, element } = useWorkspace();
-    const [address, setAddress] = useState("");
+    // What the reader set before a reload, read once as the dialog mounts.
+    const kept = useRef(store.get().customModelDraft).current;
+    const keptModels = useRef(kept?.models ?? {});
+    // The address goes back in its field; loading it again is the reader's Enter, as a download
+    // may be large or may fail again.
+    // on reload: fresh: derived: read from the kept customModelDraft as the dialog opens
+    const [address, setAddress] = useState(kept?.address ?? "");
+    // on reload: fresh: in flight: a load under way
     const [loading, setLoading] = useState<Loading | null>(null);
+    // on reload: fresh: notice: why the last load was refused
     const [problem, setProblem] = useState<CodedFact | null>(null);
+    // on reload: fresh: notice: the address a failed load names for Retry
     const [tried, setTried] = useState<string | null>(null);
+    // on reload: fresh: notice: a picture loaded in place of a model, said with Use as picture
     const [picture, setPicture] = useState<Arrived | null>(null);
     // The models of a set refused outright, said under the file loader.
+    // on reload: fresh: notice: what the last load refused
     const [refused, setRefused] = useState<readonly Refused[]>([]);
     // Every model loaded, and which one the preview shows; one for a model's own file.
+    // A browser gives no file back after a reload: the reader loads the kept address again, and each
+    // model takes back its kept Name and settings.
+    // on reload: fresh: in flight: the files loaded, which a browser gives back to no page after a reload
     const [members, setMembers] = useState<readonly Member[]>([]);
+    // on reload: fresh: pointer: the model of a set stepped to, which goes with the files loaded
     const [index, setIndex] = useState(0);
     const current = members.at(index);
     const held = current?.held ?? null;
@@ -952,17 +987,22 @@ export function CustomModelDialog({
     };
     // A model's own settings (Color, Animation and Pose, Up, Turn, Textures...) are each model's, kept
     // with it on Add. The layer's own (Light, Wireframe, Picture) are one draft for the layer.
-    const [draft, setDraft] = useState<ModelDraft>({});
+    // on reload: fresh: derived: read from the kept customModelDraft as the dialog opens
+    const [draft, setDraft] = useState<ModelDraft>(kept?.draft ?? {});
     // Model settings open in a modal pop-over over the dialog, from the gear beside Name. It lies over
     // the loading column, where it was when the gear was pressed, so the model stays in sight while
     // the reader turns it, poses it or takes its pictures away.
+    // on reload: fresh: pointer: a pop-over opened for a look
     const [settingsOpen, setSettingsOpen] = useState(false);
+    // on reload: fresh: pointer: where that pop-over lies
     const [settingsOver, setSettingsOver] = useState<DOMRect | null>(null);
+    // on reload: fresh: pointer: a pop-over opened for a look
     const [pictureOpen, setPictureOpen] = useState(false);
     // What this dialog added, by what names it: let go on Cancel when no layer uses it.
-    const added = useRef(new Set<string>());
+    const added = useRef(new Set<string>(kept?.added));
     const nameField = useRef<HTMLInputElement | null>(null);
     // The Modal mounts its body after this renders: the drop target is the element itself.
+    // on reload: fresh: derived: the dialog's body, mounted again
     const [body, setBody] = useState<HTMLDivElement | null>(null);
     const start = useStillOpen(true);
     const uid = useId();
@@ -971,13 +1011,16 @@ export function CustomModelDialog({
     // Add pressed: a load settling after it holds nothing more.
     const adding = useRef(false);
     // Add pressed while the model's pictures still download: it adds once they are in, with them.
+    // on reload: fresh: in flight: an Add waiting for pictures
     const [addQueued, setAddQueued] = useState(false);
     // The x's on parts still taking their files out, in turn: Add waits for them.
+    // on reload: fresh: in flight: parts being taken out
     const [dropping, setDropping] = useState(0);
     const drops = useRef<Promise<void>>(Promise.resolve());
     // A model a part's x replaced, by the id it had: an x pressed before it was redrawn follows it.
     const replaced = useRef(new Map<string, Held>());
     // Cancel load said under the file: the model stays, without what had not arrived.
+    // on reload: fresh: notice: the line Cancel load said
     const [stopped, setStopped] = useState<string | null>(null);
     const waitingFor = held?.record.problems.filter((p) => PART_CODES.has(p.code)) ?? [];
     // Focus goes where the reader acts next: Name once a model is in, its first part while it waits.
@@ -989,6 +1032,7 @@ export function CustomModelDialog({
     // The dialog's settings over the layer's own, so a change in the dialog is always seen.
     const values: ModelDraft = { ...baseStyle, ...modelDraft, ...draft };
     // graphty-element draws the model live in this element of the preview box.
+    // on reload: fresh: derived: the preview's element, mounted again
     const [previewHost, setPreviewHost] = useState<HTMLDivElement | null>(null);
     // A model waiting for parts is drawn with them stood in for, while Files still asks for them.
     const drawn = useModelPreview(
@@ -1064,6 +1108,18 @@ export function CustomModelDialog({
             store.set({ announcement: failureLine });
         }
     }, [failureLine, store]);
+    useEffect(() => {
+        const models = { ...keptModels.current };
+        for (const member of members) {
+            models[refOf(member.held)] = {
+                name: member.name,
+                ...(member.settings === undefined ? {} : { settings: member.settings }),
+                ...(member.hidden === undefined ? {} : { hidden: member.hidden }),
+            };
+        }
+        keptModels.current = models;
+        store.set({ customModelDraft: { address, draft, models, added: [...added.current] } });
+    }, [store, address, draft, members]);
     const target = useMemo(() => ({ current: body }), [body]);
     const loadRef = useRef<(source: AssetSource, files: readonly File[], shown: string) => void>(() => undefined);
     // Files or a folder dropped anywhere on the dialog: the same as choosing them.
@@ -1098,6 +1154,7 @@ export function CustomModelDialog({
         for (const ref of added.current) {
             letGo(ref);
         }
+        store.set({ customModelDraft: null });
         onClose();
     };
     // A model that waited takes a new id once its parts are in: still the dialog's to let go.
@@ -1106,14 +1163,14 @@ export function CustomModelDialog({
             added.current.add(after.id);
         }
     };
-    const memberOf = (next: Held): Member => ({
-        held: next,
-        name:
+    // A model loaded again after a reload takes back the Name and settings the reader gave it.
+    const memberOf = (next: Held): Member => {
+        const usual =
             next.again === undefined
                 ? (next.record.plainName ?? modelName(session, refOf(next)))
-                : freeName(session, next.again, next.record.id),
-        load: true,
-    });
+                : freeName(session, next.again, next.record.id);
+        return { held: next, load: true, ...(keptModels.current[refOf(next)] ?? { name: usual }) };
+    };
     // What the dialog holds now, after letting go of what it held before and no longer does.
     const holdAll = (next: readonly Held[]): void => {
         const keep = new Set(next.map((h) => refOf(h)));
@@ -1475,6 +1532,7 @@ export function CustomModelDialog({
                   };
         // A layer takes the model shown when it is checked, else the first checked.
         const shown = ready.find((r) => r.member === current) ?? ready[0];
+        store.set({ customModelDraft: null });
         onAdd(
             shown.ref,
             draft,
@@ -1557,6 +1615,7 @@ export function CustomModelDialog({
         setMembers([]);
         setIndex(0);
         setDraft({});
+        keptModels.current = {};
         setProblem(null);
         setTried(null);
         setPicture(null);
@@ -1592,6 +1651,7 @@ export function CustomModelDialog({
             folderTip={CUSTOM_MODEL.folderTip}
             placeholder={CUSTOM_MODEL.addressOrDrop}
             urlLabel={CUSTOM_MODEL.address}
+            // on reload: fresh: derived: the kept address
             defaultValue={address}
             error={addressProblem === null ? undefined : refusalLine(addressProblem)}
             onDiscard={() => {
@@ -1870,6 +1930,7 @@ export function CustomModelDialog({
                             variant="default"
                             aria-label={`Use ${picture.name} as picture`}
                             onClick={() => {
+                                store.set({ customModelDraft: null });
                                 onPicture(picture.id);
                             }}
                         >

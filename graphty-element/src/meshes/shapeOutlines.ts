@@ -832,10 +832,19 @@ export function convexHull(points: readonly Point2[]): Point2[] {
     const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     const cross = (o: Point2, a: Point2, b: Point2): number =>
         (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    // Points a rounding error apart are one point: kept as two, scaling can land them on each other, and a side
+    // with no length has no direction to offset along (issue #10497).
+    const span = points.reduce((most, [x, y]) => Math.max(most, Math.abs(x), Math.abs(y)), 0);
+    const same = span * 1e-9;
     const half = (list: Point2[]): Point2[] => {
         const chain: Point2[] = [];
 
         for (const point of list) {
+            const last = chain.at(-1);
+            if (last !== undefined && Math.abs(point[0] - last[0]) <= same && Math.abs(point[1] - last[1]) <= same) {
+                continue;
+            }
+
             while (chain.length >= 2 && cross(chain.at(-2) ?? point, chain.at(-1) ?? point, point) <= 0) {
                 chain.pop();
             }

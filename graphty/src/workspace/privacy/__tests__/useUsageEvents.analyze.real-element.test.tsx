@@ -21,7 +21,7 @@ import {
     startPageCounts,
 } from "../../../lib/analytics";
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { firstOnPage, type Recorded, recordInto, TEST_ANALYTICS } from "../../../test/usage-recorders";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -95,7 +95,7 @@ async function lesMisProject(): Promise<GraphSession> {
         throw new Error("the element never came up");
     }
     await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
-    await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
+    await userEvent.click(page.getByRole("tab", { name: "Calculated", exact: true }));
     return session;
 }
 
@@ -105,9 +105,9 @@ async function lesMisProject(): Promise<GraphSession> {
  */
 async function pickInAnalyze(name: string): Promise<void> {
     const place = screen.getByRole("region", { name: "Data place" });
-    await userEvent.click(await within(place).findByRole("button", { name: /^Analyze/ }));
-    await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), name);
-    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}`) }));
+    await userEvent.click(page.elementLocator(place).getByRole("button", { name: /^Analyze/ }));
+    await userEvent.type(page.getByRole("combobox", { name: "Filter analyses", exact: true }), name);
+    await userEvent.click(page.getByRole("option", { name: new RegExp(`^${name}`) }));
 }
 
 /**
@@ -168,7 +168,7 @@ describe("usage counts from Analyze", () => {
 
         await pickInAnalyze("PageRank");
         const ran = next("algorithm_run");
-        await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Run\b/ }));
         assert.deepEqual({ ...(await ran) }, { algorithm: "pagerank", outcome: "succeeded" });
         assert.deepEqual(sent("algorithm_run").counted, [{ algorithm: "pagerank", outcome: "succeeded" }]);
         assert.lengthOf(sent("algorithm_run").posthog, 1);
@@ -176,7 +176,7 @@ describe("usage counts from Analyze", () => {
         const actionsBefore = sent("graph_action").posthog.length;
         const stylesBefore = sent("style_changed").posthog.length;
         const recolor = next("style_changed");
-        await userEvent.click(await screen.findByRole("button", { name: "Show anyway" }));
+        await userEvent.click(page.getByRole("button", { name: "Show anyway", exact: true }));
         assert.deepEqual({ ...(await recolor) }, { op: "style.encode" });
         const recolors = sent("style_changed").posthog.slice(stylesBefore);
         assert.lengthOf(recolors, 1, "one re-coloring, one event");
@@ -191,7 +191,7 @@ describe("usage counts from Analyze", () => {
 
         // The header's Undo takes back the re-coloring; Control+Z takes back the run.
         let moved = historyMoves(session, "undo");
-        await userEvent.click(screen.getByRole("button", { name: /^Undo/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Undo/ }));
         await moved;
         moved = historyMoves(session, "undo");
         await userEvent.keyboard("{Control>}z{/Control}");
@@ -206,7 +206,7 @@ describe("usage counts from Analyze", () => {
         await userEvent.keyboard("{Control>}{Shift>}z{/Shift}{/Control}");
         await moved;
         moved = historyMoves(session, "redo");
-        await userEvent.click(screen.getByRole("button", { name: /^Redo/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Redo/ }));
         await moved;
         assert.deepEqual(
             session.runs.list().map((run) => [run.algorithm, run.status]),
@@ -232,12 +232,12 @@ describe("usage counts from Analyze", () => {
         const session = await lesMisProject();
         // Katz with its Attenuation at the top of its range never settles on an answer.
         await pickInAnalyze("Katz");
-        await userEvent.click(await screen.findByRole("button", { name: "Settings for Katz" }));
-        const alpha = await screen.findByRole("textbox", { name: /^Attenuation/ });
+        await userEvent.click(page.getByRole("button", { name: "Settings for Katz", exact: true }));
+        const alpha = page.getByRole("textbox", { name: /^Attenuation/ });
         await userEvent.tripleClick(alpha);
         await userEvent.keyboard("0.5{Tab}");
         const ran = next("algorithm_run");
-        await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Run\b/ }));
         const props = await ran;
 
         const run = session.runs.list().find((each) => each.algorithm === "katz");

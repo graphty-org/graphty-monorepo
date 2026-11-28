@@ -957,7 +957,8 @@ export function SourceFields({
             {sides.includes("nodes") ? (
                 <SideGroup
                     side="nodes"
-                    count={source?.counts.nodes ?? totalNodes}
+                    // The nodes its rows supplied: not the ones only its edges' ends made (#10490).
+                    count={source === undefined ? totalNodes : source.counts.nodes - (source.endNodes ?? 0)}
                     source={source}
                     attributes={attributes}
                     fixed={fixedRows("nodes")}

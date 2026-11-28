@@ -64,7 +64,11 @@ describe("a Cytoscape session opened with its styles", () => {
             name: "Legend",
         });
         assert.equal(legendButton.getAttribute("aria-pressed"), "false");
-        await userEvent.click(legendButton);
+        await userEvent.click(
+            page
+                .getByRole("toolbar", { name: "Canvas tools", exact: true })
+                .getByRole("button", { name: "Legend", exact: true }),
+        );
         const legend = await screen.findByRole("region", { name: "Legend" });
         // The session's look, top layer first: its edge line and color, then its node shape and color.
         await waitFor(() => {

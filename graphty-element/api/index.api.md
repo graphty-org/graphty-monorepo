@@ -916,11 +916,9 @@ export class DataManager implements Manager {
     init(): Promise<void>;
     get isLoading(): boolean;
     get lastImport(): LoadReport | null;
-    // (undocumented)
     meshCache: MeshCache;
     // @internal
     nodeAtRow(row: number): Node_2 | undefined;
-    // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
     // @internal
     nodeIdAtRow(row: number): NodeIdType | undefined;
@@ -8598,6 +8596,7 @@ export class RenderManager implements Manager {
         gpuBehind: number;
         smooth: number;
         awaitedLanding: number;
+        drawnNow: number;
     };
 }
 

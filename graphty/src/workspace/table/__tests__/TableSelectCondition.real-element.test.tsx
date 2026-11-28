@@ -44,7 +44,7 @@ describe("a table row click and a select condition", () => {
         await userEvent.keyboard("{Shift>}T{/Shift}");
         const dock = await screen.findByRole("region", { name: "Table" });
         await within(dock).findByText("6 nodes");
-        await userEvent.click(within(dock).getAllByRole("rowheader", { name: "n4" })[0]);
+        await userEvent.click(page.elementLocator(dock).getByRole("rowheader", { name: "n4", exact: true }).nth(0));
 
         await waitFor(() => {
             assert.isFalse(live.visibility.conditions[0]?.on, "the reader's row click switched the condition off");

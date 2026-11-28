@@ -11,7 +11,7 @@
 import "@graphty/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -48,8 +48,8 @@ function colormap(): Promise<File> {
  * @returns the Picture pop-over.
  */
 async function addPicture(tab: HTMLElement): Promise<HTMLElement> {
-    await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Picture" }));
+    await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node fill", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: "Picture", exact: true }));
     return screen.findByRole("dialog", { name: "Picture" });
 }
 
@@ -109,7 +109,10 @@ describe("pictures on nodes, on the real element", () => {
         });
         const { session, tab } = await openShapes([], { "node.shape": "sphere" });
         const picture = await addPicture(tab);
-        await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), `${url}{Enter}`);
+        await userEvent.type(
+            page.elementLocator(picture).getByRole("textbox", { name: "Picture address", exact: true }),
+            `${url}{Enter}`,
+        );
         // An address is written as the address, so the layer names where the picture lives.
         await waitFor(() => {
             assert.equal(written(session, "node.texture"), url);
@@ -124,15 +127,17 @@ describe("pictures on nodes, on the real element", () => {
 
         // The line opens the pop-over again; the project's picture is there, and a .glb chosen there
         // is a model: Use as model writes node.model, never node.texture.
-        await userEvent.click(await within(tab).findByLabelText("Node picture, colormap"));
+        await userEvent.click(page.elementLocator(tab).getByLabelText("Node picture, colormap", { exact: true }));
         const picture = await screen.findByRole("dialog", { name: "Picture" });
         assert.isNotNull(within(picture).getByRole("button", { name: "colormap" }));
         await choose(picture, "Choose picture", [new File([quadGlb()], "quad.glb")]);
-        const use = await within(picture).findByRole("button", { name: "Use quad as model" });
+        await within(picture).findByRole("button", { name: "Use quad as model" });
         // Said as the field's error, not a chip.
         assert.isNotNull(within(picture).getByText("Not a picture: this file is a 3D model"));
         assert.isNull(picture.querySelector(".mantine-Badge-root"), "no pill in the Picture pop-over");
-        await userEvent.click(use);
+        await userEvent.click(
+            page.elementLocator(picture).getByRole("button", { name: "Use quad as model", exact: true }),
+        );
         await waitFor(() => {
             assert.match(String(written(session, "node.model")), /^asset:/);
             assert.notEqual(written(session, "node.model"), "asset:sample/box");
@@ -149,10 +154,12 @@ describe("pictures on nodes, on the real element", () => {
             return { "node.model": id };
         });
 
-        const use = await within(tab).findByRole("button", { name: "Use colormap as picture" });
+        await within(tab).findByRole("button", { name: "Use colormap as picture" });
         // The Shape field offers the button only: the refusal is no chip in the Style panel.
         assert.isNull(tab.querySelector(".ws-model-actions .mantine-Badge-root"), "no chip under the Shape field");
-        await userEvent.click(use);
+        await userEvent.click(
+            page.elementLocator(tab).getByRole("button", { name: "Use colormap as picture", exact: true }),
+        );
         await waitFor(() => {
             assert.equal(written(session, "node.texture"), id);
             assert.isUndefined(written(session, "node.model"));
@@ -223,15 +230,18 @@ describe("pictures on nodes, on the real element", () => {
         });
         const { session, tab } = await openShapes([], { "node.shape": "sphere" });
         await chooseColormap(await addPicture(tab), session);
-        const field = await within(tab).findByLabelText("Node picture, colormap");
+        await within(tab).findByLabelText("Node picture, colormap");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Picture" }));
         });
 
-        await userEvent.click(field);
+        await userEvent.click(page.elementLocator(tab).getByLabelText("Node picture, colormap", { exact: true }));
         let picture = await screen.findByRole("dialog", { name: "Picture" });
-        await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), url);
-        await userEvent.click(within(picture).getByRole("button", { name: "Add" }));
+        await userEvent.type(
+            page.elementLocator(picture).getByRole("textbox", { name: "Picture address", exact: true }),
+            url,
+        );
+        await userEvent.click(page.elementLocator(picture).getByRole("button", { name: "Add", exact: true }));
         await waitFor(() => {
             assert.include(asked, url);
         });
@@ -242,7 +252,7 @@ describe("pictures on nodes, on the real element", () => {
 
         answer(new Response(police, { status: 200 }));
         // Open again: once the add has finished, nothing is loading.
-        await userEvent.click(field);
+        await userEvent.click(page.elementLocator(tab).getByLabelText("Node picture, colormap", { exact: true }));
         picture = await screen.findByRole("dialog", { name: "Picture" });
         await waitFor(() => {
             assert.isNull(within(picture).queryByRole("progressbar"));

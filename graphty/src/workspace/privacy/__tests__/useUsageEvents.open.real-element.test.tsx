@@ -197,9 +197,11 @@ describe("usage counts when a project opens", () => {
         });
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
-        const tile = await screen.findByRole("button", { name: "Load network data: WikiPathways WP5483" });
+        await screen.findByRole("button", { name: "Load network data: WikiPathways WP5483" });
         const loaded = next("sample_loaded");
-        await openBy(store, () => userEvent.click(tile));
+        await openBy(store, () =>
+            userEvent.click(page.getByRole("button", { name: "Load network data: WikiPathways WP5483", exact: true })),
+        );
         const props = await loaded;
         assert.strictEqual(props.sample, "ndex-wp5483");
         assert.include(["1-100", "101-1k", "1k-10k", "10k+"], props.size);
@@ -309,11 +311,11 @@ describe("usage counts when a project opens", () => {
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         const outputs = within(dialog).getByRole("grid", { name: "What to export" });
         // Choices: Project, then Data, then its format twice; none of them writes a file.
-        await userEvent.click(within(outputs).getByText("Project"));
-        await userEvent.click(within(outputs).getByText("Data"));
+        await userEvent.click(page.elementLocator(outputs).getByText("Project", { exact: true }));
+        await userEvent.click(page.elementLocator(outputs).getByText("Data", { exact: true }));
         for (const label of ["GML", "GraphML"]) {
-            await userEvent.click(within(dialog).getByRole("combobox", { name: "Format" }));
-            await userEvent.click(await screen.findByRole("option", { name: label }));
+            await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Format", exact: true }));
+            await userEvent.click(page.getByRole("option", { name: label, exact: true }));
             await waitFor(() => {
                 assert.notInclude(
                     within(dialog).getByLabelText("Preview of the exported data").textContent,
@@ -326,7 +328,7 @@ describe("usage counts when a project opens", () => {
         assert.isEmpty(downloads);
 
         const exported = next("export_done");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Export", exact: true }));
         assert.deepEqual({ ...(await exported) }, { kind: "graph", format: "graphml", destination: "download" });
         await waitFor(() => {
             assert.lengthOf(downloads, 1);
@@ -348,15 +350,15 @@ describe("usage counts when a project opens", () => {
         const answeredAt = posthog.length;
         assert.isAbove(answeredAt, 0);
 
-        await userEvent.click(within(card).getByRole("radio", { name: USE_CASE_CHOICES[2] }));
-        await userEvent.click(within(card).getByRole("button", { name: "Send" }));
+        await userEvent.click(page.elementLocator(card).getByRole("radio", { name: USE_CASE_CHOICES[2], exact: true }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: "Send", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("complementary", { name: "Survey" }));
         });
 
         // A later event: a panel the reader opens from its button.
         const panel = next("panel_opened");
-        await userEvent.click(screen.getByRole("button", { name: /^Settings/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Settings/ }));
         await panel;
 
         const earlier = posthog.slice(0, answeredAt);

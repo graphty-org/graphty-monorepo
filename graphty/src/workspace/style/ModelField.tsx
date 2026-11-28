@@ -14,7 +14,7 @@ import React, { useCallback, useState } from "react";
 
 import { modelName, pictureName, useModelStates } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { CustomModelDialog, type ModelDraft } from "./CustomModelDialog";
 import { ModelProblems } from "./ModelProblems";
 import { ModelSettings } from "./ModelSettings";
@@ -123,8 +123,16 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
     const [modelsOpen, setModelsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const states = useModelStates(session);
-    // The Load custom model dialog, opened by the Models pop-over's Add custom model....
-    const [customOpen, setCustomOpen] = useState(false);
+    // The Load custom model dialog, opened by the Models pop-over's Add custom model...: which row's
+    // Shape line opened it is kept in the store's customModelOn, so a reload reopens it there.
+    const rowKey = ctx.row.join(",");
+    const customOpen = useWorkspaceState((state) => state.customModelOn) === rowKey;
+    const setCustomOpen = useCallback(
+        (open: boolean) => {
+            store.set({ customModelOn: open ? rowKey : null });
+        },
+        [store, rowKey],
+    );
     // Fill's Picture line, added with "+": its pop-over opens at once.
     const [pictureOpen, setPictureOpen] = useState(() => channel === "node.texture" && pending);
     // Focus back on the field, once the pop-over that took its place has gone.

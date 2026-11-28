@@ -7,7 +7,8 @@
  * @param path the path under the API root, such as `/repos/o/r/issues` or `/graphql`
  * @param [body] an object (sent as JSON) or a string sent as it is
  * @param [opts] `token` (default GITHUB_TOKEN), `base` (default https://api.github.com), `timeoutMs` (default
- * none), `minRateLeft` (throw when fewer requests than this are left this hour; default no check)
+ * none), `minRateLeft` (throw when fewer requests than this are left this hour; default no check). The floor reads
+ * only the hourly core bucket: a response from another bucket (search's 30 a minute, #10481) never trips it
  * @returns the parsed JSON answer, the text of a non-JSON one (a job's log), or null for 204
  */
 export async function githubRequest(method, path, body, opts = {}) {
@@ -24,7 +25,8 @@ export async function githubRequest(method, path, body, opts = {}) {
     });
     if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`);
     const left = Number(res.headers.get("x-ratelimit-remaining") ?? Infinity);
-    if (minRateLeft && left < minRateLeft) throw new Error(`only ${left} API requests left this hour`);
+    const hourly = (res.headers.get("x-ratelimit-resource") ?? "core") === "core";
+    if (minRateLeft && hourly && left < minRateLeft) throw new Error(`only ${left} API requests left this hour`);
     if (res.status === 204) return null;
     // fetch drops the authorization header on the redirect to a log's storage, and the log comes back as text
     return res.headers.get("content-type")?.includes("json") ? res.json() : res.text();

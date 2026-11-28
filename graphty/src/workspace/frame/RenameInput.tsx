@@ -1,10 +1,14 @@
 import { TextInput } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
+
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 
 /** Props for RenameInput. */
 interface RenameInputProps {
     /** The name now, prefilled and selected. */
     readonly name: string;
+    /** What names the row, as given to useRenaming. */
+    readonly on: string;
     /**
      * Takes the new name, or null to cancel, and how the field ended: `"key"` (Enter or Escape:
      * focus is still in the field) or `"left"` (Tab, or focus moved elsewhere).
@@ -25,6 +29,7 @@ interface RenameInputProps {
  * stops there, so a list around it stays open).
  * @param props - Component props
  * @param props.name - the name now
+ * @param props.on - what names the row
  * @param props.onDone - takes the new name, or null to cancel, and how the field ended
  * @param props.label - the field's accessible name
  * @param props.container - the row's selector, for the blur check
@@ -34,13 +39,16 @@ interface RenameInputProps {
  */
 export function RenameInput({
     name,
+    on,
     onDone,
     label,
     container,
     maxLength,
     className,
 }: RenameInputProps): React.JSX.Element {
-    const [text, setText] = useState(name);
+    const { store } = useWorkspace();
+    // The text is the workspace's kept renameDraft, so a reload brings back what the reader typed.
+    const text = useWorkspaceState((state) => (state.renameDraft?.on === on ? state.renameDraft.text : name));
     const input = useRef<HTMLInputElement>(null);
     // Tab leaves the field for the row's next control, which commits: no keyboard trap.
     const tabbing = useRef(false);
@@ -49,6 +57,7 @@ export function RenameInput({
     const finish = (next: string | null, how: "key" | "left"): void => {
         if (!done.current) {
             done.current = true;
+            store.set({ renameDraft: null });
             onDone(next, how);
         }
     };
@@ -72,7 +81,7 @@ export function RenameInput({
             maxLength={maxLength}
             value={text}
             onChange={(event) => {
-                setText(event.currentTarget.value);
+                store.set({ renameDraft: { on, text: event.currentTarget.value } });
             }}
             onBlur={(event) => {
                 // The menu that opened it hands focus back to its button in the same row, and the

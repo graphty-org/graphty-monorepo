@@ -916,11 +916,9 @@ export class DataManager implements Manager {
     init(): Promise<void>;
     get isLoading(): boolean;
     get lastImport(): LoadReport | null;
-    // (undocumented)
     meshCache: MeshCache;
     // @internal
     nodeAtRow(row: number): Node_2 | undefined;
-    // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
     // @internal
     nodeIdAtRow(row: number): NodeIdType | undefined;
@@ -1386,6 +1384,7 @@ export const EdgeStyle: z.ZodObject<{
             "open-vee": "open-vee";
             slash: "slash";
             stem: "stem";
+            "hollow-vee": "hollow-vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1690,6 +1689,7 @@ export const EdgeStyle: z.ZodObject<{
             "open-vee": "open-vee";
             slash: "slash";
             stem: "stem";
+            "hollow-vee": "hollow-vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1994,6 +1994,7 @@ export const EdgeStyle: z.ZodObject<{
             "open-vee": "open-vee";
             slash: "slash";
             stem: "stem";
+            "hollow-vee": "hollow-vee";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -2045,6 +2046,7 @@ export const EdgeStyle: z.ZodObject<{
             "open-vee": "open-vee";
             slash: "slash";
             stem: "stem";
+            "hollow-vee": "hollow-vee";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -8598,6 +8600,7 @@ export class RenderManager implements Manager {
         gpuBehind: number;
         smooth: number;
         awaitedLanding: number;
+        drawnNow: number;
     };
 }
 
@@ -9667,7 +9670,7 @@ export class UpdateManager implements Manager {
     } | null;
     get graphIsDrawn(): boolean;
     // @internal
-    haloTouched(mesh: AbstractMesh, built: boolean): void;
+    haloTouched(mesh: AbstractMesh, built: number): void;
     holdSelectionFollow(following?: readonly Node_2[]): void;
     // @internal
     holdsMesh(node: Node_2): void;

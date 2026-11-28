@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
@@ -63,13 +63,13 @@ async function openScene(): Promise<{ session: GraphSession; idOf: (name: string
  */
 async function clickRow(name: string, { shift = false }: { shift?: boolean } = {}): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    const row = await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) });
+    const row = (): Locator => page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) });
     if (shift) {
         await userEvent.keyboard("{Shift>}");
-        await userEvent.click(row);
+        await userEvent.click(row());
         await userEvent.keyboard("{/Shift}");
     } else {
-        await userEvent.click(row);
+        await userEvent.click(row());
     }
 }
 
@@ -77,7 +77,7 @@ describe("the Style panel", () => {
     it("edits Everything's selection like any layer's", async () => {
         await openScene();
         await clickRow("Everything");
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
         const done = await screen.findByRole("button", { name: "Done" });
         assert.isNotNull(done.closest(".sel-ws"), "it opens in the selection editor");
         assert.isNotNull(screen.queryByRole("button", { name: "Value" }), "a step can be added");
@@ -91,10 +91,10 @@ describe("the Style panel", () => {
         const place = (): number => session.styles.tree().findIndex((row) => row.name === "Everything");
         const from = place();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Everything, / }), {
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Everything, / }), {
             button: "right",
         });
-        await userEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Move up/ }));
+        await userEvent.click(page.getByRole("menu").getByRole("menuitem", { name: /^Move up/ }));
         await waitFor(() => {
             assert.strictEqual(place(), from + 1, "one place up its list");
         });
@@ -130,7 +130,9 @@ describe("the Style panel", () => {
             name: /^Which nodes, 3 of 77 nodes, Picked by hand: 3 nodes$/,
         });
         assert.notInclude(row.textContent ?? "", "A rule set elsewhere");
-        await userEvent.click(row);
+        await userEvent.click(
+            page.getByRole("button", { name: /^Which nodes, 3 of 77 nodes, Picked by hand: 3 nodes$/ }),
+        );
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const card = within(region).getByRole("group", { name: "Picked by hand: 3 nodes" });
         // By name, not id (issue #7454), on its Remove button's tooltip, never in the sidebar (#8739).
@@ -179,8 +181,8 @@ describe("the Style panel", () => {
     it("offers Everything's menu as any row's: it moves, unpins and deletes", async () => {
         await openScene();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        const everything = await within(tree).findByRole("treeitem", { name: /^Everything, / });
-        await userEvent.click(everything, { button: "right" });
+        const everything = (): Locator => page.elementLocator(tree).getByRole("treeitem", { name: /^Everything, / });
+        await userEvent.click(everything(), { button: "right" });
         const menu = await screen.findByRole("menu");
         for (const name of ["Delete", "Pin to top", "Unpin", "Move to folder"]) {
             const item = within(menu).getByRole("menuitem", { name: new RegExp(`^${name}`) });

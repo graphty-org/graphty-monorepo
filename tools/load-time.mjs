@@ -103,7 +103,7 @@ export async function approvedEntries(entries, fetchComment) {
  * @param id - the comment id
  * @returns the comment
  */
-async function fetchIssueComment(id) {
+export async function fetchIssueComment(id) {
     const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
     if (!token) throw new Error("GH_TOKEN or GITHUB_TOKEN is needed to check the accepted slowdowns' approvals");
     const res = await fetch(`https://api.github.com/repos/graphty-org/graphty-monorepo/issues/comments/${id}`, {
@@ -426,11 +426,21 @@ async function main(argv) {
     return 0;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+/**
+ * Run `main(argv)` when the module at `url` is the script node was started with: its result is the exit code, and a
+ * throw prints `<name>: <message>` and exits 1.
+ * @param url the caller's `import.meta.url`
+ * @param name the tool name its errors are printed under
+ * @param main the tool's entry point
+ */
+export async function runAsMain(url, name, main) {
+    if (process.argv[1] !== fileURLToPath(url)) return;
     try {
         process.exitCode = await main(process.argv.slice(2));
     } catch (e) {
-        console.error(`load-time: ${e instanceof Error ? e.message : String(e)}`);
+        console.error(`${name}: ${e instanceof Error ? e.message : String(e)}`);
         process.exitCode = 1;
     }
 }
+
+await runAsMain(import.meta.url, "load-time", main);

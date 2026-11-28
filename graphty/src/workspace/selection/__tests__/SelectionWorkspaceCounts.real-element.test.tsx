@@ -1,15 +1,8 @@
 /**
- * The selection workspace's third polish round (design/ui/studio/tier5/ws-polish-3-*.md) on the
- * REAL graphty-element and Les Miserables, driven by real clicks and keys: a click on the preview
- * canvas never closes the workspace; a style layer's workspace says its count as it changes; a new
- * or cleared rule opens on its value picker; the outline carries No match in place of a key over
- * the preview; the picker is as wide as its field; the outline's levels are the indent's; an edge
- * condition's pick goes on to its Min box and tags nothing until it tests; a long checklist says
- * how many values are not drawn; F6 goes from the workspace to its preview; the Filters header
- * keeps its total while a card is edited; a new card's Nodes | Edges keeps focus on a side switch;
- * a collapsed card's name says its count apart from its title. And round 1's gate
- * (design/ui/studio/tier5/report.md): the matches strip is searched first, the value picker's list
- * is itself the region that scrolls, and a disabled reference says it is unavailable.
+ * The counts and searches of the selection workspace, on the REAL graphty-element and Les
+ * Miserables, driven by real clicks and keys: a style layer's workspace says its new count as a
+ * test changes, a long checklist says how many values are not drawn, and the matches strip is
+ * searched first, typing finding a match among its rows.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -17,7 +10,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, UnionLeaf } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
@@ -78,7 +71,7 @@ async function openLayer(session: GraphSession, name: string, where?: UnionLeaf)
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -100,7 +93,7 @@ async function opened(): Promise<HTMLElement> {
 
 /** Opens the layer's workspace with the sidebar's Edit. */
 async function edit(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
     return opened();
 }
 
@@ -123,8 +116,9 @@ describe("a style layer's workspace", () => {
         const { session, heard } = await openSample();
         await openLayer(session, "Spoken", degreeAtLeast(10));
         const ws = await edit();
-        const from = await within(ws).findByRole("textbox", { name: "Degree from, number" });
-        await userEvent.click(from);
+        const from = (): Locator =>
+            page.elementLocator(ws).getByRole("textbox", { name: "Degree from, number", exact: true });
+        await userEvent.click(from());
         await userEvent.keyboard("{Control>}a{/Control}5{Tab}");
         await waitFor(() => {
             assert.isTrue(
@@ -173,7 +167,9 @@ describe("round 1's gate", () => {
             Boolean(search.compareDocumentPosition(strip.querySelector("table, [role=grid]") ?? strip) & 4),
             "the search comes before the table",
         );
-        await userEvent.click(search);
+        await userEvent.click(
+            page.elementLocator(strip).getByRole("searchbox", { name: "Search matches", exact: true }),
+        );
         await userEvent.keyboard("Valjean");
         await waitFor(() => {
             assert.isAtMost(rows(), 3, "the table holds what the search found");

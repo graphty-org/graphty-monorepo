@@ -9,7 +9,7 @@ import "@graphty/graphty-element";
 import type { FormatId } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
@@ -29,8 +29,10 @@ type PageElement = HTMLElementTagNameMap["graphty-element"];
  * @param option - the choice's name.
  */
 async function pick(dialog: HTMLElement, label: string, option: string | RegExp): Promise<void> {
-    await userEvent.click(within(dialog).getByLabelText(label, { selector: "input" }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
+    await userEvent.click(
+        page.elementLocator(dialog).getByLabelText(label, { exact: true }).and(page.getByCss("input")),
+    );
+    await userEvent.click(page.getByRole("option", { name: option, exact: true }));
 }
 
 /**
@@ -59,7 +61,7 @@ async function warningsFor(
         // The rows sit behind the one-line summary's Details (R14).
         const details = within(box).getByRole("button", { name: "Details" });
         if (details.getAttribute("aria-expanded") !== "true") {
-            await userEvent.click(details);
+            await userEvent.click(page.elementLocator(box).getByRole("button", { name: "Details", exact: true }));
         }
         // Each row's words; its column and count chips name the file's own columns.
         lines.push(
@@ -94,7 +96,12 @@ describe("Export > Data: what a format cannot hold, in the app's words", () => {
 
         await userEvent.keyboard("{Control>}e{/Control}");
         const dialog = await screen.findByRole("dialog", { name: "Export" });
-        await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"));
+        await userEvent.click(
+            page
+                .elementLocator(dialog)
+                .getByRole("grid", { name: "What to export", exact: true })
+                .getByText("Data", { exact: true }),
+        );
 
         await pick(dialog, "Format", "CSV");
         await pick(dialog, "Table", "Edges");
@@ -174,7 +181,12 @@ async function openData(
     await load(session);
     await userEvent.keyboard("{Control>}e{/Control}");
     const dialog = await screen.findByRole("dialog", { name: "Export" });
-    await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"));
+    await userEvent.click(
+        page
+            .elementLocator(dialog)
+            .getByRole("grid", { name: "What to export", exact: true })
+            .getByText("Data", { exact: true }),
+    );
     return { dialog, element };
 }
 
@@ -216,11 +228,11 @@ describe("Export > Data on the real element: preview, settings and refusals", ()
         const gear = settings.getBoundingClientRect();
         assert.isAtLeast(gear.left, format.right, "at the end of the Format row");
         assert.isAtMost(gear.top, format.bottom, "on the Format row");
-        await userEvent.click(settings);
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: /^Format settings/ }));
         const panel = await screen.findByRole("dialog", { name: "Format settings" });
         const separator = within(panel).getByLabelText("Column separator");
         assert.equal((separator as HTMLInputElement).placeholder, ",");
-        await userEvent.type(separator, ";");
+        await userEvent.type(page.elementLocator(panel).getByLabelText("Column separator", { exact: true }), ";");
         const preview = within(dialog).getByLabelText("Preview of the exported data");
         await waitFor(() => {
             const header = preview.textContent?.split("\n")[0] ?? "";
@@ -251,7 +263,9 @@ describe("Export > Data on the real element: preview, settings and refusals", ()
         // Without styles the label is written as a Pajek vertex label, which cannot hold a double quote.
         const styles = within(dialog).getByRole("checkbox", { name: "Include styles" });
         assert.isTrue((styles as HTMLInputElement).checked);
-        await userEvent.click(styles);
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("checkbox", { name: "Include styles", exact: true }),
+        );
         const alert = await within(dialog).findByRole("alert");
         assert.include(alert.textContent, "Not written");
         const { losses } = await element.exportGraph("pajek", {});

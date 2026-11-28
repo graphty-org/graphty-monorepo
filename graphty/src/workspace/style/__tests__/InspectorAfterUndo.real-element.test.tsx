@@ -9,7 +9,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, StyleRow } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
@@ -81,8 +81,8 @@ function boxes(session: GraphSession, rows: readonly StyleRow[]): number {
  */
 async function pickBox(): Promise<void> {
     const tab = await screen.findByTestId("style-tab");
-    const field = await within(tab).findByRole("combobox", { name: /^Node shape/ });
-    await userEvent.click(field);
+    const field = (): Locator => page.elementLocator(tab).getByRole("combobox", { name: /^Node shape/ });
+    await userEvent.click(field());
     const options = await screen.findAllByRole("option");
     const box = options.find((o) => /^box$/i.test((o.getAttribute("aria-label") ?? o.textContent ?? "").trim()));
     assert.isDefined(box, "the shape picker offers Box");
@@ -99,8 +99,8 @@ async function pickBox(): Promise<void> {
  */
 async function boxUndoBox(session: GraphSession, rows: readonly StyleRow[]): Promise<void> {
     const tab = await screen.findByTestId("style-tab");
-    await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+    await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: "Shape", exact: true }));
     await pickBox();
     await waitFor(() => {
         assert.equal(boxes(session, rows), rows.length, "Box is written to every layer");

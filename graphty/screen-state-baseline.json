@@ -1,7 +1,6 @@
 {
     "//": "Undeclared component state per file, by the name it is held under, from before the screen-state-declared rule (issue #9655). Issue #9702 tracks sorting them. Only remove a name; declaring state means writing its // on reload: comment.",
     "files": {
-        "src/components/FeedbackModal.tsx": ["email", "files", "loading", "message", "name", "result"],
         "src/components/demo/CompactComponentsDemo.tsx": [
             "Checkbox.defaultChecked",
             "Checkbox.defaultChecked",
@@ -31,11 +30,9 @@
             "provider",
             "remember"
         ],
-        "src/workspace/assistant/AssistantPanel.tsx": ["listing"],
         "src/workspace/assistant/Checks.tsx": ["all", "live", "stop"],
         "src/workspace/assistant/Composer.tsx": ["voiceLine"],
         "src/workspace/assistant/Conversation.tsx": ["behind", "chosen", "late", "open"],
-        "src/workspace/assistant/ConversationList.tsx": ["deleting", "focusTo", "renaming"],
         "src/workspace/assistant/Talk.tsx": ["listening", "support"],
         "src/workspace/assistant/Waiting.tsx": ["picked"],
         "src/workspace/assistant/chats.ts": ["saved"],
@@ -70,7 +67,6 @@
             "source",
             "tableId"
         ],
-        "src/workspace/data-place/ScoreDialog.tsx": ["name"],
         "src/workspace/export/CameraImageOutput.tsx": ["backgroundCheck"],
         "src/workspace/export/DocumentOutput.tsx": ["contents"],
         "src/workspace/export/ReportOutput.tsx": ["configs", "savedName"],
@@ -83,7 +79,6 @@
         ],
         "src/workspace/frame/Header.tsx": ["?"],
         "src/workspace/frame/HelpDialogs.tsx": ["current"],
-        "src/workspace/frame/RenameInput.tsx": ["text"],
         "src/workspace/graph-place/FindBox.tsx": [
             "active",
             "listOpen",
@@ -162,7 +157,7 @@
             "timelineStyle",
             "toComposer"
         ],
-        "src/workspace/settings/ShaderSettings.tsx": ["open", "paste", "picking", "settings"],
+        "src/workspace/settings/ShaderSettings.tsx": ["open", "picking", "settings"],
         "src/workspace/settings/numberFormat.ts": ["?"],
         "src/workspace/settings/shaderPreferences.ts": ["?"],
         "src/workspace/start/HeroGraph.tsx": [
@@ -192,26 +187,6 @@
         "src/workspace/state/store.ts": ["?"],
         "src/workspace/style/BindingPopover.tsx": ["choosing", "detail", "draft"],
         "src/workspace/style/BulkBinding.tsx": ["first", "held", "open", "opened"],
-        "src/workspace/style/CustomModelDialog.tsx": [
-            "FileSource.defaultValue",
-            "addQueued",
-            "address",
-            "body",
-            "draft",
-            "dropping",
-            "index",
-            "loading",
-            "members",
-            "picture",
-            "pictureOpen",
-            "previewHost",
-            "problem",
-            "refused",
-            "settingsOpen",
-            "settingsOver",
-            "stopped",
-            "tried"
-        ],
         "src/workspace/style/Groups.tsx": [
             "TextInput.defaultValue",
             "TextInput.defaultValue",
@@ -235,7 +210,7 @@
             "typing"
         ],
         "src/workspace/style/LabelSettings.tsx": ["TextInput.defaultValue"],
-        "src/workspace/style/ModelField.tsx": ["customOpen", "modelsOpen", "pictureOpen", "settingsOpen"],
+        "src/workspace/style/ModelField.tsx": ["modelsOpen", "pictureOpen", "settingsOpen"],
         "src/workspace/style/ModelProblems.tsx": ["open"],
         "src/workspace/style/ModelsPopover.tsx": ["focused"],
         "src/workspace/style/MultiRowPanel.tsx": ["last"],
@@ -257,7 +232,7 @@
             "pendingVary",
             "varyOpen"
         ],
-        "src/workspace/style/Section.tsx": ["code", "element", "gallery", "hidden", "waiting"],
+        "src/workspace/style/Section.tsx": ["element", "gallery", "hidden", "waiting"],
         "src/workspace/style/ShaderCodeEditor.tsx": ["extensions", "view"],
         "src/workspace/style/ShaderGallery.tsx": ["origin", "query", "stop"],
         "src/workspace/style/ShaderParamRows.tsx": ["open", "typed", "typed"],

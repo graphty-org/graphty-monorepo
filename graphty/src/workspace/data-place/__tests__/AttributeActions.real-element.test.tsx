@@ -49,7 +49,7 @@ async function openWithGraph(): Promise<{ session: GraphSession; element: HTMLEl
  */
 async function attributeMenu(kind: "node" | "edge", name: string): Promise<HTMLElement> {
     await columnVerb(kind, name, "Details");
-    await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
+    await userEvent.click(page.getByRole("button", { name: "Attribute actions", exact: true }));
     return screen.findByRole("menu");
 }
 
@@ -73,7 +73,7 @@ describe("an attribute's actions", () => {
         const { element } = await openWithGraph();
         const menu = await attributeMenu("node", "group");
         assert.includeMembers(itemsOf(menu), ["Add label line", "Filter to...", "Set in Data", "Show in table"]);
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: "Add label line", exact: true }));
         await waitFor(() => {
             // Valjean is in group 1.
             assert.strictEqual(element.labelOf("0")?.text, "1");
@@ -84,14 +84,14 @@ describe("an attribute's actions", () => {
         await openWithGraph();
         const menu = await attributeMenu("edge", "value");
         assert.notInclude(itemsOf(menu), "Add label line");
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Filter to..." }));
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: "Filter to...", exact: true }));
         await screen.findByRole("textbox", { name: "value from, number" });
     });
 
     it("Set in Data makes the attribute the time, opens the Data place, then says it already is", async () => {
         const { session } = await openWithGraph();
         const menu = await attributeMenu("edge", "value");
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Set in Data" }));
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: "Set in Data", exact: true }));
         await waitFor(() => {
             // A number column's time also names the unit it is read in.
             assert.strictEqual(session.time.field?.edges?.start, "value");
@@ -115,8 +115,8 @@ describe("an attribute's actions", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: "Table" }));
         });
-        await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Show in table" }));
+        await userEvent.click(page.getByRole("button", { name: "Attribute actions", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Show in table", exact: true }));
         const dock = await screen.findByRole("region", { name: "Table" });
         await waitFor(() => {
             assert.strictEqual(within(dock).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");

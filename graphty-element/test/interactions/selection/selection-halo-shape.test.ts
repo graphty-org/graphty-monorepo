@@ -173,14 +173,23 @@ function assertHaloSurrounds(element: Graphty, id: string, viewMode: "2d" | "3d"
         .filter((direction) => direction.length() > 1e-6)
         .map((direction) => direction.normalize());
 
+    const across = Math.min(
+        reach(nodePoints, center, new Vector3(1, 0, 0)),
+        reach(nodePoints, center, new Vector3(0, 1, 0)),
+    );
+    const flat = reach(nodePoints, center, new Vector3(0, 0, 1)) <= across / 4;
+
     for (const direction of directions) {
         const nodeReach = reach(nodePoints, center, direction);
         const haloReach = reach(haloPoints, center, direction);
-        assert.isAbove(
-            haloReach,
-            nodeReach,
-            `the highlight around ${id} reaches past the node toward (${direction.x.toFixed(2)}, ${direction.y.toFixed(2)}, ${direction.z.toFixed(2)})`,
-        );
+        const label = `the highlight around ${id} reaches past the node toward (${direction.x.toFixed(2)}, ${direction.y.toFixed(2)}, ${direction.z.toFixed(2)})`;
+        // A flat shape's halo is exactly as thick as the node (issue #10494): grown in depth, its side walls
+        // reached through the border's front face. So along the normal of a flat node it only has to match.
+        if (flat && Math.abs(direction.z) > 1 - 1e-6) {
+            assert.isAtLeast(haloReach, nodeReach - 1e-6, label);
+        } else {
+            assert.isAbove(haloReach, nodeReach, label);
+        }
     }
 }
 

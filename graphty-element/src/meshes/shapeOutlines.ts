@@ -1125,6 +1125,114 @@ export function offsetOutline(outline: readonly Point2[], distance: number): Poi
     });
 }
 
+/**
+ * A closed outline drawn in by a distance on every side, point for point: each side moved in parallel to itself, and
+ * a side that shrinks to nothing on the way dropped, its neighbors meeting where it closed (a rounded corner's arc
+ * closes up into a sharp corner, a narrow point's sides into its tip). An outline narrower than twice the distance
+ * closes up to almost nothing: it is drawn in only as far as it can be. Scaling the shape about its center instead
+ * keeps a side parallel only on a rectangle or an ellipse: a triangle's slanted sides came in by less than the
+ * distance, and its fill sat off-center (issue #10408).
+ *
+ * ponytail: drops a side only where its neighbors meet over it (a straight skeleton's edge events); a concave outline
+ * whose two far-apart parts meet first (a split event) is drawn past where they meet. A full straight skeleton if a
+ * shape needs it.
+ * @param outline - The outline, counter-clockwise.
+ * @param distance - How far in.
+ * @returns The drawn-in outline; the point at i is where the outline's point i went.
+ */
+export function insetOutline(outline: readonly Point2[], distance: number): Point2[] {
+    // side k runs from point k to point k + 1, on the line n . X = c, n its outward normal; drawn in by t, n . X = c - t
+    const sides = outline.map(([x, y], k) => {
+        const [nx, ny] = outline[(k + 1) % outline.length];
+        const n = unitNormal(x, y, nx, ny);
+        return { n, c: n[0] * x + n[1] * y, d: [nx - x, ny - y] as Point2 };
+    });
+    // where side a's line meets side b's, drawn in by t: null when they are parallel
+    const meet = (a: number, b: number, t: number): Point2 | null => {
+        const [p, q] = [sides[a], sides[b]];
+        const det = p.n[0] * q.n[1] - p.n[1] * q.n[0];
+        if (Math.abs(det) < 1e-9) {
+            return null;
+        }
+        const [ca, cb] = [p.c - t, q.c - t];
+        return [(ca * q.n[1] - cb * p.n[1]) / det, (p.n[0] * cb - q.n[0] * ca) / det];
+    };
+    // the corners of the sides left, drawn in by t: corner j starts side live[j]
+    const corners = (live: number[], t: number): Point2[] | null => {
+        const out: Point2[] = [];
+        for (let j = 0; j < live.length; j++) {
+            const at = meet(live[(j + live.length - 1) % live.length], live[j], t);
+            if (at === null) {
+                return null;
+            }
+            out.push(at);
+        }
+        return out;
+    };
+    // the sides left drawn in by reach, or how far in the outline closes up when it does so first
+    const sidesLeft = (reach: number): { live: number[] } | { closes: number } => {
+        let live = sides.map((_, k) => k).filter((k) => Math.hypot(...sides[k].d) > 1e-12);
+        // how far in the last side dropped closed up
+        let since = 0;
+        for (;;) {
+            // a straight run of sides is one line: keep its first
+            const straight = live.findIndex((k, j) => meet(live[(j + live.length - 1) % live.length], k, 0) === null);
+            if (straight >= 0 && live.length > 3) {
+                live = live.filter((_, j) => j !== straight);
+                continue;
+            }
+            const [now, later] = [corners(live, 0), corners(live, 1)];
+            if (now === null || later === null) {
+                return { closes: since };
+            }
+            // side j shrinks along its own direction at a steady rate as t grows; it is gone where its length is 0
+            let first = -1;
+            let when = Infinity;
+            live.forEach((k, j) => {
+                const next = (j + 1) % live.length;
+                const { d } = sides[k];
+                const length = d[0] * (now[next][0] - now[j][0]) + d[1] * (now[next][1] - now[j][1]);
+                const rate = d[0] * (later[next][0] - later[j][0]) + d[1] * (later[next][1] - later[j][1]) - length;
+                if (rate < 0 && -length / rate >= since - 1e-9 && -length / rate < when) {
+                    [first, when] = [j, -length / rate];
+                }
+            });
+            if (first < 0 || when > reach) {
+                return { live };
+            }
+            if (live.length <= 3) {
+                return { closes: when };
+            }
+            live = live.filter((_, j) => j !== first);
+            since = when;
+        }
+    };
+    let reach = distance;
+    let left = sidesLeft(reach);
+    if ("closes" in left) {
+        // drawn in all but a sliver of the way, so the fill keeps an area
+        reach = left.closes * 0.999;
+        left = sidesLeft(reach);
+    }
+    if ("closes" in left) {
+        return outline.map((p): Point2 => [p[0], p[1]]);
+    }
+    const alive = left.live;
+
+    const drawn = corners(alive, reach) ?? [];
+    // point i went where the first side left at or after side i starts
+    const startOf = new Map(alive.map((k, j) => [k, j]));
+    return outline.map((_, i): Point2 => {
+        for (let k = 0; k < outline.length; k++) {
+            const j = startOf.get((i + k) % outline.length);
+            if (j !== undefined) {
+                return drawn[j];
+            }
+        }
+        return [0, 0];
+    });
+}
+
 /** How many rays {@link mitredEdges} casts along an outline to find sides that face each other across a notch. */
 const SIDE_RAYS = 256;
 
@@ -1376,6 +1484,47 @@ export function borderRing(
         outer,
         pattern.map((length) => length * Math.max(width, dashUnit)),
     );
+}
+
+/**
+ * The pieces of a border drawn as the band between two given edges, point for point (a border inside a flat shape:
+ * from its drawn-in fill out to its own outline), for the styles that are a band cut along its length: solid,
+ * double and the dashed patterns. Grown out from the fill instead, a corner the fill closed up came back sharp, past a
+ * rounded shape's outline, and a star's fill closed to a sliver grew back as a blob (issue #10408).
+ * @param inner - The band's inner edge, counter-clockwise.
+ * @param outer - Its outer edge, point for point.
+ * @param style - Its line style.
+ * @param width - How wide the border is, for its dashes' lengths.
+ * @param dashUnit - The shortest one width of a dashed pattern is drawn ({@link borderRing}).
+ * @returns The pieces, or null for a style drawn along a path rather than cut from a band (a stroke, a wave).
+ */
+export function bandRing(
+    inner: readonly Point2[],
+    outer: readonly Point2[],
+    style: string,
+    width: number,
+    dashUnit = 0,
+): RingPiece[] | null {
+    const between = (f: number): Point2[] =>
+        inner.map(([x, y], i): Point2 => [x + (outer[i][0] - x) * f, y + (outer[i][1] - y) * f]);
+    if (style === "solid") {
+        return [{ inner: [...inner], outer: [...outer], closed: true }];
+    }
+    if (style === "double") {
+        return [
+            { inner: [...inner], outer: between(1 / 3), closed: true },
+            { inner: between(2 / 3), outer: [...outer], closed: true },
+        ];
+    }
+    const pattern = PATTERNS[style];
+
+    return pattern === undefined
+        ? null
+        : cutIntoDashes(
+              inner,
+              outer,
+              pattern.map((length) => length * Math.max(width, dashUnit)),
+          );
 }
 
 /**

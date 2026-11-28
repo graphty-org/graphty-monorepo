@@ -14,6 +14,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
+import { WORKSPACE_WORDS } from "../words";
 import {
     addMatch,
     advanced,
@@ -140,7 +141,7 @@ describe("the join workspace's keys (source-steps)", () => {
     it("work after Undo took the open card's step back, and Esc still cancels", async () => {
         const { session, modal } = await opened(["entries.csv", ENTRIES]);
         await join(session, modal, NODE);
-        await userEvent.click(within(modal).getByText(/^Unmatched /u));
+        await userEvent.click(within(modal).getByText(WORKSPACE_WORDS.unmatchedRows));
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
             assert.lengthOf(draftOf(session).steps(), 1, "only people's Add is left");
@@ -424,7 +425,9 @@ describe("a join card's matches and table (source-steps)", () => {
         assert.deepStrictEqual(joinLines(modal), ["people + watch, phone", "people + watch, name"]);
         await selectJoin(modal, "people + watch, phone");
         await userEvent.click(
-            within(within(modal).getByRole("radiogroup", { name: /^Unmatched /u })).getByText("New node"),
+            within(within(modal).getByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows })).getByText(
+                WORKSPACE_WORDS.addNode,
+            ),
         );
         // The second card joined at once too, so the first card's step is no longer the newest.
         await waitFor(() => {
@@ -514,10 +517,12 @@ describe("a join card's matches and table (source-steps)", () => {
         assert.deepStrictEqual(read, ["entries", "people", "badge", "badge"]);
         await within(again).findByRole("radio", { checked: true, name: NODE });
         await userEvent.click(
-            within(within(again).getByRole("radiogroup", { name: /^Unmatched /u })).getByText("Skip"),
+            within(within(again).getByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows })).getByText(
+                WORKSPACE_WORDS.skipRow,
+            ),
         );
         await newest(session, (row) => row.act?.unlinked === "drop", "its options are changed in place");
-        assert.include(again.textContent ?? "", "1 nodes removed", "E3 badges no one");
+        assert.include(again.textContent ?? "", "1 removed nodes", "E3 badges no one");
         assert.deepStrictEqual(joinLines(again), ["entries + people", "New join"], "still one card");
         await done(again);
         assert.isUndefined(session.data.node("E3"));

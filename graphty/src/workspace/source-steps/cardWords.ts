@@ -385,10 +385,10 @@ export function sameEnds(outcome: SourceJoinOutcome): boolean {
 
 /** What a row matching nothing does, as a card names each way. */
 export const NO_MATCH_WORDS: Readonly<Record<NoMatch, string>> = {
-    add: WORKSPACE_WORDS.newNode,
-    skip: WORKSPACE_WORDS.skip,
-    keep: "Keep",
-    remove: WORKSPACE_WORDS.delete,
+    add: WORKSPACE_WORDS.addNode,
+    skip: WORKSPACE_WORDS.skipRow,
+    keep: WORKSPACE_WORDS.keepNode,
+    remove: WORKSPACE_WORDS.removeNode,
 };
 
 /**

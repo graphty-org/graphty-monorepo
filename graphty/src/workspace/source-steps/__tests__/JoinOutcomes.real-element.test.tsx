@@ -15,6 +15,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
+import { WORKSPACE_WORDS } from "../words";
 import {
     addMatch,
     advanced,
@@ -664,7 +665,7 @@ describe("a join card's ways to join (source-steps)", () => {
         await removeOpen(modal);
         await selectJoin(modal, "accounts + watch");
         await within(modal).findByRole("radio", { checked: true, name: "Fields of watch on accounts" });
-        await within(modal).findByRole("radiogroup", { name: /^Unmatched /u });
+        await within(modal).findByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows });
         await screen.findByRole("dialog", { name: "Join" });
         await choose(modal, "Source 1", "identifiers");
         assert.lengthOf(joinsOf(session), 0, "its source changed, the card asks again");

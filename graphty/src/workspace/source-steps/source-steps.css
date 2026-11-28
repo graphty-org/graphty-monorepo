@@ -196,7 +196,7 @@ dialog.jw-modal {
    baseline of the controls' first line, so they stay on it when the controls wrap (#10216). */
 .jw-row {
     display: grid;
-    grid-template-columns: 112px minmax(0, 1fr);
+    grid-template-columns: 96px minmax(0, 1fr);
     gap: 8px;
     align-items: first baseline;
     min-height: 24px;
@@ -273,16 +273,4 @@ dialog.jw-modal {
 /* Advanced folds inside its card's step: the step's own border is the only line, as in a selection card. */
 .jw-modal .sel-card .cm-section {
     border-bottom: 0;
-}
-
-/* A row left under Advanced starts and ends where the rows above it do: the section draws the panel's own
-   padding (16px before, 8px after), so it reaches out by as much, its chevron in the gutter before the rows. */
-.jw-modal .sel-card .cm-section {
-    margin-inline: -16px -8px;
-}
-
-/* A choice fills its row, as a field does. */
-.jw-row-controls > .mantine-SegmentedControl-root {
-    flex: 1 1 0;
-    min-width: 0;
 }

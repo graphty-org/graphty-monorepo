@@ -19,6 +19,7 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { cardPalette } from "../../selection/cardPalette";
 import type { WorkspaceStore } from "../../state/store";
+import { WORKSPACE_WORDS } from "../words";
 import {
     addMatch,
     advanced,
@@ -127,7 +128,7 @@ describe("the join workspace looks and works like the selection workspace (#1036
         await matchBadge(modal);
         // The match joins at once: its type and No match are drawn, and the card is the written one from here.
         const type = await within(modal).findByRole("radiogroup", { name: "Join type" });
-        const noMatch = await within(modal).findByRole("radiogroup", { name: /^Unmatched /u });
+        const noMatch = await within(modal).findByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows });
         const cards = within(modal).getByRole("group", { name: "Joins" });
         const card = cards.querySelector<HTMLElement>("section.cm-list-card.sel-card[data-card-id]:not([data-folded])");
         if (card === null) {
@@ -563,13 +564,13 @@ describe("the join workspace (source-steps)", () => {
             assert.strictEqual(merged().at(-1)?.act?.repeated, "last");
         });
         await userEvent.click(
-            within(within(modal).getByRole("radiogroup", { name: /^Unmatched /u })).getByText("New node"),
+            within(within(modal).getByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows })).getByText(WORKSPACE_WORDS.addNode),
         );
         await waitFor(() => {
             assert.notStrictEqual(merged().at(-1)?.act?.unmatchedFrom, "drop");
         });
         await userEvent.click(
-            within(within(modal).getByRole("radiogroup", { name: /^Unmatched /u })).getByText("Skip"),
+            within(within(modal).getByRole("radiogroup", { name: WORKSPACE_WORDS.unmatchedRows })).getByText(WORKSPACE_WORDS.skipRow),
         );
         await waitFor(() => {
             assert.strictEqual(merged().at(-1)?.act?.unmatchedFrom, "drop");

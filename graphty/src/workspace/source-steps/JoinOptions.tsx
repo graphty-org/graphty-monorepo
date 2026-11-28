@@ -12,7 +12,15 @@ import { Group, MultiSelect, Text, UnstyledButton } from "@mantine/core";
 import React from "react";
 
 import { directions, NO_MATCH_WORDS, sameEnds } from "./cardWords";
-import { type CardLine, type CardResult, DEFAULT_RESULT, directionOf, noMatchOf, noMatchWays } from "./joinCards";
+import {
+    type CardLine,
+    type CardResult,
+    DEFAULT_RESULT,
+    directionOf,
+    type NoMatch,
+    noMatchOf,
+    noMatchWays,
+} from "./joinCards";
 import { Pick } from "./Pick";
 import {
     BUCKET_WORDS,
@@ -234,23 +242,11 @@ function takesSeveral(step: SourceStepRow): boolean {
     return (step.buckets?.groups[0] ?? 0) > 2;
 }
 
-/** Whether a value naming nothing makes a node. */
+/** Whether a value naming nothing makes a node: the way that makes one first, as in every row. */
 const MISSING = [
-    { value: "skip", label: WORKSPACE_WORDS.skip },
-    { value: "add", label: WORKSPACE_WORDS.newNode },
+    { value: "add", label: WORKSPACE_WORDS.addNode },
+    { value: "skip", label: WORKSPACE_WORDS.skipEdge },
 ] as const;
-
-/**
- * The sources an outcome's rows land on, which a value naming nothing would make a node of: one, or the two an
- * edge's ends come from ("people / doors").
- * @param outcome - the outcome
- * @param name - a side's name
- * @returns their names, or null for none
- */
-function ontoName(outcome: SourceJoinOutcome, name: (side: SourceJoinSide) => string): string | null {
-    const names = [...new Set(outcome.onto.map((side) => name(side)))];
-    return names.length === 0 ? null : names.join(" / ");
-}
 
 /** What a card's options take. */
 interface OptionProps {
@@ -495,10 +491,12 @@ function edgeOptions(props: OptionProps, edgeType: AdvancedRow, newType: Advance
             />
         </Row>
     );
+    // Unmatched rows stays asked under Add node: a row whose cell is empty, or names several nodes while
+    // Several match skips, still reaches no node, so a node is still kept or left out for it.
     const missing = (
         <Choice
             key="missing"
-            label={WORKSPACE_WORDS.missing(ontoName(outcome, props.name))}
+            label={WORKSPACE_WORDS.missingEnd}
             value={result.missing}
             data={MISSING}
             onChange={(next) => {
@@ -619,17 +617,15 @@ export function Options(props: OptionProps): React.JSX.Element {
     return (
         <>
             {ways === null ? null : (
-                <Choice
+                <Choice<NoMatch>
                     // An edge's rows are the edges: what it asks is whether a missing end makes a node.
-                    label={
-                        outcome.code === "edge"
-                            ? WORKSPACE_WORDS.missing(ontoName(outcome, props.name))
-                            : WORKSPACE_WORDS.unmatched(
-                                  [...new Set(outcome.rows.map((side) => props.name(side)))].join(", "),
-                              )
-                    }
+                    label={outcome.code === "edge" ? WORKSPACE_WORDS.missingEnd : WORKSPACE_WORDS.unmatchedRows}
                     value={noMatchOf(outcome, result) ?? ways[0]}
-                    data={ways.map((way) => ({ value: way, label: NO_MATCH_WORDS[way] }))}
+                    data={
+                        outcome.code === "edge"
+                            ? MISSING
+                            : ways.map((way) => ({ value: way, label: NO_MATCH_WORDS[way] }))
+                    }
                     onChange={(noMatch) => {
                         onSet({ noMatch });
                     }}

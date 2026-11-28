@@ -39,16 +39,17 @@ function keyOf(marks: SourceDraftMarkCounts, rings: readonly DraftRing[], colors
             count: ring.nodes,
         })),
         { id: "new", color: markColor(NEW_COLOR), label: WORKSPACE_WORDS.nodesNew, count: marks.nodes.new },
-        { id: "edges", color: markColor(NEW_COLOR), label: WORKSPACE_WORDS.edgesNew, count: marks.edges.new },
         ...(
             [
-                ["edges-merged", markColor(MERGED_COLOR), WORKSPACE_WORDS.edgesMerged, marks.edges.merged],
                 ["nodes-removed", REMOVED_COLOR, WORKSPACE_WORDS.nodesRemoved, marks.nodes.removed],
-                ["edges-removed", REMOVED_COLOR, WORKSPACE_WORDS.edgesRemoved, marks.edges.removed],
                 ["nodes-changed", "inherit", WORKSPACE_WORDS.nodesChanged, marks.nodes.changed ?? 0],
-                ["edges-changed", "inherit", WORKSPACE_WORDS.edgesChanged, marks.edges.changed ?? 0],
                 // Named only where a join leaves nodes of the type it reads unreached.
                 ["untouched", "inherit", WORKSPACE_WORDS.untouched, marks.nodes.untouched],
+                // The edges after the nodes, in the nodes' order: merged, new, removed, changed.
+                ["edges-merged", markColor(MERGED_COLOR), WORKSPACE_WORDS.edgesMerged, marks.edges.merged],
+                ["edges", markColor(NEW_COLOR), WORKSPACE_WORDS.edgesNew, marks.edges.new],
+                ["edges-removed", REMOVED_COLOR, WORKSPACE_WORDS.edgesRemoved, marks.edges.removed],
+                ["edges-changed", "inherit", WORKSPACE_WORDS.edgesChanged, marks.edges.changed ?? 0],
             ] as const
         ).map(([id, color, label, count]) => ({ id, color, label, count })),
     ];
@@ -212,10 +213,11 @@ export function JoinKey({
 }: Readonly<{ marks: SourceDraftMarkCounts; rings: readonly DraftRing[]; colors: boolean }>): React.JSX.Element {
     return (
         <div className="jw-key sel-count">
-            {keyOf(marks, rings, colors).map((each) => (
+            {keyOf(marks, rings, colors).map((each, at, all) => (
                 <Group key={each.id} gap={4} wrap="nowrap" aria-label={`${String(each.count)} ${each.label}`}>
                     <span className="jw-key-mark" data-mark={each.id} style={{ color: each.color }} aria-hidden />
-                    <Text size="sm">{`${formatNumber(each.count)} ${each.label}`}</Text>
+                    {/* One list: "57 merged nodes, 12 new nodes, 3 removed nodes". */}
+                    <Text size="sm">{`${formatNumber(each.count)} ${each.label}${at < all.length - 1 ? "," : ""}`}</Text>
                 </Group>
             ))}
         </div>

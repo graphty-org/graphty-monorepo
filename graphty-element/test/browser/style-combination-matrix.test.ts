@@ -383,7 +383,7 @@ function haloGrowOf(measure: Measure, haloScale: number, border: number, inset: 
  * @param haloScale - The halo's scale.
  * @param border - The border's reach, in world units.
  * @param inset - How far in from the outline a centered or inside border draws the fill, in world units: the halo's
- *     vertices are the fill's, and its band is measured from the outline.
+ *     vertices are the outline's, and the border reaches that much less past them.
  * @returns The hull, empty without a halo mesh.
  */
 function haloHullOf(id: string, measure: Measure, haloScale: number, border: number, inset: number): P2[] {
@@ -393,12 +393,8 @@ function haloHullOf(id: string, measure: Measure, haloScale: number, border: num
     }
     const own = measure.mesh.scaling;
     const perUnit = own.x === 0 ? 0 : 1 / Math.abs(own.x);
-    // the band grows from the outline, `inset` past the fill's edge: (haloScale - 1) of the inset more
-    const grow = haloAxisScale(
-        halo.getBoundingInfo().boundingBox.extendSize,
-        haloScale,
-        (border + (haloScale - 1) * inset) * perUnit,
-    );
+    // the halo's vertices are the node's plain outline, `inset` past the fill's edge, so only the border past it counts
+    const grow = haloAxisScale(halo.getBoundingInfo().boundingBox.extendSize, haloScale, (border - inset) * perUnit);
     const has = halo.scaling;
     const ratio = (want: number, got: number): number => (got === 0 ? 1 : want / got);
     const stretch = new Vector3(

@@ -14,6 +14,8 @@ import {
     classify,
     CONDITION_FACTORS,
     covering,
+    type DrawnMesh,
+    drawnMeshes,
     inradius,
     measureNode,
     meshRingChecks,
@@ -429,6 +431,55 @@ describe("style combination matrix", () => {
         const frames = { plain: frame((x, y) => (square(x, y, 1) ? "fill" : undefined)), plane, reach: 2.2 };
         const c = measured({ shape: "rectangle", border: "dashed" }, full, frames).get("border-concentric");
         assert.isTrue(c?.pass, String(c?.measured));
+    });
+
+    it("reads an outer ring too thin to hold a pure pixel as drawn between the gap and the outline", () => {
+        // the outer border's gap is background by design; past it the ring, a pixel across, blends on both sides
+        // and tidy folds its one pure sample into the blend: the gap is not background between node and outline
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            if (r <= 20) {
+                return "fill";
+            }
+            if (r <= 26) {
+                return "border";
+            }
+            if (r <= 28) {
+                return undefined;
+            }
+            if (r <= 30.4) {
+                return r > 28.8 && r <= 29.6 ? "outer" : "mixed";
+            }
+            return r <= 40 ? "outline" : undefined;
+        });
+        const c = measured({ outer: "gap", effect: "outline" }, full).get("outline-touches-node");
+        assert.isTrue(c?.pass, String(c?.measured));
+    });
+
+    it("reads a node's outline ring as part of what it covers", () => {
+        // a neighbor's ring drawn over this node's outer border hid it, and the ray read as the outer border missing
+        const mesh = (name: string, children: DrawnMesh[] = []): DrawnMesh => ({
+            name,
+            isVisible: true,
+            visibility: 1,
+            isEnabled: () => true,
+            getChildMeshes: () => children,
+        });
+        const ring = mesh("graphty-node-outline-#ff00ff");
+        const node = {
+            mesh: mesh("fill", [ring, mesh("label")]),
+            border: mesh("border"),
+            outerBorder: null,
+            underlay: null,
+            overlay: null,
+            halo: null,
+            shadow: [],
+            decorations: [],
+        };
+        assert.deepEqual(
+            drawnMeshes(node).map((m) => m.name),
+            ["fill", "border", "graphty-node-outline-#ff00ff"],
+        );
     });
 
     it("does not count an outer ring an edge hides as missing", () => {

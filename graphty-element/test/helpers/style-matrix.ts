@@ -964,6 +964,50 @@ export function insideConvex(hull: readonly P2[], p: P2): boolean {
     return true;
 }
 
+/** What {@link drawnMeshes} reads of a mesh. */
+export interface DrawnMesh {
+    name: string;
+    isVisible: boolean;
+    visibility: number;
+    isEnabled(): boolean;
+    getChildMeshes(directDescendantsOnly?: boolean): DrawnMesh[];
+}
+
+/** A node's meshes, as the element keeps them. */
+export interface DrawnNode<M extends DrawnMesh> {
+    mesh: M | null;
+    border: M | null;
+    outerBorder: M | null;
+    underlay: M | null;
+    overlay: M | null;
+    halo: M | null;
+    shadow: M[];
+    decorations: M[];
+}
+
+/**
+ * Every enabled, visible mesh a node draws, its outline ring among them: a neighbor's ring drawn over this node's
+ * rings covers them as the neighbor's own meshes do, so it is read as another node's, not as this node's rings
+ * missing.
+ * @param node - The node.
+ * @returns Its meshes.
+ */
+export function drawnMeshes<M extends DrawnMesh>(node: DrawnNode<M>): M[] {
+    const ring = (node.mesh?.getChildMeshes(true) ?? []).filter((m) => m.name.startsWith("graphty-node-outline-"));
+    const all = [
+        node.mesh,
+        node.border,
+        node.outerBorder,
+        node.underlay,
+        node.overlay,
+        node.halo,
+        ...node.shadow,
+        ...node.decorations,
+        ...(ring as M[]),
+    ];
+    return all.filter((m): m is M => m !== null && m.isEnabled() && m.isVisible && m.visibility > 0);
+}
+
 /**
  * A frame with every pixel another node's meshes cover marked {@link OTHER_NODE}: inside the convex hull of their
  * projected vertices, or within one pixel of it (a blended pixel at its edge).
@@ -1785,21 +1829,25 @@ export function measureNode(
     if (s.effect === "outline" && !hidden) {
         const OUTLINE = partIndex("outline");
         const gaps: number[] = [];
-        fullRuns.forEach((runs) => {
+        fullRuns.forEach((runs, i) => {
             const k = runs.findIndex((r) => r.part === OUTLINE);
             if (k < 0) {
                 return;
             }
+            // what lies before the outline is read on the raw runs: tidy folds a ring a pixel or two across (an outer
+            // border under sizeSpace screen) into the blends either side of it, and an outer border's gap before it
+            // then read as background at the outline
+            const before = rawRuns[i].filter((r) => r.to <= runs[k].from);
             const drawn = lastIndex(
-                runs,
-                (r, j) => j < k && (r.part === FILL || r.part === BORDER || r.part === partIndex("outer")),
+                before,
+                (r) => r.part === FILL || r.part === BORDER || r.part === partIndex("outer"),
             );
             if (drawn < 0) {
                 return;
             }
             gaps.push(
-                runs
-                    .slice(drawn + 1, k)
+                before
+                    .slice(drawn + 1)
                     .filter((r) => r.part === partIndex("bg"))
                     .reduce((sum, r) => sum + (r.to - r.from), 0) * ppu.max,
             );

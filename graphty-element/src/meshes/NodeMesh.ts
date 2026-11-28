@@ -899,20 +899,19 @@ export class NodeMesh {
         const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
         const sized = this.extentsOf(createOptions.shape, size);
         const { inset } = this.borderFit(createOptions.shape, createOptions.border, sized);
-        const extents = this.fillExtents(sized, inset);
         const mesh = creator(size, scene, createOptions.shape.detail);
-        if (!this.isFitted(createOptions.shape)) {
-            // keeping its own proportions, the solid still draws its fill in by the inset of a border centered on or
-            // inside its outline, so the ring ends where the plain solid would (#10403)
-            NodeMesh.shrinkFill(mesh, inset);
-            return mesh;
+        if (this.isFitted(createOptions.shape)) {
+            fitNodeMesh(mesh, sized);
+            if (createOptions.shape.sizeMode === "diameter" && !this.hasExplicitExtent(createOptions.shape)) {
+                NodeMesh.scaleToExtent(mesh, sized.across);
+            }
         }
 
-        fitNodeMesh(mesh, extents);
-        if (createOptions.shape.sizeMode === "diameter" && !this.hasExplicitExtent(createOptions.shape)) {
-            NodeMesh.scaleToExtent(mesh, extents.across);
-        }
-
+        // fitted or at its own proportions, the solid draws its fill in by the inset of a border centered on or
+        // inside its outline, so the ring ends where the plain solid would (#10403). A fitted solid is fitted to its
+        // plain extents first: fitting it to the extents less the inset drew its slanted sides in by less (#10500).
+        // A depth the node names (or a plaque's) is kept, as it always was.
+        NodeMesh.shrinkFill(mesh, inset, sized.z === undefined);
         return mesh;
     }
 
@@ -1269,7 +1268,7 @@ export class NodeMesh {
      * cached under the node's style key as its outer border is.
      * @param cache - The mesh cache the node's own mesh came from.
      * @param options - The node's mesh options.
-     * @param createOptions - The node's shape, and its border, whose inset a solid's fill is drawn in by.
+     * @param createOptions - The node's shape and its border.
      * @param halo - The underlay or overlay.
      * @param kind - Which of the two.
      * @param fill - The node's own mesh, whose outline and depth it follows.
@@ -1285,7 +1284,7 @@ export class NodeMesh {
         fill: AbstractMesh,
         scene?: Scene,
     ): InstancedMesh | null {
-        const { shape, border } = createOptions;
+        const { shape } = createOptions;
         const opacity = halo?.opacity ?? 0;
         if (shape?.type === undefined || opacity <= 0) {
             return null;
@@ -1295,9 +1294,8 @@ export class NodeMesh {
         const pad = (halo?.padding ?? 0) * perSize;
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
-        // a solid's fill is drawn in by a centered or inside border, fitted or not (createMeshWithoutCache); grow its
-        // outline back out to the box first
-        const reach = flat ? pad : pad + this.borderFit(shape, border, sized).inset;
+        // a solid's fill drawn in by a centered or inside border is outlined at its plain size (solidOutline)
+        const reach = pad;
         const ownRing =
             halo?.shape !== undefined && isFlatShape(halo.shape) ? "" : ownRingSuffix(shape, options.is2D, fill);
         const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}${ownRing}`, () => {
@@ -1585,7 +1583,10 @@ export class NodeMesh {
         const height = extents.y ?? extents.across;
         // a node with no body has its box for a face
         const flat = shape.type !== undefined && isFlatShape(shape.type);
-        let outline = flat ? this.fillOutline(shape, sized, inset) : this.solidOutline(fill);
+        // a shrunk solid is outlined at its plain size: its face is the inset in from that
+        let outline = flat
+            ? this.fillOutline(shape, sized, inset)
+            : insetConvex(this.solidOutline(fill), this.fillScales.has(this.sourceOf(fill)) ? inset : 0).points;
         if (shape.type === "none") {
             outline = flatShapeOutline("rectangle", width, height);
         }
@@ -1890,7 +1891,7 @@ export class NodeMesh {
     private static readonly fillScales = new WeakMap<Mesh, Vector3>();
 
     /**
-     * Shrinks a mesh drawn at its own proportions so it comes in by `inset` on every side along each axis: the fill
+     * Shrinks a solid's mesh, at its plain size, so it comes in by `inset` on every side along each axis: the fill
      * of a solid whose border sits centered on or inside its size. Scaling it by its largest extent alone drew a
      * cone's, a capsule's or a cylinder's short side in by less than the inset, and the ring built out from that fill
      * ended past the node's outline (issue #10438). Its rings are built from the plain solid's outline instead.
@@ -1899,8 +1900,9 @@ export class NodeMesh {
      * ring; a true parallel inset of a solid would need its outline per view.
      * @param mesh - The mesh a shape creator returned.
      * @param inset - How far in, on each side, in world units.
+     * @param depth - Whether to draw it in along z as well.
      */
-    private static shrinkFill(mesh: Mesh, inset: number): void {
+    private static shrinkFill(mesh: Mesh, inset: number, depth = true): void {
         if (inset <= 0) {
             return;
         }
@@ -1909,7 +1911,7 @@ export class NodeMesh {
         const { minimum: min, maximum: max } = mesh.getBoundingInfo().boundingBox;
         const shrink = (across: number): number =>
             across > 0 ? Math.max(across - 2 * inset, MIN_NODE_SIZE) / across : 1;
-        const scale = new Vector3(shrink(max.x - min.x), shrink(max.y - min.y), shrink(max.z - min.z));
+        const scale = new Vector3(shrink(max.x - min.x), shrink(max.y - min.y), depth ? shrink(max.z - min.z) : 1);
         mesh.bakeTransformIntoVertices(Matrix.Scaling(scale.x, scale.y, scale.z));
         // a scale that is not the same on every axis turns the normals: work them out again from the faces
         const positions = mesh.getVerticesData(VertexBuffer.PositionKind);

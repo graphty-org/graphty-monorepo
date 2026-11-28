@@ -59,15 +59,19 @@ describe("a Sources row's issues", () => {
         const session = await openSites();
         const place = within(screen.getByRole("region", { name: "Data place" }));
         const row = await place.findByRole("listitem", { name: "sites.csv" });
-        const chip = await within(row).findByRole("button", { name: "1 issue in sites.csv" });
+        await within(row).findByRole("button", { name: "1 issue in sites.csv" });
         assert.isNull(screen.queryByRole("region", { name: "Table" }), "the table is closed");
 
-        await userEvent.click(chip);
+        await userEvent.click(
+            page.elementLocator(row).getByRole("button", { name: "1 issue in sites.csv", exact: true }),
+        );
         const dialog = await screen.findByRole("dialog", { name: "Issues in sites.csv" });
         assert.include(dialog.textContent, "1 value with padded spaces");
         within(dialog).getByRole("button", { name: "Ignore in all columns" });
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Trim: 1 value with padded spaces" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Trim: 1 value with padded spaces", exact: true }),
+        );
         await waitFor(() => {
             assert.lengthOf(session.data.issues(), 0);
             assert.include(spoken(), "name: 1 value trimmed");
@@ -86,9 +90,15 @@ describe("a Sources row's issues", () => {
         await openSites();
         const place = within(screen.getByRole("region", { name: "Data place" }));
         const row = await place.findByRole("listitem", { name: "sites.csv" });
-        await userEvent.click(await within(row).findByRole("button", { name: "1 issue in sites.csv" }));
+        await userEvent.click(
+            page.elementLocator(row).getByRole("button", { name: "1 issue in sites.csv", exact: true }),
+        );
         const dialog = await screen.findByRole("dialog", { name: "Issues in sites.csv" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Show rows: 1 value with padded spaces" }));
+        await userEvent.click(
+            page
+                .elementLocator(dialog)
+                .getByRole("button", { name: "Show rows: 1 value with padded spaces", exact: true }),
+        );
         const table = await screen.findByRole("region", { name: "Table" });
         await waitFor(() => {
             const grid = within(table).getByRole("grid", { name: "Nodes" });
@@ -112,24 +122,29 @@ describe("a Sources row's issues", () => {
         });
     });
 
-    it("draws the row's counts whole beside its issue chip at the narrowest left panel", async () => {
-        // A chain of 1,000 edges (1,001 nodes) with one padded value: two wide count chips and an
-        // issue chip in a row at the left panel's narrowest width, which is also its default.
+    it("draws a closed entry's counts beside its issue chip at the narrowest left panel", async () => {
+        // A chain of 1,000 edges (1,001 nodes) with one padded value: the counts and an issue chip
+        // in one header at the left panel's narrowest width, which is also its default.
         const rows = Array.from({ length: 1000 }, (_, i) => `n${String(i)},n${String(i + 1)},${i === 0 ? " x " : "x"}`);
         const name = "a-long-file-name-for-the-row.csv";
         await openSites(new File([`source,target,kind\n${rows.join("\n")}\n`], name));
         const place = within(screen.getByRole("region", { name: "Data place" }));
         const row = await place.findByRole("listitem", { name });
         const issues = await within(row).findByRole("button", { name: `1 issue in ${name}` });
-        await waitFor(() => {
-            assert.include(row.textContent, "1,000");
-        });
-        const chips = [...row.querySelectorAll(".dp-source-chips > *"), issues].map((each) =>
-            each.getBoundingClientRect(),
-        );
-        assert.lengthOf(chips, 3, "a node chip, an edge chip and the issue chip");
-        for (let i = 1; i < chips.length; i++) {
-            assert.isAtMost(chips[i - 1].right, chips[i].left, `chip ${String(i + 1)} covers chip ${String(i)}`);
+        const toggle = row.querySelector<HTMLElement>("[aria-expanded=true]");
+        if (toggle !== null) {
+            await userEvent.click(page.elementLocator(row).getByCss("[aria-expanded=true]").first());
         }
+        const summary = await waitFor(() => {
+            const found = row.querySelector<HTMLElement>("[data-testid=control-section-summary]");
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.include(summary.textContent, "1,000");
+        assert.isAtMost(
+            summary.getBoundingClientRect().right,
+            issues.getBoundingClientRect().left,
+            "the issue chip never covers the counts",
+        );
     });
 });

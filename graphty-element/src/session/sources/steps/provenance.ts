@@ -6,7 +6,7 @@
  * parameters, never English. Pure and free of Babylon.js, Lit and the DOM.
  */
 
-import { build, copyKey, isEmpty, resolveEdge, resolveNode, ruleFits } from "./build";
+import { build, copyKey, isEmpty, nodeSpace, resolveEdge, resolveNode, ruleFits, sameCell } from "./build";
 import { RECORD_PATHS } from "./paths";
 import {
     type BuildInput,
@@ -20,6 +20,7 @@ import {
     type NodeRef,
     READER_SOURCE,
     type ReaderEdit,
+    type RowFilter,
     type Step,
     type TableName,
     type Value,
@@ -296,8 +297,12 @@ export function conflicts(result: BuildResult, query: ConflictQuery = {}): Confl
 function conflictAt(el: BuiltNode | BuiltEdge, column: string): Conflict | null {
     const list = Object.entries(el.own)
         .filter(([, c]) => column in c)
-        .map(([source, c]) => ({ source, value: c[column].v }));
-    if (distinct(list.map((x) => x.value)) < 2) {
+        .flatMap(([source, c]) => {
+            const met = el.metAgain?.[column];
+            const values = met?.source === source ? [...new Set(met.values)] : [c[column].v];
+            return values.map((value) => ({ source, value }));
+        });
+    if (list.every(({ value }) => sameCell(list[0].value, value))) {
         return null;
     }
     const rule = el.rule?.[column] ?? "keep";
@@ -421,6 +426,32 @@ const PICKABLE = new Set<string>([
 ]);
 
 /**
+ * The columns of a space's nodes a step matches on, when a source supplies that space's nodes.
+ * @param input - The build input.
+ * @param source - The source.
+ * @param st - The step.
+ * @returns The columns.
+ */
+function suppliesColumns(input: BuildInput, source: string, st: Step): readonly string[] {
+    let columns: readonly string[] = [];
+    let space: string | undefined;
+    if ("nodeColumn" in st && st.nodeColumn !== undefined) {
+        columns = [st.nodeColumn];
+    }
+    if (st.op === "join.edges") {
+        space = st.viaEnd === "source" || st.link !== undefined ? st.read.sourceSpace : st.read.targetSpace;
+        columns = st.link?.of === "nodes" ? [...columns, ...st.link.columns] : columns;
+    } else if (st.op === "join.merge" || st.op === "join.node-values") {
+        ({ space } = st.read);
+    }
+    const src = input.sources[source] as BuildInput["sources"][string] | undefined;
+    const into = (o: Step): boolean =>
+        o.source === source && (o.op === "join.merge" || o.op === "join.node-values") && o.read.space === space;
+    const own = src?.mapping.nodes !== undefined && nodeSpace(src) === space;
+    return space !== undefined && (own || input.steps.some((o) => into(o))) ? columns : [];
+}
+
+/**
  * The columns of one source that a type rule, a role or a step reads.
  * @param input - The build input.
  * @param source - The source's id.
@@ -449,6 +480,10 @@ function readColumns(input: BuildInput, source: string, picked = false): Set<str
     for (const st of input.steps) {
         if (st.source === source && "read" in st) {
             strings(st.read as Readonly<Record<string, unknown>>);
+            (("link" in st && st.link?.of === undefined && st.link?.columns) || []).forEach((c) => out.add(c));
+        }
+        for (const c of suppliesColumns(input, source, st)) {
+            out.add(c);
         }
         if ("mapping" in st && st.mapping && (st.via ?? st.lookup) === source) {
             st.mapping.columns.forEach((c) => out.add(c));
@@ -593,8 +628,12 @@ export function renameColumn(
     const read = Object.entries(renamed).find(([, w]) => w === r.from)?.[0] ?? r.from;
     const result = held ?? build(input, copies);
     const col = (c: string): string => (c === r.from ? r.to : c);
-    const filter = <F extends { column: string }>(f: F | undefined): F | undefined =>
-        f && { ...f, column: col(f.column) };
+    const filter = <F extends RowFilter>(f: F | undefined): F | undefined =>
+        f && {
+            ...f,
+            column: col(f.column),
+            ...(f.cells === undefined ? {} : { cells: { ...f.cells, column: col(f.cells.column) } }),
+        };
     const steps = input.steps.map((st): Step => {
         if (st.source !== r.source) {
             return st;
@@ -602,6 +641,9 @@ export function renameColumn(
         const out: Record<string, unknown> = { ...st };
         if (st.columns) {
             out.columns = st.columns.map((c) => col(c));
+        }
+        if (st.op === "join.edges" && st.extract?.columns !== undefined) {
+            out.extract = { ...st.extract, columns: st.extract.columns.map((c) => col(c)) };
         }
         if (typeof st.clash === "object") {
             out.clash = renameKeys(st.clash, r.from, r.to);

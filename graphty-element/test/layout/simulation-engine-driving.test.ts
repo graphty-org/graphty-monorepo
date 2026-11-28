@@ -1,7 +1,9 @@
 /**
  * The force layouts' bridge driven through the layout manager, with no renderer: the frames a
  * running ForceAtlas2, Spring or Spring Electrical layout is stepped through, the pins and drags a
- * reader makes while it runs, new data arriving under it and an accelerator taking it over.
+ * reader makes while it runs, new data arriving under it and an accelerator taking it over; what
+ * wakes a settled layout (a node's new size, new communities, a rebuild), the plane a 2D or 3D
+ * layout publishes on, and a failed batch that lands after the layout was disposed.
  *
  * The bridge (`SimulationLayoutEngine`) is built only by `LayoutManager`, which hands it the
  * graph's acceleration controller, so every case here goes through the manager over a NullEngine
@@ -355,5 +357,145 @@ describe("a force layout on an accelerator", () => {
             h.errors.map((e) => e.code),
             "E_DEVICE_LOST",
         );
+    });
+
+    it("does not report a batch that fails after the layout was disposed", async () => {
+        const { h, fake } = accelerated();
+        await layoutManagerInternals.setLayout(h.manager, "forceatlas2", { seed: 4 });
+        const engine = h.engine();
+        const simulation = fake.simulations.at(-1);
+        assert.isDefined(simulation);
+        simulation.fail("E_DEVICE_LOST");
+        frames(h, 1);
+        assert.isTrue(engine.canLand, "the failing batch is in flight");
+        engine.dispose();
+        await fake.flush().catch(() => undefined);
+        assert.deepStrictEqual(
+            h.errors.map((e) => e.code),
+            [],
+            "nothing asked for that batch any more",
+        );
+    });
+});
+
+/**
+ * Steps the manager until the layout settles, counting the frames it took.
+ * @param h - The harness.
+ * @param most - The most frames a settling run may take before the case fails.
+ * @returns The frames stepped.
+ */
+function settle(h: Harness, most: number): number {
+    let stepped = 0;
+    while (!h.engine().isSettled && stepped < most) {
+        h.manager.step();
+        stepped += 1;
+    }
+
+    assert.isTrue(h.engine().isSettled, `the layout settled within ${most} frames`);
+    return stepped;
+}
+
+describe("a force layout woken after it settled", () => {
+    it("wakes for a node's new size only when nodeGap spaces nodes by size, and only once at rest", async () => {
+        const h = harness();
+        await layoutManagerInternals.setLayout(h.manager, "spring", { seed: 5, iterations: 5 });
+        assert.isFalse(h.engine().spacesBySize);
+        assert.isFalse(h.engine().wakeForResize(), "with no nodeGap a size means nothing to the layout");
+
+        await layoutManagerInternals.setLayout(h.manager, "spring", { seed: 5, iterations: 5, nodeGap: 1 });
+        const engine = h.engine();
+        assert.isTrue(engine.spacesBySize);
+        assert.isFalse(engine.isSettled);
+        assert.isFalse(engine.wakeForResize(), "a running layout reads the new sizes at its next publish");
+
+        settle(h, 100);
+        assert.isTrue(engine.wakeForResize(), "a settled one is started again");
+        assert.isFalse(engine.isSettled);
+        const done = engine.iterationsDone;
+        frames(h, 1);
+        assert.isAbove(engine.iterationsDone, done, "and steps again");
+    });
+
+    it("rebuilds when the communities it clusters by change, and not when they read the same", async () => {
+        const h = harness();
+        let column: (number | null)[] = [0, 0, 1, 1, null];
+        await layoutManagerInternals.setLayout(h.manager, "forceatlas2", {
+            seed: 6,
+            clusterBy: "results.test.community",
+        });
+        const engine = h.engine();
+        let reads = 0;
+        engine.clusterColumn = (): readonly unknown[] => {
+            reads += 1;
+            return column;
+        };
+        h.manager.clustersChanged();
+        const clustered = engine.simulation;
+        assert.isAtLeast(reads, 1, "the communities were read");
+
+        h.manager.clustersChanged();
+        assert.strictEqual(engine.simulation, clustered, "the same partition keeps the simulation");
+
+        column = [0, 1, 0, 1, 2];
+        h.manager.clustersChanged();
+        assert.notStrictEqual(engine.simulation, clustered, "a new partition rebuilds it");
+        assert.isFalse(engine.isSettled, "and runs it from the arrangement as it stands");
+    });
+
+    it("keeps a settled layout at rest across a rebuild asked to keep it, and runs one that was not", async () => {
+        const h = harness();
+        await layoutManagerInternals.setLayout(h.manager, "spring", { seed: 8, iterations: 5 });
+        const engine = h.engine();
+        settle(h, 100);
+        const before = engine.simulation;
+
+        engine.replaceSimulation(true);
+        assert.notStrictEqual(engine.simulation, before, "a new simulation was built");
+        assert.isTrue(engine.isSettled, "and it is still at rest");
+        const done = engine.iterationsDone;
+        await engine.stepAsync(3);
+        assert.strictEqual(engine.iterationsDone, done, "a resting layout computes no pre-steps");
+
+        engine.replaceSimulation();
+        assert.isFalse(engine.isSettled, "a rebuild for new data runs");
+    });
+});
+
+describe("where a force layout publishes its arrangement", () => {
+    it("keeps a 2D layout on the plane of z = 0", async () => {
+        const h = harness();
+        await layoutManagerInternals.setLayout(h.manager, "forceatlas2", { seed: 2, dim: 2 });
+        frames(h, 3);
+        for (const id of ["a", "b", "c", "d", "e"]) {
+            assert.strictEqual(h.at(id).z, 0, `${id} is on the plane`);
+        }
+    });
+
+    it("lifts a flat arrangement into depth for a 3D layout, leaving a pinned node where it was", async () => {
+        const h = harness();
+        await layoutManagerInternals.setLayout(h.manager, "circular", { dim: 2 });
+        for (const id of ["a", "b", "c", "d", "e"]) {
+            assert.strictEqual(h.at(id).z, 0, "the circle is flat");
+        }
+
+        h.node("a").pin();
+        await layoutManagerInternals.setLayout(h.manager, "forceatlas2", { dim: 3 });
+        frames(h, 1);
+        assert.strictEqual(h.at("a").z, 0, "the pinned node keeps its depth");
+        assert.isTrue(
+            ["b", "c", "d", "e"].some((id) => h.at(id).z !== 0),
+            "the free nodes were drawn off the plane",
+        );
+    });
+
+    it("measures the same envelope by walking the rows when no device measured one", async () => {
+        const h = harness();
+        await layoutManagerInternals.setLayout(h.manager, "forceatlas2", { seed: 3 });
+        frames(h, 2);
+        const agreement = h.engine().envelopeAgreement();
+        assert.isNotNull(agreement);
+        assert.isNull(agreement.device, "a CPU simulation has no device to measure on");
+        assert.strictEqual(agreement.walked.placed, 5, "every row was walked");
+        assert.isAbove(agreement.walked.scale, 0);
     });
 });

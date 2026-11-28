@@ -13,6 +13,7 @@ import { framingInsets } from "./OrbitCameraController";
 
 // === Configuration Object ===
 export interface TwoDCameraControlsConfigType {
+    /** A held pan key's push each frame, as a share of the view's half-width, so it pans as fast at any zoom. */
     panAcceleration: number;
     panDamping: number;
     zoomFactorPerFrame: number;
@@ -33,16 +34,30 @@ export interface TwoDCameraControlsConfigType {
     inertiaEnabled: boolean;
 }
 
-/** The speed below which inertia has damped to rest, in the velocity's own units per frame. */
-const REST_SPEED = 1e-4;
+/** The motion below which inertia has damped to rest, in render pixels a frame: too small to see. */
+const REST_PIXELS = 0.25;
+/** A frame at 60 frames a second, the frame the velocities and dampings are given for. */
+const NOMINAL_FRAME_MS = 1000 / 60;
+/** The longest frame inertia moves for, so a stall does not throw the view far in one frame. */
+const MAX_FRAME_MS = 100;
+
+/**
+ * How many nominal 60 Hz frames a pass stands for.
+ * @param frameMs - The frame's time; 0 (a hand-pumped pass) counts as one frame.
+ * @returns The frames.
+ */
+export function nominalFrames(frameMs: number): number {
+    return frameMs > 0 ? Math.min(frameMs, MAX_FRAME_MS) / NOMINAL_FRAME_MS : 1;
+}
 
 /**
  * A damped speed, or 0 once it is too small to see.
  * @param speed - The speed after damping.
+ * @param rest - The speed below which it is at rest.
  * @returns The speed, or 0 at rest.
  */
-function atRest(speed: number): number {
-    return Math.abs(speed) < REST_SPEED ? 0 : speed;
+function atRest(speed: number, rest: number): number {
+    return Math.abs(speed) < rest ? 0 : speed;
 }
 
 // === Camera Controller Class ===
@@ -248,31 +263,45 @@ export class TwoDCameraController {
     }
 
     /**
+     * Half the width of the view, in world units.
+     * @returns The half-width.
+     */
+    public get halfWidth(): number {
+        return ((this.camera.orthoRight ?? 1) - (this.camera.orthoLeft ?? -1)) / 2;
+    }
+
+    /**
      * Applies velocity-based inertia to camera movement.
      * Should be called each frame to update camera position based on velocity.
+     * @param frames - How many nominal 60 Hz frames this pass stands for (see `nominalFrames`), so
+     *   the camera moves and coasts for the same time however fast frames are drawn.
      */
-    public applyInertia(): void {
+    public applyInertia(frames = 1): void {
         const v = this.velocity;
         const c = this.config;
 
-        const [x, y] = this.toWorld(v.x, v.y);
+        const [x, y] = this.toWorld(v.x * frames, v.y * frames);
         this.camera.position.x += x;
         this.camera.position.y += y;
 
-        const zoomScale = Math.exp(v.zoom);
+        const zoomScale = Math.exp(v.zoom * frames);
         this.camera.orthoLeft = zoomScale * (this.camera.orthoLeft ?? 1);
         this.camera.orthoRight = zoomScale * (this.camera.orthoRight ?? 1);
         this.camera.orthoTop = zoomScale * (this.camera.orthoTop ?? 1);
         this.camera.orthoBottom = zoomScale * (this.camera.orthoBottom ?? 1);
 
-        this.camera.rotation.z += v.rotate;
+        this.camera.rotation.z += v.rotate * frames;
 
-        // Damped to rest: below these the motion is too small to see, and a velocity that only
-        // ever shrinks would keep the camera moving, and the frames drawing, for thousands of frames.
-        v.x = atRest(v.x * c.panDamping);
-        v.y = atRest(v.y * c.panDamping);
-        v.zoom = atRest(v.zoom * c.zoomDamping);
-        v.rotate = atRest(v.rotate * c.rotateDamping);
+        // Damped to rest once a frame moves the view under REST_PIXELS: a velocity that only ever
+        // shrinks would keep the camera moving, and the frames drawing, long after it looks still.
+        // A zoom or a turn moves the view's edge by its speed times the half-width.
+        const halfPixels = this.engine.getRenderWidth() / 2;
+        const restPan = (REST_PIXELS * this.halfWidth) / halfPixels;
+        const restScale = REST_PIXELS / halfPixels;
+        v.x = atRest(v.x * c.panDamping ** frames, restPan);
+        v.y = atRest(v.y * c.panDamping ** frames, restPan);
+        v.zoom = atRest(v.zoom * c.zoomDamping ** frames, restScale);
+        v.rotate = atRest(v.rotate * c.rotateDamping ** frames, restScale);
     }
 
     /**

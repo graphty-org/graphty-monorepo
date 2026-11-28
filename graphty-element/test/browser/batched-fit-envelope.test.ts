@@ -1,8 +1,9 @@
 /**
- * @file Under renderPath "batched", the zoom-to-fit a running layout takes every step frames the
- * box the layout published (`LayoutEngine.publishedBounds`) instead of walking every row: no row's
- * world matrix or bounding box is computed for it. Under "objects" the walk is unchanged. A graph of up to 1,000 nodes
- * is walked on both paths (test/render-parity/reframe-in-motion.test.ts), so the fixture is larger.
+ * @file The zoom-to-fit a running layout takes every step frames the box the layout published
+ * (`LayoutEngine.publishedBounds`) instead of walking every node: no node's world matrix or bounding box is computed
+ * for it, under renderPath "batched" (issue #6389) and "objects" (issue #10288). Under "objects" the widest node's
+ * reach is measured by one walk and kept while nothing repaints. A graph of up to 1,000 nodes is walked on both paths
+ * (test/render-parity/reframe-in-motion.test.ts), so the fixture is larger.
  */
 
 import "../../src/graphty-element";
@@ -54,8 +55,8 @@ async function mounted(path: "objects" | "batched"): Promise<Graphty> {
 
 /**
  * Run a layout and count, for each of the next framings taken while it moves, the rows the framing
- * visited: each `Node.framingBounds` and each batched row's `RowTable.isHidden`, which only a
- * framing's walk asks.
+ * visited: each `Node.framingBounds`, each `Node.framingReach` and each batched row's `RowTable.isHidden`, which
+ * only a framing's walk asks.
  * @param element - The element.
  * @param framings - How many moving framings to count.
  * @param layout - The layout to run.
@@ -70,7 +71,9 @@ async function countMovingFramings(
     const nodeWalk = vi.spyOn(Node.prototype, "framingBounds");
     const fit = vi.spyOn(OrbitCameraController.prototype, "zoomToBoundingBox");
     const rowWalk = vi.spyOn(RowTable.prototype, "isHidden");
+    const reachWalk = vi.spyOn(Node.prototype, "framingReach");
     cleanups.push(() => {
+        reachWalk.mockRestore();
         nodeWalk.mockRestore();
         rowWalk.mockRestore();
         fit.mockRestore();
@@ -83,7 +86,7 @@ async function countMovingFramings(
     let first = true;
     const done = new Promise<void>((resolve) => {
         graph.on("zoom-to-fit-complete", (event) => {
-            const calls = nodeWalk.mock.calls.length + rowWalk.mock.calls.length;
+            const calls = nodeWalk.mock.calls.length + rowWalk.mock.calls.length + reachWalk.mock.calls.length;
             const delta = calls - seen;
             seen = calls;
             const engine = graph.getLayoutManager().layoutEngine;
@@ -106,6 +109,7 @@ async function countMovingFramings(
     });
     await graph.setLayout(layout, { dim: 3 });
     await done;
+    reachWalk.mockRestore();
     nodeWalk.mockRestore();
     rowWalk.mockRestore();
     fit.mockRestore();
@@ -150,11 +154,84 @@ describe("zoom-to-fit while a layout runs", () => {
         }
     });
 
-    it("still walks every row under objects", async () => {
+    it("visits no node per framing under objects once the widest node is measured, and frames every node", async () => {
         const element = await mounted("objects");
-        const { visits } = await countMovingFramings(element, 2);
-        for (const count of visits) {
-            assert.isAtLeast(count, NODES.length, "the objects path measures every node");
+        const { visits, boxes, spots } = await countMovingFramings(element, 4);
+        // The widest node is measured once, on the first moving framing; after that no framing walks a node.
+        assert.isAtMost(visits[0], NODES.length, "at most one walk, to measure the widest node");
+        assert.deepEqual(visits.slice(1), [0, 0, 0], "no node walked by a later moving framing");
+        assert.deepEqual(spots, [8, 8, 8, 8], "the box's corners handed to the camera as spots");
+
+        element.setRunning(false);
+        const last = boxes[boxes.length - 1];
+        assert.isDefined(last);
+        const size = Vector3.Distance(last.min, last.max);
+        assert.isAbove(size, 0, "a box with room in it");
+        for (const node of element.graph.getLayoutManager().nodes) {
+            const at = node.getPosition();
+            for (const axis of ["x", "y", "z"] as const) {
+                assert.isAtLeast(at[axis], last.min[axis] - size * 0.1, `node ${node.id} ${axis}`);
+                assert.isAtMost(at[axis], last.max[axis] + size * 0.1, `node ${node.id} ${axis}`);
+            }
         }
+    });
+
+    it("measures the widest node again after a repaint grows it, under objects", async () => {
+        const element = await mounted("objects");
+        const { id: big } = await element.session.styles.add({
+            name: "big",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.size": 1 },
+        } as never);
+        await element.waitForPainted();
+        const { graph } = element;
+        const layout = graph.getLayoutManager();
+        const nodeWalk = vi.spyOn(Node.prototype, "framingBounds");
+        cleanups.push(() => {
+            nodeWalk.mockRestore();
+        });
+        // For each moving framing: how much wider than the box of the published positions it is, and whether it
+        // walked the nodes' boxes.
+        const framings: { margin: number; walked: boolean }[] = [];
+        let walks = 0;
+        let next: (() => void) | undefined;
+        graph.on("zoom-to-fit-complete", (event) => {
+            const walked = nodeWalk.mock.calls.length !== walks;
+            walks = nodeWalk.mock.calls.length;
+            const published = layout.layoutEngine?.publishedBounds() ?? null;
+            if (layout.layoutEngine?.isSettled !== false || !layout.running || published === null) {
+                return;
+            }
+
+            const width = (event.boundingBoxMax as Vector3).x - (event.boundingBoxMin as Vector3).x;
+            framings.push({ margin: width - (published[3] - published[0]), walked });
+            next?.();
+        });
+        /**
+         * The next moving framing that walked no node: one taken from the published box.
+         * @returns Its margin.
+         */
+        const nextEnvelope = (): Promise<number> =>
+            new Promise((resolve) => {
+                next = () => {
+                    const last = framings[framings.length - 1];
+                    if (last !== undefined && !last.walked) {
+                        next = undefined;
+                        resolve(last.margin);
+                    }
+                };
+            });
+        const started = nextEnvelope();
+        await graph.setLayout("ngraph", { dim: 3 });
+        const before = await started;
+        // A change to a layer already shown: it repaints the nodes and hides or shows none.
+        await element.session.styles.update(big, { set: { "node.size": 2000 } });
+        await element.waitForPainted();
+        const reach = Math.max(...[...layout.nodes].map((node) => node.framingReach()));
+        const after = await nextEnvelope();
+        assert.isAtLeast(reach, 500, "the repaint made every node wider");
+        assert.isBelow(before, reach, "the box before the repaint is grown by the small nodes");
+        assert.closeTo(after, 2 * reach, reach * 0.01, "the box is grown by the new reach on each side");
     });
 });

@@ -144,6 +144,12 @@ const B = {
             SYNC = true;
         }
     },
+    // The per-frame blocking readback on or off for what follows: the input latency runner turns it off, as a
+    // reader's page has none (it added 6 to 47 ms to every frame it timed). Returns the setting now.
+    frameReadback(on) {
+        SYNC = !!on;
+        return SYNC;
+    },
     async still(frames = 200) {
         await lib.settle();
         SYNC = false;
@@ -1027,7 +1033,7 @@ async function graphtyAdapter({
             set: { "edge.color": PROBE_EDGE, "edge.width": 3 * Math.sqrt(Math.max(1, G.n / 1000)) },
         });
     }
-    if (labels && (sampled || glyphs)) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
+    if (sampled || glyphs) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
     if (labels)
         await el.session.styles.add({
             name: "labels",

@@ -599,6 +599,11 @@ export class ModelCache {
             try {
                 await this.loadNow(entry, shape, image);
             } catch (error) {
+                if (error instanceof DOMException && error.name === "AbortError") {
+                    // Stopped: the session was disposed while the model downloaded (#10329).
+                    return;
+                }
+
                 // Anything unexpected settles the model failed rather than leaving it pending.
                 this.settle(ref, "failed", [{ code: isGraphtyError(error) ? error.code : "E_INTERNAL", params: {} }]);
             } finally {

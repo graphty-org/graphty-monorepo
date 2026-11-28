@@ -22,6 +22,16 @@ export const READABLE_PATHS = [
  */
 export const RECORD_PATHS: readonly string[] = READABLE_PATHS.filter((path) => path !== "_source.loads");
 
+/** The default name of each path a record carries, as `readableValues` lists it. */
+export const RECORD_NAMES: Readonly<Record<string, string>> = {
+    "graphty.type": "Type",
+    "graphty.load": "Source",
+    "graphty.space": "Ids from",
+    "graphty.key": "Id in source",
+    "graphty.time": "Time",
+    "graphty.weight": "Weight",
+};
+
 /**
  * The path a style or filter reads to tell what a shown draft does to an element (design 10, row
  * 12): `"merged"`, `"new"`, `"changed"`, `"removed"` or `"unchanged"`, and nothing while no draft

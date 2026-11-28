@@ -61,12 +61,14 @@ tools/duplicates-check.test.mjs
 tools/eslint-cache-key.test.mjs
 tools/features-on.test.mjs
 tools/full-run.test.mjs
+tools/gpu-bench-lock.test.mjs
 tools/health-owner-sweep.test.mjs
 tools/idle-servers.test.mjs
 tools/issue-groups.test.mjs
 tools/issue-queue.test.mjs
 tools/issue-round-idle-hook.test.mjs
 tools/lfs-pre-push.test.mjs
+tools/lfs-pull-retry.test.mjs
 tools/lib/git.test.mjs
 tools/lib/github.test.mjs
 tools/lint-base-drift.test.mjs

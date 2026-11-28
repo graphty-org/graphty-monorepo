@@ -14,7 +14,7 @@ import { channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import { type GraphSession, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
@@ -30,6 +30,16 @@ withoutFeatures(["file-styles"]);
 
 /** Layout steps taken before the first frame is drawn, so the layout is at rest when it is. */
 const PRE_STEPS = 1000;
+
+/**
+ * The name of a Style layers row that starts with a layer's name, as each row's name goes on to say
+ * its kind and count ("Louvain, node layer, ...").
+ * @param name - the layer's name.
+ * @returns the row's name.
+ */
+function rowStarting(name: string): RegExp {
+    return new RegExp(`^${name.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}, `);
+}
 
 /**
  * Les Miserables in the workspace.
@@ -113,7 +123,10 @@ async function handMade(
  */
 async function clickRow(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    // A locator Playwright resolves when it clicks: the row's name counts its layers, which change after
+    // it first draws (for example "Lines, folder, 0 layers"), so a selector fixed from the element at once
+    // can miss it (#10194).
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
 /**
@@ -137,9 +150,9 @@ async function line(channel: string): Promise<HTMLElement> {
  */
 async function varyByLayer(row: HTMLElement): Promise<HTMLElement> {
     await userEvent.hover(row);
-    await userEvent.click(within(row).getByRole("button", { name: / by attribute$/ }));
+    await userEvent.click(page.elementLocator(row).getByRole("button", { name: / by attribute$/ }));
     await screen.findByRole("dialog", { name: / by attribute$/ });
-    await userEvent.click(await screen.findByRole("option", { name: /^Each layer's own value/ }));
+    await userEvent.click(page.getByRole("option", { name: /^Each layer's own value/ }));
     const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
     // The source line sets Layer off as the field does: the marks drawn, the word spoken.
     const token = await waitFor(() => {
@@ -182,12 +195,12 @@ async function rowShape(popover: HTMLElement): Promise<{ shape: unknown; items: 
         named: first.querySelector("[data-group-name]") !== null,
         eye: within(first).getAllByRole("button", { name: /^Hide / }).length,
     };
-    const actions = within(first).getByRole("button", { name: / actions$/ });
-    await userEvent.click(actions);
+    const actions = (): Locator => page.elementLocator(first).getByRole("button", { name: / actions$/ });
+    await userEvent.click(actions());
     const items = (await screen.findAllByRole("menuitem")).map((item) =>
         (item.textContent ?? "").replace(name, "<group>").replace(/\d+ nodes?/, "<n> nodes"),
     );
-    await userEvent.click(actions);
+    await userEvent.click(actions());
     return { shape, items };
 }
 
@@ -196,7 +209,7 @@ async function rowShape(popover: HTMLElement): Promise<{ shape: unknown; items: 
  * @param popover - The popover.
  */
 async function close(popover: HTMLElement): Promise<void> {
-    await userEvent.click(within(popover).getByRole("button", { name: /^Close / }));
+    await userEvent.click(page.elementLocator(popover).getByRole("button", { name: /^Close / }));
 }
 
 /**
@@ -396,9 +409,9 @@ describe("vary by layer", () => {
         assert.isDefined(louvain);
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         const name = session.styles.tree().find((row) => row.id === (louvain?.row ?? louvain?.id))?.name ?? "";
-        await userEvent.click(within(tree).getByRole("treeitem", { name: (n) => n.startsWith(`${name}, `) }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: rowStarting(name) }));
         const tab = await screen.findByTestId("style-tab");
-        await userEvent.click(await within(tab).findByRole("button", { name: /^Node color: / }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: /^Node color: / }));
         const byGroup = await screen.findByRole("group", { name: "Color binding" });
         const fromData = await rowShape(byGroup);
         await userEvent.keyboard("{Escape}");
@@ -422,7 +435,9 @@ describe("vary by layer", () => {
 
         // The eye hides the layer itself, as the layer list's does.
         const top = session.styles.tree().find((row) => row.name === "Story")?.children[0];
-        await userEvent.click(within(byLayer).getByRole("button", { name: `Hide Layer ${top?.name ?? ""}` }));
+        await userEvent.click(
+            page.elementLocator(byLayer).getByRole("button", { name: `Hide Layer ${top?.name ?? ""}`, exact: true }),
+        );
         await waitFor(() => {
             const row = session.styles.tree().find((r) => r.name === "Story")?.children[0];
             assert.isTrue(row?.hidden, "the top layer of the folder is hidden");
@@ -445,16 +460,17 @@ describe("vary by layer", () => {
         // F2 on the row renames the layer, as the layer list does.
         gridRows(byLayer)[0].querySelector<HTMLElement>("[role=gridcell]")?.focus();
         await userEvent.keyboard("{F2}");
-        const box = await within(byLayer).findByRole("textbox", { name: new RegExp(`^Name of .*${original}$`) });
-        await userEvent.clear(box);
-        await userEvent.type(box, "Opening{Enter}");
+        const box = (): Locator =>
+            page.elementLocator(byLayer).getByRole("textbox", { name: new RegExp(`^Name of .*${original}$`) });
+        await userEvent.clear(box());
+        await userEvent.type(box(), "Opening{Enter}");
         await waitFor(() => {
             assert.isTrue(named("Opening") && !named(original), "the layer is renamed");
         });
 
         // Select these: the nodes the layer paints, two characters (the inspector then shows them).
-        await userEvent.click(within(gridRows(byLayer)[0]).getByRole("button", { name: / actions$/ }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Select these / }));
+        await userEvent.click(page.elementLocator(gridRows(byLayer)[0]).getByRole("button", { name: / actions$/ }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Select these / }));
         await waitFor(() => {
             assert.lengthOf(session.selection.nodes, 2, "the layer's two characters");
         });
@@ -476,8 +492,8 @@ describe("vary by layer", () => {
         await clickRow("Many");
 
         const tab = await screen.findByTestId("style-tab");
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Shape", exact: true }));
         const panel = await varyByLayer(await line("node.shape"));
         await close(panel);
 
@@ -498,15 +514,17 @@ describe("vary by layer", () => {
         await clickRow("Story");
 
         const tab = await screen.findByTestId("style-tab");
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Shape", exact: true }));
         const panel = await varyByLayer(await line("node.shape"));
         const before = written(session, layers, "node.shape");
         // One row's own value, picked in its row as a group's is.
-        await userEvent.click(within(panel).getByLabelText(/^Layer Story Second shape, /));
-        await userEvent.click(await screen.findByRole("option", { name: /cylinder/i }));
+        await userEvent.click(page.elementLocator(panel).getByLabelText(/^Layer Story Second shape, /));
+        await userEvent.click(page.getByRole("option", { name: /cylinder/i }));
         assert.isTrue(panel.isConnected, "picking a row's value keeps the popover open");
-        await userEvent.click(within(panel).getByRole("button", { name: "Layer Story Second actions" }));
+        await userEvent.click(
+            page.elementLocator(panel).getByRole("button", { name: "Layer Story Second actions", exact: true }),
+        );
         await screen.findByRole("menuitem", { name: "Clear shape: back to the palette" });
         // Escape closes the row's menu only, never the popover around it.
         await userEvent.keyboard("{Escape}");
@@ -549,7 +567,7 @@ describe("vary by layer", () => {
             await clickRow("Story One");
             const tree = await screen.findByRole("tree", { name: "Style layers" });
             if (many) {
-                await userEvent.click(within(tree).getByRole("treeitem", { name: /^Story Two, / }), {
+                await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Story Two, / }), {
                     modifiers: ["Control"],
                 });
             }
@@ -558,7 +576,9 @@ describe("vary by layer", () => {
                 assert.lengthOf(within(tree).getAllByRole("treeitem", { selected: true }), many ? 2 : 1);
             });
 
-            await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+            await userEvent.click(
+                page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }),
+            );
             const first = (await screen.findAllByRole("menuitem"))[0];
             // Opened by a click, the menu itself has focus and no row is highlighted (Figma).
             await waitFor(() => {
@@ -580,9 +600,9 @@ describe("vary by layer", () => {
 
         const size = await line("node.size");
         const panel = await varyByLayer(size);
-        await userEvent.click(within(panel).getByLabelText("Size from"));
+        await userEvent.click(page.elementLocator(panel).getByLabelText("Size from", { exact: true }));
         await userEvent.keyboard("{Control>}a{/Control}1{Enter}");
-        await userEvent.click(within(panel).getByLabelText("Size to"));
+        await userEvent.click(page.elementLocator(panel).getByLabelText("Size to", { exact: true }));
         await userEvent.keyboard("{Control>}a{/Control}3{Enter}");
         await waitFor(() => {
             const third = within(panel).getByLabelText("Layer Sizes First size");
@@ -617,14 +637,17 @@ describe("vary by layer", () => {
         await clickRow("Plain");
         const fill = await line("node.color");
         await userEvent.hover(fill);
-        await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
-        const options = await screen.findAllByRole("option", { name: /community|louvain/i });
-        await userEvent.click(options[0]);
+        await userEvent.click(
+            page.elementLocator(fill).getByRole("button", { name: "Node color by attribute", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: /community|louvain/i }).first());
         await waitFor(() => {
             const binding = session.styles.get(plain.id)?.encode?.["node.color"];
             assert.isTrue(binding !== undefined && "by" in binding, "the layer varies by Louvain");
         });
-        await userEvent.click(await within(await line("node.color")).findByRole("button", { name: /^Node color: / }));
+        await userEvent.click(
+            page.elementLocator(await line("node.color")).getByRole("button", { name: /^Node color: / }),
+        );
         const byLouvain = await screen.findByRole("dialog", { name: /^Color by / });
         await within(byLouvain).findByRole("grid", { name: /groups$/ });
         const fromData = sections(byLouvain);
@@ -661,10 +684,12 @@ describe("vary by layer", () => {
 
         // Each group layer holds its own color: the pill opens by Layer, and Change source picks the field.
         const fill = await line("node.color");
-        await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
+        await userEvent.click(
+            page.elementLocator(fill).getByRole("button", { name: /^Node color: from each layer, / }),
+        );
         const byLayer = await screen.findByRole("dialog", { name: "Color from each layer" });
-        await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^Node id\b/ }));
+        await userEvent.click(page.elementLocator(byLayer).getByRole("button", { name: "Change source", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: /^Node id\b/ }));
         const popover = await screen.findByRole("dialog", { name: /^Color by / });
         await within(popover).findByRole("grid", { name: /groups$/ });
         assert.isNull(within(fill).queryByRole("group", { name: /in each layer/ }), "no per-layer preview");
@@ -767,7 +792,7 @@ describe("several layers holding different values", () => {
         assert.notInclude(row.textContent ?? "", "Mixed");
         assert.isNull(row.querySelector("[data-notes]"), "every layer sets it: no breakdown");
         // A click opens all of them, by Layer.
-        await userEvent.click(within(row).getByRole("button", { name: /^Node \w+: / }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: /^Node \w+: / }));
         const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
         assert.lengthOf(gridRows(popover), Math.min(n, 8));
         await close(popover);
@@ -785,7 +810,9 @@ describe("several layers holding different values", () => {
         const nameOf = (id: string): string => session.styles.get(id)?.name ?? "";
 
         const open = async (): Promise<HTMLElement> => {
-            await userEvent.click(within(await line("node.size")).getByRole("button", { name: /^Node size: / }));
+            await userEvent.click(
+                page.elementLocator(await line("node.size")).getByRole("button", { name: /^Node size: / }),
+            );
             return screen.findByRole("dialog", { name: / from each layer$/ });
         };
         let popover = await open();
@@ -793,7 +820,9 @@ describe("several layers holding different values", () => {
             const field = within(popover).getByLabelText<HTMLInputElement>(`Layer ${nameOf(id)} size`);
             assert.strictEqual(field.value, String(at + 1), "each row starts on its layer's value");
         }
-        await userEvent.click(within(popover).getByLabelText(`Layer ${nameOf(layers[1])} size`));
+        await userEvent.click(
+            page.elementLocator(popover).getByLabelText(`Layer ${nameOf(layers[1])} size`, { exact: true }),
+        );
         await userEvent.keyboard("{Control>}a{/Control}7{Enter}");
         await close(popover);
 
@@ -821,11 +850,13 @@ describe("several layers holding different values", () => {
         const values = ["#111111", "#222222", "#333333"];
         const layers = await eachOwn(session, "Own", "node.color", values);
         await clickRow("Own");
-        await userEvent.click(within(await line("node.color")).getByRole("button", { name: /^Node color: / }));
+        await userEvent.click(
+            page.elementLocator(await line("node.color")).getByRole("button", { name: /^Node color: / }),
+        );
         const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
         const palette = within(popover).getByRole<HTMLInputElement>("combobox", { name: "Palette" });
         const shown = palette.value;
-        await userEvent.click(palette);
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: "Palette", exact: true }));
         const option = (await screen.findAllByRole("option")).find((o) => o.textContent !== shown);
         if (option === undefined) {
             throw new Error("no other palette");
@@ -846,12 +877,19 @@ describe("several layers holding different values", () => {
         await session.runs.start("louvain", {}, { seed: 1, style: { groups: "layers", name: "Louvain" } });
         await session.styles.settled();
         await clickRow("Louvain");
-        await userEvent.click(within(await line("node.color")).getByRole("button", { name: /^Node color: / }));
+        await userEvent.click(
+            page.elementLocator(await line("node.color")).getByRole("button", { name: /^Node color: / }),
+        );
         const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
-        await userEvent.click(within(popover).getAllByRole("button", { name: /^Layer .* color/ })[1]);
+        await userEvent.click(
+            page
+                .elementLocator(popover)
+                .getByRole("button", { name: /^Layer .* color/ })
+                .nth(1),
+        );
         const picker = await screen.findByRole("dialog", { name: "Color" });
         // Enter applies the value and keeps the picker open (Figma); Escape closes it, then the popover.
-        await userEvent.click(within(picker).getByRole("textbox", { name: "Color value" }));
+        await userEvent.click(page.elementLocator(picker).getByRole("textbox", { name: "Color value", exact: true }));
         await userEvent.keyboard("{Control>}a{/Control}000000{Enter}");
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
@@ -862,14 +900,18 @@ describe("several layers holding different values", () => {
         const session = await openSample();
         const layers = await eachOwn(session, "Hues", "node.color", TWELVE_COLORS.slice(0, 3));
         await clickRow("Hues");
-        await userEvent.click(within(await line("node.color")).getByRole("button", { name: /^Node color: / }));
+        await userEvent.click(
+            page.elementLocator(await line("node.color")).getByRole("button", { name: /^Node color: / }),
+        );
         const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
         const second = session.styles.get(layers[1])?.name ?? "";
-        await userEvent.click(within(popover).getByRole("button", { name: new RegExp(`^Layer ${second} color`) }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("button", { name: new RegExp(`^Layer ${second} color`) }),
+        );
         const picker = await screen.findByRole("dialog", { name: "Color" });
         // The picker opens focused on itself (Figma); the reader clicks into the value box, and Tab
         // out of it applies the value and leaves the picker open.
-        await userEvent.click(within(picker).getByRole("textbox", { name: "Color value" }));
+        await userEvent.click(page.elementLocator(picker).getByRole("textbox", { name: "Color value", exact: true }));
         await userEvent.keyboard("{Control>}a{/Control}000000{Tab}");
         assert.isTrue(picker.isConnected, "the picker is still open");
         await userEvent.keyboard("{Escape}");
@@ -912,9 +954,10 @@ describe("several layers holding different values", () => {
         const pickDegree = async (): Promise<void> => {
             const fill = await line("node.color");
             await userEvent.hover(fill);
-            await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
-            const options = await screen.findAllByRole("option", { name: /^Degree(,|$)/ });
-            await userEvent.click(options[0]);
+            await userEvent.click(
+                page.elementLocator(fill).getByRole("button", { name: "Node color by attribute", exact: true }),
+            );
+            await userEvent.click(page.getByRole("option", { name: /^Degree(,|$)/ }).first());
         };
 
         // One layer on its own: the rule is written at once; its pill opens the popover.
@@ -924,7 +967,9 @@ describe("several layers holding different values", () => {
             assert.isDefined(session.styles.get(solo)?.encode?.["node.color"]);
         });
         if (screen.queryByRole("dialog", { name: /^Color by / }) === null) {
-            await userEvent.click(within(await line("node.color")).getByRole("button", { name: /^Node color: / }));
+            await userEvent.click(
+                page.elementLocator(await line("node.color")).getByRole("button", { name: /^Node color: / }),
+            );
         }
         const alone = await screen.findByRole("dialog", { name: /^Color by / });
         const aloneSections = sections(alone);
@@ -979,7 +1024,7 @@ async function louvainSelected(): Promise<{ readonly session: GraphSession; read
     }
     const name = session.styles.tree().find((row) => row.id === (louvain.row ?? louvain.id))?.name ?? "";
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(within(tree).getByRole("treeitem", { name: (n) => n.startsWith(`${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: rowStarting(name) }));
     return { session, layerId: louvain.id };
 }
 
@@ -1019,8 +1064,10 @@ describe("color sets from 2 to dozens", () => {
         await clickRow("Ramp");
         const fill = await line("node.color");
         await userEvent.hover(fill);
-        await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
-        await userEvent.click((await screen.findAllByRole("option", { name: /^Degree(,|$)/ }))[0]);
+        await userEvent.click(
+            page.elementLocator(fill).getByRole("button", { name: "Node color by attribute", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: /^Degree(,|$)/ }).nth(0));
         await waitFor(() => {
             assert.isDefined(session.styles.get(ramp.id)?.encode?.["node.color"]);
         });
@@ -1066,15 +1113,15 @@ describe("color sets from 2 to dozens", () => {
         }
         const name = session.styles.tree().find((r) => r.id === (layer.row ?? layer.id))?.name ?? "";
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(within(tree).getByRole("treeitem", { name: (n) => n.startsWith(`${name}, `) }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: rowStarting(name) }));
         const row = await line("node.color");
-        await userEvent.click(within(row).getByRole("button", { name: /^Node color: / }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: /^Node color: / }));
         const popover = await screen.findByRole("dialog", { name: /^Color by / });
         // Not set: the palette is the one the element paints with, named last ("Palette, not set, <name>").
         const palette = within(popover).getByRole<HTMLInputElement>("combobox", { name: /^Palette, not set, / });
         const shown = (palette.getAttribute("aria-label") ?? "").split(", ").at(-1) ?? "";
-        await userEvent.click(within(popover).getByRole("combobox", { name: /^More values than colors/ }));
-        await userEvent.click(await screen.findByRole("option", { name: "Extend the palette" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: /^More values than colors/ }));
+        await userEvent.click(page.getByRole("option", { name: "Extend the palette", exact: true }));
         await close(popover);
         await waitFor(() => {
             const block = session.styles.legendOf(layer.id).find((b) => b.channel === "node.color");

@@ -206,6 +206,27 @@ describe("GraphML styles: yEd", () => {
         expect(text).not.toMatch(/fontFamily="[^"]*DejaVu/);
     });
 
+    it("draws a line under the words of a label yEd marks underlinedText, and writes it back", async () => {
+        // yed-graphml-specimen-edge-labels.svg draws a line under the edge label "Lbl" marked underlinedText="true"
+        const node = (id: string, label: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
+            `<y:NodeLabel ${label}>${id}</y:NodeLabel></y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node("under", 'underlinedText="true"'),
+            node("plain", 'underlinedText="false"'),
+            '<edge id="e0" source="under" target="plain"><data key="d10"><y:PolyLineEdge>' +
+                '<y:EdgeLabel underlinedText="true">Lbl</y:EdgeLabel></y:PolyLineEdge></data></edge>',
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "labelUnderline", snapshot)).toEqual([true, null]);
+        expect(resolveStyles(styles, "edge", "labelUnderline", snapshot)).toEqual([true]);
+        const back = await load(await registry.exportGraphToString(snapshot, "graphml", { styles }), false);
+        expect(resolveStyles(back.styles, "node", "labelUnderline", back.snapshot)).toEqual([true, null]);
+        expect(resolveStyles(back.styles, "edge", "labelUnderline", back.snapshot)).toEqual([true]);
+    });
+
     it("draws a label's background color behind its words, and none where hasBackgroundColor is false", async () => {
         const node = (id: string, label: string): string =>
             `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
@@ -612,6 +633,23 @@ describe("GraphML styles: yEd", () => {
         expect(get("outlineWidth")).toEqual([2, null, null]);
         // its arrowheads are outlined in the line's color, not the fill's
         expect(get("targetArrowColor")).toEqual(["#5f809d", null, null]);
+    });
+
+    it("reads a framed edge with no fill color's standard heads as hollow vees, as yEd strokes its outline round them", async () => {
+        const framed = (arrows: string, fill: string): string =>
+            `<edge source="a" target="b"><data key="d10"><y:GenericEdge configuration="com.yworks.edge.framed"><y:LineStyle color="#000000" type="line" width="3.0"/><y:Arrows ${arrows}/>${fill}</y:GenericEdge></data></edge>`;
+        const fill = `<y:StyleProperties><y:Property class="java.awt.Color" name="FramedEdgePainter.fillColor" value="#ffffff"/></y:StyleProperties>`;
+        const { snapshot, styles } = await load(
+            `${YED_HEAD}<node id="a"/><node id="b"/>
+            ${framed('source="standard" target="standard"', "")}
+            ${framed('source="none" target="delta"', "")}
+            ${framed('source="none" target="standard"', fill)}
+            </graph></graphml>`,
+        );
+        const get = (p: StyleProperty): readonly unknown[] => resolveStyles(styles, "edge", p, snapshot);
+        // graphml-stm32-func n2 -> n1: one closed outline round the band and both notched heads, fill="none"
+        expect(get("sourceArrow")).toEqual(["hollow-vee", "none", "none"]);
+        expect(get("targetArrow")).toEqual(["hollow-vee", "triangle", "triangle-open"]);
     });
 
     it("reads a generic node's gradient corner to corner and draws none on a table", async () => {
@@ -1423,6 +1461,32 @@ describe("GraphML styles: writing", () => {
         expect(resolveStyles(back.styles, "node", "fillOpacity", back.snapshot)[0]).toBe(0.5);
         expect(resolveStyles(back.styles, "edge", "lineStyle", back.snapshot)).toEqual(["zigzag"]);
         expect(back.styles.styles.rules.some((r) => r.role === "exceptions")).toBe(false);
+    });
+
+    it("writes a hollow vee as yEd's standard head, approximated, never as a name yEd does not have", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        b.addNode("b");
+        b.addEdge("a", "b");
+        const snapshot = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                edge: { values: { targetArrow: ["other:hollow-vee"] } },
+                fingerprint: styleFingerprint(snapshot),
+            },
+            { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+        );
+        const losses = registry.checkExport(snapshot, "graphml", { styles });
+        expect(
+            losses
+                .filter((l) => l.code === "W_STYLE_APPROXIMATED")
+                .map((l) => [l.style?.target, l.style?.property, l.count]),
+        ).toEqual([["edge", "targetArrow", 1]]);
+        const text = await registry.exportGraphToString(snapshot, "graphml", { styles });
+        expect(text).toContain('target="standard"');
+        // yEd's own arrow attributes name only yEd arrows; the exact value stays in graphty's block
+        expect(text).not.toContain('target="hollow-vee"');
     });
 
     it("writes a gradient fill as yEd's color2, and an inside label in yEd's internal model", async () => {

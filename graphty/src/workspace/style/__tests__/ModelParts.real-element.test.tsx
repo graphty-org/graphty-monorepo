@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -249,7 +249,7 @@ describe("a model missing parts, on the real element", () => {
 
     it("says why a layer's model is not drawn as a plain row in its Model settings, never a pill", async () => {
         const { tab } = await openShapes([], () => Promise.resolve({ "node.model": "asset:not-held" }));
-        await userEvent.click(await within(tab).findByRole("button", { name: "Model settings" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Model settings", exact: true }));
         const settings = await screen.findByRole("dialog", { name: "Model settings" });
         const notes = await within(settings).findByTestId("model-notes");
         assert.isNotNull(within(notes).getByRole("group", { name: "Not loaded" }));
@@ -269,7 +269,9 @@ describe("a model missing parts, on the real element", () => {
     it("draws without the picture on Load without it, saying 'Without 1' on Model settings' tooltip", async () => {
         const { session, tab, chip } = await policeAlone();
         const parts = await openParts(chip);
-        await userEvent.click(within(parts).getByRole("button", { name: `Load without ${PART_NAME}` }));
+        await userEvent.click(
+            page.elementLocator(parts).getByRole("button", { name: `Load without ${PART_NAME}`, exact: true }),
+        );
         await finished(session, tab);
         assert.isNull(within(tab).queryByText(/Without 1/), "no words in the sidebar");
         assert.include(await tooltipOf(within(tab).getByRole("button", { name: "Model settings" })), "Without 1");
@@ -291,20 +293,21 @@ describe("a model missing parts, on the real element", () => {
 
         // Another site: the web-address question comes first, worded for a part the reader supplied.
         await userEvent.type(
-            within(parts).getByRole("textbox", { name: `${PART_NAME} address` }),
+            page.elementLocator(parts).getByRole("textbox", { name: `${PART_NAME} address`, exact: true }),
             "https://assets.example.com/colormap.png{Enter}",
         );
         const question = await screen.findByRole("dialog", { name: "Open a web address?" });
         assert.include(question.textContent, "Load a part of this model from assets.example.com?");
         assert.include(question.textContent, "colormap.png");
-        await userEvent.click(within(question).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(question).getByRole("button", { name: "Cancel", exact: true }));
         const still = await within(tab).findByRole("button", { name: CHIP });
 
         // The same site: fetched at once, and drawn.
         parts = screen.queryByRole("dialog", { name: "police.glb" }) ?? (await openParts(still));
-        const field = within(parts).getByRole("textbox", { name: `${PART_NAME} address` });
-        await userEvent.clear(field);
-        await userEvent.type(field, `${new URL(colormapUrl, location.href).href}{Enter}`);
+        const field = (): Locator =>
+            page.elementLocator(parts).getByRole("textbox", { name: `${PART_NAME} address`, exact: true });
+        await userEvent.clear(field());
+        await userEvent.type(field(), `${new URL(colormapUrl, location.href).href}{Enter}`);
         await finished(session, tab);
     });
 
@@ -320,14 +323,17 @@ describe("a model missing parts, on the real element", () => {
         });
         const { tab, chip } = await policeAlone();
         const parts = await openParts(chip);
-        await userEvent.type(within(parts).getByRole("textbox", { name: `${PART_NAME} address` }), `${blob}{Enter}`);
+        await userEvent.type(
+            page.elementLocator(parts).getByRole("textbox", { name: `${PART_NAME} address`, exact: true }),
+            `${blob}{Enter}`,
+        );
 
         // Known as a page by its address: no question, and nothing fetched.
         const row = within(parts).getByRole("group", { name: PART_NAME });
         assert.isNotNull(await within(row).findByText(/^Web page/));
         assert.isNull(screen.queryByRole("dialog", { name: "Open a web address?" }));
         assert.notInclude(requested, blob);
-        await userEvent.click(within(row).getByRole("button", { name: "Use file address" }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "Use file address", exact: true }));
         assert.equal(within(row).getByRole<HTMLInputElement>("textbox", { name: `${PART_NAME} address` }).value, raw);
         assert.isNotNull(within(tab).getByRole("button", { name: CHIP }));
     });

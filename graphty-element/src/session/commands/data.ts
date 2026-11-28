@@ -296,6 +296,11 @@ export interface DataImportCommand {
     readonly pins?: "data" | "keep";
     /** Rows a draft already read: loaded in place of reading the source again, on redo too. */
     readonly held?: HeldRows;
+    /**
+     * The nodes the source marks fixed when no reader parses it (a sample dataset's `fixed`
+     * column); read from the reader when absent.
+     */
+    readonly fixed?: readonly NodeId[];
     /** An edge naming a node no node record holds: made (the default), or left out. */
     readonly unmatched?: "add" | "leave-out";
     /** A node record repeating an id an earlier one gave; see `LoadChoices.duplicateIds`. */
@@ -377,6 +382,15 @@ export interface HeldRows {
     readonly errorLimit: number;
     /** The expression a node record's id is read with; the configured one when absent. */
     readonly idPath?: string;
+    /** The node records named no id and were numbered under `idPath`, a column they did not hold. */
+    readonly numbered?: true;
+    /** The columns of a table whose header named neither an edge's ends nor an id, so its rows are nodes. */
+    readonly unnamed?: readonly string[];
+    /**
+     * The file's own column its node records' ids were read from, which the records carry beside the
+     * `idPath` the reader put them under.
+     */
+    readonly idColumn?: string;
     /** The expression an edge's source is read with; probed when absent. */
     readonly source?: string;
     /** The expression an edge's target is read with; probed when absent. */
@@ -1085,7 +1099,7 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
     lane: { kind: "queued", category: "data-add", coalesce: (command) => command.coalesce ?? null },
     // The options can carry a `File` and a whole file's text, and a draft's held rows a whole
     // file's records, an error tally and the graph a measured merge counts; none is copied.
-    byReference: ["config", "held", "measure"],
+    byReference: ["config", "held", "measure", "fixed"],
     closesBaseline: true,
     execute: async (command, ctx) => {
         // Refused before anything is read: drawing a file's styles is the file styles experiment.
@@ -1129,7 +1143,8 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         // The kind columns the file declares, in this same step.
         await designateDeclaredKinds(outcome?.reader, ctx);
         const reader = outcome?.reader;
-        fixed = pins === "data" && reader !== null && reader !== undefined ? declaredPinsOf(reader) : [];
+        const declared = reader === null || reader === undefined ? [] : declaredPinsOf(reader);
+        fixed = pins === "data" ? (command.fixed ?? declared) : [];
         if (choice === "keep") {
             await pinAll(fixed, ctx.inline);
         }

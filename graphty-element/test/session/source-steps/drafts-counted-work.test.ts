@@ -60,6 +60,8 @@ describe("source-steps drafts: counted work", () => {
             () => d.editStep(step, { clash: { amt: "overwrite" } }),
             () => d.renameColumn({ kind: "node", name: "amt" }, "amount", { source: b }),
             () => d.declareType({ name: "vip", kind: "node", rules: [{ source: b }] }),
+            () => d.link({ source: b, columns: ["amount"] }),
+            () => d.extract(b, { column: "amount", type: "amount" }),
             () => d.removeStep(step),
         ];
         for (const act of acts) {
@@ -116,6 +118,62 @@ describe("source-steps drafts: counted work", () => {
                 return bytes;
             },
             { sizes: [500, 2_000], growth: "constant", counter: "bytes the commit's step retains" },
+        );
+    });
+
+    it("a link's commit retains bytes in step with its rows, and a value over the cap costs no pairs", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const session = createGraphSession({ features: ["source-steps"] });
+                // Each phone is held by four accounts, and every account holds one hub email.
+                const rows = Array.from(
+                    { length: size },
+                    (_, i) => `a${String(i)},p${String(Math.floor(i / 4))},team@x`,
+                );
+                await session.data.import(
+                    { type: "csv", config: { data: `id,phone,email\n${rows.join("\n")}` }, name: "accounts.csv" },
+                    { key: "id", type: "account" },
+                );
+                const d = session.data.draft();
+                d.link({ source: session.data.sources()[0].key, columns: ["phone", "email"] });
+                const link = d.steps()[1];
+                assert.strictEqual(link.buckets?.newEdges, (size / 4) * 6, "six pairs per phone, none by the email");
+                assert.lengthOf(link.buckets?.hub ?? [], 1);
+                await d.commit();
+                const bytes = session.history.steps.at(-1)?.bytes ?? 0;
+                session.dispose();
+                return bytes;
+            },
+            { sizes: [200, 800], counter: "bytes the link's commit retains" },
+        );
+    });
+
+    it("an Extract that splits its cells and carries a column retains bytes in step with its rows", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const session = createGraphSession({ features: ["source-steps"] });
+                const rows = Array.from(
+                    { length: size },
+                    (_, i) => `p${String(i)},t${String(i % 7)};t8,${String(i % 7)}`,
+                );
+                await session.data.import(
+                    { type: "csv", config: { data: `id,tags,floor\n${rows.join("\n")}` }, name: "people.csv" },
+                    { key: "id", type: "person" },
+                );
+                const d = session.data.draft();
+                d.extract(session.data.sources()[0].key, {
+                    column: "tags",
+                    split: ";",
+                    type: "tag",
+                    columns: ["floor"],
+                });
+                assert.deepInclude(d.steps()[1].buckets, { newNodes: 8, newEdges: size * 2, matched: size });
+                await d.commit();
+                const bytes = session.history.steps.at(-1)?.bytes ?? 0;
+                session.dispose();
+                return bytes;
+            },
+            { sizes: [200, 800], counter: "bytes the Extract's commit retains" },
         );
     });
 });

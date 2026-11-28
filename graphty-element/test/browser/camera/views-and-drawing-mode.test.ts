@@ -8,11 +8,13 @@
 
 import "../../../src/graphty-element";
 
-import { afterEach, assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { clearRegisteredCamerasForTesting, isGraphtyError, registerCameraView } from "../../../extend";
 import { type Graphty, linkCameras } from "../../../index.js";
+import { buildParts } from "../../../src/autosave/parts";
 import { Graph, operationQueueOf } from "../../../src/Graph.js";
+import { Node } from "../../../src/Node.js";
 import type { CodedFact } from "../../../src/session/shared";
 
 /** A 3D state that a 2D camera reads nothing of. */
@@ -197,6 +199,36 @@ describe("views and the drawing mode", () => {
         const state = graph.getCameraState();
         assert.closeTo(state.target?.x ?? Number.NaN, now.target?.x ?? Number.NaN, 0.5);
         assert.closeTo(state.target?.z ?? Number.NaN, now.target?.z ?? Number.NaN, 0.5);
+    });
+
+    test("a save measures the drawing once however many following views it writes, with each view's own pose", async () => {
+        // Issue #10314: each following view measured every node again, five times on the app's
+        // starting cameras, which held the main thread for 238 ms after a restyle on a 50k graph.
+        const follows = ["topView", "bottomView", "frontView", "sideView", "isometric"];
+        const session = graph.getSession();
+        await session.views.save(follows.map((view) => ({ name: `Saved ${view}`, follows: view })));
+        const measured = vi.spyOn(Node.prototype, "framingBounds");
+        try {
+            const { parts } = buildParts(session, new Set(["rest"]), new Map(), new Map());
+            assert.strictEqual(measured.mock.calls.length, 3, "the autosave measured each of the 3 nodes once");
+
+            measured.mockClear();
+            const { text } = await session.project.save();
+            assert.strictEqual(measured.mock.calls.length, 3, "the project save measured each of the 3 nodes once");
+
+            measured.mockRestore();
+            const rest = JSON.parse(parts.rest ?? "{}") as { session: { views: { name: string; camera?: unknown }[] } };
+            assert.includeMembers(
+                text.match(/Saved \w+/g) ?? [],
+                follows.map((view) => `Saved ${view}`),
+            );
+            for (const view of follows) {
+                const entry = rest.session.views.find((each) => each.name === `Saved ${view}`);
+                assert.deepStrictEqual(entry?.camera, graph.resolveCameraPreset(view), `${view} keeps its own pose`);
+            }
+        } finally {
+            measured.mockRestore();
+        }
     });
 
     test("viewProblem judges a following saved view by the camera view it follows", async () => {

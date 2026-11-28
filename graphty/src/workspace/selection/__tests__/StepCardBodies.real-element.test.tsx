@@ -14,7 +14,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -83,7 +83,7 @@ async function openLayer(
         await session.selection.apply({ nodes: [...selected] });
     }
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Calm, / }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Calm, / }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -108,7 +108,7 @@ function firstStep(session: GraphSession, id: string): UnionLeaf["branches"][num
  * @param name - what to type.
  */
 async function openOn(name: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-ws"), "the workspace is open");
     });
@@ -127,8 +127,10 @@ async function openOn(name: string): Promise<void> {
 async function degreeSetting(setting: string): Promise<{ session: GraphSession; layer: Layer }> {
     const opened = await openLayer();
     await openOn("Degree");
-    await userEvent.click(await screen.findByRole("button", { name: "Settings for Degree" }));
-    await userEvent.click(within(await screen.findByRole("dialog", { name: "Degree" })).getByText(setting));
+    await userEvent.click(page.getByRole("button", { name: "Settings for Degree", exact: true }));
+    await userEvent.click(
+        page.getByRole("dialog", { name: "Degree", exact: true }).getByText(setting, { exact: true }),
+    );
     return opened;
 }
 
@@ -138,7 +140,9 @@ describe("a category step's values in the Styled preview", () => {
         await openOn("kind");
         const row = await screen.findByRole("checkbox", { name: /^a, 3 nodes/ });
         assert.isNull(document.querySelector(".sel-ws [data-swatch]"), "Card colors draws no swatch");
-        await userEvent.click(within(await screen.findByRole("radiogroup", { name: "Preview" })).getByText("Styled"));
+        await userEvent.click(
+            page.getByRole("radiogroup", { name: "Preview", exact: true }).getByText("Styled", { exact: true }),
+        );
         await waitFor(() => {
             const swatch = row.closest(".mantine-Checkbox-root")?.querySelector<HTMLElement>("[data-swatch]");
             assert.strictEqual(swatch?.dataset.swatch?.toLowerCase(), PAINT, "a's swatch is the paint");
@@ -150,7 +154,7 @@ describe("a Node id step", () => {
     it("takes the selected nodes", async () => {
         const { session, layer } = await openLayer(false, ["n1", "n4"]);
         await openOn("Node id");
-        await userEvent.click(await screen.findByRole("button", { name: "Use the selected nodes" }));
+        await userEvent.click(page.getByRole("button", { name: "Use the selected nodes", exact: true }));
         await waitFor(() => {
             const rule = firstStep(session, layer.id)?.rule as { ids?: readonly string[] } | undefined;
             assert.include(JSON.stringify(rule), "n4", "the step holds the nodes");
@@ -165,7 +169,7 @@ describe("a Data source step", () => {
     it("ticks a load and the step keeps its elements", async () => {
         const { session, layer } = await openLayer(true);
         await openOn("Data source");
-        await userEvent.click(await screen.findByRole("checkbox", { name: /, 2 nodes$/ }));
+        await userEvent.click(page.getByRole("checkbox", { name: /, 2 nodes$/ }));
         await waitFor(() => {
             const rule = firstStep(session, layer.id)?.rule as { kind?: string; sources?: readonly string[] };
             assert.strictEqual(rule.kind, "source");
@@ -177,7 +181,7 @@ describe("a Data source step", () => {
 describe("an edge value under Edges where ...", () => {
     it("switches to By position, keeping its card for the count, and back to By value with its range kept", async () => {
         const { session, layer } = await degreeSetting("Edges where ...");
-        await userEvent.click(await screen.findByRole("button", { name: "Edge value: none" }));
+        await userEvent.click(page.getByRole("button", { name: "Edge value: none", exact: true }));
         await screen.findByRole("combobox", { name: /^Find edge attributes/ });
         await userEvent.keyboard("weight{Enter}");
         const links = await waitFor(() => {
@@ -185,7 +189,7 @@ describe("an edge value under Edges where ...", () => {
             assert.isNotNull(found);
             return found;
         });
-        const min = await within(links).findByRole("textbox", { name: /from, number$/ });
+        const min = page.elementLocator(links).getByRole("textbox", { name: /from, number$/ });
         await userEvent.click(min);
         await userEvent.keyboard("{Control>}a{/Control}3{Enter}");
         const held = (): { min?: number } | undefined =>
@@ -194,14 +198,14 @@ describe("an edge value under Edges where ...", () => {
             assert.strictEqual(held()?.min, 3, "the edge test holds its Min");
         });
 
-        await userEvent.click(screen.getByRole("combobox", { name: "weight test" }));
-        await userEvent.click(await screen.findByRole("option", { name: "By position" }));
+        await userEvent.click(page.getByRole("combobox", { name: "weight test", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "By position", exact: true }));
         await waitFor(() => {
             assert.isUndefined(held(), "By position with no count yet tests no edge");
         });
         await screen.findByRole("textbox", { name: "weight: how many" });
-        await userEvent.click(screen.getByRole("combobox", { name: "weight test" }));
-        await userEvent.click(await screen.findByRole("option", { name: "By value" }));
+        await userEvent.click(page.getByRole("combobox", { name: "weight test", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "By value", exact: true }));
         await waitFor(() => {
             assert.strictEqual(held()?.min, 3, "By value brings the range back");
         });
@@ -211,7 +215,7 @@ describe("an edge value under Edges where ...", () => {
 describe("a number step By position", () => {
     it("counts from either end, in nodes or a percent of them, and refuses a percent above 100", async () => {
         const { session, layer } = await degreeSetting("By position");
-        const count = await screen.findByRole("textbox", { name: "Degree: how many" });
+        const count = page.getByRole("textbox", { name: "Degree: how many", exact: true });
         await userEvent.click(count);
         await userEvent.keyboard("{Control>}a{/Control}2{Enter}");
         await waitFor(() => {
@@ -219,26 +223,26 @@ describe("a number step By position", () => {
             assert.include(JSON.stringify(firstStep(session, layer.id)?.rule), '"top":2');
         });
 
-        await userEvent.click(screen.getByRole("combobox", { name: "Degree: which end" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Bottom" }));
+        await userEvent.click(page.getByRole("combobox", { name: "Degree: which end", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "Bottom", exact: true }));
         await waitFor(() => {
             assert.strictEqual(firstStep(session, layer.id)?.mode, "top low", "it counts from the bottom");
         });
 
-        await userEvent.click(screen.getByRole("combobox", { name: "Degree: count or percent" }));
-        await userEvent.click(await screen.findByRole("option", { name: "% of nodes" }));
-        const percent = await screen.findByRole("textbox", { name: "Degree: what percent" });
+        await userEvent.click(page.getByRole("combobox", { name: "Degree: count or percent", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "% of nodes", exact: true }));
+        await screen.findByRole("textbox", { name: "Degree: what percent" });
         await waitFor(() => {
             assert.strictEqual(firstStep(session, layer.id)?.mode, "top low percent");
         });
 
-        await userEvent.click(percent);
+        await userEvent.click(page.getByRole("textbox", { name: "Degree: what percent", exact: true }));
         await userEvent.keyboard("{Control>}a{/Control}150{Enter}");
         const alert = await screen.findByRole("alert");
         assert.include(alert.textContent ?? "", "Type a percent above 0, up to 100.");
         assert.notInclude(JSON.stringify(firstStep(session, layer.id)?.rule), '"percentile":150', "nothing is written");
 
-        await userEvent.click(percent);
+        await userEvent.click(page.getByRole("textbox", { name: "Degree: what percent", exact: true }));
         await userEvent.keyboard("{Control>}a{/Control}50{Enter}");
         await waitFor(() => {
             assert.include(

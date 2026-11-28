@@ -996,12 +996,17 @@ vec3 pulledRaisedSample(vec3 src, vec3 dst, float i, float samples, float height
     return p;
 }
 
-// sin of an angle within a half turn, from the Taylor series of its half
-float pulledSin(float x) {
+// sin and cos of an angle within a half turn, from the Taylor series of its half
+vec2 pulledSinCosHalfTurn(float x) {
     vec2 h = pulledSinCos(x * 0.5);
-    return 2.0 * h.x * h.y;
+    return vec2(2.0 * h.x * h.y, 1.0 - 2.0 * h.x * h.x);
 }
 
+// the same point as globeSampleAt's slerp, (sin((1-t)a) u + sin(ta) v) / sin(a), written as the turn by t a from u
+// toward w, the unit vector of v less its share along u: cos(ta) u + sin(ta) w. Both are exact in real numbers, but in
+// float32 the slerp divides by sin(a), a few tenths for ends nearly opposite, and so multiplies the float32 error of
+// its sines (from cos(a/2)'s cancelling series) by r / sin(a): 1.08e-4 at a radius of 66 on an NVIDIA GPU. The turn
+// multiplies nothing by more than r, and sin(a) appears only as the length that makes w a unit vector.
 vec3 pulledGlobeSample(vec3 src, vec3 dst, float i, float samples, float height, float angle) {
     float t = i / samples;
     if (angle == 0.0 || i <= 0.0 || i >= samples) {
@@ -1009,9 +1014,14 @@ vec3 pulledGlobeSample(vec3 src, vec3 dst, float i, float samples, float height,
     }
     float ra = length(src);
     float rb = length(dst);
-    float s = pulledSin(angle);
-    float r = mix(ra, rb, t) + height * length(dst - src) * pulledSin(${Math.PI.toFixed(9)} * t);
-    return (src * (pulledSin((1.0 - t) * angle) / s / ra) + dst * (pulledSin(t * angle) / s / rb)) * r;
+    vec3 u = src / ra;
+    vec3 v = dst / rb;
+    vec3 w = v - u * dot(u, v);
+    float wLength = length(w);
+    w *= wLength == 0.0 ? 0.0 : 1.0 / wLength;
+    vec2 turn = pulledSinCosHalfTurn(t * angle);
+    float r = mix(ra, rb, t) + height * length(dst - src) * pulledSinCosHalfTurn(${Math.PI.toFixed(9)} * t).x;
+    return (u * turn.y + w * turn.x) * r;
 }
 
 // a self-loop's teardrop: the cubic from the center back to it whose controls stand k times their mean p turned a

@@ -13,7 +13,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -94,7 +94,7 @@ async function supplyChain(): Promise<GraphSession> {
     store.set({ dockOpen: false, dockMaximized: false });
     drop(await fixture("ships-to-2024-09.csv"));
     const join = await screen.findByRole("region", { name: /^Join / });
-    await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+    await userEvent.click(page.elementLocator(join).getByRole("button", { name: "Join", exact: true }));
     await holds(live, 40, 150);
     return live;
 }
@@ -156,11 +156,13 @@ describe("Replace with file on the real element", () => {
         const shownBefore = session.visibility.summary.visibleNodes;
 
         const row = await screen.findByRole("listitem", { name: "ships-to-2024-09.csv" });
-        await userEvent.hover(row);
-        await userEvent.click(within(row).getByRole("button", { name: "ships-to-2024-09.csv menu" }));
+        await userEvent.hover(page.getByRole("listitem", { name: "ships-to-2024-09.csv", exact: true }));
+        await userEvent.click(
+            page.elementLocator(row).getByRole("button", { name: "ships-to-2024-09.csv menu", exact: true }),
+        );
         const october = await fixture("ships-to-2024-10.csv");
         await commands.chooseNextFile(october.name, "text/csv", await october.text());
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Replace with file..." }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Replace with file...", exact: true }));
 
         const receipt = await screen.findByText("Replaced ships-to-2024-09.csv with ships-to-2024-10.csv", {});
         const toast = receipt.closest<HTMLElement>('[role="group"]');
@@ -186,7 +188,7 @@ describe("Replace with file on the real element", () => {
         );
         assert.strictEqual(session.visibility.summary.visibleNodes, shownBefore);
 
-        await userEvent.click(within(toast).getByRole("button", { name: "Undo" }));
+        await userEvent.click(page.elementLocator(toast).getByRole("button", { name: "Undo", exact: true }));
         await holds(session, 40, 150);
         assert.strictEqual(session.data.sources().find((each) => each.kind === "join")?.name, "ships-to-2024-09.csv");
         assert.isDefined(session.styles.get(layer.id));

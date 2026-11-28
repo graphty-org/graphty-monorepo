@@ -47,6 +47,8 @@ export type IssueId = string; // eslint-disable-line sonarjs/redundant-type-alia
  *   `params.rowsAre`, `params.examples` (the rows).
  * - `refused-row`: rows the reader could not read (a CSV row with too many fields);
  *   `params.lines`, `params.issues` (the reader's codes).
+ * - `rows-as-nodes`: a table's header names neither an edge's ends nor an id, so each row was read as
+ *   a node and the table gave no edge; `count` is the rows, `params.columns` its columns.
  * - `mixed-type`: a column holds values of several types and is not a number column;
  *   `params.types` counts each.
  * - `could-be-yes-no`: a text column holds only yes and no (or true and false); `count` is the
@@ -70,6 +72,7 @@ export type IssueCode =
     | "case-variant"
     | "blank-id"
     | "refused-row"
+    | "rows-as-nodes"
     | "mixed-type"
     | "could-be-yes-no"
     | "location-unmatched"
@@ -185,6 +188,8 @@ export interface LoadFacts {
     };
     /** Rows the reader could not read: the line and the reader's code. */
     readonly refusedRows: readonly { readonly line: number; readonly issue: string }[];
+    /** A table whose header named nothing, its rows read as nodes: how many, and its columns. */
+    readonly rowsAsNodes?: { readonly rows: number; readonly columns: readonly string[] };
 }
 
 /** An issue as it stood when a fix settled it. */
@@ -218,10 +223,18 @@ const DECIMAL_COMMA = /^[+-]?\d+(?:\.\d{3})*,\d+$/;
  * The facts a load leaves for its issues, or null when it saw nothing wrong.
  * @param tally - The load's tally.
  * @param leftOut - Whether the load left unmatched edges out, so it made no node for them.
+ * @param held - The rows read, and the columns of a table whose header named nothing.
+ * @param held.nodes - The node rows.
+ * @param held.unnamed - The columns.
  * @returns The facts.
  */
-export function loadFactsOf(tally: ImportTally, leftOut: boolean): LoadFacts | null {
+export function loadFactsOf(
+    tally: ImportTally,
+    leftOut: boolean,
+    held?: { readonly nodes: readonly unknown[]; readonly unnamed?: readonly string[] },
+): LoadFacts | null {
     const blank = tally.refusedRows;
+    const rowsAsNodes = held?.unnamed === undefined ? undefined : { rows: held.nodes.length, columns: held.unnamed };
     const facts: LoadFacts = {
         unknownEnds: leftOut ? [] : ([...tally.unmatchedValues] as NodeId[]),
         repeatedIds: [...tally.droppedRows],
@@ -240,8 +253,10 @@ export function loadFactsOf(tally: ImportTally, leftOut: boolean): LoadFacts | n
                   ]
                 : [],
         ),
+        ...(rowsAsNodes === undefined ? {} : { rowsAsNodes }),
     };
     const empty =
+        rowsAsNodes === undefined &&
         facts.unknownEnds.length === 0 &&
         facts.repeatedIds.length === 0 &&
         blank.length === 0 &&
@@ -764,6 +779,22 @@ function loadIssues(input: IssueInput): FoundIssue[] {
                         rowsAre,
                         examples: from.flatMap(([, facts]) => facts.blankIds.examples).slice(0, EXAMPLES),
                     },
+                    fixes: [],
+                },
+                plan: noFix,
+            });
+        }
+    }
+
+    for (const [key, { rowsAsNodes }] of loads) {
+        if (rowsAsNodes !== undefined) {
+            found.push({
+                issue: {
+                    id: `rows-as-nodes:${key}`,
+                    code: "rows-as-nodes",
+                    source: key,
+                    count: rowsAsNodes.rows,
+                    params: { columns: rowsAsNodes.columns },
                     fixes: [],
                 },
                 plan: noFix,

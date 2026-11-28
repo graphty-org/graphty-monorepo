@@ -1,38 +1,45 @@
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, SourceDraft } from "@graphty/graphty-element/session";
 import { Button, Group, Kbd, Stack, Text, UnstyledButton } from "@mantine/core";
 import React from "react";
 
 import { sourceName } from "../data-place/words";
 import { ariaKey, formatKey } from "../keys/keys";
-import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DELETE_KEY, READER_EDITS_KEY } from "./keys";
-import { removeEdit, toggleReaderEdits } from "./steps";
 import { editKindWords, editValueWords, STEP_WORDS } from "./words";
 
 /**
- * Reader edits (design 7.17, the source-steps experiment): the reader's own changes and picks,
- * from `data.edits()`, each with Delete (`data.removeEdit`). R opens and closes the list.
+ * Reader edits in the join workspace (design 7.17, the source-steps experiment): the reader's own
+ * changes and picks, as the open draft holds them (`draft.edits()`), each with Delete
+ * (`draft.removeEdit`, committed with the rest on Done). R opens and closes the list.
  * @param props - Component props
  * @param props.session - the element's session
+ * @param props.draft - the workspace's draft
+ * @param props.open - whether the list is open
+ * @param props.onToggle - opens or closes it
+ * @param props.onError - shows a refused Delete
  * @returns the list, or nothing while there is no edit
  */
-export function ReaderEdits({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element | null {
-    const { store } = useWorkspace();
-    const open = useWorkspaceState((state) => state.readerEditsOpen);
-    const edits = session.data.edits();
+export function ReaderEdits({
+    session,
+    draft,
+    open,
+    onToggle,
+    onError,
+}: Readonly<{
+    session: GraphSession;
+    draft: SourceDraft;
+    open: boolean;
+    onToggle: () => void;
+    onError: (error: unknown) => void;
+}>): React.JSX.Element | null {
+    const edits = draft.edits();
     if (edits.length === 0) {
         return null;
     }
     const sources = session.data.sources({ staged: true });
     return (
         <Stack gap={2} className="ss-steps">
-            <UnstyledButton
-                aria-expanded={open}
-                aria-keyshortcuts={ariaKey(READER_EDITS_KEY)}
-                onClick={() => {
-                    toggleReaderEdits(store);
-                }}
-            >
+            <UnstyledButton aria-expanded={open} aria-keyshortcuts={ariaKey(READER_EDITS_KEY)} onClick={onToggle}>
                 <Group gap={6}>
                     <Text size="xs" fw={600}>
                         {STEP_WORDS.readerEdits}
@@ -53,7 +60,11 @@ export function ReaderEdits({ session }: Readonly<{ session: GraphSession }>): R
                             edit.picked === undefined ? undefined : sources.find((each) => each.key === edit.picked);
                         const label = `${editKindWords(edit)} ${edit.target.key}`;
                         const remove = (): void => {
-                            void removeEdit(store, session, edit.id);
+                            try {
+                                draft.removeEdit(edit.id);
+                            } catch (error) {
+                                onError(error);
+                            }
                         };
                         return (
                             <div // eslint-disable-line jsx-a11y/prefer-tag-over-role, jsx-a11y/no-noninteractive-element-interactions -- a <li> would bring list styling the compact rows do not use; Del pressed on any of the row's buttons deletes it, as its Delete button shows

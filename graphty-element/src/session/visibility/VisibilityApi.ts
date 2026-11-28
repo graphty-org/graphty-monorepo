@@ -123,6 +123,7 @@ import {
     type ScopeLeaf,
     type TimePlayback,
     type TimeWindow,
+    waitingSources,
     windowBounds,
     windowInstants,
     windowReadsRecords,
@@ -431,6 +432,7 @@ export interface VisibilityApi {
      * How much of what one load supplied is showing, on the same terms as
      * {@link VisibilityApi.summary}: the totals are the elements the graph holds that the load
      * supplied (what `session.data.sourcesOf` lists), the visible counts those of them visible now.
+     * A staged source's are the elements its rows would be, and what its own filters leave of them.
      * @param source - A `session.data.sources()` key.
      * @returns The counts; all zero for a key that supplied nothing, or when this session records
      *     no provenance.
@@ -1924,6 +1926,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return false;
         }
 
+        slideCounters.windowChecks++;
         const active = upToDate();
         const rule = ruleNow();
         const window = slid && slidTo !== null ? slidTo.window : dispatcher.state.visibility.window;
@@ -2081,12 +2084,10 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns The bytes, or null.
      */
     const outsideNow = (): ElementBytes | null => {
-        if (!insideUpToDate()) {
-            return null;
-        }
-
-        // A repaint asks once per element: within one turn, with the state, the masks and the
-        // graph unmoved, the bytes are the ones just answered.
+        // A repaint, a count or a recount asks once per element: within one turn, with the state,
+        // the slide, the masks and the graph unmoved, the bytes are the ones just answered. Checked
+        // before `insideUpToDate`, whose comparison of the window's inputs per element cost most
+        // of a timeline step, a layout apply or an undo at 10,000 nodes (#10291).
         // ponytail: per turn, since a set a filter names can move with no command; stamp the set
         // signatures too if a pass spanning turns ever costs.
         const stamp = (): readonly unknown[] => [
@@ -2094,9 +2095,15 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             inEdges.version,
             dispatcher.state,
             sources.snapshot(),
+            slid,
+            slidTo,
         ];
         if (outsideCache !== null && outsideStamp !== null && sameInputs(outsideStamp, stamp())) {
             return outsideCache.bytes;
+        }
+
+        if (!insideUpToDate()) {
+            return null;
         }
 
         const active = upToDate();
@@ -2589,6 +2596,38 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     } | null = null;
 
     /**
+     * What a rule matches of a staged source's rows, none of them shown yet.
+     * @param waiting - The rows as a graph.
+     * @param rule - The rule.
+     * @returns The counts.
+     */
+    const countWaiting = (
+        waiting: NonNullable<ReturnType<NonNullable<FilterSources["waiting"]>>>,
+        rule: RuleTree,
+    ): Omit<FilterConditionCount, "id"> => {
+        const { graph } = waiting;
+        const compiled = compileVisibility(graph, rule, null, waitingSources(passSources(graph), waiting));
+        const tally = (test: ((index: number) => boolean) | null, total: number): FilterConditionMatches | null => {
+            if (test === null) {
+                return null;
+            }
+
+            let matched = 0;
+            for (let at = 0; at < total; at++) {
+                matched += test(at) ? 1 : 0;
+            }
+
+            return Object.freeze({ matched, total, shown: 0 });
+        };
+
+        return Object.freeze({
+            nodes: tally(compiled.node, graph.nodeCount),
+            edges: tally(compiled.edge, graph.edgeCount),
+            unresolved: compiled.unresolvedPaths(),
+        });
+    };
+
+    /**
      * What one rule matches, as written, over the whole graph or only among what is drawn.
      * @param active - The frame.
      * @param rule - The rule.
@@ -2602,6 +2641,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         drawn: Drawn | null,
         source?: SourceKey,
     ): Omit<FilterConditionCount, "id"> => {
+        const waiting = source === undefined ? undefined : sources.waiting?.(source);
+        if (waiting !== undefined) {
+            return countWaiting(waiting, rule);
+        }
+
         const compiled = compiledOver(active, rule);
         // A condition of one load is counted over that load's elements.
         const mine = source === undefined ? null : compiledOver(active, { kind: "source", sources: [source] });
@@ -2671,8 +2715,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         const pictureSignature = `${nodeMaskValue.version}:${edgeMaskValue.version}`;
         const each = conditions.map((condition) => {
             const own = signatureOf(condition.rule);
-            if (own === null) {
-                return own;
+            // A staged source's rows are read anew: changing what they are moves no graph.
+            if (own === null || (condition.source !== undefined && sources.waiting?.(condition.source) !== undefined)) {
+                return null;
             }
 
             const where = inPicture(condition) ? "picture" : "graph";
@@ -3053,6 +3098,22 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         summaryOf(source: SourceKey): VisibilitySummary {
             upToDate();
+            const waiting = sources.waiting?.(source);
+            if (waiting !== undefined) {
+                const own = conditionsNow()
+                    .filter((each) => each.source === source)
+                    .map(({ source: _source, ...each }) => each);
+                const rule = combinedRule(null, own);
+                const { nodeCount: totalNodes, edgeCount: totalEdges } = waiting.graph;
+                const left = rule === null ? null : countWaiting(waiting, rule);
+                return Object.freeze({
+                    totalEdges,
+                    totalNodes,
+                    visibleEdges: left?.edges?.matched ?? totalEdges,
+                    visibleNodes: left?.nodes?.matched ?? totalNodes,
+                });
+            }
+
             const supplied = sources.supplied?.([source]);
             const count = <TId>(ids: Iterable<TId>, mask: ElementMask<TId>): [number, number] => {
                 let total = 0;

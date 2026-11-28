@@ -10,7 +10,7 @@
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
 
-import type { JoinReduce } from "../../types";
+import type { JoinReduce, SourceJoinTag } from "../../types";
 
 /** One cell of a row as read. */
 export type CellValue = string | number | boolean | null;
@@ -106,6 +106,8 @@ export interface SourceSettings {
 export interface Source {
     /** `src_` plus a ULID; the reader's edits are the source `reader`. */
     readonly id: string;
+    /** The name it was loaded by; null or absent for rows with none. */
+    readonly label?: string | null;
     /**
      * How it was obtained: `copy` is its copy id (version 2, 4.1.2 rule 1), `sha256:` and the hex
      * digest of the bytes as read for a file, URL or downloaded sample, else a ULID; `rows`, when
@@ -117,12 +119,22 @@ export interface Source {
     readonly settings?: SourceSettings;
     /** A held source is kept but not built, with every step that depends on it (7.15). */
     readonly held?: boolean;
+    /**
+     * The column its node rows, which named no key, were numbered under when they were read. The file
+     * held no such column: it may key the rows, but no element carries it and no list names it.
+     */
+    readonly numbered?: string;
 }
 
 /** Rows a step reads by one column's values, compared as strings after Unicode normalization. */
 export interface RowFilter {
     readonly column: string;
     readonly values: readonly CellValue[];
+    /** Rows named by the values of `column` and of this column together. */
+    readonly cells?: {
+        readonly column: string;
+        readonly pairs: readonly { readonly value: CellValue; readonly with: CellValue }[];
+    };
 }
 
 /** How a step settles a cell another source already filled (3.10). */
@@ -149,11 +161,18 @@ interface StepChoices {
     readonly clash?: ClashRule | Readonly<Record<string, ClashRule>>;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
+    /** The join the step was written as: an id the steps of one join share, and its matches as given. */
+    readonly join?: StepJoin;
 }
+
+/** A step's join, as `SourceJoinTag` has it: plain JSON the element keeps and reads back. */
+export type StepJoin = SourceJoinTag;
 
 /** `join.add`: every table of the source, through its mapping. */
 export interface AddStep extends StepChoices {
     readonly op: "join.add";
+    /** A join act added the source because it needed its nodes: once no step needs them, it goes too. */
+    readonly joined?: true;
     readonly duplicateIds?: "first" | "merge" | "refuse";
 }
 
@@ -171,9 +190,24 @@ interface Translating {
     /** Translate through this id-mapping source; a value it lacks passes through as it is. */
     readonly lookup?: string;
     readonly mapping?: StepMappingTable;
+    /**
+     * Look the value up among the nodes of the space by this column of theirs, as the steps before
+     * this one build them, each value of a list apart; absent, by their key.
+     */
+    readonly nodeColumn?: string;
 }
 
-/** `join.merge`: each node 2 an earlier step built folds into the node 1 its field names. */
+/** The end of a `join.edges` step that is not `viaEnd`, when its nodes are named by a column of theirs. */
+interface OtherEnd {
+    /** The column, as the steps before build it. */
+    readonly otherColumn?: string;
+}
+
+/**
+ * `join.merge`: each node 2 an earlier step built folds into the node 1 its field names. Reading
+ * `edges`, the source's edge rows have no node 2: each row's columns fold into the node 1 it names,
+ * and a row naming none makes the node (`unmatchedFrom: "keep"`) or is left out.
+ */
 export interface MergeStep extends StepChoices, Translating {
     readonly op: "join.merge";
     readonly read: NodeStepRead;
@@ -181,6 +215,8 @@ export interface MergeStep extends StepChoices, Translating {
     /** Settles the merged values of every node 2 folding into one node 1. */
     readonly aggregate?: Aggregate;
     readonly unmatchedFrom?: "keep" | "drop";
+    /** `"each"` folds a row whose value names several node 1s into each of them; absent leaves it out. */
+    readonly fanOut?: "each";
 }
 
 /** `join.node-values`: a row's columns onto the node its key names; builds no node unless `unmatchedRows: "add"`. */
@@ -203,10 +239,11 @@ export interface EdgeValuesStep extends StepChoices {
 /** The ends and roles a `join.edges` step reads. */
 interface EdgesStepRead {
     readonly table?: TableName;
-    readonly source: string;
-    readonly sourceSpace: string;
-    readonly target: string;
-    readonly targetSpace: string;
+    /** Absent, with its space, for the end that is the row's own node (`rowNode`). */
+    readonly source?: string;
+    readonly sourceSpace?: string;
+    readonly target?: string;
+    readonly targetSpace?: string;
     readonly edgeId?: string;
     /** Absent means the source's weight role; `null` means none. */
     readonly weight?: string | null;
@@ -217,19 +254,70 @@ interface EdgesStepRead {
     readonly timeUnit?: "ms" | "s" | "year" | "ordinal";
 }
 
+/**
+ * What a `join.edges` step linking nodes that share a value reads. Each row's node (`rowNode`
+ * `"source"`, or the node `read.source` names) holds the row's values in `columns`; a value two to
+ * `maxShared` nodes hold links them. The edges are keyed `<part>/<from>|<to>`.
+ */
+export interface LinkRead {
+    readonly columns: readonly string[];
+    /** The nodes of `read.sourceSpace` hold the values, as the steps before build them; no row is read. */
+    readonly of?: "nodes";
+    /** One node per shared value, keyed `<column>:<value>` in `read.targetSpace`; absent, one edge per pair. */
+    readonly as?: "nodes";
+    readonly maxShared: number;
+    readonly minShared: number;
+}
+
+/**
+ * What a `join.edges` step making nodes of a column's values reads besides its ends. An edge source's
+ * column that is neither split nor read from its rows needs none of it (`acts.ts` `extract`).
+ */
+interface ExtractRead {
+    /** The separator a cell holds several values by; absent, a cell is one value (a list is each of its values). */
+    readonly split?: string;
+    /** The row's columns the new nodes carry, off the row's own node or edge. */
+    readonly columns?: readonly string[];
+}
+
 /** `join.edges`: each row one edge, keyed `<part>/<key>`. */
-export interface EdgesStep extends StepChoices, Translating {
+export interface EdgesStep extends StepChoices, Translating, OtherEnd {
     readonly op: "join.edges";
     /** Minted by the element, unique among the source's steps and never reused (3.3). */
     readonly part: number;
     readonly read: EdgesStepRead;
-    /** Which end `via` translates; default `"target"`. */
+    /**
+     * Which end `via` or `nodeColumn` translates; default `"target"`, and `otherColumn` the other
+     * one. With none of them, which end of two named by columns is node 1; default `"source"`.
+     */
     readonly viaEnd?: "source" | "target";
+    /**
+     * Each row is a node: the edge's source or target end, or the node between the two ends, with an
+     * edge to each (keyed `<part>/<row key>|source` and `|target`). It is keyed as the source's node
+     * rows are, in their space; an edge row by its content, in the source's own space. The step
+     * makes the node unless the source's `join.add` did.
+     */
+    readonly rowNode?: "source" | "target" | "middle";
+    /**
+     * `"drop"` takes out the node a join made of a row no edge reaches, `"remove"` the row's own node
+     * whenever it was made; absent keeps it.
+     */
+    readonly unlinked?: "drop" | "remove";
+    /** `"each"` makes an edge to each node an end's value names; absent leaves such a row out. */
+    readonly fanOut?: "each";
+    /** `"merge"` folds a row into an edge an earlier step made between its ends; absent adds one. */
+    readonly existing?: "merge";
+    /** Links nodes whose rows share a value, instead of one edge per row (see {@link LinkRead}). */
+    readonly link?: LinkRead;
+    /** The target column's values become nodes: each names one, or several (see {@link ExtractRead}). */
+    readonly extract?: ExtractRead;
     /** Two rows naming one end pair: absent leaves them to the graph's `repeatedEdges`. */
     readonly repeated?: "first" | "last" | "both";
     /** Makes one edge per end pair, as `repeated` does, with these columns reduced over its rows. */
     readonly aggregate?: Aggregate;
     readonly unmatchedRows?: "add" | "leave-out";
+    /** The end whose values naming no node make one, whatever `unmatchedRows` says of the other. */
+    readonly addEnd?: "source" | "target";
 }
 
 /** One entry of the ordered join history (3.4). */
@@ -336,6 +424,8 @@ export interface BuildInput {
     readonly repeatedEdges?: DuplicatePolicy;
     /** The reader source's operations, in the order made. */
     readonly reader?: readonly ReaderOp[];
+    /** The NodeId of each node whose NodeId is not its key, by internal id. */
+    readonly nodeIds?: Readonly<Record<string, string>>;
 }
 
 /** One source's value for one cell. */
@@ -352,6 +442,8 @@ interface Touch {
     readonly table: TableName;
     readonly row: number;
     readonly cells: Row;
+    /** The row only names the node, by a value of a column: it is not the node's own row. */
+    readonly valued?: true;
 }
 
 /** A clash column a `both` rule wrote (3.3). */
@@ -382,6 +474,8 @@ export interface BuiltElement {
     ruleStep?: Record<string, number>;
     /** The steps whose value for each column differed from the one shown before it, in order. */
     differAt?: Record<string, number[]>;
+    /** Each column two matches of one source brought different values: the source's values, as met. */
+    metAgain?: Record<string, { readonly source: string; readonly values: Value[] }>;
     /** The reader edit that sets each edited column. */
     edited?: Record<string, ReaderEdit>;
     clashColumns?: Record<string, ClashColumn>;
@@ -391,6 +485,8 @@ export interface BuiltElement {
 
 /** A node of the working graph. */
 export interface BuiltNode extends BuiltElement {
+    /** The sources whose own node rows it is, whatever was folded into it. */
+    brought?: Set<string>;
     space: string;
     /** The types of node 2s merged into it (3.4). */
     otherTypes: (string | null)[];
@@ -400,6 +496,8 @@ export interface BuiltNode extends BuiltElement {
     alt?: { src: string; col: string; v: Value; from?: string }[];
     /** Sources whose edge ends reach it; settled into `loads` or `named` after the build. */
     ends?: string[];
+    /** The sources that supplied it only as an edge end, no source's rows holding it (3.1). */
+    byEnds?: string[];
 }
 
 /** An edge of the working graph, keyed `{ load, key }`. */
@@ -414,6 +512,8 @@ export interface BuiltEdge extends BuiltElement {
     timeEnd?: number;
     /** The columns the step that made it read its ends from. */
     ends?: { readonly source: string; readonly target: string };
+    /** It links two nodes sharing a value, so it runs neither way. */
+    undirected?: true;
 }
 
 /** What became of one row a source holds. */
@@ -423,7 +523,8 @@ export type RowFateKind =
     | "left-out:empty-end"
     | "left-out:unmatched"
     | "left-out:fan-out"
-    | "left-out:no-step";
+    | "left-out:no-step"
+    | "left-out:repeated-key";
 
 /** The fate of one row, and the elements it built. */
 export interface RowFate {
@@ -439,6 +540,8 @@ export interface StepStats {
     readonly part?: number;
     newNodes: number;
     newEdges: number;
+    /** For `join.edges`: edges earlier steps made that its rows folded into (`existing: "merge"`). */
+    mergedEdges: number;
     matched: number;
     unmatched: number;
     fanOut: number;
@@ -449,10 +552,15 @@ export interface StepStats {
     merged: number;
     typeDiffers: number;
     untouched: number;
-    /** For `join.merge`: node 2s left in the graph as nodes of their own (none under Only 2 Drop). */
+    /**
+     * For `join.merge`: node 2s left in the graph as nodes of their own, or nodes its edge rows made
+     * (none under Only 2 Drop).
+     */
     keptNew: number;
     groups: number[];
     selfLoops: number;
+    /** For a `join.edges` that links: pairs sharing fewer values than `minShared`, so not linked. */
+    pairsBelowMin: number;
     emptyKey: number;
     repeatedKept: number;
     hub: { value: string; rows: number }[];
@@ -500,6 +608,8 @@ export interface DrillUnit {
     readonly key?: string;
     /** The column, space or type of a count kept by name. */
     readonly name?: string;
+    /** For a count of node pairs: the two nodes' internal ids. */
+    readonly pair?: readonly [string, string];
 }
 
 /** Whether one reader operation found its element. */
@@ -514,6 +624,10 @@ export interface BuildResult {
     readonly edges: Map<string, BuiltEdge>;
     /** A node 2's or moved node's former internal id to the node it is now. */
     readonly aliases: Map<string, string>;
+    /** What a source's own space is spelled by in a NodeId: the source's name, when no other space has it. */
+    readonly spaceNames: ReadonlyMap<string, string>;
+    /** The NodeId of each node whose NodeId was settled not to be its key, by internal id. */
+    readonly nodeIds: Readonly<Record<string, string>>;
     /** A reduced edge's row key to the edge it folded into. */
     readonly edgeAliases: Map<string, string>;
     readonly stats: StepStats[];

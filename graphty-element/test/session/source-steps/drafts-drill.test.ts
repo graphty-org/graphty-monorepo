@@ -225,7 +225,7 @@ describe("source-steps drafts: drill-down and exclusion (5.4)", () => {
         );
         assert.strictEqual(noStep.reason, "no-step");
         const bucket = await refused(
-            () => Promise.resolve(d.preview().rows({ step: st.index, bucket: "hub" as SourceDraftBucket })),
+            () => Promise.resolve(d.preview().rows({ step: st.index, bucket: "none" as SourceDraftBucket })),
             "E_BAD_COMMAND",
         );
         assert.strictEqual(bucket.reason, "bucket");
@@ -440,8 +440,8 @@ describe("source-steps drafts: every count's rows add up to it", () => {
             pv
                 .rows({ step: edges.index, bucket: "unmatched" })
                 .rows.map((r) => [r.key, r.incoming?.badge, r.effect, r.codes]),
-            [["E4", "B9", "left-out", ["W_UNMATCHED"]]],
-            "B9 badges no person: its entry makes no edge",
+            [["E4", "B9", "added", ["W_UNMATCHED"]]],
+            "B9 badges no person: its entry makes no edge, and stays a node of its own",
         );
         const page = pv.rows({ step: edges.index, bucket: "newEdges", offset: 1, limit: 2 });
         assert.strictEqual(page.total, 5);

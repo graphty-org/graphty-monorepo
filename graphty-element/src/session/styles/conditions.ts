@@ -213,10 +213,17 @@ export const conditionKey = (field: Pick<ConditionField, "on" | "path">): string
  * ```
  * @param session - The session.
  * @param on - Nodes or edges.
+ * @param options - Whose fields; absent, the graph's.
+ * @param options.source - Under the `source-steps` experiment, a staged source: the fields its rows carry
+ *     once it is added, for a filter made for it while it waits.
  * @returns The fields.
  * @since 3.38.0
  */
-export function conditionFields(session: GraphSession, on: "node" | "edge"): ListedConditionField[] {
+export function conditionFields(
+    session: GraphSession,
+    on: "node" | "edge",
+    options: { readonly source?: SourceKey } = {},
+): ListedConditionField[] {
     const attributes = session.data.attributes();
     const times = new Set(
         attributes.filter((each) => each.kind === on && each.measurement === "time").map((each) => each.path),
@@ -230,10 +237,12 @@ export function conditionFields(session: GraphSession, on: "node" | "edge"): Lis
             ),
     ]);
     const fields = session.data
-        .readableValues()
+        .readableValues(options)
         .filter((value) => value.on === on && value.end === undefined && value.holdsNodeIds !== true)
         .map((value): ListedConditionField => {
-            const time = times.has(value.path) && value.kind !== "number";
+            const time =
+                (times.has(value.path) || (options.source !== undefined && value.valueKind === "time")) &&
+                value.kind !== "number";
             const kind: ConditionFieldKind = time ? "date" : value.kind;
             if (value.path === "id") {
                 return { path: value.path, on, kind: "name", from: value.from, value };

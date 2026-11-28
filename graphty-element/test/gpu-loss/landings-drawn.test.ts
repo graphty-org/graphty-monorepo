@@ -9,12 +9,13 @@
  * (test/helpers/frame-recorder.ts) in the frame's own task, which on WebGPU is the only time it can be read.
  *
  * Runs in the full run's graphty-element-gpu-loss shard. By hand: npx vitest run --project=gpu-loss
- * test/gpu-loss/landings-drawn.test.ts (VITE_FRAME_DUMP=1 prints each recording's first faulty frame as a PNG).
+ * test/gpu-loss/landings-drawn.test.ts (each recording's first faulty frame is logged as a PNG; VITE_FRAME_DUMP=all logs every frame).
  */
 
 import { assert, describe, it } from "vitest";
 
-import type { Graph } from "../../src/Graph";
+import { type Graph, renderManagerOf } from "../../src/Graph";
+import { dataManagerInternals } from "../../src/managers/DataManager";
 import {
     checkDrawnFrames,
     describeFrames,
@@ -180,7 +181,23 @@ describe("GPU landings as drawn", () => {
         await landed(graph);
         const copiedAfter = table.copies - copies;
         const uploadedAfter = table.positionUploads - uploads;
-        assertGoodFrames(await checkDrawnFrames(graph, [...IDS, "late"], PAIRS, 10), "after a node-only add", 10);
+        // Read in each frame, reported only for a faulty one (issue #10190): whether a resize drew the frame outside the
+        // loop (drawNow), which landing the row table and the position reads each hold, and the new row as it stands.
+        const { ticks } = renderManagerOf(graph);
+        // the data manager's own lookup, not the public snapshot, which would write the owed publish
+        const lateRow = dataManagerInternals.rowOf(graph.getDataManager(), "late");
+        const state = (): unknown => ({
+            drawnNow: ticks.drawnNow,
+            landings: layoutOf(graph).landingState,
+            copies: table.copies,
+            uploads: table.positionUploads,
+            late: { row: lateRow, ...table.rawRow(lateRow) },
+        });
+        assertGoodFrames(
+            await checkDrawnFrames(graph, [...IDS, "late"], PAIRS, 10, { state }),
+            "after a node-only add",
+            10,
+        );
         assert.isAtLeast(copiedAfter, 2, `landings copied after the add (uploads ${String(uploadedAfter)})`);
         assert.strictEqual(uploadedAfter, 0, "no landing went up by upload after the add");
     });

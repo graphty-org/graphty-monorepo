@@ -1098,6 +1098,22 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
+     * Which landing each reader holds now, for a test that finds a frame drawn from one landing while a position
+     * read answered another: the newest landed, the last published, the one last copied into the row table (-1 for
+     * none), and the one an owed publish answers position reads from (null when no publish is owed).
+     * @returns The landing counts.
+     * @internal
+     */
+    get landingState(): { landed: number; published: number; copied: number; owed: number | null } {
+        return {
+            landed: this.#landed,
+            published: this.#landedPublished,
+            copied: this.#copiedLanded,
+            owed: this.#owedTransform === null ? null : this.#owedLanded,
+        };
+    }
+
+    /**
      * Whether a batch can still land and publish new positions: a simulation is loaded, no batch
      * of it has failed, and it is being stepped or has a batch in flight. A failed batch leaves
      * the layout running with nothing to land, so a frame waiting for a landing would wait for good.
@@ -2574,7 +2590,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         const { nodeCount } = snapshot;
         // The lane is in the element's rows, the mask in the simulation's.
-        const pins = this.#dataManager[WRITABLE_LANE].pinnedView(this.#elementGraph?.nodeCount ?? nodeCount);
+        const lane = this.#dataManager[WRITABLE_LANE];
+        const laneRows = this.#elementGraph?.nodeCount ?? nodeCount;
+        // A freeze that removed nodes shrank the lane, and hands over its hold before it reloads this
+        // simulation, which packs the mask again for the rows there are now.
+        if (lane.count < laneRows) {
+            return;
+        }
+
+        const pins = lane.pinnedView(laneRows);
         const mask = makeMask(nodeCount);
         const rows = new Set<number>();
         for (let i = 0; i < nodeCount; i += 1) {

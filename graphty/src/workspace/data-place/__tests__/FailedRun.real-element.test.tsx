@@ -40,16 +40,16 @@ describe("a failed run", () => {
         // Katz from the Calculated tab's Analyze, its Attenuation at the top of its range. Attenuation
         // starts empty (the element derives one that converges), and an empty number field is a text
         // box until it holds a number.
-        await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
+        await userEvent.click(page.getByRole("tab", { name: "Calculated", exact: true }));
         const place = screen.getByRole("region", { name: "Data place" });
-        await userEvent.click(await within(place).findByRole("button", { name: /^Analyze/ }));
-        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Katz");
-        await userEvent.click(await screen.findByRole("option", { name: /^Katz/ }));
-        await userEvent.click(await screen.findByRole("button", { name: "Settings for Katz" }));
-        const alpha = await screen.findByRole("textbox", { name: /^Attenuation/ });
+        await userEvent.click(page.elementLocator(place).getByRole("button", { name: /^Analyze/ }));
+        await userEvent.type(page.getByRole("combobox", { name: "Filter analyses", exact: true }), "Katz");
+        await userEvent.click(page.getByRole("option", { name: /^Katz/ }));
+        await userEvent.click(page.getByRole("button", { name: "Settings for Katz", exact: true }));
+        const alpha = page.getByRole("textbox", { name: /^Attenuation/ });
         await userEvent.tripleClick(alpha);
         await userEvent.keyboard("0.5{Tab}");
-        await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Run\b/ }));
 
         // The notice says it failed, in the app's words.
         const notice = await screen.findByText(FAILED);

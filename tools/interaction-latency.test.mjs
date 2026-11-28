@@ -12,6 +12,7 @@ import {
     FLOOR_MS,
     guardCells,
     lastTwo,
+    METHOD,
     overBudget,
     THRESHOLD,
     toHistory,
@@ -66,6 +67,27 @@ describe("interaction-latency", () => {
         assert.equal(lines[0].commit, "abc");
     });
 
+    it("keeps the visibility failures, missed presses, queued backlog and page state a cell recorded", () => {
+        const rows = [
+            {
+                ...elementRow("burst-wheel-120hz", 300, 600),
+                notDrawn: 2,
+                missed: 1,
+                queued_median_ms: 440,
+                frameReadback: false,
+                pageState: { styleLayers: 4 },
+            },
+            elementRow("hover-node", 20, 30),
+        ];
+        const [burst, plain] = toHistory(rows, { run: "r1", commit: "abc", tier: "quick" });
+        assert.equal(burst.notDrawn, 2);
+        assert.equal(burst.missed, 1);
+        assert.equal(burst.queuedMs, 440);
+        assert.equal(burst.frameReadback, false);
+        assert.deepEqual(burst.pageState, { styleLayers: 4 });
+        assert.equal("notDrawn" in plain || "missed" in plain || "queuedMs" in plain, false);
+    });
+
     it("bands at 150 and 300 ms", () => {
         assert.equal(band(150), "good");
         assert.equal(band(151), "acceptable");
@@ -86,6 +108,18 @@ describe("interaction-latency", () => {
         assert.equal(before[0].run, "r1");
         assert.deepEqual(reference, []);
         assert.deepEqual(lastTwo([line("r1", "a", 1, 1)], "quick").before, []);
+    });
+
+    it("never compares a run with one measured another way (a run without a method is method 1)", () => {
+        const lines = [
+            line("r1", "a", 10, 10),
+            line("r2", "a", 12, 12, { method: METHOD }),
+            line("r3", "a", 13, 13, { method: METHOD }),
+        ];
+        const { now, before } = lastTwo(lines, "quick");
+        assert.equal(now[0].run, "r3");
+        assert.equal(before[0].run, "r2");
+        assert.deepEqual(lastTwo(lines.slice(0, 2), "quick").before, []);
     });
 
     it("takes the creep reference from the oldest of the last runs", () => {

@@ -14,6 +14,7 @@ import { AccelerationController, AcceleratorRegistry } from "../../src/accelerat
 import type { CommandContext } from "../../src/ai/commands/types";
 import { type AlgorithmData, type AlgorithmHost, algorithmHostOf } from "../../src/algorithms/host";
 import type { Graph } from "../../src/Graph";
+import { EventManager } from "../../src/managers/EventManager";
 import { StylePainter } from "../../src/managers/StylePainter";
 import { createGraphSession } from "../../src/session/GraphSession";
 import type { ElementSession, GraphSession } from "../../src/session/types";
@@ -204,9 +205,35 @@ export async function createCommandGraph(opts: CommandGraphOpts = {}): Promise<G
         ...(edgeData ? edgeData(i) : { weight: (i % 10) / 10 }),
     }));
     const { session } = await createSessionGraph({ nodes, edges, loadedWeight: "weight" });
+    return graphHandle(session, renderer).graph;
+}
+
+/** What a graph handle's event channel carried, as `[type, fields]`, in order. */
+export type Emitted = [string, Record<string, unknown>][];
+
+/**
+ * The graph handle the assistant and its commands take, over a real session: the session, a real
+ * event manager (what it carried is recorded in `emitted`), and the renderer's style painter bound
+ * to the session's own paint exactly as the element binds it. A headless session has no
+ * counterpart for the camera, XR or a canvas, so a test that reaches them hands in its own as
+ * `renderer` (for example `getXRSessionManager: () => undefined`, a graph with no XR).
+ * @param session - The session.
+ * @param renderer - Renderer members the test supplies.
+ * @returns The handle, and what its event channel carried.
+ */
+export function graphHandle(
+    session: GraphSession,
+    renderer: Record<string, unknown> = {},
+): { graph: Graph; emitted: Emitted } {
+    const eventManager = new EventManager();
+    const emitted: Emitted = [];
+    eventManager.onGraphEvent.add(({ type, ...fields }) => {
+        emitted.push([type, fields]);
+    });
     const painter = new StylePainter();
     painter.bind((session as ElementSession).paint);
-    return { ...renderer, getSession: () => session, getStylePainter: () => painter } as unknown as Graph;
+    const graph = { ...renderer, eventManager, getSession: () => session, getStylePainter: () => painter };
+    return { graph: graph as unknown as Graph, emitted };
 }
 
 /**

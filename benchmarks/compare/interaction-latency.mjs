@@ -194,6 +194,50 @@ const PROBE = () => {
             last = now;
         }
     };
+    // What one timed input measured, from its probe state `s` (see arm).
+    const resultOf = (s, { tDrawn, tSettled, press, base, look, mustDraw, clock, capMs }) => {
+        const r = (t) => (t === null || s.tInput === null ? null : +(t - s.tInput).toFixed(1));
+        // The frame whose pixels first show the result; a DOM result, the frame its state was first seen in (that
+        // frame presents it). A result the canvas never shows: its state time stands in, unless the case must draw
+        // (mustDraw), when it is a visibility failure.
+        const notDrawn = !!(mustDraw && s.noVisible);
+        const drawn = !!(base || look);
+        let end = s.tPix ?? (drawn ? tDrawn : (s.tState ?? tDrawn));
+        if (s.noVisible) end = s.tState;
+        const measured = !s.timeout && !notDrawn && s.tInput !== null;
+        return {
+            ms: measured ? r(end) : null,
+            stateMs: r(s.tState),
+            pixMs: r(s.tPix),
+            eventMs: r(s.tEvent),
+            settledMs: r(tSettled),
+            noVisible: !!s.noVisible,
+            wallInput: s.wallInput ?? null,
+            frames: s.frames,
+            sawInput: s.tInput !== null,
+            timeout: !!s.timeout,
+            capMs,
+            endsOn: drawn ? "pixels" : "state",
+            ...flagsOf(s, { press, notDrawn, clock, end: measured ? end : null }),
+        };
+    };
+    const flagsOf = (s, { press, notDrawn, clock, end }) => {
+        const f = {};
+        if (notDrawn) f.notDrawn = true;
+        if (clock === "dispatch" && s.handoffMs !== undefined) f.handoffMs = s.handoffMs;
+        // A click's result from its release: the part of the wait a reader feels after letting go.
+        if (press.up !== null && end !== null) f.fromUpMs = +(end - press.up).toFixed(1);
+        const held = press.down !== null && press.up !== null ? press.up - press.down : null;
+        if (held !== null && held > 300) f.clickWindowMissed = +held.toFixed(1);
+        if (s.preTrue) f.preTrue = true;
+        return f;
+    };
+    // The camera of the frames before the input, for conditions that compare with them (camTrack).
+    const trackCam = (s) => {
+        s.camPrev = s.lastCam;
+        s.lastCam = cam();
+        s.lastCamT = s.frameT;
+    };
     let armed = null;
     globalThis.__lat = {
         grab,
@@ -203,8 +247,16 @@ const PROBE = () => {
         // element; s, this measurement; p, the params) to hold and, with `pix`, for the pixels there to change.
         // With `settle`, then waits for waitForStableFrame (a layout or a glide finishing) as settledMs.
         // With `startNow` (a change no input event carries: a pixel ratio change), the clock starts at arming.
-        arm({ type, cond, params, event, capMs, pix, look, settle, startNow }) {
-            const s = { tInput: null, tState: null, tPix: null, tEvent: null, frames: 0, cam0: cam() };
+        // With `clock: "dispatch"` the clock starts when the input event reaches the page's handler, not at its
+        // timeStamp: DevTools holds an injected touch or synthetic wheel until the renderer presents a frame, a
+        // hand-off no real finger or trackpad pays; it is kept as handoffMs. `camTrack` keeps the camera of every frame
+        // before the input (s.lastCam, s.camPrev), for conditions that compare with the frame before it. With
+        // `mustDraw`, a result the canvas never shows is a visibility failure (notDrawn), never a state time.
+        arm({ type, cond, params, event, capMs, pix, look, settle, startNow, clock, camTrack, mustDraw }) {
+            // Reading the camera marks the view as changed, which makes graphty-element rebuild its frozen mesh list
+            // on the next frame: only the cases that compare cameras read it.
+            const camCase = camTrack || settle === "camera" || /cam0|lastCam|camPrev/.test(cond ?? "");
+            const s = { tInput: null, tState: null, tPix: null, tEvent: null, frames: 0, cam0: camCase ? cam() : null };
             const base = pix ? grab(pix) : null;
             // A look already drawn before the input means the case's setup failed, as for cond below.
             if (look && lookSeen(look)) s.preTrue = true;
@@ -214,8 +266,9 @@ const PROBE = () => {
             }
             const onInput = (e) => {
                 if (s.tInput === null) {
-                    s.tInput = e.timeStamp;
-                    s.wallInput = performance.timeOrigin + e.timeStamp;
+                    s.tInput = clock === "dispatch" ? performance.now() : e.timeStamp;
+                    s.handoffMs = +(performance.now() - e.timeStamp).toFixed(1);
+                    s.wallInput = performance.timeOrigin + s.tInput;
                 }
             };
             const onEvent = (e) => {
@@ -228,9 +281,10 @@ const PROBE = () => {
             if (event) el().addEventListener(event, onEvent);
             // When a press and its release reach the page: more than 300 ms apart, graphty-element does not count
             // them as a click (CLICK_MAX_DURATION_MS), so a click case that times out is a dropped click, not a slow one.
+            // The events' own timeStamps, as graphty-element measures the press.
             const press = { down: null, up: null };
-            const onDown = () => (press.down ??= performance.now());
-            const onUp = () => (press.up ??= performance.now());
+            const onDown = (e) => (press.down ??= e.timeStamp);
+            const onUp = (e) => (press.up ??= e.timeStamp);
             addEventListener("pointerdown", onDown, { capture: true });
             addEventListener("pointerup", onUp, { capture: true });
             // eslint-disable-next-line sonarjs/code-eval -- the runner's own expressions, in its own page
@@ -247,8 +301,6 @@ const PROBE = () => {
             const pixSeen = () => (base && differs(grab(pix), base)) || (look && lookSeen(look));
             // One frame after the input: true when the result is drawn, or never will be.
             const over = () => {
-                // The frame after the pixels changed is the one that presents them.
-                if (s.tPix !== null && s.tPixNext === undefined) s.tPixNext = performance.now();
                 // eslint-disable-next-line sonarjs/code-eval -- the runner's own expressions, in its own page
                 if (s.tState === null && test(el(), s, params ?? {})) s.tState = performance.now();
                 if (s.tPix === null && pixSeen()) s.tPix = performance.now();
@@ -274,8 +326,10 @@ const PROBE = () => {
             s.done = (async () => {
                 const t0 = performance.now();
                 for (;;) {
-                    await raf();
+                    // Each frame's own rAF timestamp: two reads in one frame never count as two frames.
+                    s.frameT = await raf();
                     s.frames++;
+                    if (s.tInput === null && camTrack) trackCam(s);
                     if (s.tInput !== null && over()) break;
                     if (performance.now() - t0 > capMs) {
                         s.timeout = true;
@@ -289,26 +343,7 @@ const PROBE = () => {
                 if (event) el().removeEventListener(event, onEvent);
                 removeEventListener("pointerdown", onDown, { capture: true });
                 removeEventListener("pointerup", onUp, { capture: true });
-                const held = press.down !== null && press.up !== null ? press.up - press.down : null;
-                const r = (t) => (t === null || s.tInput === null ? null : +(t - s.tInput).toFixed(1));
-                // A result the canvas never shows: its state time stands in.
-                const end = s.noVisible ? s.tState : (s.tPixNext ?? tDrawn);
-                return {
-                    ms: s.timeout ? null : r(end),
-                    stateMs: r(s.tState),
-                    pixMs: r(s.tPix),
-                    eventMs: r(s.tEvent),
-                    settledMs: r(tSettled),
-                    noVisible: !!s.noVisible,
-                    wallInput: s.wallInput ?? null,
-                    frames: s.frames,
-                    sawInput: s.tInput !== null,
-                    timeout: !!s.timeout,
-                    capMs,
-                    endsOn: base || look ? "pixels" : "state",
-                    ...(held !== null && held > 300 ? { clickWindowMissed: +held.toFixed(1) } : {}),
-                    ...(s.preTrue ? { preTrue: true } : {}),
-                };
+                return resultOf(s, { tDrawn, tSettled, press, base, look, mustDraw, clock, capMs });
             })();
             armed = s;
         },
@@ -325,10 +360,14 @@ const PROBE = () => {
             const read = new Function("el", "p", `return JSON.stringify(${track});`);
             const inputs = [];
             const frames = [];
+            // When each dispatched event reached the handler: a backlog of queued inputs drains after the last is
+            // sent, and the burst's result is the frame after the LAST one is handled, not after an earlier one.
+            const handled = [];
             const onInput = (e) => {
                 const all = e.getCoalescedEvents?.() ?? [];
                 if (all.length) for (const c of all) inputs.push(c.timeStamp);
                 else inputs.push(e.timeStamp);
+                handled.push(performance.now());
             };
             addEventListener(type, onInput, { capture: true });
             const run = { on: true, tail: false };
@@ -346,15 +385,20 @@ const PROBE = () => {
                     run.tail = true;
                     await raf();
                     await raf();
+                    // The last input is sent after this: no input it times can have reached the page earlier.
+                    run.sentAfter = performance.now();
                 },
                 close() {
                     removeEventListener(type, onInput, { capture: true });
                 },
+                // Chrome merges queued wheel events into one that keeps an earlier tick's timeStamp, so the last
+                // input's own timeStamp can predate the last tick, and even the first thumbnail read: the lag is
+                // timed from the later of it and the moment tail() returned, just before the last tick was sent.
                 async end() {
                     const t0 = performance.now();
                     for (;;) {
                         await raf();
-                        const last = inputs.at(-1) ?? 0;
+                        const last = handled.at(-1) ?? 0;
                         const tail = frames.filter((f) => f.t > last);
                         const n = tail.length;
                         if (
@@ -366,24 +410,31 @@ const PROBE = () => {
                     run.on = false;
                     await loop;
                     removeEventListener(type, onInput, { capture: true });
-                    const last = inputs.at(-1);
+                    const lastTs = inputs.at(-1);
                     const sent = inputs.slice(0, -1);
-                    if (last === undefined) return { sawInput: false, timeout: true, ms: null, capMs: 10000 };
-                    const before = frames.findLast((f) => f.t <= last);
-                    const seen = frames.find((f) => f.t > last && f.v !== before?.v);
-                    const basePx = frames.findLast((f) => f.t <= last && f.px)?.px;
-                    const seenPx = basePx && frames.find((f) => f.t > last && f.px && differs(f.px, basePx));
+                    if (lastTs === undefined) return { sawInput: false, timeout: true, ms: null, capMs: 10000 };
+                    const lastH = handled.at(-1);
+                    const last = Math.max(lastTs, run.sentAfter ?? -Infinity);
+                    // Frames after the last handler ran (or after the last tick was sent, if no handler ran for it).
+                    const from = Math.max(lastH, last);
+                    const before = frames.findLast((f) => f.t <= from);
+                    const seen = frames.find((f) => f.t > from && f.v !== before?.v);
+                    const basePx = frames.findLast((f) => f.t <= from && f.px)?.px;
+                    const seenPx = basePx && frames.find((f) => f.t > from && f.px && differs(f.px, basePx));
                     const shown = seenPx ?? seen;
-                    const next = shown && frames.find((f) => f.t > shown.t);
-                    const span = frames.filter((f) => f.t >= inputs[0] && f.t <= (next?.t ?? last));
+                    const span = frames.filter((f) => f.t >= inputs[0] && f.t <= (shown?.t ?? from));
                     const gaps = span.slice(1).map((f, i) => f.t - span[i].t);
                     const drops = gaps.reduce((a, g) => a + Math.max(0, Math.round(g / (1000 / 60)) - 1), 0);
                     // The rate over the inputs sent back to back (the last waits for the page, then for tail()).
-                    const inSpan = (sent.at(-1) ?? last) - inputs[0];
+                    const inSpan = (sent.at(-1) ?? lastTs) - inputs[0];
                     return {
-                        ms: next ? +(next.t - last).toFixed(1) : null,
+                        ms: shown ? +(shown.t - last).toFixed(1) : null,
                         stateMs: seen ? +(seen.t - last).toFixed(1) : null,
                         pixMs: seenPx ? +(seenPx.t - last).toFixed(1) : null,
+                        // How long the last input waited in the queue before its handler ran: a backlog.
+                        queuedMs: +Math.max(0, lastH - last).toFixed(1),
+                        // No handler ran after the last tick was sent: the page merged it away or never got it.
+                        ...(lastH < last ? { lastTickUnhandled: true } : {}),
                         noVisible: !!seen && !seenPx && !!pix,
                         endsOn: seenPx ? "pixels" : "state",
                         drops,
@@ -455,6 +506,8 @@ async function timed(page, spec, act) {
     // phase reads the look's own color at the node's position each frame (`moving`), or ends on state alone.
     const s = STATE_ONLY.has(page) ? { ...spec, pix: undefined, look: spec.look ?? spec.moving } : spec;
     await page.evaluate((a) => globalThis.__lat.arm(a), { capMs: CAP_MS, ...s });
+    // A case that compares with the camera's step before the input needs two frames of it first.
+    if (s.camTrack) await frames(page, 2);
     await act();
     return page.evaluate(() => globalThis.__lat.result());
 }
@@ -545,10 +598,13 @@ function checkRenderer(renderer) {
 
 // ------------------------------------------------------------------ points on the canvas (page pixels)
 
-/** Two or more nodes the element itself picks at their drawn centers, inside the canvas's middle. */
-function nodeTargets(page, k, seed = 11) {
+/**
+ * Two or more nodes the element itself picks at their drawn centers, inside the canvas's middle, drawn with a radius
+ * of at least `minR` px (a moving layout needs a node big enough to stay under the pointer for a frame or two).
+ */
+function nodeTargets(page, k, seed = 11, minR = 0) {
     return page.evaluate(
-        ([k, seed]) => {
+        ([k, seed, minR]) => {
             const el = document.querySelector("graphty-element");
             const r = el.getBoundingClientRect();
             const ids = el.session.data.nodes().map((n) => n.id);
@@ -563,7 +619,7 @@ function nodeTargets(page, k, seed = 11) {
             for (let t = 0; out.length < k && t < 20000; t++) {
                 const id = ids[Math.floor(rnd() * ids.length)];
                 const at = el.nodeScreenPosition(id);
-                if (!at?.visible) continue;
+                if (!at?.visible || (at.radius ?? Infinity) < minR) continue;
                 if (at.x < 0.15 * r.width || at.x > 0.85 * r.width || at.y < 0.15 * r.height || at.y > 0.85 * r.height)
                     continue;
                 // ponytail: 400 picks at most; a pick costs tens of ms on a software renderer with the heavy look
@@ -577,7 +633,7 @@ function nodeTargets(page, k, seed = 11) {
             }
             return out;
         },
-        [k, seed],
+        [k, seed, minR],
     );
 }
 
@@ -687,6 +743,13 @@ const clickHere = async (page) => {
     await page.mouse.down();
     await page.mouse.up();
 };
+// A press held as long as a reader's (100 ms): a press and release a millisecond apart, with no frame between them,
+// is lost to an animation that reads the pointer once a frame.
+const pressHere = async (page, ms = 100) => {
+    await page.mouse.down();
+    await new Promise((r) => setTimeout(r, ms));
+    await page.mouse.up();
+};
 
 /**
  * A drag measured move by move: each move is timed from its pointermove to the frame after the pixels at `pix`
@@ -785,6 +848,9 @@ function bursts(hzs) {
             {
                 id: `burst-drag-node-${hz}hz`,
                 name: `Drag a node, ${hz} pointer moves a second (lag after the last move; dropped frames)`,
+                // It moves a node and restarts the force layout: the cases after it wait for the graph to hold
+                // still and find their targets again.
+                moves: 30,
                 async run(page, ctx, rep) {
                     const t = (await nodeTargets(page, 1, 1500 + rep))[0];
                     if (!t) return { skip: "no node to drag" };
@@ -812,7 +878,7 @@ function bursts(hzs) {
                 name: `Orbit (3D) or pan (2D) by left-drag, ${hz} moves a second`,
                 async run(page, ctx, rep) {
                     const s = ctx.empty;
-                    const dir = rep % 2 ? -1 : 1;
+                    const dir = inCanvas(ctx, s, "x", 4, 30, rep);
                     const at = (i) => [s.x + dir * 4 * (i + 1), s.y + (i % 3)];
                     return burst(page, {
                         type: "pointermove",
@@ -835,9 +901,9 @@ function bursts(hzs) {
                 async run(page, ctx, rep) {
                     const s = ctx.empty;
                     const button = ctx.dim === "3d" ? "right" : "left";
-                    const dir = rep % 2 ? -1 : 1;
+                    const dir = inCanvas(ctx, s, "y", 4, 30, rep);
                     const at = (i) => [s.x + (i % 3), s.y + dir * 4 * (i + 1)];
-                    return burst(page, {
+                    const r = await burst(page, {
                         type: "pointermove",
                         track: CAM,
                         hz,
@@ -850,6 +916,14 @@ function bursts(hzs) {
                         send: (i) => rawMove(ctx.cdp, ...at(i), button),
                         after: () => releaseAt(page, ...at(29), button),
                     });
+                    // On Linux the contextmenu event comes with the right button's press, so an app that opens a
+                    // canvas menu on it puts the menu under the dragging pointer, and the drag moves the menu, not
+                    // the camera: that is what happened, not a slow pan.
+                    if (r.timeout && (await page.evaluate(MENU_SHOWN))) {
+                        await page.keyboard.press("Escape");
+                        throw new Error("the canvas menu opened on the right press and took the pan drag");
+                    }
+                    return r;
                 },
             },
             {
@@ -875,9 +949,11 @@ function bursts(hzs) {
                 id: `burst-hover-sweep-${hz}hz`,
                 name: `Sweep the pointer across the drawing onto a node, ${hz} moves a second (hovered node)`,
                 async run(page, ctx, rep) {
-                    const t = ctx.nodes[rep % 2];
-                    const from = { x: t.x - 300 * (t.x > ctx.center.x ? 1 : -1), y: t.y - 60 };
-                    return burst(page, {
+                    const t0 = ctx.nodes[rep % 2];
+                    const from = { x: t0.x - 300 * (t0.x > ctx.center.x ? 1 : -1), y: t0.y - 60 };
+                    // Where the node is drawn when the burst starts, not where it was when the page was read.
+                    let t = t0;
+                    const r = await burst(page, {
                         type: "pointermove",
                         track: "String(el.session.selection.hovered)",
                         hz,
@@ -885,6 +961,7 @@ function bursts(hzs) {
                         before: async () => {
                             await page.mouse.move(from.x, from.y);
                             await frames(page, 3);
+                            t = await whereIs(page, t0.id);
                         },
                         // 29 moves to a point 60 px short of the node, then the last one onto it: the hovered node
                         // changes after the last input, which is what the burst times.
@@ -897,6 +974,12 @@ function bursts(hzs) {
                         },
                         after: () => page.mouse.move(t.x, t.y),
                     });
+                    if (r.timeout) {
+                        const now = await whereIs(page, t0.id);
+                        if (Math.hypot(now.x - t.x, now.y - t.y) > 2)
+                            throw new Error(`target moved away: node ${t0.id} moved during the sweep`);
+                    }
+                    return r;
                 },
             },
             {
@@ -950,9 +1033,23 @@ const elementRect = (page) =>
 // The node is drawn within `tol` px of p.x, p.y (element pixels).
 const NEAR = (tol) =>
     `(() => { const a = el.nodeScreenPosition(p.id); return !!a && Math.hypot(a.x - p.x, a.y - p.y) <= ${tol}; })()`;
-// Settled: the camera state is the same as on the frame before (s keeps the last one).
+// Settled: the camera state is the same as on the frame before (s keeps the last one, with `camTrack` from the frames
+// before the input), read on two distinct frames (rAF timestamps), never twice in one.
 const CAM_HELD =
-    "(() => { const c = JSON.stringify(el.getCameraState()); const held = c === s.lastCam; s.lastCam = c; return held; })()";
+    "(() => { const c = JSON.stringify(el.getCameraState()); const held = c === s.lastCam && s.frameT !== s.lastCamT; s.lastCam = c; s.lastCamT = s.frameT; return held; })()";
+// The camera's step this frame (the change from the frame before) differs from its step on the last frame before the
+// input: the first frame that answers a release, before any coast ends. Needs `camTrack`.
+const CAM_STEP_CHANGED = `(() => {
+    const v = (c) => (c ?? '').match(/-?[0-9]+([.][0-9]+)?(e-?[0-9]+)?/g)?.map(Number) ?? [];
+    if (s.heldStep === undefined) { const a = v(s.camPrev), b = v(s.lastCam); s.heldStep = b.map((x, i) => x - (a[i] ?? x)); }
+    if (s.frameT === s.lastCamT) return false;
+    const c = JSON.stringify(el.getCameraState());
+    const prev = v(s.lastCam), now = v(c);
+    s.lastCam = c; s.lastCamT = s.frameT;
+    const step = now.map((x, i) => x - (prev[i] ?? x));
+    const d = Math.hypot(...step.map((x, i) => x - (s.heldStep[i] ?? 0)));
+    return d > 0.05 * Math.hypot(...s.heldStep) + 1e-9;
+})()`;
 
 /** A node drag measured move by move, to the frame whose pixels under the pointer show the node. */
 async function dragNode(page, t, moves) {
@@ -1168,6 +1265,8 @@ const ELEMENT = [
                     cond: "el.session.selection.edges.map(String).includes(p.id)",
                     params: e,
                     pix: at(e, 30, 30),
+                    // A selected edge no frame shows is a visibility failure, not a latency.
+                    mustDraw: true,
                 },
                 () => clickHere(page),
             );
@@ -1226,6 +1325,40 @@ const ELEMENT = [
         },
     },
     {
+        // The per-move drag cases drop their first move (it only crosses the threshold); this is that move on its
+        // own: from the move that turns a press into a drag to the first frame drawing the node at its new place.
+        id: "drag-node-start",
+        name: "Press a node and move past the drag threshold (the node first drawn moved)",
+        moves: 1,
+        async run(page, ctx, rep) {
+            const t = (await nodeTargets(page, 1, 600 + rep))[0];
+            if (!t) return { skip: "no node to drag" };
+            const rect = await elementRect(page);
+            const dir = t.x < rect.left + rect.width / 2 ? 1 : -1;
+            await camStill(page);
+            await page.mouse.move(t.x, t.y);
+            await frames(page, 2);
+            await page.mouse.down();
+            await frames(page, 2);
+            // 12 px: past graphty-element's 5 px between a click and a drag (CLICK_MAX_MOVEMENT_PX).
+            const x = t.x + 12 * dir;
+            const r = await timed(
+                page,
+                {
+                    type: "pointermove",
+                    cond: `s.tEvent !== null && (() => { const a = el.nodeScreenPosition(p.id); return !!a && Math.hypot(a.x - p.x0, a.y - p.y0) > 3; })()`,
+                    params: { id: t.id, x0: t.x - rect.left, y0: t.y - rect.top },
+                    event: "graphty-node-drag-start",
+                    pix: { x, y: t.y, w: 30, h: 30 },
+                },
+                () => page.mouse.move(x, t.y),
+            );
+            await page.mouse.up();
+            await camStill(page);
+            return r;
+        },
+    },
+    {
         id: "drop-node",
         name: "Let go of a dragged node (it is drawn pinned: the Pinned look's halo at the node)",
         event: true,
@@ -1258,14 +1391,16 @@ const ELEMENT = [
         name: "Left-drag empty canvas to orbit (per pointer move)",
         dims: ["3d"],
         moves: 10,
-        run: (page, ctx, rep) => measuredDrag(page, ctx.empty, rep % 2 ? -8 : 8, 0, 10),
+        run: (page, ctx, rep) => measuredDrag(page, ctx.empty, 8 * inCanvas(ctx, ctx.empty, "x", 8, 10, rep), 0, 10),
     },
     {
         id: "drag-pan",
         name: "Pan: right-drag in 3D, left-drag in 2D (per pointer move)",
         moves: 10,
         run: (page, ctx, rep) =>
-            measuredDrag(page, ctx.empty, 0, rep % 2 ? -8 : 8, 10, { button: ctx.dim === "3d" ? "right" : "left" }),
+            measuredDrag(page, ctx.empty, 0, 8 * inCanvas(ctx, ctx.empty, "y", 8, 10, rep), 10, {
+                button: ctx.dim === "3d" ? "right" : "left",
+            }),
     },
     {
         id: "wheel-zoom",
@@ -1285,7 +1420,9 @@ const ELEMENT = [
             await page.mouse.move(ctx.center.x, ctx.center.y);
             await camStill(page);
             await page.keyboard.down("Control");
-            const r = await timed(page, { type: "wheel", cond: CAM_MOVED, pix: "all" }, () =>
+            // From the wheel event's dispatch: DevTools forwards a synthetic Ctrl+wheel about 265 ms late, a delay
+            // no trackpad pinch has (kept as handoffMs).
+            const r = await timed(page, { type: "wheel", cond: CAM_MOVED, pix: "all", clock: "dispatch" }, () =>
                 page.mouse.wheel(0, rep % 2 ? 10 : -10),
             );
             await page.keyboard.up("Control");
@@ -1388,14 +1525,14 @@ const ELEMENT = [
                 list?.focus();
                 return !!list && el.shadowRoot.activeElement === list;
             });
-            if (!ok) return { skip: "the node list did not take focus" };
+            if (!ok) return nodeListOff(page, { skip: "the node list did not take focus" });
             const before = await page.evaluate(() =>
                 document
                     .querySelector("graphty-element")
                     .shadowRoot.querySelector("[part~=node-list]")
                     .getAttribute("aria-activedescendant"),
             );
-            return timed(
+            const r = await timed(
                 page,
                 {
                     type: "keydown",
@@ -1404,6 +1541,8 @@ const ELEMENT = [
                 },
                 () => page.keyboard.press("ArrowDown"),
             );
+            await nodeListOff(page);
+            return r;
         },
     },
     {
@@ -1418,12 +1557,38 @@ const ELEMENT = [
                 list?.focus();
                 return !!list && el.shadowRoot.activeElement === list;
             });
-            if (!ok) return { skip: "the node list did not take focus" };
-            await page.keyboard.press("ArrowDown");
+            if (!ok) return nodeListOff(page, { skip: "the node list did not take focus" });
+            // The list's cursor onto a node drawn in view (the list is in graphty-element's own order, the visible
+            // nodes' page): selecting one off screen changes no pixel.
+            const steps = await page.evaluate(() => {
+                const el = document.querySelector("graphty-element");
+                const r = el.getBoundingClientRect();
+                const { records } = el.session.data.nodePage({ limit: 200, scope: "visible" });
+                return records.findIndex((rec) => {
+                    const p = el.nodeScreenPosition(rec.id);
+                    return p?.visible && p.x > 20 && p.y > 20 && p.x < r.width - 20 && p.y < r.height - 20;
+                });
+            });
+            if (steps < 0) return nodeListOff(page, { skip: "none of the list's first 200 nodes is drawn in view" });
+            await page.keyboard.press("Home");
+            for (let i = 0; i < steps; i++) await page.keyboard.press("ArrowDown");
             await frames(page, 3);
-            return timed(page, { type: "keydown", cond: "el.session.selection.nodes.length === 1", pix: "all" }, () =>
-                page.keyboard.press("Enter"),
+            // At a random point in the frame, as a reader's key lands, not just as one starts.
+            // eslint-disable-next-line sonarjs/pseudo-random -- a moment in a frame to press at, nothing secret
+            await new Promise((r) => setTimeout(r, Math.random() * 16));
+            const r = await timed(
+                page,
+                {
+                    type: "keydown",
+                    cond: "el.session.selection.nodes.length === 1",
+                    look: ctx.selRgb && { id: "@selected", rgb: ctx.selRgb, w: 50, h: 50 },
+                    ...(ctx.selRgb ? {} : { pix: "all" }),
+                },
+                () => page.keyboard.press("Enter"),
             );
+            await nodeListOff(page);
+            await clickEmptyUntimed(page, ctx);
+            return r;
         },
     },
 ];
@@ -1574,6 +1739,7 @@ const ELEMENT_MORE = [
                     cond: adds ? has : `!${has}`,
                     params: { b: b.id },
                     pix: at(b, 30, 30),
+                    mustDraw: true,
                 },
                 () => clickHere(page),
             );
@@ -1721,8 +1887,34 @@ const ELEMENT_MORE = [
         async run(page, ctx) {
             await setBehavior(page, "selection", { region: "lasso" });
             await clickEmptyUntimed(page, ctx);
-            const c = ctx.center;
             const rad = 120;
+            // Earlier drags move nodes: the circle goes where it holds drawn nodes (the canvas center when it does,
+            // else around a drawn node), checked before the timed release. None found is a set-up failure.
+            const c = await page.evaluate(
+                ({ rad, cx, cy }) => {
+                    const el = document.querySelector("graphty-element");
+                    const r = el.getBoundingClientRect();
+                    const { records } = el.session.data.nodePage({ limit: 500, scope: "visible" });
+                    const pts = [];
+                    for (const rec of records) {
+                        const p = el.nodeScreenPosition(rec.id);
+                        if (p?.visible) pts.push({ x: r.left + p.x, y: r.top + p.y });
+                    }
+                    // Well inside the 16-sided path drawn on the circle, and the circle inside the canvas.
+                    const holds = (c) => pts.some((p) => Math.hypot(p.x - c.x, p.y - c.y) < rad * 0.8);
+                    const fits = (c) =>
+                        c.x - rad > r.left + 10 &&
+                        c.x + rad < r.right - 10 &&
+                        c.y - rad > r.top + 10 &&
+                        c.y + rad < r.bottom - 10;
+                    return [{ x: cx, y: cy }, ...pts].find((c) => fits(c) && holds(c)) ?? null;
+                },
+                { rad, cx: ctx.center.x, cy: ctx.center.y },
+            );
+            if (!c) {
+                await setBehavior(page, "selection", { region: "rectangle" });
+                throw new Error("set-up: no lasso circle that fits in the canvas holds a drawn node");
+            }
             await page.keyboard.down("Shift");
             await page.mouse.move(c.x + rad, c.y);
             await page.mouse.down();
@@ -1747,7 +1939,8 @@ const ELEMENT_MORE = [
         name: "Middle-drag pan in 3D (per pointer move)",
         dims: ["3d"],
         moves: 10,
-        run: (page, ctx, rep) => measuredDrag(page, ctx.empty, 0, rep % 2 ? -8 : 8, 10, { button: "middle" }),
+        run: (page, ctx, rep) =>
+            measuredDrag(page, ctx.empty, 0, 8 * inCanvas(ctx, ctx.empty, "y", 8, 10, rep), 10, { button: "middle" }),
     },
     {
         id: "focus-tab",
@@ -1780,27 +1973,51 @@ const ELEMENT_MORE = [
         },
     },
     {
+        // graphty-element moves the camera every frame a camera key is held and ignores the auto-repeats
+        // (OrbitInputController's keyDownHandler), so a repeat has no result of its own to time. Timed instead: the
+        // first press (to the first moved frame) and the release (to the first frame whose step differs from the
+        // held one); the frames drawn during the hold are its frame rate.
         id: "hold-camera-key-30hz",
-        name: "Hold an arrow key (auto-repeat at 30 a second; lag after the last repeat; dropped frames)",
+        name: "Hold an arrow key (auto-repeat at 30 a second): the press to the first moved frame; release and frame rate beside it",
         async run(page, ctx, rep, cdp) {
             const key = rep % 2 ? "ArrowRight" : "ArrowLeft";
             await clickEmptyUntimed(page, ctx);
             await camStill(page);
-            const r = await burst(page, {
-                type: "keydown",
-                track: CAM,
-                hz: 30,
-                count: 30,
-                send: (i) => cdpKey(cdp, "keyDown", key, i > 0),
-                after: () => cdpKey(cdp, "keyUp", key),
+            const down = await timed(page, { type: "keydown", cond: CAM_MOVED, pix: "all" }, () =>
+                cdpKey(cdp, "keyDown", key, false),
+            );
+            await page.evaluate(() => {
+                const g = (globalThis.__hold = { gaps: [], on: true, last: null });
+                const f = (t) => {
+                    if (g.last !== null) g.gaps.push(t - g.last);
+                    g.last = t;
+                    if (g.on) requestAnimationFrame(f);
+                };
+                requestAnimationFrame(f);
             });
+            for (let i = 0; i < 29; i++) {
+                await cdpKey(cdp, "keyDown", key, true);
+                await new Promise((r) => setTimeout(r, 1000 / 30));
+            }
+            const gaps = await page.evaluate(() => {
+                globalThis.__hold.on = false;
+                return globalThis.__hold.gaps.sort((a, b) => a - b);
+            });
+            const up = await timed(page, { type: "keyup", cond: CAM_STEP_CHANGED, camTrack: true }, () =>
+                cdpKey(cdp, "keyUp", key),
+            );
             await camStill(page);
-            return r;
+            return {
+                ...down,
+                releaseMs: up.ms,
+                holdFrameMs: gaps.length ? +gaps[Math.floor(gaps.length / 2)].toFixed(1) : null,
+                maxGapMs: gaps.length ? +gaps.at(-1).toFixed(1) : null,
+            };
         },
     },
     {
         id: "release-camera-key",
-        name: "Let go of a held arrow key (camera holds still)",
+        name: "Let go of a held arrow key (the first frame whose camera step differs from the held one; coast settled)",
         async run(page, ctx, rep, cdp) {
             const key = rep % 2 ? "ArrowRight" : "ArrowLeft";
             await clickEmptyUntimed(page, ctx);
@@ -1809,7 +2026,12 @@ const ELEMENT_MORE = [
                 await cdpKey(cdp, "keyDown", key, i > 0);
                 await frames(page, 2);
             }
-            const r = await timed(page, { type: "keyup", cond: CAM_HELD }, () => cdpKey(cdp, "keyUp", key));
+            // The latency is the first changed step; the coast to a stop (2D's inertia) is settledMs.
+            const r = await timed(
+                page,
+                { type: "keyup", cond: CAM_STEP_CHANGED, camTrack: true, settle: "camera" },
+                () => cdpKey(cdp, "keyUp", key),
+            );
             await camStill(page);
             return r;
         },
@@ -1832,7 +2054,7 @@ const ELEMENT_MORE = [
             const c0 = await camOf(page);
             await until(page, "JSON.stringify(el.getCameraState()) !== p.c0", { c0 }, 120);
             await page.mouse.move(ctx.empty.x, ctx.empty.y);
-            const r = await timed(page, { type: "pointerdown", cond: CAM_HELD }, () => clickHere(page));
+            const r = await timed(page, { type: "pointerdown", cond: CAM_HELD, camTrack: true }, () => pressHere(page));
             await page.evaluate(() => globalThis.__tour);
             await ctx.refit?.();
             return r;
@@ -1847,7 +2069,7 @@ const ELEMENT_MORE = [
             const c0 = await camOf(page);
             await until(page, "JSON.stringify(el.getCameraState()) !== p.c0", { c0 }, 120);
             await page.mouse.move(ctx.empty.x, ctx.empty.y);
-            const r = await timed(page, { type: "pointerdown", cond: CAM_HELD }, () => clickHere(page));
+            const r = await timed(page, { type: "pointerdown", cond: CAM_HELD, camTrack: true }, () => pressHere(page));
             await setBehavior(page, "camera", { autoRotate: 0, autoRotateResume: 0 });
             await camStill(page);
             return r;
@@ -2025,51 +2247,107 @@ async function addTooltips(page) {
     });
 }
 
-// Touch runs after the mouse, with touch emulation switched on for the page.
-const fingersAt = (c) => (gap) => [
-    { x: c.x - gap / 2, y: c.y, id: 0, radiusX: 1, radiusY: 1, force: 1 },
-    { x: c.x + gap / 2, y: c.y, id: 1, radiusX: 1, radiusY: 1, force: 1 },
-];
+// Touch runs after the mouse, with touch emulation switched on for the page. DevTools holds an injected touch until
+// the renderer presents a frame (about 30 ms on a light page, 300 on a slow one), a hand-off no real finger pays:
+// touch cases start their clock when the pointer event reaches the page (`clock: "dispatch"`) and keep the
+// hand-off as handoffMs.
+const finger = (x, y, id = 0) => ({ x, y, id, radiusX: 1, radiusY: 1, force: 1 });
+const fingersAt = (c) => (gap) => [finger(c.x - gap / 2, c.y, 0), finger(c.x + gap / 2, c.y, 1)];
+const touch = (cdp, type, touchPoints, timestamp) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints, ...(timestamp ? { timestamp } : {}) });
+/**
+ * A tap: press and release sent together, 60 ms apart by their own timestamps. Sending the release only after the
+ * press is acknowledged lets a slow page stretch the gap past graphty-element's 300 ms click window, and the tap is
+ * dropped.
+ */
+const tap = (cdp, p) => {
+    const t = Date.now() / 1000;
+    return Promise.all([touch(cdp, "touchStart", [finger(p.x, p.y)], t), touch(cdp, "touchEnd", [], t + 0.06)]);
+};
+/**
+ * A center near `c` from which every finger point of a gesture (`offsets`, from the center) lands on empty canvas:
+ * a finger on a node makes the gesture a node press. Null when none is found.
+ */
+const clearCenter = (page, c, offsets) =>
+    page.evaluate(
+        ([c, offsets]) => {
+            const el = document.querySelector("graphty-element");
+            const r = el.getBoundingClientRect();
+            for (const dy of [0, -60, 60, -120, 120, -180, 180])
+                for (const dx of [0, -80, 80, -160, 160]) {
+                    const ok = offsets.every(([ox, oy]) => {
+                        const p = { x: c.x + dx + ox - r.left, y: c.y + dy + oy - r.top };
+                        return (
+                            p.x > 10 &&
+                            p.y > 10 &&
+                            p.x < r.width - 10 &&
+                            p.y < r.height - 10 &&
+                            el.elementAt(p)?.kind !== "node"
+                        );
+                    });
+                    if (ok) return { x: c.x + dx, y: c.y + dy };
+                }
+            return null;
+        },
+        [c, offsets],
+    );
+const pinchOffsets = (gaps) =>
+    gaps.flatMap((g) => [
+        [-g / 2, 0],
+        [g / 2, 0],
+    ]);
+const DID_NOT_DRIVE = (what) =>
+    new Error(`did not drive: ${what} moved no camera (a finger on a node, or the gesture lost)`);
 const TOUCH = [
     {
         id: "touch-tap-select",
         name: "Tap a node to select it",
         async run(page, ctx, rep, cdp) {
             const t = ctx.nodes[rep % 2];
-            const tp = (p) => [{ x: p.x, y: p.y, id: 0, radiusX: 1, radiusY: 1, force: 1 }];
             return timed(
                 page,
-                { type: "pointerdown", cond: SEL_IS, params: { id: t.id }, pix: at(t, 40, 40) },
-                async () => {
-                    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(t) });
-                    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-                },
+                { type: "pointerdown", cond: SEL_IS, params: { id: t.id }, pix: at(t, 40, 40), clock: "dispatch" },
+                () => tap(cdp, t),
             );
         },
     },
     {
         id: "touch-drag-camera",
-        name: "One-finger drag on empty canvas (3D turns, 2D pans; per move)",
+        name: "One-finger drag on empty canvas (3D turns, 2D pans; per move, after the touch slop)",
         moves: 8,
         async run(page, ctx, rep, cdp) {
-            const tp = (x, y) => [{ x, y, id: 0, radiusX: 1, radiusY: 1, force: 1 }];
             const out = [];
             let { x, y } = ctx.empty;
-            await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(x, y) });
+            const dir = inCanvas(ctx, ctx.empty, "x", 10, 8 + 4, rep);
+            await touch(cdp, "touchStart", [finger(x, y)]);
+            // Chrome sends no touchmove until the finger has gone past its touch slop (about 15 px): crossed
+            // untimed, in 2 px steps, and how far it took kept as slopPx.
+            await page.evaluate(() => {
+                globalThis.__slop = false;
+                addEventListener("pointermove", () => (globalThis.__slop = true), { capture: true, once: true });
+            });
+            let slop = 0;
+            while (slop < 40 && !(await page.evaluate(() => globalThis.__slop))) {
+                slop += 2;
+                await touch(cdp, "touchMove", [finger(x + dir * slop, y)]);
+                await frames(page, 1);
+            }
+            x += dir * slop;
             for (let i = 0; i < 8; i++) {
                 await camStill(page);
-                x += rep % 2 ? -10 : 10;
+                x += dir * 10;
                 y += 4;
                 out.push(
-                    await timed(page, { type: "pointermove", cond: CAM_MOVED, pix: "all" }, () =>
-                        cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: tp(x, y) }),
+                    await timed(page, { type: "pointermove", cond: CAM_MOVED, pix: "all", clock: "dispatch" }, () =>
+                        touch(cdp, "touchMove", [finger(x, y)]),
                     ),
                 );
                 if (out.at(-1).timeout) break;
             }
-            await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+            await touch(cdp, "touchEnd", []);
             await camStill(page);
-            return afterFirst(out);
+            if (out.length === 1 && out[0].timeout) throw DID_NOT_DRIVE("a one-finger drag");
+            return out.map((r) => ({ ...r, slopPx: slop }));
         },
     },
     {
@@ -2077,22 +2355,30 @@ const TOUCH = [
         name: "Two-finger pinch zoom (per move)",
         moves: 6,
         async run(page, ctx, rep, cdp) {
-            const fingers = fingersAt(ctx.center);
-            const out = [];
             let gap = rep % 2 ? 300 : 120;
-            await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(gap) });
+            const step = rep % 2 ? -25 : 25;
+            const c = await clearCenter(
+                page,
+                ctx.center,
+                pinchOffsets(Array.from({ length: 7 }, (_, i) => gap + step * i)),
+            );
+            if (!c) return { skip: "no place where both fingers miss every node" };
+            const fingers = fingersAt(c);
+            const out = [];
+            await touch(cdp, "touchStart", fingers(gap));
             for (let i = 0; i < 6; i++) {
                 await camStill(page);
-                gap += rep % 2 ? -25 : 25;
+                gap += step;
                 out.push(
-                    await timed(page, { type: "touchmove", cond: CAM_MOVED, pix: "all" }, () =>
-                        cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: fingers(gap) }),
+                    await timed(page, { type: "touchmove", cond: CAM_MOVED, pix: "all", clock: "dispatch" }, () =>
+                        touch(cdp, "touchMove", fingers(gap)),
                     ),
                 );
                 if (out.at(-1).timeout) break;
             }
-            await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+            await touch(cdp, "touchEnd", []);
             await camStill(page);
+            if (out.length <= 2 && out.at(-1).timeout) throw DID_NOT_DRIVE("a pinch");
             return afterFirst(out);
         },
     },
@@ -2101,18 +2387,19 @@ const TOUCH = [
         name: "Tap empty canvas to clear the selection",
         async run(page, ctx, rep, cdp) {
             const t = ctx.nodes[rep % 2];
-            const tp = (p) => [{ x: p.x, y: p.y, id: 0, radiusX: 1, radiusY: 1, force: 1 }];
-            await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(t) });
-            await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-            await until(page, SEL_IS, { id: t.id });
+            await tap(cdp, t);
+            if (!(await until(page, SEL_IS, { id: t.id })))
+                throw new Error(`set-up: a tap on node ${t.id} did not select it`);
             await frames(page, 5);
             return timed(
                 page,
-                { type: "pointerdown", cond: "el.session.selection.nodes.length === 0", pix: at(t, 40, 40) },
-                async () => {
-                    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(ctx.empty) });
-                    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+                {
+                    type: "pointerdown",
+                    cond: "el.session.selection.nodes.length === 0",
+                    pix: at(t, 40, 40),
+                    clock: "dispatch",
                 },
+                () => tap(cdp, ctx.empty),
             );
         },
     },
@@ -2125,8 +2412,7 @@ const TOUCH = [
             if (!t) return { skip: "no node to drag" };
             const rect = await elementRect(page);
             const dir = t.x < rect.left + rect.width / 2 ? 1 : -1;
-            const tp = (x, y) => [{ x, y, id: 0, radiusX: 1, radiusY: 1, force: 1 }];
-            await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(t.x, t.y) });
+            await touch(cdp, "touchStart", [finger(t.x, t.y)]);
             const out = [];
             let x = t.x;
             for (let i = 0; i < this.moves; i++) {
@@ -2140,13 +2426,14 @@ const TOUCH = [
                             cond: NEAR(2),
                             params: { id: t.id, x: x - rect.left, y: t.y - rect.top },
                             pix: { x, y: t.y, w: 30, h: 30 },
+                            clock: "dispatch",
                         },
-                        () => cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: tp(x, t.y) }),
+                        () => touch(cdp, "touchMove", [finger(x, t.y)]),
                     ),
                 );
                 if (out.at(-1).timeout) break;
             }
-            await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+            await touch(cdp, "touchEnd", []);
             await camStill(page);
             return afterFirst(out);
         },
@@ -2156,26 +2443,34 @@ const TOUCH = [
         name: "Two-finger twist (per move)",
         moves: 6,
         async run(page, ctx, rep, cdp) {
-            const c = ctx.center;
-            const fingers = (a) => [
-                { x: c.x - 80 * Math.cos(a), y: c.y - 80 * Math.sin(a), id: 0, radiusX: 1, radiusY: 1, force: 1 },
-                { x: c.x + 80 * Math.cos(a), y: c.y + 80 * Math.sin(a), id: 1, radiusX: 1, radiusY: 1, force: 1 },
+            const sgn = rep % 2 ? -1 : 1;
+            const offs = (a) => [
+                [-80 * Math.cos(a), -80 * Math.sin(a)],
+                [80 * Math.cos(a), 80 * Math.sin(a)],
             ];
+            const c = await clearCenter(
+                page,
+                ctx.center,
+                Array.from({ length: this.moves + 1 }, (_, i) => offs(sgn * 0.12 * i)).flat(),
+            );
+            if (!c) return { skip: "no place where both fingers miss every node" };
+            const fingers = (a) => offs(a).map(([ox, oy], id) => finger(c.x + ox, c.y + oy, id));
             const out = [];
             let a = 0;
-            await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(a) });
+            await touch(cdp, "touchStart", fingers(a));
             for (let i = 0; i < this.moves; i++) {
                 await camStill(page);
-                a += (rep % 2 ? -1 : 1) * 0.12;
+                a += sgn * 0.12;
                 out.push(
-                    await timed(page, { type: "touchmove", cond: CAM_MOVED, pix: "all" }, () =>
-                        cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: fingers(a) }),
+                    await timed(page, { type: "touchmove", cond: CAM_MOVED, pix: "all", clock: "dispatch" }, () =>
+                        touch(cdp, "touchMove", fingers(a)),
                     ),
                 );
                 if (out.at(-1).timeout) break;
             }
-            await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+            await touch(cdp, "touchEnd", []);
             await camStill(page);
+            if (out.length <= 2 && out.at(-1).timeout) throw DID_NOT_DRIVE("a twist");
             return afterFirst(out);
         },
     },
@@ -2183,26 +2478,30 @@ const TOUCH = [
         id: "touch-pinch-burst",
         name: "Two-finger pinch, 60 moves a second (lag after the last move; dropped frames)",
         async run(page, ctx, rep, cdp) {
-            const fingers = fingersAt(ctx.center);
             // Out first: the single-move pinch before it zoomed in.
             const g0 = rep % 2 ? 120 : 320;
             const step = rep % 2 ? 6 : -6;
-            return burst(page, {
+            const c = await clearCenter(
+                page,
+                ctx.center,
+                pinchOffsets(Array.from({ length: 31 }, (_, i) => g0 + step * i)),
+            );
+            if (!c) return { skip: "no place where both fingers miss every node" };
+            const fingers = fingersAt(c);
+            const r = await burst(page, {
                 type: "touchmove",
                 track: CAM,
                 hz: 60,
                 count: 30,
                 before: async () => {
                     await camStill(page);
-                    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(g0) });
+                    await touch(cdp, "touchStart", fingers(g0));
                 },
-                send: (i) =>
-                    cdp.send("Input.dispatchTouchEvent", {
-                        type: "touchMove",
-                        touchPoints: fingers(g0 + step * (i + 1)),
-                    }),
-                after: () => cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }),
+                send: (i) => touch(cdp, "touchMove", fingers(g0 + step * (i + 1))),
+                after: () => touch(cdp, "touchEnd", []),
             });
+            if (r.timeout) throw DID_NOT_DRIVE("a pinch burst");
+            return r;
         },
     },
 ];
@@ -2256,7 +2555,7 @@ const LAYOUTS = [
 // Grabs a node of a moving graph: the pointer onto a drawn node until some node is hovered (on a moving graph the
 // node under the pointer may be another than the one aimed at), untimed.
 async function hoverMoving(page, rep, seed) {
-    const t0 = (await nodeTargets(page, 1, seed + rep))[0];
+    const t0 = (await nodeTargets(page, 1, seed + rep, MOVING_MIN_R))[0];
     if (!t0) return null;
     // A pick runs on a pointer move, not when a node slides under a still pointer: follow the node, up to 20 moves.
     for (let i = 0; i < 20; i++) {
@@ -2271,6 +2570,23 @@ async function hoverMoving(page, rep, seed) {
     }
     return null;
 }
+// The smallest drawn radius a moving-layout target may have: a node under 3 px slides out from under the pointer
+// between the frame it is found in and the frame the press reaches it.
+const MOVING_MIN_R = 3;
+
+/**
+ * Moves the pointer onto node `id` where it is drawn now, untimed, and returns the node the element then says is
+ * under it (on a moving graph, maybe another) with the pointer's point, or null when none is.
+ */
+async function aimAt(page, id) {
+    const u = await whereIs(page, id);
+    await page.mouse.move(u.x, u.y);
+    if (!(await until(page, "el.session.selection.hovered !== null", {}, 3))) return null;
+    const hovered = await page.evaluate(() =>
+        String(document.querySelector("graphty-element").session.selection.hovered),
+    );
+    return { id: hovered, x: u.x, y: u.y };
+}
 const awayFromNodes = async (page, ctx) => {
     await page.mouse.move(ctx.empty.x, ctx.empty.y);
     await until(page, "el.session.selection.hovered === null", {}, 60);
@@ -2282,11 +2598,11 @@ const RUNNING = [
         name: "Hover a node while a force layout runs (the hover color at whichever node is hovered)",
         async run(page, ctx, rep) {
             await awayFromNodes(page, ctx);
-            const t0 = (await nodeTargets(page, 1, 300 + rep))[0];
-            if (!t0) return { skip: "no node in view" };
+            const t0 = (await nodeTargets(page, 1, 300 + rep, MOVING_MIN_R))[0];
+            if (!t0) return { skip: `no node in view drawn ${MOVING_MIN_R} px or larger` };
             // Where the node is drawn now: finding it took frames in which it moved.
             const t = await whereIs(page, t0.id);
-            return timed(
+            const r = await timed(
                 page,
                 {
                     type: "pointermove",
@@ -2297,6 +2613,10 @@ const RUNNING = [
                 },
                 () => page.mouse.move(t.x, t.y),
             );
+            // The node slid away before the pointer arrived and no node is under it: a miss, not a slow hover.
+            if (r.timeout && !(await until(page, "el.session.selection.hovered !== null", {}, 1)))
+                return { missed: true };
+            return r;
         },
     },
     {
@@ -2319,21 +2639,29 @@ const RUNNING = [
     },
     {
         id: "click-select-running-layout",
-        name: "Click a node while a force layout runs (the Selected halo at whichever node is selected)",
+        name: "Click a node while a force layout runs (the Selected halo at the node clicked)",
         async run(page, ctx, rep) {
             await page.evaluate(() => document.querySelector("graphty-element").session.selection.clear());
             const t = await hoverMoving(page, rep, 700);
             if (!t) return { skip: "no node stayed under the pointer" };
-            return timed(
+            // Aim again just before the press, at where the node is drawn now (it moved while it was found).
+            const aim = await aimAt(page, t.id);
+            if (aim === null) return { missed: true };
+            const { id } = aim;
+            const r = await timed(
                 page,
                 {
                     type: "pointerdown",
-                    cond: "el.session.selection.nodes.length === 1",
-                    look: ctx.selRgb && { id: "@selected", rgb: ctx.selRgb, w: 50, h: 50 },
+                    cond: SEL_IS,
+                    params: { id },
+                    look: ctx.selRgb && { id, rgb: ctx.selRgb, w: 50, h: 50 },
                     capMs: 3000,
                 },
                 () => clickHere(page),
             );
+            // The press landed on another node, or on none: a miss, not a slow click.
+            if (r.timeout && !(await until(page, SEL_IS, { id }, 1))) return { missed: true };
+            return r;
         },
     },
     {
@@ -2364,37 +2692,59 @@ const RUNNING = [
     },
     {
         id: "drag-node-running-layout",
-        name: "Drag a node while a force layout runs (per move; node under the pointer; state only)",
+        name: "Drag a node while a force layout runs (per move; the node held at its grab offset; state only)",
         moves: 8,
         async run(page, ctx, rep) {
             const t = await hoverMoving(page, rep, 1100);
             if (!t) return { skip: "no node stayed under the pointer" };
+            const aim = await aimAt(page, t.id);
+            if (aim === null) return { missed: true };
+            const { id, x: x0, y: y0 } = aim;
             const rect = await elementRect(page);
-            const near =
-                "(() => { const a = el.nodeScreenPosition(p.id); return a && Math.hypot(a.x - p.x, a.y - p.y) <= 3; })()";
-            const out = [];
+            // The press must grab the node: graphty-node-drag-start on the move past the drag threshold.
+            const dir = x0 < rect.left + rect.width / 2 ? 1 : -1;
             await page.mouse.down();
-            let x = t.x;
-            const dir = t.x < rect.left + rect.width / 2 ? 1 : -1;
-            for (let i = 0; i < 9; i++) {
+            let x = x0 + 12 * dir;
+            const grab = await timed(
+                page,
+                { type: "pointermove", cond: "s.tEvent !== null", event: "graphty-node-drag-start", capMs: 5000 },
+                () => page.mouse.move(x, y0),
+            );
+            if (grab.timeout) {
+                await page.mouse.up();
+                return { missed: true };
+            }
+            // Where the node sits against the pointer once held: the camera may follow the layout, so the node is
+            // never within a few px of where the pointer is on the page, but it keeps this offset from it.
+            const off = await page.evaluate(
+                ([id, x, y]) => {
+                    const el = document.querySelector("graphty-element");
+                    const r = el.getBoundingClientRect();
+                    const a = el.nodeScreenPosition(id);
+                    return { dx: r.left + a.x - x, dy: r.top + a.y - y };
+                },
+                [id, x, y0],
+            );
+            const out = [];
+            for (let i = 0; i < this.moves; i++) {
                 x += 10 * dir;
                 out.push(
                     await timed(
                         page,
                         {
                             type: "pointermove",
-                            cond: near,
-                            params: { id: t.id, x: x - rect.left, y: t.y - rect.top },
+                            cond: NEAR(3),
+                            params: { id, x: x + off.dx - rect.left, y: y0 + off.dy - rect.top },
                             // State only: the dragged node already shows its hover color 10 px away, so its color
                             // under the pointer cannot tell this move's frame from the last one's.
                             capMs: 5000,
                         },
-                        () => page.mouse.move(x, t.y),
+                        () => page.mouse.move(x, y0),
                     ),
                 );
             }
             await page.mouse.up();
-            return afterFirst(out);
+            return out;
         },
     },
 ];
@@ -2433,6 +2783,8 @@ function row(base, inter, samples, reps, extra = {}) {
         // "mixed".
         endsOn: ends.size > 1 ? "mixed" : ([...ends][0] ?? null),
         ...(flat.some((r) => r.layoutStill) ? { layoutStill: flat.filter((r) => r.layoutStill).length } : {}),
+        // Repetitions whose result the canvas never drew, in a case that must draw: no latency, a failure to show.
+        ...(flat.some((r) => r.notDrawn) ? { notDrawn: flat.filter((r) => r.notDrawn).length } : {}),
         median_ms: st?.median ?? null,
         p95_ms: st?.p95 ?? null,
         worst_ms: st?.worst ?? null,
@@ -2447,6 +2799,13 @@ function row(base, inter, samples, reps, extra = {}) {
         achieved_hz_median: med("achievedHz"),
         sent_hz_median: med("sentHz"),
         idle_period_median_ms: med("idlePeriodMs"),
+        queued_median_ms: med("queuedMs"),
+        handoff_median_ms: med("handoffMs"),
+        from_release_median_ms: med("fromUpMs"),
+        animation_median_ms: med("animationMs"),
+        release_median_ms: med("releaseMs"),
+        hold_frame_median_ms: med("holdFrameMs"),
+        slop_median_px: med("slopPx"),
         perceivable: st ? st.p95 > PERCEIVED_MS : null,
         raw: ms,
         rawState: flat.map((r) => r.stateMs ?? null),
@@ -2520,9 +2879,22 @@ function dieIfGone(e) {
     if (DEAD.test(msg)) died(msg.split("\n")[0].slice(0, 200));
 }
 
+/** Files what one repetition gave into `g`: a sample, a set-up error, a skip, or a missed press. */
+function recordRep(g, r) {
+    if ([r].flat().some((x) => x?.preTrue))
+        g.errors.push("the result held before the input: the case's setup did not leave the state it needs");
+    else if (r?.skip) g.skip = r.skip;
+    // A press that missed a moving node: a skipped sample, never a timeout at the cap.
+    else if (r?.missed) g.missed++;
+    else {
+        g.samples.push(r);
+        g.reps++;
+    }
+}
+
 /** One repetition of one interaction, into `g`; a rep that throws is recorded and its held keys let go. */
 async function oneRep(page, ctx, inter, rep, cdp, g) {
-    const had = [g.samples.length, g.errors.length];
+    const had = [g.samples.length, g.errors.length, g.missed];
     try {
         await refreshTargets(page, ctx);
         if (ctx.prep) await ctx.prep(page, ctx);
@@ -2533,14 +2905,12 @@ async function oneRep(page, ctx, inter, rep, cdp, g) {
         const t0 = Date.now();
         const r = await inter.run(page, ctx, rep, cdp);
         if (ctx.moving) await markStill(page, r);
-        if ([r].flat().some((x) => x?.preTrue))
-            g.errors.push("the result held before the input: the case's setup did not leave the state it needs");
-        else if (r?.skip) g.skip = r.skip;
-        else {
-            g.samples.push(r);
-            g.reps++;
+        recordRep(g, r);
+        if (inter.moves) {
+            ctx.dirty = true;
+            // Moving a node restarts the force layout: the next case starts on a graph that holds still.
+            if (!ctx.moving) await layoutStill(page);
         }
-        if (inter.moves) ctx.dirty = true;
         if (Date.now() - t0 > 10000 && ctx.n >= 100000) g.slow = true;
     } catch (e) {
         dieIfGone(e);
@@ -2556,9 +2926,20 @@ async function oneRep(page, ctx, inter, rep, cdp, g) {
     }
     // What this repetition gave: its sample, its error, or the reason it was skipped.
     let said = g.skip;
+    if (g.missed > had[2]) said = "missed: the press did not land on the moving node";
     if (g.samples.length > had[0]) said = JSON.stringify(g.samples.at(-1)).slice(0, 200);
     else if (g.errors.length > had[1]) said = "error: " + g.errors.at(-1);
     console.log(rep, inter.id, said);
+}
+
+/** A cell's notes beside its numbers: why it was not measured, its errors, missed presses, the page it ran on. */
+function cellExtras(g) {
+    const x = {};
+    if (g.skip && !g.samples.length) x.notMeasured = g.skip;
+    if (g.errors.length) x.errors = g.errors;
+    if (g.missed) x.missed = g.missed;
+    if (g.state) x.pageState = g.state;
+    return x;
 }
 
 /**
@@ -2566,10 +2947,15 @@ async function oneRep(page, ctx, inter, rep, cdp, g) {
  * @returns {Promise<object[]>} One row per interaction.
  */
 async function roundRobin(page, ctx, list, reps, base, out, cdp) {
-    const got = new Map(list.map((i) => [i.id, { samples: [], errors: [], skip: null, reps: 0, slow: false }]));
+    const got = new Map(
+        list.map((i) => [i.id, { samples: [], errors: [], skip: null, reps: 0, slow: false, missed: 0, state: null }]),
+    );
     for (let rep = 0; rep < reps; rep++)
         for (const inter of list) {
             const g = got.get(inter.id);
+            // What the page held when the case first ran: earlier cases add layers, columns and panels, and a case
+            // on a page that holds more is slower for it (INTERACTION-LATENCY.md, "Order").
+            g.state ??= await pageState(page).catch(() => null);
             // At 100,000 nodes a rep over 10 s gets three reps, not five.
             if (!g.slow || rep < 3) {
                 beat(`${inter.id} rep ${rep}`, inter, base, g);
@@ -2579,10 +2965,7 @@ async function roundRobin(page, ctx, list, reps, base, out, cdp) {
         }
     for (const inter of list) {
         const g = got.get(inter.id);
-        const r = row(base, inter, g.samples, g.reps, {
-            ...(g.skip && !g.samples.length ? { notMeasured: g.skip } : {}),
-            ...(g.errors.length ? { errors: g.errors } : {}),
-        });
+        const r = row(base, inter, g.samples, g.reps, cellExtras(g));
         appendFileSync(out, JSON.stringify(r) + "\n");
     }
 }
@@ -2737,6 +3120,9 @@ async function loadElement(spec, url, base) {
         await page.evaluate(() => B.adapter.settle());
         if (look !== "plain") await addHoverLook(page);
         await page.evaluate(() => document.querySelector("graphty-element").waitForPainted());
+        // No blocking GPU readback after each frame while inputs are timed: a reader's page has none. A bench page
+        // built before the switch existed keeps it, and the cells say so.
+        base.frameReadback = await page.evaluate(() => (B.frameReadback ? B.frameReadback(false) : true));
         base.renderPathDrawn = await page.evaluate(() => document.querySelector("graphty-element").renderPath);
         b.cdp = await b.ctx.newCDPSession(page);
         return b;
@@ -2899,6 +3285,27 @@ async function layoutMoving(page) {
     });
 }
 
+/** Untimed: until no layout moves the drawing, up to 100 checks (a restarted force layout settling). */
+async function layoutStill(page) {
+    for (let i = 0; i < 100; i++) if (!(await layoutMoving(page))) return true;
+    return false;
+}
+
+/** What the page holds that makes a case slower: style layers, panels open, attribute columns, the selection. */
+const pageState = (page) =>
+    page.evaluate(() => {
+        const el = document.querySelector("graphty-element");
+        const n0 = el.session.data.nodes()[0];
+        const shown = (sel) => [...document.querySelectorAll(sel)].some((d) => d.getClientRects().length > 0);
+        return {
+            styleLayers: el.session.styles.list().length,
+            attributes: n0 ? Object.keys(n0.data ?? n0).length : 0,
+            selected: el.session.selection.nodes.length,
+            layout: el.layout ?? null,
+            panels: ["Table", "Timeline", "Legend"].filter((p) => shown(`section[aria-label="${p}"]`)),
+        };
+    });
+
 // What decides where things are drawn: the camera, and the element's box (a panel opening beside the canvas moves
 // every node on screen without moving the camera).
 const camOf = (page) =>
@@ -2928,7 +3335,23 @@ async function pageContext(page, spec) {
         ];
         return pts.find((p) => p.x > 0 && p.y > 0 && p.x < innerWidth && p.y < innerHeight) ?? null;
     });
-    return { nodes, empty, edges, center, cam, outside, dim: spec.dim, n: spec.n };
+    const rect = await elementRect(page);
+    return { nodes, empty, edges, center, cam, outside, rect, dim: spec.dim, n: spec.n };
+}
+
+/**
+ * Which way a drag of `moves` steps of `step` px from `from` along `axis` ("x" or "y") goes: the repetition's
+ * alternating way while the whole drag stays inside the canvas with a 30 px margin, else the other way. A pointer
+ * dragged off the canvas (onto the app's header) moves nothing, so a drag that cannot stay inside either way is a
+ * set-up error, never a timeout at the cap.
+ */
+function inCanvas(ctx, from, axis, step, moves, rep) {
+    const r = ctx.rect;
+    if (!r) return rep % 2 ? -1 : 1;
+    const [lo, hi] = axis === "x" ? [r.left + 30, r.right - 30] : [r.top + 30, r.bottom - 30];
+    const end = (dir) => from[axis] + dir * step * moves;
+    for (const dir of rep % 2 ? [-1, 1] : [1, -1]) if (end(dir) >= lo && end(dir) <= hi) return dir;
+    throw new Error("set-up: the pointer left the canvas (no drag direction stays inside it)");
 }
 
 /**
@@ -2991,6 +3414,7 @@ async function coldContext(page, spec) {
         empty: found.outside,
         edges: [],
         cam: await camOf(page),
+        rect: await elementRect(page),
         dim: spec.dim,
         n: spec.n,
         cold: true,
@@ -3159,6 +3583,19 @@ async function openStyleTab(page, ctx) {
     await clickEmptyUntimed(page, ctx);
 }
 
+/**
+ * Turns the accessible node list off again after a node-list case, and gives back `out`. Left on, every later input
+ * on the page runs with one list option per node in the DOM while its cell still says "default".
+ */
+async function nodeListOff(page, out) {
+    await page.evaluate(() => {
+        document.querySelector("graphty-element").accessibleNodeList = false;
+    });
+    await until(page, "!el.shadowRoot.querySelector('[part~=node-list]')", {}, 120);
+    await frames(page, 3);
+    return out;
+}
+
 const undoUntimed = async (page, ctx) => {
     await page.keyboard.press("Escape");
     await clickEmptyUntimed(page, ctx);
@@ -3176,8 +3613,18 @@ async function everythingStyle(page) {
 
 /** Clicks a control (located by Playwright) as the timed input. */
 async function clickTimed(page, locator, spec) {
-    const box = await locator.boundingBox();
-    if (!box) throw new Error("the control is not on screen");
+    // A control that just appeared can still be moving: Analyze's Run row grows the popover over the toolbar, and
+    // the popover is placed again (37 px higher) a frame later. Aimed before that, the click lands on the toolbar and
+    // closes the popover. So the box is read until it holds still across two frames.
+    let box = null;
+    for (let tries = 0; ; tries++) {
+        const prev = box;
+        box = await locator.boundingBox();
+        if (!box) throw new Error("the control is not on screen");
+        if (prev && ["x", "y", "width", "height"].every((k) => Math.abs(prev[k] - box[k]) < 0.5)) break;
+        if (tries === 30) throw new Error("set-up: the control never held still for two frames");
+        await frames(page, 2);
+    }
     const x = box.x + box.width / 2,
         y = box.y + box.height / 2;
     await page.mouse.move(x, y);
@@ -3326,9 +3773,11 @@ const APP = [
                 page,
                 {
                     type: "keydown",
-                    cond: "el.session.selection.nodes.length >= p.n",
+                    // Every node, or as many as the selection holds (its cap).
+                    cond: "el.session.selection.nodes.length >= Math.min(p.n, el.session.selection.cap ?? Infinity)",
                     params: { n: ctx.nodeCount },
-                    pix: at(ctx.nodes[0], 40, 40),
+                    // The whole canvas: an earlier case may have left the first target drawn as it is selected.
+                    pix: "all",
                 },
                 () => page.keyboard.press("Control+a"),
             );
@@ -3541,13 +3990,17 @@ const APP = [
             await field.fill(color);
             const t = await whereIs(page, ctx.nodes[0].id);
             await frames(page, 3);
+            // The new color at the node, wherever it is drawn this frame: a box that stays put cannot settle while
+            // a layout still moves the nodes (a graph just opened), and its change would be the layout's.
+            const look = { id: ctx.nodes[0].id, rgb: hex === "#FF0000" ? [255, 0, 0] : [0, 0, 255], w: 16, h: 16 };
+            const moving = await layoutMoving(page);
             const r = await timed(
                 page,
                 {
                     type: "keydown",
                     cond: `${COLOR_OF(ctx.nodes[0].id)} === p.hex`,
                     params: { hex },
-                    pix: at(t, 8, 8),
+                    ...(moving ? { look } : { pix: at(t, 8, 8), look }),
                 },
                 () => page.keyboard.press("Enter"),
             );
@@ -3585,9 +4038,11 @@ const APP = [
             return r;
         },
     },
-    ...["drag-node", "drop-node", "drag-orbit-3d", "drag-pan", "wheel-zoom", "pinch-ctrl-wheel"].map((id) => ({
-        ...ELEMENT.find((i) => i.id === id),
-    })),
+    ...["drag-node-start", "drag-node", "drop-node", "drag-orbit-3d", "drag-pan", "wheel-zoom", "pinch-ctrl-wheel"].map(
+        (id) => ({
+            ...ELEMENT.find((i) => i.id === id),
+        }),
+    ),
 ];
 
 // ------------------------------------------------------------------ the rest of the app's inputs (catalog 2.9 to 2.15)
@@ -4053,32 +4508,67 @@ const APP_LATE_MORE = [
             }
             await opt.click();
             const before = await page.evaluate(TREE_COUNT);
+            const RUNS = "document.querySelector('graphty-element').session.runs.list().length";
+            const runs = await page.evaluate(RUNS);
             const r = await clickTimed(page, page.getByRole("button", { name: /^Run PageRank/ }), {
                 cond: `${TREE_COUNT} > p.before`,
                 params: { before },
                 pix: "all",
             });
+            // A click that started no run is a set-up failure, and is never followed by an undo: the undo would take
+            // back earlier history instead (it once emptied the graph for every later repetition).
+            if ((await page.evaluate(RUNS)) <= runs) {
+                const run = page.getByRole("button", { name: /^Run PageRank/ });
+                const left = (await run.count())
+                    ? `the Run button is still shown${(await run.first().isDisabled()) ? ", disabled" : ""}`
+                    : "the Run button is gone";
+                await dismiss(page);
+                throw new Error(`set-up: the Run click started no PageRank run (${left})`);
+            }
             await undoUntimed(page, ctx);
+            // The next repetition starts only once the run and its layer are gone.
+            const gone = await until(
+                page,
+                `el.session.runs.list().length === p.runs && ${TREE_COUNT} === p.before`,
+                { runs, before },
+                300,
+            );
+            if (!gone) throw new Error("set-up: the undo after the run did not remove the run and its layer");
             return r;
         },
     },
     {
         id: "app-timeline-play",
-        name: "Timeline Play (first changed readout and frame)",
+        name: "Timeline Play (the button turns to Pause; the readout's first change beside it as animation)",
         async run(page, ctx) {
             if (!ctx.hasYear) return { skip: "the graph has no year column" };
             const dock = page.getByRole("region", { name: "Timeline" });
             if (!(await dock.count())) return { skip: "no timeline open" };
-            const READ = "document.querySelector('[data-testid=\"time-readout\"]')?.textContent ?? ''";
-            const before = await page.evaluate(READ);
-            const r = await clickTimed(page, dock.getByRole("button", { name: "Play", exact: true }), {
-                cond: `(${READ}) !== p.before`,
-                params: { before },
-                pix: "all",
+            // The window from a whole year, untimed: where the last Pause left it decides how long the readout takes
+            // to cross the next year, which is the animation's, not the input's.
+            await page.evaluate(async () => {
+                const t = document.querySelector("graphty-element").session.time;
+                const c = t?.current;
+                if (c?.from === undefined || c?.to === undefined) return;
+                const from = new Date(Number(c.from));
+                const start = Date.UTC(from.getUTCFullYear(), 0, 1);
+                await Promise.resolve(t.window({ from: start, to: start + Number(c.to) - Number(c.from) })).catch(
+                    () => {},
+                );
             });
+            await frames(page, 3);
+            const READ = "document.querySelector('[data-testid=\"time-readout\"]')?.textContent ?? ''";
+            const PAUSE = `[...document.querySelectorAll('section[aria-label="Timeline"] button[aria-label="Pause"]')].some((b) => b.getClientRects().length > 0)`;
+            const before = await page.evaluate(READ);
+            const r = await clickTimed(page, dock.getByRole("button", { name: "Play", exact: true }), { cond: PAUSE });
+            // The playing animation's first visible step, from the same click.
+            const seen = await until(page, `(${READ}) !== p.before`, { before }, 600);
+            const anim = seen
+                ? await page.evaluate((w) => +(performance.timeOrigin + performance.now() - w).toFixed(1), r.wallInput)
+                : null;
             const pause = dock.getByRole("button", { name: "Pause", exact: true });
             if (await pause.count()) await pause.click();
-            return r;
+            return { ...r, animationMs: anim };
         },
     },
     {
@@ -4111,7 +4601,7 @@ const APP_TOUCH = [
             const t = ctx.nodes[rep % 2];
             const tp = [{ x: t.x, y: t.y, id: 0, radiusX: 1, radiusY: 1, force: 1 }];
             await clickEmptyUntimed(page, ctx);
-            const r = await timed(page, { type: "pointerdown", cond: MENU_SHOWN, capMs: 5000 }, () =>
+            const r = await timed(page, { type: "pointerdown", cond: MENU_SHOWN, capMs: 5000, clock: "dispatch" }, () =>
                 cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp }),
             );
             await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
@@ -4141,7 +4631,9 @@ const TABLE_SCROLL = {
         const dir = rep % 2 ? -1 : 1;
         return burst(page, {
             type: "wheel",
-            track: `[...(document.querySelector('section[aria-label="Table"] [role=grid]')?.querySelectorAll('[role=row]') ?? [])].slice(1, 3).map((r) => r.textContent).join('|')`,
+            // The scroller's offset and the first drawn row's index: the rows' text alone never changes while a
+            // scroll stays inside the virtualizer's overscan at either end (DataTable's DEFAULT_OVERSCAN, 8 rows).
+            track: `(() => { const g = document.querySelector('section[aria-label="Table"] [role=grid]'); const rows = [...(g?.querySelectorAll('[role=row]') ?? [])]; let sc = g; while (sc && !(sc.scrollHeight > sc.clientHeight + 1)) sc = sc.parentElement; return { top: Math.round(sc?.scrollTop ?? -1), first: rows[1]?.getAttribute('aria-rowindex') ?? null }; })()`,
             hz: 60,
             count: 20,
             pix: false,
@@ -4395,13 +4887,21 @@ const APP_LATE = [
             const opt = (await list.getByRole("option", { name: /^name\b/ }).count())
                 ? list.getByRole("option", { name: /^name\b/ }).first()
                 : list.getByRole("option", { name: "Node id" });
+            // Close on the node first, untimed: at the whole-graph view of 10,000 nodes a label is smaller than
+            // a pixel, so no frame could show it.
+            await page.evaluate((id) => document.querySelector("graphty-element").zoomToNodes?.([id]), ctx.nodes[0].id);
+            await stable(page);
+            await camStill(page);
             const t = await whereIs(page, ctx.nodes[0].id);
             const r = await clickTimed(page, opt, {
                 cond: `el.session.styles.explain({ node: p.id }).merged['node.label'] !== undefined`,
                 params: { id: ctx.nodes[0].id },
                 pix: { x: t.x, y: t.y, w: 200, h: 120 },
+                mustDraw: true,
             });
             await undoUntimed(page, ctx);
+            await ctx.refit?.();
+            ctx.dirty = true;
             return r;
         },
     },
@@ -4431,6 +4931,14 @@ const APP_LATE = [
         name: "Layout > Force > Apply (re-run; first moved frame; settled)",
         async run(page, ctx) {
             await clickEmptyUntimed(page, ctx);
+            // Circle first, untimed: once Force is the applied layout its button reads Applied, and a second
+            // repetition would have nothing to click.
+            await page.getByRole("button", { name: "Layout", exact: true }).click();
+            await page.getByRole("option", { name: /^Circle\b/ }).click();
+            await page.getByRole("dialog", { name: "Layout" }).getByRole("button", { name: "Apply" }).click();
+            await stable(page);
+            await page.keyboard.press("Escape");
+            await camStill(page);
             await page.getByRole("button", { name: "Layout", exact: true }).click();
             await page.getByRole("option", { name: /^Force\b/ }).click();
             const r = await clickTimed(
@@ -4727,6 +5235,9 @@ function report(file) {
             r.timeouts ? r.timeouts + " timeouts (counted at the cap)" : "",
             r.clickWindowMissed ? `${r.clickWindowMissed} presses released over 300 ms later (no click)` : "",
             r.layoutStill ? `${r.layoutStill} with the layout settled by the end` : "",
+            r.notDrawn ? `${r.notDrawn} never drawn (a visibility failure, no latency)` : "",
+            r.missed ? `${r.missed} presses missed the moving node (skipped)` : "",
+            r.handoff_median_ms ? `DevTools hand-off ${Math.round(r.handoff_median_ms)} ms before the clock` : "",
             r.errors ? r.errors.length + " errors: " + r.errors[0] : "",
         ]
             .filter(Boolean)
@@ -4750,12 +5261,12 @@ function report(file) {
             "",
             "## Bursts: lag after the last input, and frames dropped",
             "",
-            "| interaction | where | reps | lag median ms | lag p95 ms | ends on | sent / received Hz (median) | dropped frames (median) | longest frame gap (median) ms |",
-            "|---|---|---|---|---|---|---|---|---|",
+            "| interaction | where | reps | lag median ms | lag p95 ms | ends on | queued median ms | sent / received Hz (median) | dropped frames (median) | longest frame gap (median) ms |",
+            "|---|---|---|---|---|---|---|---|---|---|",
         );
         for (const r of b.sort((x, y) => (y.p95_ms ?? -1) - (x.p95_ms ?? -1)))
             out.push(
-                `| ${r.interaction} | ${where(r)} | ${r.reps} | ${fmt(r.median_ms)} | ${fmt(r.p95_ms)} | ${r.endsOn ?? "-"} | ${fmt(r.sent_hz_median)} / ${fmt(r.achieved_hz_median)} | ${fmt(r.drops_median)} | ${fmt(r.max_gap_median_ms)} |`,
+                `| ${r.interaction} | ${where(r)} | ${r.reps} | ${fmt(r.median_ms)} | ${fmt(r.p95_ms)} | ${r.endsOn ?? "-"} | ${fmt(r.queued_median_ms)} | ${fmt(r.sent_hz_median)} / ${fmt(r.achieved_hz_median)} | ${fmt(r.drops_median)} | ${fmt(r.max_gap_median_ms)} |`,
             );
     }
     const glide = cells.filter((r) => animation(r));
@@ -4798,6 +5309,7 @@ const QUICK_ELEMENT = [
     "hover-edge",
     "click-select-node",
     "click-empty-deselect",
+    "drag-node-start",
     "drag-node",
     "drop-node",
     "drag-orbit-3d",

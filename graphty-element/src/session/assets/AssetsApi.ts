@@ -63,10 +63,16 @@ export type {
 
 /** A File, or anything shaped like one: a name and its bytes. No DOM type is named. */
 export interface NamedBlob {
+    /** The file's name, which is its path in the set when no `webkitRelativePath` gives one. */
     readonly name: string;
     /** A file from a folder pick or drop carries its path inside the folder here. */
     readonly webkitRelativePath?: string;
+    /** The file's length in bytes. */
     readonly size: number;
+    /**
+     * Read the file's bytes.
+     * @returns The bytes.
+     */
     arrayBuffer(): Promise<ArrayBuffer>;
 }
 
@@ -84,10 +90,22 @@ export type AssetSource =
     | Uint8Array
     /** Files by path, and optionally which one is the model. */
     | {
+          /** Each file of the set, by its path in the set. */
           readonly files: ReadonlyMap<
               string,
-              NamedBlob | { readonly size: number; arrayBuffer(): Promise<ArrayBuffer> } | Uint8Array
+              | NamedBlob
+              | {
+                    /** The file's length in bytes. */
+                    readonly size: number;
+                    /**
+                     * Read the file's bytes.
+                     * @returns The bytes.
+                     */
+                    arrayBuffer(): Promise<ArrayBuffer>;
+                }
+              | Uint8Array
           >;
+          /** The path of the file that is the model, when the element cannot tell (`E_MODEL_AMBIGUOUS`). */
           readonly main?: string;
       };
 
@@ -141,28 +159,58 @@ export interface AddAssetOptions {
  */
 export type PartAnswer =
     /** Fetch this URL as the part. Another host is asked through `session.network` (`by: "supplied"`). */
-    | { readonly name: string; readonly url: string }
+    | {
+          /** The part, as the record's problem names it. */
+          readonly name: string;
+          /** The URL to fetch it from. */
+          readonly url: string;
+      }
     /** This file is the part. With no name, it is matched to a missing part by its path, then by its base name. */
-    | { readonly name?: string; readonly file: NamedBlob | Uint8Array }
+    | {
+          /** The part, as the record's problem names it; absent, the file's path or base name picks it. */
+          readonly name?: string;
+          /** The part's file, or its bytes. */
+          readonly file: NamedBlob | Uint8Array;
+      }
     /**
      * Use a file the set already holds: one of an ambiguous reference's candidates
      * (`E_MODEL_PART_AMBIGUOUS`), or any file of the set for a missing part (`E_MODEL_MISSING_FILE`),
      * as when a picture's name differs from the one the model names. A file nothing else names is
      * moved to the part's name.
      */
-    | { readonly name: string; readonly use: string }
+    | {
+          /** The part, as the record's problem names it. */
+          readonly name: string;
+          /** The path in the set of the file to use for it. */
+          readonly use: string;
+      }
     /**
      * Draw without this part, missing or ambiguous. Pictures and `.mtl` files only; never a `.bin`
      * or other geometry.
      */
-    | { readonly name: string; readonly skip: true }
+    | {
+          /** The part, as the record's problem names it. */
+          readonly name: string;
+          /** Always true: draw the model without the part. */
+          readonly skip: true;
+      }
     /** Which file of the set is the model (`E_MODEL_AMBIGUOUS`). */
-    | { readonly main: string };
+    | {
+          /** The path in the set of the file that is the model. */
+          readonly main: string;
+      };
 
 /** What `assets.offer` did with the files it was given. */
 export interface AssetOffer {
     /** Each file a waiting model took: the model's id when offered, the part's name, the file's name. */
-    readonly supplied: readonly { readonly ref: AssetId; readonly name: string; readonly fileName: string }[];
+    readonly supplied: readonly {
+        /** The id of the model that took the file, as it was when offered. */
+        readonly ref: AssetId;
+        /** The part the file became, as the model's problem named it. */
+        readonly name: string;
+        /** The name of the file offered. */
+        readonly fileName: string;
+    }[];
     /** The files no waiting model took, or that more than one could take, in the order given. */
     readonly rest: readonly NamedBlob[];
 }
@@ -183,7 +231,9 @@ export type ModelPartState = "found" | "substituted" | "missing" | "ambiguous" |
 export interface ModelPart {
     /** The path as the model names it; for an `"unused"` file, its path in the set. */
     readonly name: string;
+    /** What the part is to its model. */
     readonly role: ModelPartRole;
+    /** Where the part stands in the set. */
     readonly state: ModelPartState;
     /** The set's file used for it, when found or substituted. */
     readonly file?: string;
@@ -820,6 +870,12 @@ export interface AssetsApiInternal extends AssetsApi {
      */
     forgetProjectStorage(): void;
     /**
+     * Stop every download the session started (a URL's model and its pictures, a sample, a part
+     * handed to `supply` by URL), for the session's dispose. Each one's waiters reject with an
+     * `AbortError`, as when a caller's signal stops it, and the URL is forgotten.
+     */
+    dispose(): void;
+    /**
      * Whether an accepted asset's parts came from more than one place (`supply`), so no single URL
      * brings it back.
      * @param id - The id.
@@ -1160,6 +1216,8 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     const expectedDigests = new Map<string, string>();
     const storedAs = new Map<string, "embed" | "url">();
     const lookup = (id: AssetId): Entry | undefined => entries.get(id) ?? samples.get(id);
+    // Aborted by `dispose`: every download the session started stops with it.
+    const stopAll = new AbortController();
     let defaultsBinding: ModelDefaultsBinding | undefined;
     // A model set up while it waited (downloading, or for a part) reads the settings it was given
     // then under the id it waited as, until it is given settings of its own: the project's history
@@ -1475,15 +1533,19 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     return rejected({ code: "E_MODEL_UNKNOWN_ASSET", params: { id } });
                 }
 
-                const response = await fetch(url);
+                const response = await fetch(url, { signal: stopAll.signal });
                 if (!response.ok) {
                     ({ status } = response);
                     throw new Error(String(status));
                 }
 
                 bytes = new Uint8Array(await response.arrayBuffer());
-            } catch {
+            } catch (error) {
                 samples.delete(id);
+                if (stopAll.signal.aborted) {
+                    throw error;
+                }
+
                 const offline =
                     status === null && (globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine === false;
                 return rejected({ code: "E_MODEL_FETCH", params: { url: id, status, offline } });
@@ -1586,7 +1648,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     .fetchModelSet(
                         url,
                         limits,
-                        fetch.controller.signal,
+                        AbortSignal.any([fetch.controller.signal, stopAll.signal]),
                         redirectGate(kind, "file"),
                         (progress) => {
                             for (const listener of fetch.listeners) {
@@ -1650,8 +1712,8 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return settled;
         })().finally(() => {
             entry.fetch = undefined;
-            // Stopped by every caller: forgotten, so the next add fetches it again.
-            if (fetch.controller.signal.aborted && urls.get(url.href) === entry) {
+            // Stopped by every caller, or by the dispose: forgotten, so the next add fetches it again.
+            if ((fetch.controller.signal.aborted || stopAll.signal.aborted) && urls.get(url.href) === entry) {
                 urls.delete(url.href);
             }
         });
@@ -2529,7 +2591,9 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 // A URL still downloading settles first, so its parts are known.
                 await entry.settled;
                 try {
-                    return await supplyOne(entry, answer, options.signal, decided);
+                    const { signal } = options;
+                    const stop = signal === undefined ? stopAll.signal : AbortSignal.any([signal, stopAll.signal]);
+                    return await supplyOne(entry, answer, stop, decided);
                 } finally {
                     const names = namesOf(entry);
                     for (const watcher of supplyWatchers) {
@@ -2948,6 +3012,10 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         forgetProjectStorage() {
             storedAs.clear();
             expectedDigests.clear();
+        },
+
+        dispose() {
+            stopAll.abort(new DOMException("The session was disposed.", "AbortError"));
         },
 
         bindUrl(ref, id) {

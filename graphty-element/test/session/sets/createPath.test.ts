@@ -7,6 +7,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { EdgeMember } from "../../../src/catalog/types";
+import { DataConfig } from "../../../src/config/DataConfig";
 import { isGraphtyError } from "../../../src/errors";
 import { edgeBetween, type EdgeRow, type Harness, makeSession } from "../helpers";
 import { builtInRuns } from "./algorithms";
@@ -228,7 +229,12 @@ describe("sets.createPath: an ambiguous selection is refused, saying why", () =>
 describe("sets.createPath from a shortest-path offer", () => {
     it("names the one parallel edge the route took at each step, never a group", async () => {
         let harness: Harness | null = null;
-        const h = makeSession({ directed: true, runs: { execute: builtInRuns(() => harness as Harness) } });
+        // The weights are distances, said so: a weight whose meaning nobody stated is not read by a
+        // shortest path (caveat `weight.meaning-mismatch`), and every edge would then cost the same.
+        const h = makeSession({
+            config: DataConfig.parse({ directed: true, knownFields: { edgeWeightMeaning: "distance" } }),
+            runs: { execute: builtInRuns(() => harness as Harness) },
+        });
         harness = h;
         h.add(
             ["a", "b", "c"].map((id) => ({ id })),

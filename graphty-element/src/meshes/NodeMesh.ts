@@ -1358,7 +1358,15 @@ export class NodeMesh {
                 mesh.refreshBoundingInfo();
             }
             if (!ownOutline && !flat && !options.is2D) {
-                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, reach)), undefined, kind);
+                this.followView(
+                    mesh,
+                    fill,
+                    depth,
+                    (round) => piecesOf(offsetOutline(round, reach)),
+                    undefined,
+                    kind,
+                    true,
+                );
             }
             mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
 
@@ -1443,7 +1451,7 @@ export class NodeMesh {
                     mesh.refreshBoundingInfo();
                 }
                 if (!flat && !options.is2D) {
-                    this.followView(mesh, fill, depth, piecesOf);
+                    this.followView(mesh, fill, depth, piecesOf, undefined, undefined, true);
                 }
                 mesh.material = this.createBorderMaterial(shadow?.color ?? "#000000", share, scene);
 
@@ -1782,6 +1790,8 @@ export class NodeMesh {
      * @param piecesOf - The ring's pieces round an outline of the solid.
      * @param unit - A model's scale (see borderSlab): the ring is built at it and scaled back.
      * @param halo - An overlay (in front of the solid) or underlay (behind it); omitted, the ring keeps its depth.
+     * @param plate - A plate filled from its middle (an underlay, overlay or shadow), whose outer edge shows at its face
+     * toward the camera, so that face is put on the outline; a ring's inner edge shows at its face away from it.
      */
     private static followView(
         mesh: Mesh,
@@ -1790,6 +1800,7 @@ export class NodeMesh {
         piecesOf: (outline: Point2[]) => RingPiece[],
         unit?: readonly [number, number, number],
         halo?: "underlay" | "overlay",
+        plate = false,
     ): void {
         const scene = mesh.getScene();
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
@@ -1801,6 +1812,7 @@ export class NodeMesh {
         let seen = "";
         let drawn: Point2[] = [];
         let drawnShift = Number.NaN;
+        let drawnBack = 1;
         const observer = scene.onBeforeRenderObservable.add(() => {
             const camera = scene.activeCamera;
             if (camera === null || source.isDisposed()) {
@@ -1844,17 +1856,22 @@ export class NodeMesh {
                     ? box.minimum.z + depth / uz / 2
                     : haloDepth(source, perspective ? alongLine : toView, ahead, depth, halo);
             let outline: Point2[];
+            let back = 1;
             if (perspective) {
                 at.set(0, 0, (ahead * at.length()) / scale.x);
                 // looking into the ring, its inner wall is seen down to the face away from the camera, drawn smaller
-                // than the node's middle by as much: that face's inner edge is put on the solid's outline
-                const back = (at.z + shift + (ahead * depth) / uz / 2) / at.z;
-                outline = this.solidOutline(fill, alongLine, at, groups).map(([x, y]): Point2 => [x * back, y * back]);
+                // than the node's middle by as much: that face's inner edge is put on the solid's outline (a plate's
+                // outer edge shows at its face toward the camera, which is put there instead). The whole ring is drawn
+                // smaller with it, its width, padding and offset too, so they read true in the node's middle, where the
+                // outline was seen (issue #10505: a plate's padding read off by the ratio of the depths)
+                back = (at.z + shift + ((plate ? -1 : 1) * ahead * depth) / uz / 2) / at.z;
+                outline = this.solidOutline(fill, alongLine, at, groups);
             } else {
                 outline = this.solidOutline(fill, toView, undefined, groups);
             }
             const same =
                 shift === drawnShift &&
+                back === drawnBack &&
                 outline.length === drawn.length &&
                 outline.every(([x, y], i) => Math.abs(x - drawn[i][0]) < 1e-6 && Math.abs(y - drawn[i][1]) < 1e-6);
             if (same) {
@@ -1863,11 +1880,12 @@ export class NodeMesh {
 
             drawn = outline;
             drawnShift = shift;
+            drawnBack = back;
             const data = ringVertexData(piecesOf(outline.map(([x, y]): Point2 => [x * ux, y * uy])), depth);
             const positions = data.positions ?? [];
             for (let i = 0; i + 2 < positions.length; i += 3) {
-                positions[i] /= ux;
-                positions[i + 1] /= uy;
+                positions[i] *= back / ux;
+                positions[i + 1] *= back / uy;
                 positions[i + 2] = positions[i + 2] / uz + shift;
             }
             data.applyToMesh(mesh, true);

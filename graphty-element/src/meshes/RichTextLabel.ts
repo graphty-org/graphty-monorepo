@@ -1717,8 +1717,11 @@ export class RichTextLabel {
         const atlas = drawable ? LabelAtlas.of(this.scene) : null;
         if (mesh !== null && atlas?.put(mesh, shown) === true) {
             // The plane places, declutters and picks the label, and draws nothing: the atlas does.
-            mesh.layerMask = 0;
-            this.inAtlas = true;
+            if (!this.inAtlas) {
+                mesh.layerMask = 0;
+                this.inAtlas = true;
+                this.thawDrawList();
+            }
             return true;
         }
         this.leaveAtlas();
@@ -1734,7 +1737,16 @@ export class RichTextLabel {
         if (this.mesh !== null) {
             LabelAtlas.remove(this.scene, this.mesh);
             this.mesh.layerMask = DEFAULT_LAYER_MASK;
+            this.thawDrawList();
         }
+    }
+
+    /**
+     * A frozen list of what is drawn was chosen with the plane's old layer mask: a plane that left the atlas (for a
+     * capture) is not in it and would draw nothing, and one that joined it would still be drawn.
+     */
+    private thawDrawList(): void {
+        (this.scene.metadata as GraphSceneMetadata | null)?.thawActiveMeshes?.();
     }
 
     /**

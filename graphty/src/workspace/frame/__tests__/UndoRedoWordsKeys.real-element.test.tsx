@@ -140,7 +140,7 @@ describe("undo and redo: words and keys", () => {
 
         // Pressed again it does nothing, so the notice of the last undo goes. (Playwright will not
         // press an aria-disabled control unless forced; a reader's pointer does.)
-        await userEvent.click(page.getByRole("button", { name: "Undo changing node color on Picked", exact: true }), {
+        await userEvent.click(page.getByRole("button", { name: "Undo", exact: true }), {
             force: true,
         });
         await waitFor(() => {

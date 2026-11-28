@@ -373,15 +373,17 @@ describe("a filter card's workspace", () => {
         };
         // The card is named after what it holds until it is given a name of its own.
         const original = "role board, rename";
-        const first = (): Locator => page.elementLocator(head()).getByRole("button", { name: original, exact: true });
+        const first = (): Locator => page.getByCss(".sel-ws-head").getByRole("button", { name: original, exact: true });
         await userEvent.click(first());
         await userEvent.keyboard("{Enter}");
         await within(head()).findByRole("button", { name: original });
 
-        await userEvent.click(page.elementLocator(head()).getByRole("button", { name: original, exact: true }));
+        await userEvent.click(page.getByCss(".sel-ws-head").getByRole("button", { name: original, exact: true }));
         await userEvent.keyboard("{Control>}a{/Control}Board{Enter}");
         await within(head()).findByRole("button", { name: "Board, rename" });
-        await userEvent.click(page.elementLocator(head()).getByRole("button", { name: "Board, rename", exact: true }));
+        await userEvent.click(
+            page.getByCss(".sel-ws-head").getByRole("button", { name: "Board, rename", exact: true }),
+        );
         await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
         await within(head()).findByRole("button", { name: original });
 

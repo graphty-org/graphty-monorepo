@@ -359,7 +359,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
         assert.equal(view.textContent, "2D");
         assert.equal(view.getAttribute("aria-label"), "Mode, 2D");
-        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Mode, 3D", exact: true }));
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Mode, 2D", exact: true }));
         const flat = await screen.findByRole("menu", { name: /^Mode/ });
         assert.include(within(flat).getByRole("menuitemradio", { name: /^3D/ }).textContent, "5");
         // Key 5 switches back, and the face says so.

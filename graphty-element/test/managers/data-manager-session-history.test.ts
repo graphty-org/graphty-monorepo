@@ -1,121 +1,18 @@
 /**
  * @file The element's data manager bound to a real session, with no renderer: what it draws after
- * each data door, and after undo and redo move the graph back and forth. A drawn graph wires the
- * two the same way (`Graph` binds the manager to its session's dispatcher and hands each pass's
- * `graph` slice to `DataManager.reconcile`); the element itself needs a document, which this
- * project has not got, so the wiring is done here over a NullEngine scene and nothing else.
+ * each data door, and after undo and redo move the graph back and forth. The binding is
+ * test/helpers/session-bound-data-manager.ts.
  */
 
-import { NullEngine, Scene } from "@babylonjs/core";
-import { afterEach, assert, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import type { ElementsRemovedEvent } from "../../src/events";
-import { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
-import { DataManager, laneStoreOf } from "../../src/managers/DataManager";
-import { EventManager } from "../../src/managers/EventManager";
-import { DefaultGraphContext } from "../../src/managers/GraphContext";
-import { LayoutManager, layoutManagerInternals } from "../../src/managers/LayoutManager";
-import { StatsManager } from "../../src/managers/StatsManager";
-import { MeshCache } from "../../src/meshes/MeshCache";
-import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
-import type { ElementSession } from "../../src/session/types";
-import { Styles } from "../../src/Styles";
-
-/** A layout engine that holds its nodes and edges and never moves anything. */
-class StillLayout extends SimpleLayoutEngine {
-    static override type = "still-session-history";
-
-    override positions: Record<string | number, number[]> = {};
-
-    /** Mark the (absent) positions as fresh. */
-    doLayout(): void {
-        this.stale = false;
-    }
-}
-
-interface Harness {
-    readonly session: ElementSession;
-    readonly dataManager: DataManager;
-    readonly eventManager: EventManager;
-    /** How many nodes and edges the passes built and tore down, from `reconcile`'s answers. */
-    readonly passes: { added: number; removed: number }[];
-    /** What `sliceProblems` found after each pass: the drawn maps keyed unlike the slice. */
-    readonly problems: string[];
-}
-
-const teardown: (() => void)[] = [];
-
-afterEach(() => {
-    for (const dispose of teardown.splice(0)) {
-        dispose();
-    }
-});
-
-/**
- * A data manager over a NullEngine scene, bound to an element session as a drawn graph binds it.
- * @returns The harness.
- */
-function harness(): Harness {
-    const engine = new NullEngine();
-    const scene = new Scene(engine);
-    const styles = Styles.default();
-    const eventManager = new EventManager();
-    const dataManager = new DataManager(eventManager, styles);
-    const layoutManager = new LayoutManager(eventManager, dataManager, styles);
-    layoutManagerInternals.setEngine(layoutManager, new StillLayout());
-    const context = new DefaultGraphContext(
-        () => styles,
-        dataManager,
-        layoutManager,
-        new MeshCache(),
-        scene,
-        new StatsManager(eventManager),
-        {},
-    );
-    dataManager.setGraphContext(context);
-    const session = createElementSession({ store: laneStoreOf(dataManager) });
-    const dispatcher = dispatcherOf(session);
-    dataManager.bindSession(dispatcher, {
-        rowsAdded: () => undefined,
-        loading: () => undefined,
-        removing: () => undefined,
-    });
-    const passes: { added: number; removed: number }[] = [];
-    const problems: string[] = [];
-    const { lane } = dispatcher;
-    lane.register("graph", (_rendered, target, dirty) => {
-        passes.push(dataManager.reconcile(target.graph, dirty, lane.cause));
-        problems.push(...dataManager.sliceProblems(target.graph));
-        return Promise.resolve();
-    });
-    teardown.push(() => {
-        assert.deepStrictEqual(problems, [], "every pass drew exactly what its slice holds");
-        session.dispose();
-        layoutManager.dispose();
-        dataManager.dispose();
-        scene.dispose();
-        engine.dispose();
-    });
-    return { session, dataManager, eventManager, passes, problems };
-}
-
-/**
- * The drawn node ids, sorted.
- * @param dataManager - The manager.
- * @returns The ids.
- */
-function drawnNodes(dataManager: DataManager): string[] {
-    return [...dataManager.nodes.keys()].map(String).sort();
-}
-
-/**
- * The drawn edges as `source>target`, sorted.
- * @param dataManager - The manager.
- * @returns The pairs.
- */
-function drawnEdges(dataManager: DataManager): string[] {
-    return [...dataManager.edges.values()].map((edge) => `${String(edge.srcId)}>${String(edge.dstId)}`).sort();
-}
+import {
+    type BoundDataManager as Harness,
+    drawnEdges,
+    drawnNodes,
+    sessionBoundDataManager as harness,
+} from "../helpers/session-bound-data-manager";
 
 /**
  * Build a triangle a > b > c > a.

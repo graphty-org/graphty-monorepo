@@ -274,8 +274,10 @@ export function closedIssues(text = "") {
 }
 
 /**
- * Every issue a known-failure reason cites at a commit, read as fidelity-issues.ts reads them (floors.ts
- * citedIssues: `#N` not inside a word, an entity or `##`).
+ * Every issue a known-failure reason cites at a commit for an element the file still lists, as fidelity-issues.ts
+ * reads them (floors.ts untrackedKnown: a reason tracks only the elements it added that `known` still holds, and
+ * citedIssues: `#N` not inside a word, an entity or `##`). A reason whose elements are all off the list cites
+ * nothing master's check would fail on (issue #8198).
  * @param cwd the repository
  * @param rev the commit
  * @returns a Set of issue numbers
@@ -285,7 +287,12 @@ export function knownFailureIssues(cwd, rev) {
     for (const f of KNOWN_FAILURE_FILES) {
         const text = tryGit(cwd, ["show", `${rev}:graphty-element/${f}`]);
         if (text === null) continue;
-        for (const { reason } of JSON.parse(text).reasons ?? []) {
+        const { known = {}, reasons = [] } = JSON.parse(text);
+        for (const { reason, added = {} } of reasons) {
+            const listed = Object.entries(added).some(([key, props]) =>
+                Object.entries(props).some(([property, ids]) => ids.some((id) => known[key]?.[property]?.includes(id))),
+            );
+            if (!listed) continue;
             for (const m of String(reason).matchAll(/(?<![\w&#])#(\d{1,5})(?!\w)/gu)) cited.add(Number(m[1]));
         }
     }

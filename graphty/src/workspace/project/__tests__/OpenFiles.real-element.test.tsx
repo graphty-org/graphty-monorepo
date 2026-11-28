@@ -8,7 +8,7 @@
 import "@graphty/graphty-element";
 
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { commands, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { openSampleFromStart } from "../../../test/open";
 import { render, screen, waitFor } from "../../../test/test-utils";
@@ -104,8 +104,8 @@ describe("Locate... from Recent projects", () => {
     it("opens the picked project file and keeps its handle", async () => {
         const { session, store } = await openSampleFromStart("Florentine families");
         const saved = await session.project.save();
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Back to start", exact: true }));
         await waitFor(() => {
             assert.isNull(store.get().project);
         });

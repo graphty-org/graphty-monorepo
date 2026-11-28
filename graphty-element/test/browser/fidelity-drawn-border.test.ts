@@ -15,6 +15,7 @@ import type { Node } from "../../src/Node";
 import { Projector, readNode } from "../fidelity/drawn-scene";
 
 let element: Graphty | null = null;
+let layerId = "";
 
 afterEach(() => {
     element?.remove();
@@ -40,12 +41,12 @@ async function bordered(
     document.body.appendChild(element);
     await element.updateComplete;
     await element.setViewMode("2d");
-    await element.session.styles.add({
+    ({ id: layerId } = await element.session.styles.add({
         name: "bordered",
         target: "node",
         selector: { match: "ids", nodes: ["n"] },
         set: { "node.shape": shape, "node.size": 6, "node.borderWidth": 0.5, "node.borderColor": "#0000ff", ...set },
-    });
+    }));
     await element.session.data.addNodes([{ id: "n", position: { x: 0, y: 0, z: 0 } }, ...others]);
     await element.graph.setLayout("fixed", { dim: 3 });
     await operationQueueOf(element.graph).waitForCompletion();
@@ -130,5 +131,25 @@ describe("the fidelity reader's border width is the ring as drawn", () => {
         const p = new Projector(node.mesh.getScene());
         const width = readNode(node, p, []).border?.widthPx ?? 0;
         assert.approximately(width, 8, 0.4, `ring ${String(width)} px at view scale ${String(node.drawnScale)}`);
+    });
+
+    // a restyle off a size space that scales the node builds a new mesh at scale 1, and the view scale left from the
+    // old space built the ring for a size the node is no longer drawn at, too wide or too thin by it (issue #10434)
+    it("draws a ring in screen pixels its asked width after the node leaves sizeSpace screen", async () => {
+        const others = [
+            { id: "left", position: { x: -40, y: 0, z: 0 } },
+            { id: "right", position: { x: 40, y: 0, z: 0 } },
+        ];
+        const node = await bordered("ellipse", { "node.borderScreenWidth": 8, "node.sizeSpace": "screen" }, others);
+        assert.isTrue(Math.abs(node.wholeScale - 1) > 0.2, `the view scales the node (${String(node.wholeScale)})`);
+        const set = { "node.shape": "box", "node.size": 6, "node.borderWidth": 0.5, "node.borderScreenWidth": 8 };
+        const el = element;
+        assert.exists(el);
+        await el.session.styles.update(layerId, { set: { ...set, "node.sizeSpace": "scene" } });
+        await operationQueueOf(el.graph).waitForCompletion();
+        await el.waitForStableFrame();
+        const p = new Projector(node.mesh.getScene());
+        const width = readNode(node, p, []).border?.widthPx ?? 0;
+        assert.approximately(width, 8, 0.4, `ring ${String(width)} px at view scale ${String(node.wholeScale)}`);
     });
 });

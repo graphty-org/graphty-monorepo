@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
@@ -141,7 +141,7 @@ function gapToMode(): { between: number; gap: number } {
  */
 async function openViewsPlace(): Promise<HTMLElement> {
     await userEvent.click(
-        within(screen.getByRole("toolbar", { name: "Places" })).getByRole("button", { name: "Views" }),
+        page.getByRole("toolbar", { name: "Places", exact: true }).getByRole("button", { name: "Views", exact: true }),
     );
     return screen.findByRole("region", { name: "Views place" });
 }
@@ -278,10 +278,13 @@ describe("the camera keys", () => {
 
         // Digits typed into a camera's name stay in the name.
         const place = await openViewsPlace();
-        await userEvent.click(within(place).getByRole("button", { name: "Rename Isometric" }));
-        const field = await within(place).findByRole("textbox", { name: "Rename Isometric" });
-        await userEvent.clear(field);
-        await userEvent.type(field, "Hub 139{Enter}");
+        await userEvent.click(
+            page.elementLocator(place).getByRole("button", { name: "Rename Isometric", exact: true }),
+        );
+        const field = (): Locator =>
+            page.elementLocator(place).getByRole("textbox", { name: "Rename Isometric", exact: true });
+        await userEvent.clear(field());
+        await userEvent.type(field(), "Hub 139{Enter}");
         await waitFor(() => {
             assert.isTrue(session.views.has("Hub 139"));
         });
@@ -293,7 +296,7 @@ describe("the camera keys", () => {
         assert.equal(within(menu).getByRole("menuitem", { name: /^Top/ }).getAttribute("aria-keyshortcuts"), "7");
         await closeMenu();
         await userEvent.keyboard("{Control>}k{/Control}");
-        await userEvent.type(await screen.findByPlaceholderText("Search commands"), "Side");
+        await userEvent.type(page.getByPlaceholder("Search commands", { exact: true }), "Side");
         const row = await screen.findByRole("option", { name: /^Side\b/ });
         assert.include(row.textContent, "3");
         assert.isNull(screen.queryByRole("option", { name: /^Go to the camera on/ }));
@@ -318,7 +321,7 @@ describe("the toolbar while a tour plays", () => {
 
         const place = await openViewsPlace();
         const play = async (): Promise<HTMLElement> => {
-            await userEvent.click(within(place).getByRole("button", { name: "Play Walk" }));
+            await userEvent.click(page.elementLocator(place).getByRole("button", { name: "Play Walk", exact: true }));
             return within(toolbar()).findByRole("button", { name: "Stop tour" });
         };
 

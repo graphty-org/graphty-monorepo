@@ -15,7 +15,7 @@ import "@graphty/graphty-element";
 import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
 import { type GraphSession, isGraphtyError, listAutosaves } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { onUsageEvent } from "../../../lib/analytics";
 import { openBy } from "../../../test/open";
@@ -237,7 +237,7 @@ async function renameThenLeave(): Promise<string> {
     await openBy(first.store, () => pickSample(FLORENTINE.name));
     const { element, session } = openedElement();
     await userEvent.keyboard("{F2}");
-    const field = await screen.findByRole("textbox", { name: "Project name" });
+    const field = page.getByRole("textbox", { name: "Project name", exact: true });
     await userEvent.clear(field);
     await userEvent.type(field, `${RENAMED}{Enter}`);
     await waitFor(() => {
@@ -368,8 +368,8 @@ describe("Workspace autosave with the real graphty-element", () => {
 
         // The reader picks a layer in the Style layers list.
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        const hovered = await within(tree).findByRole("treeitem", { name: /^Hovered, / });
-        await userEvent.click(hovered);
+        const hovered = (): Locator => page.elementLocator(tree).getByRole("treeitem", { name: /^Hovered, / });
+        await userEvent.click(hovered());
         await waitFor(() => {
             assert.strictEqual(first.store.get().inspected?.kind, "layer-row");
         });
@@ -496,7 +496,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         const release = await holdParts();
         const second = mountWorkspace();
         const rail = await screen.findByRole("toolbar", { name: "Places" });
-        await userEvent.click(await within(rail).findByRole("button", { name: "Assistant" }));
+        await userEvent.click(page.elementLocator(rail).getByRole("button", { name: "Assistant", exact: true }));
         await screen.findByRole("region", { name: "Assistant" });
         assert.notInclude(
             screen.getAllByRole("status").map((status) => status.textContent),
@@ -522,7 +522,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         const first = mountWorkspace();
         await openBy(first.store, () => pickSample(FLORENTINE.name));
         const firstRail = await screen.findByRole("toolbar", { name: "Places" });
-        await userEvent.click(await within(firstRail).findByRole("button", { name: "Assistant" }));
+        await userEvent.click(page.elementLocator(firstRail).getByRole("button", { name: "Assistant", exact: true }));
         await screen.findByRole("region", { name: "Assistant" });
         await leave(openedElement().element, first.view);
 
@@ -567,11 +567,11 @@ describe("Workspace autosave with the real graphty-element", () => {
             const first = mountWorkspace();
             await openBy(first.store, () => pickSample(FLORENTINE.name));
             await userEvent.click(
-                within(await screen.findByRole("toolbar", { name: "Places" })).getByRole("button", {
-                    name: "Assistant",
-                }),
+                page
+                    .getByRole("toolbar", { name: "Places", exact: true })
+                    .getByRole("button", { name: "Assistant", exact: true }),
             );
-            await userEvent.click(await screen.findByRole("textbox", { name: "Message the assistant" }));
+            await userEvent.click(page.getByRole("textbox", { name: "Message the assistant", exact: true }));
             await userEvent.keyboard("First question{Enter}");
             await within(await screen.findByRole("region", { name: "Chat" })).findByText(MOCK_REPLY);
             await leave(openedElement().element, first.view);
@@ -581,8 +581,8 @@ describe("Workspace autosave with the real graphty-element", () => {
             const release = await holdParts();
             const releaseChats = await holdParts("graphty-ai", "conversations");
             const second = mountWorkspace();
-            await userEvent.click(await screen.findByRole("button", { name: "New chat" }));
-            await userEvent.click(await screen.findByRole("textbox", { name: "Message the assistant" }));
+            await userEvent.click(page.getByRole("button", { name: "New chat", exact: true }));
+            await userEvent.click(page.getByRole("textbox", { name: "Message the assistant", exact: true }));
             await userEvent.keyboard("Second question{Enter}");
             // The saved chats come in, and the turn is in the chat the reader started.
             releaseChats();
@@ -614,7 +614,7 @@ describe("Workspace autosave with the real graphty-element", () => {
                     "Chats, 2: Second question",
                 );
             });
-            await userEvent.click(screen.getByRole("button", { name: /^Chats/ }));
+            await userEvent.click(page.getByRole("button", { name: /^Chats/ }));
             const list = await screen.findByRole("list", { name: "Chats" });
             await waitFor(() => {
                 const rows = within(list)
@@ -719,7 +719,7 @@ describe("Workspace autosave with the real graphty-element", () => {
                 counted.push(props);
             }
         });
-        await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
+        await openBy(second.store, () => userEvent.click(page.getByRole("button", { name: "Restore", exact: true })));
         offUsage();
         // Counted as a reopen of work kept from an earlier visit, never by its name.
         assert.deepEqual(
@@ -789,7 +789,7 @@ describe("Workspace autosave with the real graphty-element", () => {
 
         const second = mountWorkspace();
         await offer();
-        await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
+        await openBy(second.store, () => userEvent.click(page.getByRole("button", { name: "Restore", exact: true })));
         assert.strictEqual(JSON.stringify(openedElement().session.styles.list()), layers);
         await waitFor(() => {
             assert.strictEqual(inspector().getByRole("tab", { selected: true }).textContent, "Values");
@@ -803,7 +803,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         const second = mountWorkspace();
         const region = await offer();
         assert.include(region.textContent, RENAMED);
-        await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+        await userEvent.click(page.getByRole("button", { name: "Discard", exact: true }));
 
         await waitFor(async () => {
             const entries = await listAutosaves(WORKSPACE_AUTOSAVE_KEY);

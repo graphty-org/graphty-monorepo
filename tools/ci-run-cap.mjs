@@ -313,18 +313,25 @@ export async function waitTurn({
     }
 }
 
+/**
+ * The run cap's API: GETs under the repository (or the API root for a path starting with "/"), a body POSTs to
+ * GraphQL, each with a 30 s timeout and the MIN_RATE_LEFT floor.
+ * @param repo owner/name
+ * @param base the API root (GITHUB_API_URL)
+ * @param token the token (default GITHUB_TOKEN)
+ * @returns path, body -> parsed JSON
+ */
+export function runCapApi(repo, base, token) {
+    const opts = { base, token, timeoutMs: 30_000, minRateLeft: MIN_RATE_LEFT };
+    return (path, body) => {
+        if (body) return githubRequest("POST", "/graphql", body, opts);
+        return githubRequest("GET", path.startsWith("/") ? path : `/repos/${repo}/${path}`, undefined, opts);
+    };
+}
+
 async function main() {
     const { GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_STEP_SUMMARY, GITHUB_EVENT_PATH } = process.env;
-    const opts = { base: process.env.GITHUB_API_URL, timeoutMs: 30_000, minRateLeft: MIN_RATE_LEFT };
-    const api = (path, body) => {
-        if (body) return githubRequest("POST", "/graphql", body, opts);
-        return githubRequest(
-            "GET",
-            path.startsWith("/") ? path : `/repos/${GITHUB_REPOSITORY}/${path}`,
-            undefined,
-            opts,
-        );
-    };
+    const api = runCapApi(GITHUB_REPOSITORY, process.env.GITHUB_API_URL);
     const cap = parseCap(process.env.CAP);
     const budget = parseBudget(process.env.BUDGET);
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

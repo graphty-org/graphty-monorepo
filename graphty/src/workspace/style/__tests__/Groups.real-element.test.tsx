@@ -15,7 +15,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, Layer, ValueGroup } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { START_SAMPLES } from "../../../data/sampleManifest";
 import { withoutFeatures } from "../../../test/features";
@@ -221,10 +221,13 @@ describe("per-group settings", () => {
         const detail = await screen.findByRole("group", { name: `${name} properties` });
 
         // "+ Set another property": Shape, then a shape picked from its own glyph grid.
-        await userEvent.click(within(detail).getByRole("button", { name: `Set another property for ${name}` }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
-        const shape = await within(detail).findByRole("combobox", { name: new RegExp(`^${name} shape`) });
-        await userEvent.click(shape);
+        await userEvent.click(
+            page.elementLocator(detail).getByRole("button", { name: `Set another property for ${name}`, exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Shape", exact: true }));
+        const shape = (): Locator =>
+            page.elementLocator(detail).getByRole("combobox", { name: new RegExp(`^${name} shape`) });
+        await userEvent.click(shape());
         const options = await screen.findAllByRole("option");
         const box = options.find((o) => /box|cube/i.test(o.getAttribute("aria-label") ?? o.textContent ?? ""));
         assert.isDefined(box, "the shape picker offers shapes");
@@ -260,8 +263,8 @@ describe("per-group settings", () => {
         const tab = screen.getByTestId("style-tab");
         const line = await within(tab).findByRole("button", { name: /^Node shape: Box for 1 group by / });
         assert.equal(line.textContent, "Box for 1 group");
-        const rowShape = within(tab).getByRole("combobox", { name: /^Node shape/ });
-        await userEvent.click(rowShape);
+        const rowShape = (): Locator => page.elementLocator(tab).getByRole("combobox", { name: /^Node shape/ });
+        await userEvent.click(rowShape());
         const others = await screen.findAllByRole("option");
         const cone = others.find((o) => /cone/i.test(o.getAttribute("aria-label") ?? o.textContent ?? ""));
         assert.isDefined(cone);
@@ -295,7 +298,9 @@ describe("per-group settings", () => {
         const name = nameCell(row).firstChild?.textContent ?? "";
         await userEvent.click(nameCell(row));
         const detail = await screen.findByRole("group", { name: `${name} properties` });
-        await userEvent.click(within(detail).getByRole("button", { name: `Set another property for ${name}` }));
+        await userEvent.click(
+            page.elementLocator(detail).getByRole("button", { name: `Set another property for ${name}`, exact: true }),
+        );
         const size = await screen.findByRole("menuitem", { name: /^Size: Size already varies by / });
         assert.equal(size.getAttribute("data-disabled"), "true", "it cannot be picked");
         await userEvent.keyboard("{Escape}");
@@ -312,8 +317,10 @@ describe("per-group settings", () => {
         const name = nameCell(row).firstChild?.textContent ?? "";
         await userEvent.click(nameCell(row));
         const detail = await screen.findByRole("group", { name: `${name} properties` });
-        await userEvent.click(within(detail).getByRole("button", { name: `Set another property for ${name}` }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await userEvent.click(
+            page.elementLocator(detail).getByRole("button", { name: `Set another property for ${name}`, exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Size", exact: true }));
         const size = await within(detail).findByRole("spinbutton", { name: new RegExp(`^${name} size`) });
         await waitFor(() => {
             assert.equal(document.activeElement, size, "focus is handed to the new box");
@@ -339,7 +346,7 @@ describe("per-group settings", () => {
         const button = within(row).getByRole("button", { name: / actions$/ });
         assert.equal(button.getAttribute("aria-expanded"), "false");
 
-        await userEvent.click(button);
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: / actions$/ }));
         const menu = await screen.findByRole("menu");
         await waitFor(() => {
             assert.equal(button.getAttribute("aria-expanded"), "true");
@@ -424,9 +431,9 @@ describe("per-group settings", () => {
         assert.isNotNull(detail.querySelector("[data-group-field='node.color'] [data-mixed]"), "the two differ: Mixed");
         const before = drawn(session, nodeOf(session, path, String(groups[0].value)), "node.color");
 
-        const hex = within(detail).getByRole("textbox", { name: /color/i });
-        await userEvent.clear(hex);
-        await userEvent.type(hex, "00AA55{Enter}");
+        const hex = (): Locator => page.elementLocator(detail).getByRole("textbox", { name: /color/i });
+        await userEvent.clear(hex());
+        await userEvent.type(hex(), "00AA55{Enter}");
         const a = nodeOf(session, path, String(groups[0].value));
         const b = nodeOf(session, path, String(groups[1].value));
         await waitFor(() => {
@@ -458,7 +465,9 @@ describe("per-group settings", () => {
         const name = nameCell(row).firstChild?.textContent ?? "";
         await userEvent.click(nameCell(row));
         const detail = await screen.findByRole("group", { name: `${name} properties` });
-        await userEvent.click(within(detail).getByRole("button", { name: `New layer for ${name}` }));
+        await userEvent.click(
+            page.elementLocator(detail).getByRole("button", { name: `New layer for ${name}`, exact: true }),
+        );
         const added = await waitFor(() => {
             const stack = session.styles.list();
             const at = stack.findIndex((l) => l.id === layer.id);
@@ -492,9 +501,13 @@ describe("per-group settings", () => {
         await userEvent.click(nameCell(gridRows(popover)[0]));
         await userEvent.click(nameCell(gridRows(popover)[1]));
         await userEvent.keyboard("{/Control}");
-        await userEvent.click(within(popover).getByRole("button", { name: "Set properties for 2 groups" }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("button", { name: "Set properties for 2 groups", exact: true }),
+        );
         const detail = await screen.findByRole("group", { name: "2 groups properties" });
-        await userEvent.click(within(detail).getByRole("button", { name: "New layer for 2 groups" }));
+        await userEvent.click(
+            page.elementLocator(detail).getByRole("button", { name: "New layer for 2 groups", exact: true }),
+        );
         await waitFor(() => {
             const stack = session.styles.list();
             assert.equal(stack[stack.findIndex((l) => l.id === layer.id) + 1]?.name, "Louvain 2 groups");
@@ -535,7 +548,11 @@ describe("per-group settings", () => {
      * @param groups - the groups.
      */
     async function showAll(popover: HTMLElement, groups: readonly unknown[]): Promise<void> {
-        await userEvent.click(within(popover).getByRole("button", { name: `${String(groups.length - 8)} more` }));
+        await userEvent.click(
+            page
+                .elementLocator(popover)
+                .getByRole("button", { name: `${String(groups.length - 8)} more`, exact: true }),
+        );
         await waitFor(() => {
             assert.lengthOf(gridRows(popover), groups.length);
         });
@@ -548,15 +565,15 @@ describe("per-group settings", () => {
 
         // Search finds a group by its raw value and by its name.
         const last = groups[groups.length - 1];
-        const search = within(popover).getByRole("textbox", { name: /groups$/ });
-        await userEvent.type(search, String(last.value));
+        const search = (): Locator => page.elementLocator(popover).getByRole("textbox", { name: /groups$/ });
+        await userEvent.type(search(), String(last.value));
         await waitFor(() => {
             assert.isTrue(
                 gridRows(popover).some((row) => row.querySelector(`[data-group-row="${String(last.value)}"]`) !== null),
             );
         });
-        await userEvent.clear(search);
-        await userEvent.type(search, "Group 3");
+        await userEvent.clear(search());
+        await userEvent.type(search(), "Group 3");
         await waitFor(() => {
             const names = gridRows(popover).map((row) => nameCell(row).firstChild?.textContent);
             assert.include(names, "Group 3");
@@ -569,8 +586,8 @@ describe("per-group settings", () => {
         await showAll(popover, groups);
 
         // Sort by name.
-        await userEvent.click(within(popover).getByRole("combobox", { name: /^Sort by/ }));
-        await userEvent.click(await screen.findByRole("option", { name: "Name" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: /^Sort by/ }));
+        await userEvent.click(page.getByRole("option", { name: "Name", exact: true }));
         await waitFor(() => {
             const names = gridRows(popover).map((row) => nameCell(row).firstChild?.textContent ?? "");
             const sorted = [...names].sort(new Intl.Collator(undefined, { numeric: true }).compare);
@@ -578,12 +595,14 @@ describe("per-group settings", () => {
         });
 
         // Fold groups under N into Other: every property of the layer folds them.
-        await userEvent.click(within(popover).getByRole("switch", { name: "Fold small groups into Other" }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("switch", { name: "Fold small groups into Other", exact: true }),
+        );
         const sizes = groups.map((g) => g.count).sort((a, b) => a - b);
         const under = sizes[2] + 1;
-        const field = await within(popover).findByLabelText(/^Under/);
-        await userEvent.clear(field);
-        await userEvent.type(field, `${String(under)}{Enter}`);
+        const field = (): Locator => page.elementLocator(popover).getByLabelText(/^Under/);
+        await userEvent.clear(field());
+        await userEvent.type(field(), `${String(under)}{Enter}`);
         await waitFor(() => {
             const folded = session.styles.groups(layer.id, path).filter((g) => g.folded === true);
             assert.isAtLeast(folded.length, 3, "the small groups fold");
@@ -592,7 +611,9 @@ describe("per-group settings", () => {
         await waitFor(() => {
             assert.isTrue(gridRows(popover).some((row) => (row.textContent ?? "").includes("in Other")));
         });
-        await userEvent.click(within(popover).getByRole("switch", { name: "Fold small groups into Other" }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("switch", { name: "Fold small groups into Other", exact: true }),
+        );
         await waitFor(() => {
             // Back to what the palette alone folds: past its 8 colors, under "Fold into Other".
             const binding = session.styles.get(layer.id)?.encode?.["node.color"];
@@ -609,8 +630,10 @@ describe("per-group settings", () => {
         const target = gridRows(list)[1];
         const targetKey = target.querySelector("[data-group-row]")?.getAttribute("data-group-row") ?? "";
         const targetName = nameCell(target).firstChild?.textContent ?? "";
-        await userEvent.click(within(target).getByRole("button", { name: new RegExp(` ${targetName} actions$`) }));
-        await userEvent.click(await within(list).findByRole("menuitem", { name: /^Select these / }));
+        await userEvent.click(
+            page.elementLocator(target).getByRole("button", { name: new RegExp(` ${targetName} actions$`) }),
+        );
+        await userEvent.click(page.elementLocator(list).getByRole("menuitem", { name: /^Select these / }));
         const count = session.styles.groups(layer.id, path).find((g) => String(g.value) === targetKey)?.count;
         await waitFor(() => {
             assert.equal(session.selection.nodes.length, count);
@@ -635,8 +658,8 @@ describe("per-group settings", () => {
         const { session, store } = await openSample("College football", 115);
         const { layer, path } = await runGroups(session, "leiden");
         const popover = await openBinding(store, layer);
-        await userEvent.click(within(popover).getByRole("combobox", { name: /^More values than colors/ }));
-        await userEvent.click(await screen.findByRole("option", { name: "Repeat colors, change shape" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: /^More values than colors/ }));
+        await userEvent.click(page.getByRole("option", { name: "Repeat colors, change shape", exact: true }));
         await waitFor(() => {
             const binding = session.styles.get(layer.id)?.encode?.["node.color"];
             assert.isTrue(binding !== undefined && "by" in binding && binding.overflow === "shape");
@@ -667,7 +690,7 @@ describe("per-group settings", () => {
         });
         await session.styles.settled();
         const popover = await openBinding(store, layer);
-        await userEvent.click(within(popover).getByRole("button", { name: "292 more" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "292 more", exact: true }));
         const grid = within(popover).getByRole("grid", { name: /groups$/ });
         await waitFor(() => {
             assert.equal(grid.getAttribute("aria-rowcount"), "301", "every group is a row");
@@ -683,8 +706,8 @@ describe("per-group settings", () => {
                 "the last group is drawn once scrolled to",
             );
         });
-        const search = within(popover).getByRole("textbox", { name: /groups$/ });
-        await userEvent.type(search, "k299");
+        const search = (): Locator => page.elementLocator(popover).getByRole("textbox", { name: /groups$/ });
+        await userEvent.type(search(), "k299");
         await waitFor(() => {
             assert.lengthOf(gridRows(popover), 1);
         });
@@ -703,10 +726,10 @@ describe("per-group settings", () => {
         });
         await session.styles.settled();
         const popover = await openBinding(store, layer, "Shape");
-        await userEvent.click(within(popover).getByRole("combobox", { name: /^No value/ }));
-        await userEvent.click(await screen.findByRole("option", { name: "Use one value" }));
-        const value = await within(popover).findByRole("combobox", { name: /^Value/ });
-        await userEvent.click(value);
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: /^No value/ }));
+        await userEvent.click(page.getByRole("option", { name: "Use one value", exact: true }));
+        const value = (): Locator => page.elementLocator(popover).getByRole("combobox", { name: /^Value/ });
+        await userEvent.click(value());
         const options = await screen.findAllByRole("option");
         assert.isTrue(
             options.some((o) => /box|cube|sphere/i.test(o.getAttribute("aria-label") ?? o.textContent ?? "")),
@@ -753,8 +776,13 @@ describe("naming and picking groups", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, box);
         });
-        await userEvent.clear(box);
-        await userEvent.type(box, "Bishop's circle{Enter}");
+        await userEvent.clear(
+            page.elementLocator(popover).getByRole("textbox", { name: new RegExp(`^Name of .* ${original}$`) }),
+        );
+        await userEvent.type(
+            page.elementLocator(popover).getByRole("textbox", { name: new RegExp(`^Name of .* ${original}$`) }),
+            "Bishop's circle{Enter}",
+        );
         await waitFor(() => {
             assert.equal(firstName(), "Bishop's circle");
         });
@@ -763,8 +791,8 @@ describe("naming and picking groups", () => {
         const named = gridRows(popover)[0].querySelector<HTMLElement>("[role=gridcell]");
         named?.focus();
         await userEvent.keyboard("{F2}");
-        const again = await within(popover).findByRole("textbox", { name: /Bishop's circle$/ });
-        await userEvent.type(again, " and friends{Escape}");
+        const again = (): Locator => page.elementLocator(popover).getByRole("textbox", { name: /Bishop's circle$/ });
+        await userEvent.type(again(), " and friends{Escape}");
         await waitFor(() => {
             assert.isNull(within(popover).queryByRole("textbox", { name: /^Name of / }));
         });
@@ -773,8 +801,8 @@ describe("naming and picking groups", () => {
         // An empty name returns to the default.
         gridRows(popover)[0].querySelector<HTMLElement>("[role=gridcell]")?.focus();
         await userEvent.keyboard("{F2}");
-        const last = await within(popover).findByRole("textbox", { name: /Bishop's circle$/ });
-        await userEvent.clear(last);
+        const last = (): Locator => page.elementLocator(popover).getByRole("textbox", { name: /Bishop's circle$/ });
+        await userEvent.clear(last());
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.equal(firstName(), original);
@@ -785,7 +813,7 @@ describe("naming and picking groups", () => {
         const { session, layer, path, popover } = await firstRowFocused();
         assert.isNull(within(popover).queryByRole("button", { name: "Select these" }), "not with one group");
         await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}");
-        const button = await within(popover).findByRole("button", { name: "Select these" });
+        await within(popover).findByRole("button", { name: "Select these" });
         assert.isNotNull(within(popover).queryByRole("button", { name: "Set properties for 2 groups" }));
         const picked = gridRows(popover)
             .slice(0, 2)
@@ -794,7 +822,7 @@ describe("naming and picking groups", () => {
             .groups(layer.id, path)
             .filter((g) => picked.includes(String(g.value)))
             .reduce((sum, g) => sum + g.count, 0);
-        await userEvent.click(button);
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Select these", exact: true }));
         await waitFor(() => {
             assert.equal(session.selection.nodes.length, count);
         });
@@ -818,19 +846,19 @@ describe("naming and picking groups", () => {
         // Its own color, then its Clear: back to the layer's.
         const group = (): ValueGroup | undefined =>
             session.styles.groups(layer.id, path).find((g) => String(g.value) === key);
-        await userEvent.tripleClick(within(detail).getByTestId("compact-color-input-hex"));
+        await userEvent.tripleClick(page.elementLocator(detail).getByTestId("compact-color-input-hex"));
         await userEvent.keyboard("00AA00{Enter}");
         await waitFor(() => {
             assert.match(String(group()?.entries["node.color"]), /^#00aa00/i, "the group takes its own color");
         });
-        const clear = await within(detail).findByRole("button", { name: /^Clear .* color$/ });
-        await userEvent.click(clear);
+        const clear = (): Locator => page.elementLocator(detail).getByRole("button", { name: /^Clear .* color$/ });
+        await userEvent.click(clear());
         await waitFor(() => {
             assert.isUndefined(group()?.entries["node.color"], "the group's own color is cleared");
         });
 
         // Select these: the group's nodes.
-        await userEvent.click(within(detail).getByRole("button", { name: /^Select these / }));
+        await userEvent.click(page.elementLocator(detail).getByRole("button", { name: /^Select these / }));
         await waitFor(() => {
             assert.equal(session.selection.nodes.length, group()?.count);
         });
@@ -845,8 +873,8 @@ describe("naming and picking groups", () => {
         const key = row().querySelector("[data-group-row]")?.getAttribute("data-group-row") ?? "";
         const name = nameCell(row()).firstChild?.textContent ?? "";
         const menu = async (item: RegExp): Promise<void> => {
-            await userEvent.click(within(row()).getByRole("button", { name: / actions$/ }));
-            await userEvent.click(await within(popover).findByRole("menuitem", { name: item }));
+            await userEvent.click(page.elementLocator(row()).getByRole("button", { name: / actions$/ }));
+            await userEvent.click(page.elementLocator(popover).getByRole("menuitem", { name: item, exact: true }));
         };
         const group = (): ValueGroup | undefined =>
             session.styles.groups(layer.id, path).find((g) => String(g.value) === key);
@@ -857,10 +885,10 @@ describe("naming and picking groups", () => {
         await renameTo(session, box, path, key);
 
         // The menu offers Clear only once the group has its own color.
-        await userEvent.click(within(row()).getByRole("button", { name: / actions$/ }));
+        await userEvent.click(page.elementLocator(row()).getByRole("button", { name: / actions$/ }));
         await within(popover).findByRole("menuitem", { name: /^Rename/ });
         assert.isNull(within(popover).queryByRole("menuitem", { name: /^Clear color/ }));
-        await userEvent.click(within(row()).getByRole("button", { name: / actions$/ }));
+        await userEvent.click(page.elementLocator(row()).getByRole("button", { name: / actions$/ }));
         await session.styles.setValueEntries(layer.id, path, [
             { channel: "node.color", value: group()?.value as number, entry: "#00aa00" },
         ]);

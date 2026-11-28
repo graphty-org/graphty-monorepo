@@ -43,6 +43,7 @@ import {
     readWorkspaceLayout,
     writeWorkspaceLayout,
 } from "../settings/preferences";
+import type { KeptCustomModel } from "../style/CustomModelDialog";
 import type { KeptShaderDrafts } from "../style/ShaderEditorDialog";
 
 /**
@@ -491,6 +492,19 @@ export interface WorkspaceState {
     readonly notesView: NoteView | null;
     /** What the reader typed in Report a problem (its attachments cannot come back); null: nothing yet. */
     readonly feedbackDraft: FeedbackDraft | null;
+    /**
+     * What the reader set in the Load custom model dialog: the address loaded, the layer's own
+     * settings and each model's Name and settings (the loaded files cannot come back); null: nothing.
+     */
+    readonly customModelDraft: KeptCustomModel | null;
+    /** The style row whose Shape line opened the Load custom model dialog (its layer ids), else null. */
+    readonly customModelOn: string | null;
+    /**
+     * The shader list the shader editor was opened from (`background`, or a style row's side and
+     * layer ids), and the shader a Duplicate and edit copies; null while it is closed. Its text is
+     * in `shaderDrafts`.
+     */
+    readonly shaderEditorOn: { readonly list: string; readonly duplicateOf?: string } | null;
     /** The source a Sources row's Export... opened Data on (its key), else null. */
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
@@ -647,6 +661,9 @@ export const ON_RELOAD = {
     scoreOn: "kept",
     notesView: "kept",
     feedbackDraft: "kept",
+    customModelDraft: "kept",
+    customModelOn: "kept",
+    shaderEditorOn: "kept",
     serverEdit: "kept",
     singleKeyShortcuts: "fresh: read: read from this browser's settings at start",
     mapDepthIndependentSize: "fresh: read: read from this browser's settings at start",
@@ -812,6 +829,9 @@ const INITIAL: WorkspaceState = {
     scoreOn: null,
     notesView: null,
     feedbackDraft: null,
+    customModelDraft: null,
+    customModelOn: null,
+    shaderEditorOn: null,
     serverEdit: null,
     singleKeyShortcuts: true,
     notice: null,

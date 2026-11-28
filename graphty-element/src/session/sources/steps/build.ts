@@ -3,13 +3,16 @@
  * sections 3.1 to 3.6), behind the `source-steps` experiment.
  *
  * `build` folds the steps in list order over an empty working graph: a step sees what earlier
- * steps built and nothing after it. It reads only its arguments and keeps no state, so the same
- * input always gives the same graph, and a draft can run it on a copy. Supplied versus named (3.1)
+ * steps built and nothing after it. The same input always gives the same graph, and a draft can run
+ * it on a copy. It keeps what the steps of its last few builds built, so a build whose steps go on
+ * from one of those runs only the steps after them (a pick at a draft's last step runs one step, not
+ * every step again: issue #10205). Supplied versus named (3.1)
  * is settled once every step is built, so load order never changes it. Free of Babylon.js, Lit and
  * the DOM.
  */
 
 import { reduce } from "../../join";
+import { whenIdle } from "../../nextTask";
 import { readsAsDate, readTimeValue, type TimeUnit } from "../../time/parse";
 import type { JoinReduce, SourceRefreshIssue, SourceRoleName } from "../../types";
 import { escapeKey, keylessEdgeKeys, keylessNodeKeys } from "../rowKeys";
@@ -910,14 +913,15 @@ class Builder {
     readonly drill = new Map<number, Map<string, DrillUnit[]>>();
     // `<source>#<table>` -> the rows a filtered step read, for the no-step fate
     private readonly reads = new Map<string, { src: string; table: TableName; n: number; read: Set<number> }>();
-    private readonly types: readonly TypeEntry[];
-    // the rows each `aggregate` column read so far, per element (see gather)
-    private readonly gathered = new WeakMap<BuiltElement, Map<string, Map<number, Value>>>();
+    private types: readonly TypeEntry[];
+    // the rows each `aggregate` column read so far, per element (see gather); maps rather than weak maps,
+    // so a build's state can be copied for a later build to resume from
+    private readonly gathered = new Map<BuiltElement, Map<string, Map<number, Value>>>();
     // the step that made each element, for its counts by type once the build is done
-    private readonly madeBy = new WeakMap<BuiltElement, StepStats>();
+    private readonly madeBy = new Map<BuiltElement, StepStats>();
     // by source, the node each edge row was merged into, and the nodes merges made of rows naming none
     private readonly placed = new Map<string, Map<number, BuiltNode>>();
-    private readonly keptRows = new WeakSet<BuiltNode>();
+    private readonly keptRows = new Set<BuiltNode>();
     // by step, the nodes it made of values a column of its end's nodes does not hold
     private readonly columnEnds = new Map<EdgesStep, Map<string, BuiltNode>>();
     // what counts noted of elements since taken back, by step place and count name
@@ -925,11 +929,11 @@ class Builder {
     // by source, the rows whose node a merge left out (`unmatchedFrom: "drop"`): a later merge reads them too
     private readonly skipped = new Map<string, Map<number, Row>>();
     // the merge step that last folded one of an edge's ends, for its parallel pair or self-loop
-    private readonly endFoldedBy = new WeakMap<BuiltEdge, StepStats>();
+    private readonly endFoldedBy = new Map<BuiltEdge, StepStats>();
 
     constructor(
-        private readonly input: BuildInput,
-        private readonly copies: ReadonlyMap<string, CopyTables>,
+        private input: BuildInput,
+        private copies: ReadonlyMap<string, CopyTables>,
     ) {
         this.types = input.types ?? [];
     }
@@ -1005,14 +1009,14 @@ class Builder {
             this.fates.set(src, m);
         }
         const k = `${table}#${i}`;
-        const cur = m.get(k) ?? { fate: f, elements: [] };
-        if (f === "built" || cur.fate !== "built") {
-            cur.fate = f;
+        // A fate is never changed in place, so a copy of the build shares it.
+        const was = m.get(k);
+        const fate = was === undefined || f === "built" || was.fate !== "built" ? f : was.fate;
+        const had = was?.elements ?? [];
+        const elements = el === undefined || had.includes(el) ? had : [...had, el];
+        if (fate !== was?.fate || elements !== had) {
+            m.set(k, { fate, elements });
         }
-        if (el !== undefined && !cur.elements.includes(el)) {
-            cur.elements.push(el);
-        }
-        m.set(k, cur);
     }
 
     private touch(
@@ -1392,19 +1396,111 @@ class Builder {
         }
     }
 
-    run(): BuildResult {
-        this.input.steps.forEach((s, si) => {
+    // Build another input from here: what was built so far stays.
+    reading(input: BuildInput, copies: ReadonlyMap<string, CopyTables>): this {
+        this.input = input;
+        this.copies = copies;
+        this.types = input.types ?? [];
+        return this;
+    }
+
+    // Fold the steps from a place on over the graph the steps before it built.
+    runSteps(from: number): this {
+        for (let si = from; si < this.input.steps.length; si++) {
+            const s = this.input.steps[si];
             if (
                 s.off === true ||
                 stepSources(s, this.input).some((id) => this.unbuildable(id)) ||
                 missingColumns(this.input, (copy) => this.copies.get(copy), si).length > 0
             ) {
-                return;
+                continue;
             }
             const st = newStats(s, si);
             this.stats.push(st);
             this.runStep(s, si, st);
-        });
+        }
+        return this;
+    }
+
+    // What the steps built so far, copied into a fresh builder, so the copy can go on with other steps and
+    // this one stays as it is. A step's own lookups (`columnEnds`) are read only while it runs: not copied.
+    copyInto(to: Builder): Builder {
+        // The graph's elements are copied; one it no longer holds is never changed again, so it is shared.
+        const els = new Map<BuiltElement, BuiltElement>();
+        for (const e of [...this.nodes.values(), ...this.edges.values()]) {
+            els.set(e, copyElement(e));
+        }
+        const el = <T extends BuiltElement>(e: T): T => (els.get(e) ?? e) as T;
+        for (const [k, n] of this.nodes) {
+            to.nodes.set(k, el(n));
+        }
+        for (const [k, e] of this.edges) {
+            to.edges.set(k, el(e));
+        }
+        for (const [from, into] of [
+            [this.aliases, to.aliases],
+            [this.edgeAliases, to.edgeAliases],
+            [this.pairs, to.pairs],
+        ] as const) {
+            for (const [k, v] of from) {
+                into.set(k, v);
+            }
+        }
+        for (const [k, at] of this.edgesAt) {
+            to.edgesAt.set(k, new Set([...at].map((e) => el(e))));
+        }
+        for (const [k, of] of this.aliasesOf) {
+            to.aliasesOf.set(k, new Set(of));
+        }
+        this.copyCounts(to, el);
+        return to;
+    }
+
+    // The counts, fates and the rest of a copy (see copyInto), its elements as `el` names their copies.
+    private copyCounts(to: Builder, el: <T extends BuiltElement>(e: T) => T): void {
+        const stats = new Map<StepStats, StepStats>();
+        for (const st of this.stats) {
+            const c = copyStats(st);
+            stats.set(st, c);
+            to.stats.push(c);
+        }
+        const stat = (st: StepStats): StepStats => stats.get(st) ?? st;
+        to.issues.push(...this.issues);
+        to.duplicate = this.duplicate;
+        for (const [src, m] of this.fates) {
+            to.fates.set(src, new Map(m));
+        }
+        for (const [step, byCount] of this.drill) {
+            to.drill.set(step, new Map([...byCount].map(([k, units]) => [k, [...units]])));
+        }
+        for (const [k, r] of this.reads) {
+            to.reads.set(k, { ...r, read: new Set(r.read) });
+        }
+        for (const [e, byKey] of this.gathered) {
+            to.gathered.set(el(e), new Map([...byKey].map(([k, all]) => [k, new Map(all)])));
+        }
+        for (const [e, st] of this.madeBy) {
+            to.madeBy.set(el(e), stat(st));
+        }
+        for (const [e, st] of this.endFoldedBy) {
+            to.endFoldedBy.set(el(e), stat(st));
+        }
+        for (const [src, m] of this.placed) {
+            to.placed.set(src, new Map([...m].map(([i, n]) => [i, el(n)])));
+        }
+        for (const n of this.keptRows) {
+            to.keptRows.add(el(n));
+        }
+        for (const [step, byCount] of this.unmarked) {
+            to.unmarked.set(step, new Map([...byCount].map(([k, gone]) => [k, new Set(gone)])));
+        }
+        for (const [src, m] of this.skipped) {
+            to.skipped.set(src, new Map(m));
+        }
+    }
+
+    // Settle what every step built into the working graph.
+    finish(from: number): BuildResult {
         this.settleMarks();
         for (const n of this.nodes.values()) {
             settle(n);
@@ -1438,6 +1534,7 @@ class Builder {
             readerResults,
             drill,
             ...(duplicate === undefined ? {} : { duplicate }),
+            ...(from === 0 ? {} : { from }),
         };
     }
 
@@ -3369,14 +3466,274 @@ function reduceWeight(
 
 /**
  * Build the working graph: fold the steps in list order over an empty graph. An `off` step, and
- * every step that depends on a held or missing source, is skipped. Pure: the same arguments always
- * give the same result, and neither argument is changed.
+ * every step that depends on a held or missing source, is skipped. The same arguments always give
+ * the same result, and neither argument is changed; when an earlier build's steps are the first of
+ * these and nothing they read differs, it goes on from what they built (`from` on the result).
  * @param input - The sources, steps, type registry and `repeatedEdges`.
  * @param copies - Each source's rows as read, by copy id.
  * @returns The working graph, each step's counts, the issues and each row's fate.
  */
 export function build(input: BuildInput, copies: ReadonlyMap<string, CopyTables>): BuildResult {
-    return new Builder(input, copies).run();
+    const fresh = (): Builder => new Builder(input, copies);
+    // The one whose steps go furthest.
+    let at = -1;
+    held.forEach((each, i) => {
+        if ((at < 0 || each.input.steps.length > held[at].input.steps.length) && resumes(each, input, copies)) {
+            at = i;
+        }
+    });
+    if (at < 0) {
+        // What the steps built is kept as it is, and a copy settled.
+        const steps = fresh().runSteps(0);
+        remember({ input, copies, state: steps, spares: [] });
+        idleLater();
+        return steps.copyInto(fresh()).finish(0);
+    }
+    const [was] = held.splice(at, 1);
+    held.unshift(was);
+    const from = was.input.steps.length;
+    // Go on from a spare copy of what the earlier steps built, made while the page was idle, else a copy now.
+    const steps = (was.spares.pop()?.reading(input, copies) ?? was.state.copyInto(fresh())).runSteps(from);
+    if (input.steps.length - from > 1) {
+        // It ran more than the one step a change at the end makes: what its steps built is kept too, before
+        // its last step and after it, made again once this task is done, so the next change at the end, or of
+        // the last step, goes on from one of them.
+        later.push(() => {
+            const cut = { ...input, steps: input.steps.slice(0, -1) };
+            const upTo = was.state.copyInto(new Builder(cut, copies)).runSteps(from);
+            remember({ input: cut, copies, state: upTo, spares: [] });
+            const [last] = held;
+            const all = resumes(last, input, copies)
+                ? upTo.copyInto(fresh()).runSteps(cut.steps.length)
+                : was.state.copyInto(fresh()).runSteps(from);
+            remember({ input, copies, state: all, spares: [] });
+        });
+    }
+    idleLater();
+    return steps.finish(from);
+}
+
+/** What one build's steps built, before it was settled, for a later build whose steps go on from them. */
+interface Checkpoint {
+    readonly input: BuildInput;
+    readonly copies: ReadonlyMap<string, CopyTables>;
+    /** Never changed: each build going on from it changes a copy. */
+    readonly state: Builder;
+    /** Copies made ahead while the page was idle, each for one build going on from it. */
+    readonly spares: Builder[];
+}
+
+// ponytail: the last few builds only, the one last built or gone on from first; each holds a copy of its graph,
+// and the first two up to SPARES[at] spare copies (a pick builds twice from one: the source it adds, then its
+// join). A larger graph might want fewer.
+const held: Checkpoint[] = [];
+const HELD = 4;
+const SPARES = [2, 1];
+/** Checkpoints to make while the page is idle. */
+const later: (() => void)[] = [];
+
+/**
+ * Keep what a build's steps built.
+ * @param checkpoint - It.
+ */
+function remember(checkpoint: Checkpoint): void {
+    // As the input was then: a caller may change its lists after the build.
+    const { input, copies } = checkpoint;
+    held.unshift({
+        ...checkpoint,
+        input: { ...input, sources: { ...input.sources }, steps: [...input.steps], types: [...(input.types ?? [])] },
+        copies: new Map(copies),
+    });
+    held.splice(HELD);
+}
+
+/** Once the current task is done and no pass waits on a turn it gave the host, make the checkpoints waiting, then the first checkpoints' spare copies. */
+function idleLater(): void {
+    whenIdle(() => {
+        for (const make of later.splice(0)) {
+            make();
+        }
+        held.forEach((each, at) => {
+            const want = SPARES.at(at) ?? 0;
+            each.spares.splice(want);
+            while (each.spares.length < want) {
+                each.spares.push(each.state.copyInto(new Builder(each.input, each.copies)));
+            }
+        });
+    });
+}
+
+/**
+ * Whether a build can go on from what an earlier one's steps built: its steps start with all of the earlier
+ * ones, and nothing those steps read differs (their sources, rows and type rules), nor is read forward by
+ * them (a source's add reads the source's later extracts and node values, an edge step its add).
+ * @param was - The earlier build.
+ * @param input - The build's input.
+ * @param copies - Its rows.
+ * @returns True when the earlier steps would build the same again.
+ */
+function resumes(was: Checkpoint, input: BuildInput, copies: ReadonlyMap<string, CopyTables>): boolean {
+    const before = was.input.steps;
+    if (
+        before.length === 0 ||
+        before.length > input.steps.length ||
+        was.input.repeatedEdges !== input.repeatedEdges ||
+        !before.every((s, at) => sameData(s, input.steps[at]))
+    ) {
+        return false;
+    }
+    const ahead = new Set(
+        input.steps
+            .slice(before.length)
+            .filter((s) => s.op !== "join.merge" && s.op !== "join.edge-values")
+            .map((s) => s.source),
+    );
+    const checked = new Set<string>();
+    return before.every(
+        (s) =>
+            !ahead.has(s.source) &&
+            stepSources(s, input).every((id) => {
+                if (checked.has(id)) {
+                    return true;
+                }
+                checked.add(id);
+                const src = input.sources[id] as Source | undefined;
+                return (
+                    sameData(withoutIssues(was.input.sources[id]), withoutIssues(src)) &&
+                    sameData(rulesOf(was.input.types, id), rulesOf(input.types, id)) &&
+                    (src === undefined || was.copies.get(copyKey(src)) === copies.get(copyKey(src)))
+                );
+            }),
+    );
+}
+
+/**
+ * A source without the issues its add reported, which the build never reads.
+ * @param src - The source.
+ * @returns It without them.
+ */
+function withoutIssues(src: Source | undefined): unknown {
+    if (src === undefined) {
+        return undefined;
+    }
+    const { issues: _issues, ...rest } = src as Source & { readonly issues?: unknown };
+    return rest;
+}
+
+/**
+ * The type rules that name a source, in registry order, with their entries' names.
+ * @param types - The registry.
+ * @param source - The source.
+ * @returns Each rule with its entry's name and kind.
+ */
+function rulesOf(types: readonly TypeEntry[] | undefined, source: string): unknown[] {
+    return (types ?? []).flatMap((t) => t.rules.filter((r) => r.source === source).map((r) => [t.name, t.kind, r]));
+}
+
+/**
+ * A copy of a built element: every list, set and record a later step changes in place.
+ * @param e - The element.
+ * @returns The copy.
+ */
+function copyElement<T extends BuiltElement>(e: T): T {
+    const c: BuiltElement & Partial<BuiltNode> & { ends?: unknown } = {
+        ...(e as BuiltElement & Partial<BuiltNode>),
+        loads: e.loads.slice(),
+        named: e.named.slice(),
+        values: { ...e.values },
+        origin: { ...e.origin },
+        own: {},
+        touch: e.touch.slice(),
+    };
+    for (const src in e.own) {
+        c.own[src] = { ...e.own[src] };
+    }
+    const n = e as Partial<BuiltNode>;
+    if (n.otherTypes !== undefined) {
+        c.otherTypes = n.otherTypes.slice();
+        c.aliases = n.aliases?.slice() ?? [];
+    }
+    if (n.brought !== undefined) {
+        c.brought = new Set(n.brought);
+    }
+    if (n.alt !== undefined) {
+        c.alt = n.alt.slice();
+    }
+    if (Array.isArray(n.ends)) {
+        c.ends = n.ends.slice();
+    }
+    for (const k of ["rule", "ruleStep", "edited", "clashColumns"] as const) {
+        if (e[k] !== undefined) {
+            c[k] = { ...e[k] } as never;
+        }
+    }
+    if (e.differAt !== undefined) {
+        c.differAt = {};
+        for (const col in e.differAt) {
+            c.differAt[col] = e.differAt[col].slice();
+        }
+    }
+    if (e.metAgain !== undefined) {
+        c.metAgain = {};
+        for (const col in e.metAgain) {
+            c.metAgain[col] = { ...e.metAgain[col], values: e.metAgain[col].values.slice() };
+        }
+    }
+    return c as T;
+}
+
+/**
+ * A copy of a step's counts: its lists and records of counts.
+ * @param st - The counts.
+ * @returns The copy.
+ */
+function copyStats(st: StepStats): StepStats {
+    const out: Record<string, unknown> = { ...st };
+    for (const [k, v] of Object.entries(out)) {
+        if (Array.isArray(v)) {
+            out[k] = [...(v as unknown[])];
+        } else if (isRecord(v)) {
+            out[k] = { ...v };
+        }
+    }
+    return out as unknown as StepStats;
+}
+
+/**
+ * Whether two members of a value hold the same data: the same object, or arrays and records holding the
+ * same data in the same order, a member left undefined as one left out.
+ * @param x - One.
+ * @param y - The other.
+ * @returns True when they do.
+ */
+export function sameData(x: unknown, y: unknown): boolean {
+    if (x === y) {
+        return true;
+    }
+    if (Array.isArray(x) || Array.isArray(y)) {
+        return (
+            Array.isArray(x) &&
+            Array.isArray(y) &&
+            x.length === y.length &&
+            x.every((each, at) => sameData(each, y[at]))
+        );
+    }
+    if (!isRecord(x) || !isRecord(y)) {
+        return false;
+    }
+    // In the same order too: a record of sources is in the order they were added.
+    const keys = Object.keys(x).filter((key) => x[key] !== undefined);
+    const theirs = Object.keys(y).filter((key) => y[key] !== undefined);
+    return keys.length === theirs.length && keys.every((key, at) => theirs[at] === key && sameData(x[key], y[key]));
+}
+
+/**
+ * Whether a value is a plain record.
+ * @param x - The value.
+ * @returns True when it is.
+ */
+function isRecord(x: unknown): x is Record<string, unknown> {
+    return typeof x === "object" && x !== null && Object.getPrototypeOf(x) === Object.prototype;
 }
 
 /**

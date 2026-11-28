@@ -31,6 +31,7 @@ import {
     ownSpace,
     resolveNode,
     rowNodeSpace,
+    sameData,
     stepSources,
 } from "./build";
 import { RECORD_PATHS } from "./paths";
@@ -321,43 +322,6 @@ const recent: WeakRef<SourceSteps>[] = [];
 
 /** How many values {@link sameAsBefore} looks back over. */
 const RECENT = 32;
-
-/**
- * Whether two members of a value hold the same data: the same object, or arrays and records holding the
- * same data in the same order, a member left undefined as one left out.
- * @param x - One.
- * @param y - The other.
- * @returns True when they do.
- */
-function sameData(x: unknown, y: unknown): boolean {
-    if (x === y) {
-        return true;
-    }
-    if (Array.isArray(x) || Array.isArray(y)) {
-        return (
-            Array.isArray(x) &&
-            Array.isArray(y) &&
-            x.length === y.length &&
-            x.every((each, at) => sameData(each, y[at]))
-        );
-    }
-    if (!isRecord(x) || !isRecord(y)) {
-        return false;
-    }
-    // In the same order too: a record of sources is in the order they were added.
-    const keys = Object.keys(x).filter((key) => x[key] !== undefined);
-    const theirs = Object.keys(y).filter((key) => y[key] !== undefined);
-    return keys.length === theirs.length && keys.every((key, at) => theirs[at] === key && sameData(x[key], y[key]));
-}
-
-/**
- * Whether a value is a plain record.
- * @param x - The value.
- * @returns True when it is.
- */
-function isRecord(x: unknown): x is Record<string, unknown> {
-    return typeof x === "object" && x !== null && Object.getPrototypeOf(x) === Object.prototype;
-}
 
 /**
  * A value read before, when one holds the same sources, steps and the rest: a value cut back to an

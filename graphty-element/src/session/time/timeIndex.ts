@@ -15,6 +15,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { nextTask } from "../nextTask";
 import type { CodedFact } from "../shared";
 import type { TimeInstants, TimeSpans } from "../visibility/filter";
 import {
@@ -205,9 +206,7 @@ export async function inSlices<T>(work: IndexWork<T>, dropped: () => boolean): P
         }
 
         if (performance.now() >= deadline) {
-            await new Promise<void>((resume) => {
-                setTimeout(resume, 0);
-            });
+            await nextTask();
             if (dropped()) {
                 return null;
             }

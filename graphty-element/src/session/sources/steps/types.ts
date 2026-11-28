@@ -637,6 +637,8 @@ export interface BuildResult {
      * ends; a commit refuses the build with `E_DUPLICATE_EDGE`, as a load without the experiment does.
      */
     readonly duplicate?: { readonly from: string; readonly to: string; readonly repeat: Row };
+    /** The step place the build went on from, reusing what an earlier build's steps before it built; absent for 0. */
+    readonly from?: number;
     /** Per source, per `<table>#<row>`. */
     readonly fates: Map<string, Map<string, RowFate>>;
     /** Each reader operation, in order, and whether it applied. */

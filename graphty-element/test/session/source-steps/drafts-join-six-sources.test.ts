@@ -3,14 +3,16 @@
  * draft once (and the one source added asking once), the first draw of the cards after it builds once at
  * most, and drawing them again builds nothing and reads the steps' conflicts no more. Every draw used to
  * rebuild the graph before the step a card is and read each step's conflicts afresh, which froze the page
- * for seconds per input.
+ * for seconds per input. And a pick builds only from the step it changes, going on from what the steps
+ * before it built, where it used to build every step again.
  */
 
-import { assert, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession } from "../../../src/session";
 import { build } from "../../../src/session/sources/steps/build";
 import { conflictReport } from "../../../src/session/sources/steps/provenance";
+import type { BuildResult } from "../../../src/session/sources/steps/types";
 import type { SourceDraft, SourceJoinAct, SourceJoinMatch } from "../../../src/session/types";
 
 vi.mock("../../../src/session/sources/steps/build", async (original) => {
@@ -138,6 +140,77 @@ describe("source-steps drafts: six 20,000-row sources in the join workspace", ()
         assert.isTrue(draft.redo());
         draw();
         assert.strictEqual(builds.mock.calls.length, 0, "a redo draws the card as it was, building nothing");
+
+        draft.dispose();
+        session.dispose();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it("a pick builds only from the step it changes, on what the steps before it built", async () => {
+        // What a build keeps is copied once the task that built is done: stepped here.
+        vi.useFakeTimers({ toFake: ["setTimeout"] });
+        const session = createGraphSession({ features: ["source-steps"] });
+        const keys: Record<string, string> = {};
+        for (const [name, [data, key]] of Object.entries(FILES)) {
+            keys[name] = await session.data.stage(
+                { type: "csv", config: { data }, name: `${name}.csv` },
+                key === undefined ? {} : { key },
+            );
+        }
+        const draft = session.data.draft({ askOverlap: true });
+        draft.add(keys.people);
+        const builds = vi.mocked(build);
+        // Where each build of the draft's whole value, `steps` steps or more, went on from.
+        const from = (steps: number): (number | undefined)[] =>
+            builds.mock.calls.flatMap(([input], at) =>
+                input.steps.length >= steps ? [(builds.mock.results[at].value as BuildResult).from] : [],
+            );
+        const pair = (a: string, af: string, b: string, bf: string): SourceJoinMatch => ({
+            a: { source: keys[a], field: af },
+            b: { source: keys[b], field: bf },
+        });
+        for (const match of [
+            pair("entries", "person", "people", "person_id"),
+            pair("entries", "building", "buildings", "building"),
+            pair("identifiers", "account_id", "accounts", "account"),
+        ]) {
+            const [act] = draft.joinOutcomes({ matches: [match] }).outcomes[0].acts;
+            draft.preview();
+            vi.runAllTimers();
+            const before = draft.steps().length;
+            builds.mockClear();
+            make(draft, act);
+            // A new card's pick adds its source and its join after the steps there were.
+            assert.isAbove(draft.steps().length, before);
+            assert.sameMembers([...new Set(from(before + 1))], [before], "a pick at the end builds only its own steps");
+        }
+
+        const picked = (index: number): void => {
+            const other = draft
+                .joinOutcomes({ step: index })
+                .outcomes.find((each) => each.current !== true && each.acts.length === 1);
+            assert.isDefined(other);
+            draft.preview();
+            vi.runAllTimers();
+            builds.mockClear();
+            draft.replaceStep(index, other?.acts[0] ?? assert.fail("no other outcome"));
+        };
+        const joins = draft.steps().filter((row) => row.act !== null && row.act !== undefined);
+        const last = joins.at(-1)?.index ?? -1;
+        assert.strictEqual(last, draft.steps().length - 1);
+        picked(last);
+        assert.sameMembers([...new Set(from(last + 1))], [last], "another outcome at the last step builds that step");
+
+        // The first card's step, a merge of the entries into the people, picked as an edge step instead: an
+        // edge step reads its source's add forward, so it builds from that add, the step before it.
+        const first = joins[0].index;
+        picked(first);
+        assert.strictEqual(draft.steps()[first].op, "join.edges");
+        assert.sameMembers([...new Set(from(first + 1))], [first - 1], "a pick at an earlier step builds from there");
+        assert.isAbove(first - 1, 0, "not from the start");
 
         draft.dispose();
         session.dispose();

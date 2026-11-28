@@ -22,6 +22,7 @@ import {
     PopoutManager,
     SegmentedControl,
     TargetTooltip,
+    TooltipShortcut,
 } from "@graphty/compact-mantine";
 import {
     type GraphSession,
@@ -39,9 +40,10 @@ import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } f
 import { createPortal, flushSync } from "react-dom";
 
 import { canFocus, focusInspectorTitle, focusIsLost } from "../frame/focus";
+import { KeysInTooltips } from "../frame/keysInTooltips";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
-import { printable } from "../keys/keys";
+import { formatKey, printable } from "../keys/keys";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DrawnSwatches } from "../style/drawnSwatches";
@@ -1581,128 +1583,134 @@ export function SelectionEditor({
             ? createPortal(
                   // The cards' settings panels are drawn after the modal, above the preview's canvas.
                   <PopoutManager>
-                      <DrawnSwatches.Provider value={!colors}>
-                          <div className="sel-ws-scrim" aria-hidden />
-                          <section // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- only catches keys and presses bubbling from its own controls
-                              ref={wsBox}
-                              role="dialog"
-                              aria-modal="true"
-                              aria-labelledby={titleId}
-                              tabIndex={-1}
-                              className="sel-ws sel-modal sel-editor"
-                              data-host={host}
-                              style={wsPlace ?? { visibility: "hidden" }}
-                              onPointerDownCapture={() => {
-                                  escaped.current = false;
-                              }}
-                              onKeyDownCapture={(event) => {
-                                  escaped.current = event.key === "Escape";
-                                  // Escape in a card's box, unless the box's own list is open, leaves the
-                                  // box for its card and keeps what was typed (spec 3.4): a box never
-                                  // takes it as "discard what I typed", and the workspace stays open with
-                                  // its edits. A second Escape, now on the card, is the workspace's.
-                                  const target = event.target as HTMLElement;
-                                  if (
-                                      event.key === "Escape" &&
-                                      target.matches("input, textarea") &&
-                                      target.closest(".sel-ws-cards") !== null &&
-                                      target.closest(SELF_CLOSING) === null &&
-                                      target.getAttribute("aria-expanded") !== "true" &&
-                                      !("expanded" in target.dataset)
-                                  ) {
-                                      event.preventDefault();
-                                      event.stopPropagation();
-                                      (target.closest<HTMLElement>("[data-card-id]") ?? wsBox.current)?.focus();
-                                  }
-                              }}
-                              onKeyDown={(event) => {
-                                  tabToHead(event);
-                                  cardKeys(event);
-                                  wsKeys(event);
-                              }}
-                          >
-                              <header className="sel-ws-head">
-                                  {onRename === undefined ? (
-                                      <Text size="sm" fw={600} className="sel-ws-title" id={titleId} truncate>
-                                          {wsTitle}
-                                      </Text>
-                                  ) : (
-                                      <TitleName
-                                          id={titleId}
-                                          owner={ownerName}
-                                          name={name}
-                                          renaming={renamingTitle}
-                                          onRenaming={setRenamingTitle}
-                                          onRename={onRename}
-                                      />
-                                  )}
-                                  <Text size="sm" className="sel-count">
-                                      {`${formatNumber(reading.total.count)} of ${formatNumber(of)}${wsCountWhere}${waitingOn === undefined ? shownWords(reading.total) : ""}`}
-                                  </Text>
-                                  {(drawing || starting || closing || !warm) && (
-                                      <Group gap={4} wrap="nowrap" className="sel-state" data-drawing="">
-                                          {/* A CSS spinner keeps turning while the page works on a large graph. */}
-                                          <Loader size={12} aria-hidden />
-                                          <Text size="sm" c="dimmed" span>
-                                              Drawing
+                      {/* The owner asked for no key text in this workspace (#10394): its menus name keys in tooltips. */}
+                      <KeysInTooltips.Provider value>
+                          <DrawnSwatches.Provider value={!colors}>
+                              <div className="sel-ws-scrim" aria-hidden />
+                              <section // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- only catches keys and presses bubbling from its own controls
+                                  ref={wsBox}
+                                  role="dialog"
+                                  aria-modal="true"
+                                  aria-labelledby={titleId}
+                                  tabIndex={-1}
+                                  className="sel-ws sel-modal sel-editor"
+                                  data-host={host}
+                                  style={wsPlace ?? { visibility: "hidden" }}
+                                  onPointerDownCapture={() => {
+                                      escaped.current = false;
+                                  }}
+                                  onKeyDownCapture={(event) => {
+                                      escaped.current = event.key === "Escape";
+                                      // Escape in a card's box, unless the box's own list is open, leaves the
+                                      // box for its card and keeps what was typed (spec 3.4): a box never
+                                      // takes it as "discard what I typed", and the workspace stays open with
+                                      // its edits. A second Escape, now on the card, is the workspace's.
+                                      const target = event.target as HTMLElement;
+                                      if (
+                                          event.key === "Escape" &&
+                                          target.matches("input, textarea") &&
+                                          target.closest(".sel-ws-cards") !== null &&
+                                          target.closest(SELF_CLOSING) === null &&
+                                          target.getAttribute("aria-expanded") !== "true" &&
+                                          !("expanded" in target.dataset)
+                                      ) {
+                                          event.preventDefault();
+                                          event.stopPropagation();
+                                          (target.closest<HTMLElement>("[data-card-id]") ?? wsBox.current)?.focus();
+                                      }
+                                  }}
+                                  onKeyDown={(event) => {
+                                      tabToHead(event);
+                                      cardKeys(event);
+                                      wsKeys(event);
+                                  }}
+                              >
+                                  <header className="sel-ws-head">
+                                      {onRename === undefined ? (
+                                          <Text size="sm" fw={600} className="sel-ws-title" id={titleId} truncate>
+                                              {wsTitle}
                                           </Text>
-                                      </Group>
-                                  )}
-                                  <span className="sel-spacer" />
-                                  <SegmentedControl
-                                      label="Preview"
-                                      value={colors ? "colors" : "styled"}
-                                      data={[
-                                          { value: "colors", label: "Card colors" },
-                                          { value: "styled", label: "Styled" },
-                                      ]}
-                                      onChange={(value) => {
-                                          groupColors[host] = value === "colors";
-                                          setColors(value === "colors");
-                                      }}
-                                  />
-                                  <RowMore name={wsTitle} items={titleItems} />
-                                  <span className="sel-ws-gap" />
-                                  <Tooltip label="Cancel (Esc)" openDelay={500}>
-                                      <Button
-                                          size="compact-xs"
-                                          variant="subtle"
-                                          aria-keyshortcuts="Escape"
-                                          onClick={() => {
-                                              closeAfterPaint("cancel");
-                                          }}
-                                      >
-                                          Cancel
-                                      </Button>
-                                  </Tooltip>
-                                  <Button
-                                      size="compact-xs"
-                                      onClick={() => {
-                                          closeAfterPaint("done");
-                                      }}
-                                  >
-                                      Done
-                                  </Button>
-                              </header>
-                              <div className="sel-ws-body">
-                                  {/* A card's settings open flush with the cards' column, beside the drawing. */}
-                                  <Popout.Anchor>
-                                      <div className="sel-ws-cards">{cards()}</div>
-                                  </Popout.Anchor>
-                                  <div className="sel-ws-center" data-strip={strip ? "" : undefined}>
-                                      <div className="sel-ws-preview" />
-                                      {strip && warm && waitingOn === undefined && (
-                                          <MatchesStrip
-                                              session={session}
-                                              rule={reading.rule}
-                                              title={name}
-                                              branch={stripBranch}
+                                      ) : (
+                                          <TitleName
+                                              id={titleId}
+                                              owner={ownerName}
+                                              name={name}
+                                              renaming={renamingTitle}
+                                              onRenaming={setRenamingTitle}
+                                              onRename={onRename}
                                           />
                                       )}
+                                      <Text size="sm" className="sel-count">
+                                          {`${formatNumber(reading.total.count)} of ${formatNumber(of)}${wsCountWhere}${waitingOn === undefined ? shownWords(reading.total) : ""}`}
+                                      </Text>
+                                      {(drawing || starting || closing || !warm) && (
+                                          <Group gap={4} wrap="nowrap" className="sel-state" data-drawing="">
+                                              {/* A CSS spinner keeps turning while the page works on a large graph. */}
+                                              <Loader size={12} aria-hidden />
+                                              <Text size="sm" c="dimmed" span>
+                                                  Drawing
+                                              </Text>
+                                          </Group>
+                                      )}
+                                      <span className="sel-spacer" />
+                                      <SegmentedControl
+                                          label="Preview"
+                                          value={colors ? "colors" : "styled"}
+                                          data={[
+                                              { value: "colors", label: "Card colors" },
+                                              { value: "styled", label: "Styled" },
+                                          ]}
+                                          onChange={(value) => {
+                                              groupColors[host] = value === "colors";
+                                              setColors(value === "colors");
+                                          }}
+                                      />
+                                      <RowMore name={wsTitle} items={titleItems} />
+                                      <span className="sel-ws-gap" />
+                                      <Tooltip
+                                          label={<TooltipShortcut label="Cancel" shortcut={formatKey("Escape")} />}
+                                          openDelay={500}
+                                      >
+                                          <Button
+                                              size="compact-xs"
+                                              variant="subtle"
+                                              aria-keyshortcuts="Escape"
+                                              onClick={() => {
+                                                  closeAfterPaint("cancel");
+                                              }}
+                                          >
+                                              Cancel
+                                          </Button>
+                                      </Tooltip>
+                                      <Button
+                                          size="compact-xs"
+                                          onClick={() => {
+                                              closeAfterPaint("done");
+                                          }}
+                                      >
+                                          Done
+                                      </Button>
+                                  </header>
+                                  <div className="sel-ws-body">
+                                      {/* A card's settings open flush with the cards' column, beside the drawing. */}
+                                      <Popout.Anchor>
+                                          <div className="sel-ws-cards">{cards()}</div>
+                                      </Popout.Anchor>
+                                      <div className="sel-ws-center" data-strip={strip ? "" : undefined}>
+                                          <div className="sel-ws-preview" />
+                                          {strip && warm && waitingOn === undefined && (
+                                              <MatchesStrip
+                                                  session={session}
+                                                  rule={reading.rule}
+                                                  title={name}
+                                                  branch={stripBranch}
+                                              />
+                                          )}
+                                      </div>
                                   </div>
-                              </div>
-                          </section>
-                      </DrawnSwatches.Provider>
+                              </section>
+                          </DrawnSwatches.Provider>
+                      </KeysInTooltips.Provider>
                   </PopoutManager>,
                   frame,
               )

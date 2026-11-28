@@ -1,3 +1,4 @@
+import { TooltipShortcut } from "@graphty/compact-mantine";
 import type { GraphSession, SourceDraft } from "@graphty/graphty-element/session";
 import { ActionIcon, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";
@@ -40,7 +41,10 @@ export function ReaderEdits({
     const sources = session.data.sources({ staged: true });
     return (
         <Stack gap={2} className="ss-steps">
-            <Tooltip label={`${STEP_WORDS.readerEdits} (${formatKey(READER_EDITS_KEY)})`} openDelay={500}>
+            <Tooltip
+                label={<TooltipShortcut label={STEP_WORDS.readerEdits} shortcut={formatKey(READER_EDITS_KEY)} />}
+                openDelay={500}
+            >
                 <UnstyledButton aria-expanded={open} aria-keyshortcuts={ariaKey(READER_EDITS_KEY)} onClick={onToggle}>
                     <Group gap={6}>
                         <Text size="xs" fw={600}>
@@ -101,7 +105,15 @@ export function ReaderEdits({
                                             {edit.state === "lost" ? STEP_WORDS.lost : STEP_WORDS.sourceChanged}
                                         </Text>
                                     ) : null}
-                                    <Tooltip label={`${STEP_WORDS.delete} (${formatKey(DELETE_KEY)})`} openDelay={500}>
+                                    <Tooltip
+                                        label={
+                                            <TooltipShortcut
+                                                label={STEP_WORDS.delete}
+                                                shortcut={formatKey(DELETE_KEY)}
+                                            />
+                                        }
+                                        openDelay={500}
+                                    >
                                         <ActionIcon
                                             size="sm"
                                             variant="subtle"

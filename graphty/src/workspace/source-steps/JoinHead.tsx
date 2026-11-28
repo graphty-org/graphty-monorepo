@@ -1,4 +1,4 @@
-import { SegmentedControl } from "@graphty/compact-mantine";
+import { SegmentedControl, TooltipShortcut } from "@graphty/compact-mantine";
 import type { DraftRing, SourceDraft, SourceDraftMarkCounts } from "@graphty/graphty-element/session";
 import { Button, Group, Loader, Text, Tooltip } from "@mantine/core";
 import React from "react";
@@ -159,7 +159,12 @@ export function JoinHead({
                     />
                 </div>
             </Tooltip>
-            <Tooltip label={`${WORKSPACE_WORDS.sideTip} (${formatKey(SIDE_KEY)})`} openDelay={500} multiline w={260}>
+            <Tooltip
+                label={<TooltipShortcut label={WORKSPACE_WORDS.sideTip} shortcut={formatKey(SIDE_KEY)} />}
+                openDelay={500}
+                multiline
+                w={260}
+            >
                 <div>
                     <SegmentedControl
                         aria-label={PREVIEW_WORDS.beforeAfter}
@@ -177,7 +182,10 @@ export function JoinHead({
             </Tooltip>
             {menu}
             <span className="sel-ws-gap" />
-            <Tooltip label={`${WORKSPACE_WORDS.cancel} (${formatKey("Escape")})`} openDelay={500}>
+            <Tooltip
+                label={<TooltipShortcut label={WORKSPACE_WORDS.cancel} shortcut={formatKey("Escape")} />}
+                openDelay={500}
+            >
                 <Button size="compact-xs" variant="subtle" aria-keyshortcuts="Escape" onClick={onCancel}>
                     {WORKSPACE_WORDS.cancel}
                 </Button>

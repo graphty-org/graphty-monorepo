@@ -1,6 +1,6 @@
 /**
  * A group's or a step's "..." menu items in the style tree's row-command grammar
- * (graph-place/commands.ts, RowMenu.tsx): icon and words per item (its key on hover), a divider between groups,
+ * (graph-place/commands.ts, RowMenu.tsx): icon, words and key per item, a divider between groups,
  * one order -- edit, view, remove.
  */
 
@@ -26,8 +26,8 @@ export interface SelectionMenuItem {
 }
 
 /**
- * A "..." menu's items, drawn as the style tree's row menu draws its commands: icon and words (the key on hover)
- * per item, a divider between groups, one order (edit, view, remove).
+ * A "..." menu's items, drawn as the style tree's row menu draws its commands: icon, words and
+ * key per item, a divider between groups, one order (edit, view, remove).
  * @param props - Component props
  * @param props.items - the items, in order within each group
  * @returns The items

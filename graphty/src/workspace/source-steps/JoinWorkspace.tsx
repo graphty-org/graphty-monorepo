@@ -1,7 +1,7 @@
 import "../selection/selection.css";
 import "./source-steps.css";
 
-import { CardList, type CardListItem, ControlSection } from "@graphty/compact-mantine";
+import { CardList, type CardListItem, ControlSection, TooltipShortcut } from "@graphty/compact-mantine";
 import type { DraftRing, GraphSession, SourceDraft, SourceKey } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { type RefObject, useCallback, useEffect, useId, useRef, useState } from "react";
@@ -9,6 +9,7 @@ import { createPortal } from "react-dom";
 
 import { sourceStepsOn } from "../features";
 import { focusIsLost } from "../frame/focus";
+import { KeysInTooltips } from "../frame/keysInTooltips";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { ariaKey, formatKey, isTypingTarget, matchesKey } from "../keys/keys";
@@ -695,7 +696,10 @@ function headItems(
 function AddJoin({ onAdd }: Readonly<{ onAdd: () => void }>): React.JSX.Element {
     return (
         <div className="sel-card-new" data-join-plus="">
-            <Tooltip label={`${WORKSPACE_WORDS.open} (${formatKey(JOIN_WORKSPACE_KEY)})`} openDelay={500}>
+            <Tooltip
+                label={<TooltipShortcut label={WORKSPACE_WORDS.open} shortcut={formatKey(JOIN_WORKSPACE_KEY)} />}
+                openDelay={500}
+            >
                 <Button
                     size="compact-xs"
                     variant="subtle"
@@ -1303,6 +1307,9 @@ export function JoinWorkspaceHost(): React.JSX.Element | null {
     const { session } = useWorkspace();
     const opened = useWorkspaceState((state) => state.joinWorkspace);
     return opened !== false && session !== null && sourceStepsOn(session) ? (
-        <JoinWorkspace session={session} how={opened} />
+        // The owner asked for no key text in this workspace (#10394): its menus name keys in tooltips.
+        <KeysInTooltips.Provider value>
+            <JoinWorkspace session={session} how={opened} />
+        </KeysInTooltips.Provider>
     ) : null;
 }

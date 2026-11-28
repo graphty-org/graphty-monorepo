@@ -618,16 +618,14 @@ describe("a join card's matches and table (source-steps)", () => {
         assert.include(session.data.staged()[0]?.name ?? "", "gates");
     });
 
-    it("are said on hover and to a screen reader, never drawn on the workspace (#10394)", async () => {
+    it("are said in tooltips and to a screen reader, never drawn on the workspace (#10394)", async () => {
         const { session, modal } = await opened(["entries.csv", ENTRIES]);
         await join(session, modal, NODE);
         // No key mark in what is drawn while no menu is open.
         const words = (where: HTMLElement): string[] => (where.textContent ?? "").split(/[^A-Za-z+]+/u);
-        for (const where of [modal, screen.getByRole("region", { name: "Data place" })]) {
-            const drawn = words(where);
-            for (const mark of ["Ctrl", "Cmd", "Esc", "Shift+J", "Del"]) {
-                assert.notInclude(drawn, mark, `${mark} is not drawn`);
-            }
+        const drawn = words(modal);
+        for (const mark of ["Ctrl", "Cmd", "Esc", "Shift+J", "Del"]) {
+            assert.notInclude(drawn, mark, `${mark} is not drawn`);
         }
         const head = modal.querySelector<HTMLElement>(".sel-ws-head");
         if (head === null) {
@@ -642,21 +640,33 @@ describe("a join card's matches and table (source-steps)", () => {
             assert.strictEqual(control.getAttribute("aria-keyshortcuts"), key, `${key} is said to a screen reader`);
         }
         await userEvent.hover(within(head).getByRole("button", { name: "Cancel" }));
-        await screen.findByRole("tooltip", { name: /Esc/u });
-        // An open "..." menu draws no key either: each item names its key on hover instead.
+        await screen.findByRole("tooltip", { name: /^Cancel\s*Esc$/u });
+        // An open "..." menu draws no key either: an item with a key names it in a tooltip on keyboard focus.
         for (const more of [/^More for Join/u, /^More for /u]) {
             await userEvent.click(within(modal).getAllByRole("button", { name: more })[0]);
             const menu = await screen.findByRole("menu");
-            const drawn = words(menu);
+            const inMenu = words(menu);
             for (const mark of ["Ctrl", "Cmd", "F2", "Del", "R"]) {
-                assert.notInclude(drawn, mark, `${mark} is not drawn in the menu`);
+                assert.notInclude(inMenu, mark, `${mark} is not drawn in the menu`);
             }
-            assert.isTrue(
-                within(menu)
-                    .getAllByRole("menuitem")
-                    .some((item) => (item.getAttribute("title") ?? "") !== ""),
-                "an item names its key on hover",
+            const items = within(menu).getAllByRole("menuitem");
+            const keyed = items.find(
+                (item) => item.hasAttribute("aria-keyshortcuts") && item.getAttribute("aria-disabled") !== "true",
             );
+            if (keyed === undefined) {
+                throw new Error("no enabled menu item has a key");
+            }
+            assert.isNull(keyed.getAttribute("title"), "no native title stands in for the tooltip");
+            // Arrow down to it: the item's tooltip then names its label and its key.
+            for (const _ of items) {
+                if (document.activeElement === keyed) {
+                    break;
+                }
+                await userEvent.keyboard("{ArrowDown}");
+            }
+            assert.strictEqual(document.activeElement, keyed, "the keyed item has keyboard focus");
+            const tip = await screen.findByRole("tooltip", { name: new RegExp(`^${keyed.textContent ?? ""}`, "u") });
+            assert.notStrictEqual(tip.textContent, keyed.textContent, "the tooltip adds the key to the label");
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
                 assert.isNull(screen.queryByRole("menu"));

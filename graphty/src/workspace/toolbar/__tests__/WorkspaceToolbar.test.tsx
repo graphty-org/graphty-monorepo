@@ -152,9 +152,7 @@ describe("the canvas toolbar", () => {
         const reboundMenu = await screen.findByRole("menu", { name: /^Mode/ });
         const reboundRow = within(reboundMenu).getByRole("menuitemradio", { name: /^2D/ });
         assert.equal(reboundRow.getAttribute("aria-keyshortcuts"), "Shift+5");
-        // The key is named on hover, never drawn (#10394).
-        assert.equal(reboundRow.getAttribute("title"), "Shift+5");
-        assert.notInclude(reboundRow.textContent, "Shift+5");
+        assert.include(reboundRow.textContent, "Shift+5");
     });
 
     it("opens Quick actions with Ctrl+K, listing built commands by their homes", async () => {

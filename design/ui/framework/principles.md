@@ -634,7 +634,8 @@ These are fixed constraints, never traded away, so they are not ranked:
   action row or menu row that runs the command carries the key chip, as in "Accept [A]". A
   shortcut that lives only in a tooltip, the shortcuts table or a help sheet is not usable, because
   readers do not memorize keys; and no command is keyboard-only. Adding a key to a command never
-  removes its button.
+  removes its button. The one exception: the join and Filters workspaces show keys only in tooltips,
+  shown on hover and keyboard focus (owner request on issue #10394).
 - Plain ASCII in all content.
 
 ## Decided elsewhere

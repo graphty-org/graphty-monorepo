@@ -21,7 +21,7 @@
  * only, so each checks its own action: arrowed edges are the steady rows' to check.
  *
  * Run: GRAPHTY_BROWSER_GPU=swiftshader-unthrottled npx vitest run --project=forced-batched (or --project=browser)
- * test/browser/gpu-landings-drawn.test.ts; VITE_FRAME_DUMP=1 prints each recording's first faulty frame as a PNG.
+ * test/browser/gpu-landings-drawn.test.ts; each recording's first faulty frame is logged as a PNG; VITE_FRAME_DUMP=all logs every frame.
  */
 
 import "../../src/graphty-element";

@@ -257,8 +257,13 @@ describe("a 3D solid's ring reaches only the border's outer edge past its plain 
     // what an edge stops at and a halo starts from: the fill keeps its plain size, so an inside ring reaches no further
     // than its outline, and a centered one half its width past it
     const width = 0.1 * NODE_EXTENT_PER_SIZE;
-    const fit = (type: string, position: "inside" | "center", is2D: boolean): { inset: number; ring: number } => {
-        const shape = { type, size: 1 };
+    type Shape = NonNullable<NodeStyleConfig["shape"]>;
+    const fit = (
+        type: Shape["type"],
+        position: "inside" | "center",
+        is2D: boolean,
+    ): { inset: number; ring: number } => {
+        const shape: Shape = { type, size: 1 };
         return NodeMesh.drawnFit(shape, { width: 0.1, position }, NodeMesh.extentsOf(shape, 1), is2D);
     };
 

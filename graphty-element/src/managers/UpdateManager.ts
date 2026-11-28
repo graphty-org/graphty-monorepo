@@ -25,6 +25,7 @@ import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
+import { prepareOverlayShader } from "../meshes/overlayMaterial";
 import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { pulledEdgesDefault } from "../meshes/PulledLineBatch";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
@@ -3628,6 +3629,8 @@ export class UpdateManager implements Manager {
         }
         this.nodesDrawn = true;
         this.eventManager.emit("graph-first-frame", { frames: this.frameCount });
+        // A node drawn now may be selected next: have its halo's shader ready before it is, but after this frame.
+        prepareOverlayShader(this.graphContext.getScene());
     }
 
     /**

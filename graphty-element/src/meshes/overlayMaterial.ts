@@ -40,8 +40,10 @@ const prepared = new WeakSet<Scene>();
  * THE FIRST SELECTION AFTER A LOAD PAID FOR THIS COMPILE (issue #10124): the halo's source mesh
  * and material are built on first use, and on a real GPU compiling the material's shader held
  * back the frame that drew the selection by about 300 ms on a 99,000-node graph, against no
- * compile at all for every later selection. Called once per scene while its first node source
- * is built, inside a load that is drawing new frames anyway.
+ * compile at all for every later selection. Called once per scene right after the first frame
+ * that shows its nodes, inside a load that is drawing new frames anyway: asked for while the first
+ * node source was built, the compile held back that first frame by about 40 ms in the load-time
+ * benchmark (issue #10396).
  *
  * Babylon keeps a compiled shader in its engine's cache while anything holds it, and the
  * temporary submesh below keeps holding it after the mesh it was asked for is disposed, so a halo

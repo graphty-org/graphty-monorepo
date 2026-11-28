@@ -4833,7 +4833,7 @@ export class Node implements ModelUser {
             source = MeshBuilder.CreateSphere(name, { diameter: 1, segments: 8 }, scene);
         }
 
-        // Its shader was compiled with the scene's first node source (`prepareOverlayShader`).
+        // Its shader was compiled right after the scene's first frame of nodes (`prepareOverlayShader`).
         const material = createOverlayMaterial(`${name}-material`, color, alpha, scene);
         // A halo around a solid draws only its far side. The near side lies in front of the node
         // it surrounds, and blending it over the node tinted the whole node the halo's color (a

@@ -72,11 +72,11 @@ describe("the inspector title's focus ring", () => {
 
     it("draws no ring when Find path is clicked, nor when the title is clicked", async () => {
         const form = await openPathForm();
-        await userEvent.type(within(form).getByRole("combobox", { name: "From node" }), "Av");
-        await userEvent.click(await within(form).findByRole("option", { name: "Ava" }));
-        await userEvent.type(within(form).getByRole("combobox", { name: "To node" }), "lee");
-        await userEvent.click(await within(form).findByRole("option", { name: "Lee" }));
-        await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+        await userEvent.type(page.elementLocator(form).getByRole("combobox", { name: "From node", exact: true }), "Av");
+        await userEvent.click(page.elementLocator(form).getByRole("option", { name: "Ava", exact: true }));
+        await userEvent.type(page.elementLocator(form).getByRole("combobox", { name: "To node", exact: true }), "lee");
+        await userEvent.click(page.elementLocator(form).getByRole("option", { name: "Lee", exact: true }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Find path", exact: true }));
 
         let title = await focusedTitle();
         assert.equal(getComputedStyle(title).outlineColor, NO_RING);

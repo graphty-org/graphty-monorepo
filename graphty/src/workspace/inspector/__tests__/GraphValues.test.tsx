@@ -5,7 +5,7 @@
  */
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
@@ -63,7 +63,7 @@ async function chooseDegree(degree: HTMLElement, name: string): Promise<void> {
     const label = degree.querySelector(`label[for="${radio.id}"]`);
     assert.isNotNull(label);
     if (label !== null) {
-        await userEvent.click(label);
+        await userEvent.click(page.elementLocator(degree).getByCss(`label[for="${radio.id}"]`).first());
     }
 }
 
@@ -130,7 +130,7 @@ describe("the graph's Overview", () => {
         assert.equal(statValue(screen.getByRole("group", { name: "Overview" }), "Components"), "3");
         assert.isNotNull(screen.getByText("1 node joined to no other node"));
 
-        await userEvent.click(await screen.findByRole("button", { name: /^Largest component/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Largest component/ }));
         await waitFor(() => {
             assert.sameMembers([...on.selection.nodes], ["a", "b", "c"]);
         });
@@ -158,7 +158,7 @@ describe("the graph's Overview", () => {
         });
         assert.deepInclude(on.time.candidates()[0], { column: "sent", kind: "edge" });
         await screen.findByText("Time: sent");
-        await userEvent.click(screen.getByRole("button", { name: "Set in Data" }));
+        await userEvent.click(page.getByRole("button", { name: "Set in Data", exact: true }));
         await waitFor(() => {
             assert.deepEqual(on.time.field, { edges: { start: "sent" } });
         });
@@ -174,7 +174,7 @@ describe("the graph's Overview", () => {
         assert.deepInclude(found, { column: "born", kind: "node" });
 
         await screen.findByText("Time: born");
-        await userEvent.click(screen.getByRole("button", { name: "Set in Data" }));
+        await userEvent.click(page.getByRole("button", { name: "Set in Data", exact: true }));
         await waitFor(() => {
             assert.deepEqual(on.time.field, { nodes: { start: "born" } });
         });

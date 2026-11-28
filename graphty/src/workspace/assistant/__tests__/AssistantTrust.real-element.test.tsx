@@ -128,7 +128,7 @@ async function openOn(
     });
     const store = createWorkspaceStore({ project: { name: "Check", id: 1 } });
     render(<Workspace store={store} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+    await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
     await screen.findByRole("region", { name: "Assistant" });
     const session = await graph(count);
     await screen.findByRole("textbox", COMPOSER);
@@ -140,7 +140,7 @@ async function openOn(
  * @param text - the message.
  */
 async function say(text: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("textbox", COMPOSER));
+    await userEvent.click(page.getByRole("textbox", { ...COMPOSER, exact: true }));
     await userEvent.keyboard(`${text}{Enter}`);
 }
 
@@ -237,17 +237,17 @@ describe("checking what the Assistant says", () => {
         const { session } = await openOn(6);
         model.turns = [calling("query", FIND), { text: "Three are even.", toolCalls: [] }];
         await say("Which are even?");
-        const chip = await screen.findByRole("button", { name: "3 nodes, select" });
+        await screen.findByRole("button", { name: "3 nodes, select" });
         const { version } = session.history;
 
-        await userEvent.hover(chip);
+        await userEvent.hover(page.getByRole("button", { name: "3 nodes, select", exact: true }));
         await waitFor(() => {
             assert.deepEqual(session.selection.peeked, { nodes: 3, edges: 0 });
         });
         assert.strictEqual(session.selection.size, 0);
         assert.strictEqual(session.history.version, version);
 
-        await userEvent.click(chip);
+        await userEvent.click(page.getByRole("button", { name: "3 nodes, select", exact: true }));
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes].sort(), ["n0", "n2", "n4"]);
         });
@@ -270,7 +270,7 @@ describe("checking what the Assistant says", () => {
         await say("Which are even?");
         const table = await screen.findByRole("button", { name: "Show in table" });
         assert.strictEqual(table.textContent, "", "an icon, named for what it does");
-        await userEvent.click(table);
+        await userEvent.click(page.getByRole("button", { name: "Show in table", exact: true }));
         await waitFor(() => {
             assert.isTrue(store.get().dockOpen);
         });
@@ -406,7 +406,7 @@ describe("checking what the Assistant says", () => {
         const { store } = await openOn(3);
         model.turns = [calling("style", COLOR), { text: "Red.", toolCalls: [] }];
         await say("Color them");
-        await userEvent.click(await screen.findByRole("button", { name: "Open layer" }));
+        await userEvent.click(page.getByRole("button", { name: "Open layer", exact: true }));
         await waitFor(() => {
             assert.strictEqual(store.get().inspected?.kind, "layer-row");
         });
@@ -439,7 +439,7 @@ describe("checking what the Assistant says", () => {
         const { store } = await openOn(3);
         model.turns = [calling("run_algorithm", { name: "degree", style: false }), { text: "Ran.", toolCalls: [] }];
         await say("How connected are they?");
-        await userEvent.click(await screen.findByRole("button", { name: "Open run" }));
+        await userEvent.click(page.getByRole("button", { name: "Open run", exact: true }));
         const values = await screen.findByRole("tab", { name: "Values" });
         assert.strictEqual(values.getAttribute("aria-selected"), "true");
         assert.strictEqual(store.get().announcement, "Opened Degree");
@@ -457,7 +457,7 @@ describe("checking what the Assistant says", () => {
         ];
         await say("Which is the most connected?");
         await screen.findByRole("button", { name: "Open run" });
-        await userEvent.click(await screen.findByRole("button", { name: "1 node, select" }));
+        await userEvent.click(page.getByRole("button", { name: "1 node, select", exact: true }));
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes], ["n1"]);
         });
@@ -467,7 +467,7 @@ describe("checking what the Assistant says", () => {
         await openOn(3);
         model.turns = [calling("run_algorithm", { name: "degree", style: true }), { text: "Ran.", toolCalls: [] }];
         await say("How connected are they?");
-        await userEvent.click(await screen.findByRole("button", { name: "Open run" }));
+        await userEvent.click(page.getByRole("button", { name: "Open run", exact: true }));
         const style = await screen.findByRole("tab", { name: "Style" });
         assert.strictEqual(style.getAttribute("aria-selected"), "true");
     });
@@ -476,7 +476,7 @@ describe("checking what the Assistant says", () => {
         const { store } = await openOn(3);
         model.turns = [calling("style", COLOR), { text: "Red.", toolCalls: [] }];
         await say("Color them");
-        await userEvent.click(await screen.findByRole("button", { name: "Open layer" }));
+        await userEvent.click(page.getByRole("button", { name: "Open layer", exact: true }));
         await waitFor(() => {
             assert.match(store.get().announcement, /^Opened ./);
         });
@@ -509,7 +509,7 @@ describe("checking what the Assistant says", () => {
             "filled",
         );
 
-        await userEvent.click(within(section).getByRole("button", { name: "Keep them" }));
+        await userEvent.click(page.elementLocator(section).getByRole("button", { name: "Keep them", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: "Waiting for you" }));
         });
@@ -536,7 +536,7 @@ describe("checking what the Assistant says", () => {
         await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
         assert.isTrue(section.contains(document.activeElement));
 
-        await userEvent.click(within(section).getByRole("button", { name: "Remove" }));
+        await userEvent.click(page.elementLocator(section).getByRole("button", { name: "Remove", exact: true }));
         await within(log()).findByText("Removed 12 nodes");
         assert.strictEqual(session.data.statistics().nodeCount, 0);
     });
@@ -550,7 +550,7 @@ describe("checking what the Assistant says", () => {
         assert.isNull(within(section).queryByRole("button", { name: "Replace" }));
         within(section).getByRole("button", { name: "Keep them" });
 
-        await userEvent.click(within(section).getByRole("button", { name: "Remove" }));
+        await userEvent.click(page.elementLocator(section).getByRole("button", { name: "Remove", exact: true }));
         await within(log()).findByText(/^Removed 12 nodes/);
         assert.strictEqual(session.data.statistics().nodeCount, 0);
     });
@@ -563,7 +563,7 @@ describe("checking what the Assistant says", () => {
         ];
         await say("Remove them");
         const section = await screen.findByRole("region", { name: "Waiting for you" });
-        await userEvent.click(within(section).getByRole("button", { name: "Change this" }));
+        await userEvent.click(page.elementLocator(section).getByRole("button", { name: "Change this", exact: true }));
         const field = await screen.findByRole("textbox", COMPOSER);
         await waitFor(() => {
             assert.strictEqual(document.activeElement, field);
@@ -615,8 +615,8 @@ describe("checking what the Assistant says", () => {
             { text: "Odd it is.", toolCalls: [] },
         ];
         await say("Pick one");
-        await userEvent.click(await screen.findByRole("radio", { name: "odd" }));
-        await userEvent.click(screen.getByRole("button", { name: "Answer" }));
+        await userEvent.click(page.getByRole("radio", { name: "odd", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Answer", exact: true }));
         await screen.findByText(/Odd it is\./);
     });
 
@@ -627,8 +627,8 @@ describe("checking what the Assistant says", () => {
             { text: "Odd it is.", toolCalls: [] },
         ];
         await say("Pick one");
-        await userEvent.click(await screen.findByRole("radio", { name: "odd" }));
-        await userEvent.click(screen.getByRole("button", { name: "Answer" }));
+        await userEvent.click(page.getByRole("radio", { name: "odd", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Answer", exact: true }));
         await within(log()).findByText(/Which group\?/);
         await within(log()).findByText(/Odd it is\./);
     });
@@ -646,7 +646,7 @@ describe("checking what the Assistant says", () => {
         await within(log()).findByText("Removing them waits for your approval.");
 
         // The wait is over once the reader decides: its words go while the decision runs, and after it.
-        await userEvent.click(within(section).getByRole("button", { name: "Remove" }));
+        await userEvent.click(page.elementLocator(section).getByRole("button", { name: "Remove", exact: true }));
         await waitFor(() => {
             assert.isTrue(model.held);
         });
@@ -685,7 +685,7 @@ describe("checking what the Assistant says", () => {
 
     it("offers Selection with its count, grayed out while nothing is selected", async () => {
         const { session } = await openOn(50);
-        await userEvent.click(await screen.findByRole("button", { name: "Options" }));
+        await userEvent.click(page.getByRole("button", { name: "Options", exact: true }));
         const empty = await screen.findByRole("menuitemradio", { name: "Selection" });
         assert.isTrue(empty.hasAttribute("data-disabled") || empty.hasAttribute("disabled"));
         assert.strictEqual(
@@ -694,7 +694,7 @@ describe("checking what the Assistant says", () => {
         );
         await userEvent.keyboard("{Escape}");
         await session.selection.apply({ ids: ids(42) });
-        await userEvent.click(screen.getByRole("button", { name: "Options" }));
+        await userEvent.click(page.getByRole("button", { name: "Options", exact: true }));
         const item = await screen.findByRole("menuitemradio", { name: /^Selection/ });
         assert.include(item.textContent, "42");
         assert.isFalse(item.hasAttribute("data-disabled"));
@@ -710,7 +710,7 @@ describe("checking what the Assistant says", () => {
         await screen.findByRole("alert");
         model.clearError();
 
-        await userEvent.click(within(log()).getByRole("button", { name: "Send again" }));
+        await userEvent.click(page.elementLocator(log()).getByRole("button", { name: "Send again", exact: true }));
         await screen.findByText("The reply.");
         await waitFor(() => {
             assert.deepEqual(
@@ -731,7 +731,7 @@ describe("checking what the Assistant says", () => {
         model.clearError();
 
         await pickScope("Whole graph");
-        await userEvent.click(within(log()).getByRole("button", { name: "Send again" }));
+        await userEvent.click(page.elementLocator(log()).getByRole("button", { name: "Send again", exact: true }));
         await screen.findByText("The reply.");
         await finished();
         assert.deepEqual(
@@ -753,7 +753,7 @@ describe("checking what the Assistant says", () => {
         await session.selection.apply({ ids: [] });
         await screen.findByRole("button", { name: "Options" });
         await session.selection.apply({ ids: ids(2) });
-        await userEvent.click(within(log()).getByRole("button", { name: "Send again" }));
+        await userEvent.click(page.elementLocator(log()).getByRole("button", { name: "Send again", exact: true }));
         await screen.findByText("The reply.");
         await finished();
         assert.deepEqual(
@@ -766,7 +766,7 @@ describe("checking what the Assistant says", () => {
     it("keeps the draft and the whole graph when the selection changes while typing", async () => {
         const { session } = await openOn(5);
         const field = await screen.findByRole<HTMLTextAreaElement>("textbox", COMPOSER);
-        await userEvent.click(field);
+        await userEvent.click(page.getByRole("textbox", { ...COMPOSER, exact: true }));
         await userEvent.keyboard("color th");
         await session.selection.apply({ ids: ["n1", "n2"] }, "replace", { cause: "user" });
         await pickScope("Selection");
@@ -786,7 +786,7 @@ describe("checking what the Assistant says", () => {
         await waitFor(() => {
             assert.isTrue(model.held);
         });
-        await userEvent.click(screen.getByRole("button", { name: "Close" }));
+        await userEvent.click(page.getByRole("button", { name: "Close", exact: true }));
         assert.isNull(screen.queryByRole("region", { name: "Assistant" }));
         model.release();
 
@@ -799,7 +799,7 @@ describe("checking what the Assistant says", () => {
         assert.isTrue(store.get().notice?.lasting);
         assert.strictEqual(session.data.statistics().nodeCount, 12);
 
-        await userEvent.click(within(notice()).getByRole("button", { name: "Open" }));
+        await userEvent.click(page.elementLocator(notice()).getByRole("button", { name: "Open", exact: true }));
         await screen.findByRole("region", { name: "Waiting for you" });
         await waitFor(() => {
             assert.isNull(store.get().notice);
@@ -816,7 +816,7 @@ describe("checking what the Assistant says", () => {
         await waitFor(() => {
             assert.isTrue(model.held);
         });
-        await userEvent.click(screen.getByRole("button", { name: "Close" }));
+        await userEvent.click(page.getByRole("button", { name: "Close", exact: true }));
         // Only its own words are counted: the status line also says other things meanwhile (Working,
         // once the run has gone a second).
         // Each write is a reading, the same words twice included.
@@ -837,7 +837,7 @@ describe("checking what the Assistant says", () => {
             1,
             "its words go through the status line once",
         );
-        await userEvent.click(within(slot).getByRole("button", { name: "Undo" }));
+        await userEvent.click(page.elementLocator(slot).getByRole("button", { name: "Undo", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.styles.list().length, layers);
         });
@@ -850,11 +850,11 @@ describe("checking what the Assistant says", () => {
         await waitFor(() => {
             assert.isTrue(model.held);
         });
-        await userEvent.click(screen.getByRole("button", { name: "Close" }));
+        await userEvent.click(page.getByRole("button", { name: "Close", exact: true }));
         model.release();
         const slot = await waitFor(notice);
         await within(slot).findByText("The assistant answered");
-        await userEvent.click(within(slot).getByRole("button", { name: "Open" }));
+        await userEvent.click(page.elementLocator(slot).getByRole("button", { name: "Open", exact: true }));
         await screen.findByRole("region", { name: "Chat" });
     });
 
@@ -862,7 +862,7 @@ describe("checking what the Assistant says", () => {
         fakeSpeech();
         await openOn(3);
         await screen.findByRole("button", { name: "Talk" });
-        await userEvent.click(screen.getByRole("button", { name: "Close" }));
+        await userEvent.click(page.getByRole("button", { name: "Close", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: "Assistant" }));
         });
@@ -889,7 +889,7 @@ describe("checking what the Assistant says", () => {
         // Autosave on, as the application has it: the reload reopens the same project.
         const store = createWorkspaceStore({ project: { name: "Check", id: 1 }, autosave: true });
         const before = { store, view: render(<Workspace store={store} />) };
-        await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+        await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
         await graph(12);
         await screen.findByRole("textbox", COMPOSER);
         model.turns = [calling("edit_data", { action: "remove_nodes", ids: ids(12) })];
@@ -899,7 +899,7 @@ describe("checking what the Assistant says", () => {
         // Gap #9977: the waiting reply's open step list is component state, closed by the reload.
         await reload(before);
         if (screen.queryByRole("region", { name: "Assistant" }) === null) {
-            await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+            await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
         }
         const section = await screen.findByRole("region", { name: "Waiting for you" });
         await within(section).findByText("Remove 12 nodes?");
@@ -999,13 +999,13 @@ describe("checking what the Assistant says", () => {
         await openOn(3, false);
         const talk = await screen.findByRole("button", { name: "Talk" });
         assert.strictEqual(talk.getAttribute("aria-pressed"), "false");
-        await userEvent.click(talk);
+        await userEvent.click(page.getByRole("button", { name: "Talk", exact: true }));
         const stop = await screen.findByRole("button", { name: "Stop talking" });
         assert.strictEqual(stop.getAttribute("aria-pressed"), "true");
         assert.strictEqual(stop, talk, "one button, so focus stays on it");
         // Its key still shows while it listens: the same key stops.
-        await userEvent.unhover(stop);
-        await userEvent.hover(stop);
+        await userEvent.unhover(page.getByRole("button", { name: "Stop talking", exact: true }));
+        await userEvent.hover(page.getByRole("button", { name: "Stop talking", exact: true }));
         await waitFor(() => {
             const tips = screen.queryAllByRole("tooltip").map((tip) => tip.textContent);
             assert.isTrue(
@@ -1013,8 +1013,8 @@ describe("checking what the Assistant says", () => {
                 JSON.stringify(tips),
             );
         });
-        await userEvent.unhover(stop);
-        await userEvent.click(stop);
+        await userEvent.unhover(page.getByRole("button", { name: "Stop talking", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Stop talking", exact: true }));
         await screen.findByRole("button", { name: "Talk" });
         const field = screen.getByRole<HTMLTextAreaElement>("textbox", COMPOSER);
         await waitFor(() => {
@@ -1026,8 +1026,8 @@ describe("checking what the Assistant says", () => {
     it("Stop talking goes back to Talk at once, while what was heard is still being written down", async () => {
         const finish = fakeSpeech(true);
         await openOn(3, false);
-        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+        await userEvent.click(page.getByRole("button", { name: "Talk", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Stop talking", exact: true }));
         await screen.findByRole("button", { name: "Talk" });
         finish();
         const field = screen.getByRole<HTMLTextAreaElement>("textbox", COMPOSER);
@@ -1039,9 +1039,9 @@ describe("checking what the Assistant says", () => {
     it("a press ending while a later one listens leaves Stop talking working", async () => {
         const finish = fakeSpeech(true);
         await openOn(3, false);
-        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
+        await userEvent.click(page.getByRole("button", { name: "Talk", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Stop talking", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Talk", exact: true }));
         await screen.findByRole("button", { name: "Stop talking" });
         let ends = 0;
         document.querySelector("graphty-element")?.addEventListener("ai-voice-end", () => {
@@ -1052,7 +1052,7 @@ describe("checking what the Assistant says", () => {
         await waitFor(() => {
             assert.strictEqual(ends, 1);
         });
-        await userEvent.click(screen.getByRole("button", { name: "Stop talking" }));
+        await userEvent.click(page.getByRole("button", { name: "Stop talking", exact: true }));
         await screen.findByRole("button", { name: "Talk" });
         finish();
         assert.isTrue(screen.getByRole("button", { name: "Talk" }).isConnected);
@@ -1078,8 +1078,8 @@ describe("checking what the Assistant says", () => {
         const rowAt = (): DOMRect => screen.getByRole("button", { name: "Send" }).getBoundingClientRect();
         await screen.findByRole("button", { name: "Talk" });
         const before = rowAt();
-        await userEvent.click(screen.getByRole("button", { name: "Talk" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+        await userEvent.click(page.getByRole("button", { name: "Talk", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Stop talking", exact: true }));
         finish();
         // The status line says it too, so the drawn line is looked for in the panel.
         await within(screen.getByRole("region", { name: "Assistant" })).findByText("Heard nothing.");
@@ -1139,8 +1139,8 @@ describe("checking what the Assistant says", () => {
     it("by default sends what Talk heard when talking ends, as spoken, and leaves the composer empty", async () => {
         fakeSpeech();
         await openOn(3);
-        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+        await userEvent.click(page.getByRole("button", { name: "Talk", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Stop talking", exact: true }));
         await screen.findByRole("heading", { name: "You (spoken)" });
         assert.isNotNull(within(log()).getByText("color these red"));
         await finished();
@@ -1154,17 +1154,19 @@ describe("checking what the Assistant says", () => {
         fakeSpeech();
         await openOn(3);
         const toggle = async (checked: boolean): Promise<void> => {
-            await userEvent.click(screen.getByRole("button", { name: /^Options/ }));
+            await userEvent.click(page.getByRole("button", { name: /^Options/ }));
             const item = await screen.findByRole("menuitemcheckbox", { name: "Send when I stop talking" });
             assert.strictEqual(item.getAttribute("aria-checked"), String(checked));
-            await userEvent.click(item);
+            await userEvent.click(
+                page.getByRole("menuitemcheckbox", { name: "Send when I stop talking", exact: true }),
+            );
             await waitFor(() => {
                 assert.isNull(screen.queryByRole("menu"));
             });
         };
         const talkOnce = async (): Promise<void> => {
-            await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
-            await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+            await userEvent.click(page.getByRole("button", { name: "Talk", exact: true }));
+            await userEvent.click(page.getByRole("button", { name: "Stop talking", exact: true }));
             await screen.findByRole("button", { name: "Talk" });
         };
         await screen.findByRole("button", { name: "Talk" });
@@ -1177,7 +1179,7 @@ describe("checking what the Assistant says", () => {
         assert.strictEqual(model.asked, 0, "off: the words wait in the composer");
 
         // Back on: the next press sends what the composer held with what it heard.
-        await userEvent.clear(field);
+        await userEvent.clear(page.getByRole("textbox", { ...COMPOSER, exact: true }));
         await toggle(false);
         await talkOnce();
         await screen.findByRole("heading", { name: "You (spoken)" });
@@ -1198,8 +1200,8 @@ const log = (): HTMLElement => screen.getByRole("region", { name: "Chat" });
  * @param name - Whole graph or Selection.
  */
 async function pickScope(name: "Whole graph" | "Selection"): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: /^Options/ }));
-    await userEvent.click(await screen.findByRole("menuitemradio", { name: new RegExp(`^${name}`) }));
+    await userEvent.click(page.getByRole("button", { name: /^Options/ }));
+    await userEvent.click(page.getByRole("menuitemradio", { name: new RegExp(`^${name}`) }));
     await waitFor(() => {
         assert.isNull(screen.queryByRole("menu"));
     });
@@ -1296,7 +1298,7 @@ describe("usage counts of the Assistant", () => {
             outcome: "AI_CONFIRMATION_NEEDED",
             changed: "none",
         });
-        await userEvent.click(within(section).getByRole("button", { name: "Remove" }));
+        await userEvent.click(page.elementLocator(section).getByRole("button", { name: "Remove", exact: true }));
         await within(log()).findByText("Removed 12 nodes");
         await finished();
         await waitFor(() => {
@@ -1314,12 +1316,12 @@ describe("usage counts of the Assistant", () => {
             { text: "Odd it is.", toolCalls: [] },
         ];
         await say("Pick one");
-        await userEvent.click(await screen.findByRole("radio", { name: "odd" }));
+        await userEvent.click(page.getByRole("radio", { name: "odd", exact: true }));
         await waitFor(() => {
             assert.lengthOf(counted("assistant_used"), 1);
         });
         assert.deepInclude(counted("assistant_used")[0], { step: "message", outcome: "AI_QUESTION_ASKED" });
-        await userEvent.click(screen.getByRole("button", { name: "Answer" }));
+        await userEvent.click(page.getByRole("button", { name: "Answer", exact: true }));
         await screen.findByText(/Odd it is\./);
         await waitFor(() => {
             assert.lengthOf(counted("assistant_used"), 2);
@@ -1343,8 +1345,8 @@ describe("usage counts of the Assistant", () => {
     it("counts a message sent by Talk as spoken", async () => {
         fakeSpeech();
         await openOn(3);
-        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+        await userEvent.click(page.getByRole("button", { name: "Talk", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Stop talking", exact: true }));
         await screen.findByRole("heading", { name: "You (spoken)" });
         await finished();
         await waitFor(() => {

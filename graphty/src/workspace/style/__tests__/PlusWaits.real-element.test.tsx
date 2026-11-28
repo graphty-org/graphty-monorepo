@@ -13,7 +13,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -80,7 +80,7 @@ async function styleSelection(session: GraphSession, nodes: string[]): Promise<v
     await act(async () => {
         await session.selection.apply({ nodes });
     });
-    await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+    await userEvent.click(page.getByRole("tab", { name: "Style", exact: true }));
 }
 
 /**
@@ -89,9 +89,9 @@ async function styleSelection(session: GraphSession, nodes: string[]): Promise<v
  * @param item - the menu item, when the "+" opens a menu.
  */
 async function plus(section: string, item?: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("button", { name: `Add to node ${section}` }));
+    await userEvent.click(page.getByRole("button", { name: `Add to node ${section}`, exact: true }));
     if (item !== undefined) {
-        await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+        await userEvent.click(page.getByRole("menuitem", { name: item, exact: true }));
     }
 }
 
@@ -119,7 +119,7 @@ describe("a section's '+' waits for a value", () => {
         });
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Some, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Some, / }));
         await screen.findByTestId("style-tab");
         const before = drawing(session);
         const legendBefore = JSON.stringify(session.styles.legend());
@@ -129,7 +129,7 @@ describe("a section's '+' waits for a value", () => {
         await session.styles.settled();
         assert.strictEqual(drawing(session), before, "nothing written, nothing in the key");
 
-        await userEvent.click(within(shape).getByRole("combobox"));
+        await userEvent.click(page.elementLocator(shape).getByRole("combobox"));
         await userEvent.keyboard("Torus{Enter}");
         await waitFor(() => {
             assert.strictEqual(session.styles.get(layer.id)?.set?.["node.shape"], "torus");
@@ -154,7 +154,7 @@ describe("a section's '+' waits for a value", () => {
         await session.styles.settled();
         // A selection's Style tab edits the layer selected in the tree (#3409).
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Paint, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Paint, / }));
         await styleSelection(session, ["1", "5"]);
         const before = drawing(session);
 

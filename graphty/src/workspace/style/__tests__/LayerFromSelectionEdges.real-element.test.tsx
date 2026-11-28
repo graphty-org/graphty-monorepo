@@ -81,7 +81,7 @@ function readerLayers(session: GraphSession): Layer[] {
  */
 async function assertStylesEdges(): Promise<void> {
     const tab = await screen.findByTestId("style-tab", {});
-    await userEvent.click(within(tab).getByRole("tab", { name: "Edge" }));
+    await userEvent.click(page.elementLocator(tab).getByRole("tab", { name: "Edge", exact: true }));
     assert.isTrue(within(tab).getByRole<HTMLInputElement>("checkbox", { name: "Style edges" }).checked);
     assert.isDefined(await within(tab).findByRole("button", { name: "Add to edge line" }));
 }
@@ -113,7 +113,7 @@ describe("New layer from selection styles edges", () => {
 
         const before = readerLayers(session).length;
         await userEvent.click(element, { position: at(element, "a"), button: "right" });
-        await userEvent.click(await screen.findByRole("menuitem", { name: /New layer from selection/ }));
+        await userEvent.click(page.getByRole("menuitem", { name: /New layer from selection/ }));
         // One row with a node part and an edge part: two layers.
         await waitFor(() => {
             assert.sameMembers(
@@ -141,9 +141,12 @@ describe("New layer from selection styles edges", () => {
 
         // The repro: the neighborhood's own actions menu in the inspector.
         const before = readerLayers(session).length;
-        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(await inspector.findByRole("button", { name: /actions$/ }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /New layer from selection/ }));
+        await userEvent.click(
+            page
+                .getByRole("complementary", { name: "Inspector", exact: true })
+                .getByRole("button", { name: /actions$/ }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /New layer from selection/ }));
         await waitFor(() => {
             assert.sameMembers(
                 readerLayers(session)

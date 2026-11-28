@@ -46,11 +46,11 @@ describe("the Line section and the Edge line sheet", () => {
         await element.waitForSettled();
 
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Lines, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Lines, / }));
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         const style = await within(inspector).findByRole("tab", { name: "Style" });
         if (style.getAttribute("aria-selected") !== "true") {
-            await userEvent.click(style);
+            await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
         }
         const tab = await screen.findByTestId("style-tab");
         await showKind("edge");
@@ -64,9 +64,13 @@ describe("the Line section and the Edge line sheet", () => {
         }
         const before = element.getCameraState();
 
-        await userEvent.click(within(tab).getByRole("button", { name: "Edge line settings" }));
+        await userEvent.click(
+            page.elementLocator(tab).getByRole("button", { name: "Edge line settings", exact: true }),
+        );
         const sheet = await screen.findByRole("dialog", { name: "Edge line" });
-        await userEvent.click(within(sheet).getByRole("button", { name: "Add edge opacity" }));
+        await userEvent.click(
+            page.elementLocator(sheet).getByRole("button", { name: "Add edge opacity", exact: true }),
+        );
         const field = await waitFor(() => {
             const found = sheet.querySelector<HTMLInputElement>('.ws-row[data-line="edge.opacity"] input');
             assert.isNotNull(found, "the Opacity line, waiting for a value");
@@ -81,7 +85,7 @@ describe("the Line section and the Edge line sheet", () => {
             const lines = session.styles.list().find((layer: Layer) => layer.name === "Lines");
             assert.strictEqual(lines?.set?.["edge.opacity"], 0.4);
         });
-        await userEvent.click(within(sheet).getByRole("button", { name: "Close Edge line" }));
+        await userEvent.click(page.elementLocator(sheet).getByRole("button", { name: "Close Edge line", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Edge line" }));
         });

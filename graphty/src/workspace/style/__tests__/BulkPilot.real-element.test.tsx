@@ -103,6 +103,22 @@ async function row(name: string): Promise<HTMLElement> {
 }
 
 /**
+ * A row of the style tree by its name, once the tree shows it inside a top-level folder. A row
+ * that moves into a folder is drawn anew there, so a click on the row it had at the top level
+ * would land on a row no longer in the page (issue #10475).
+ * @param name - The row's name.
+ * @returns The row.
+ */
+async function rowInFolder(name: string): Promise<HTMLElement> {
+    const shown = await tree();
+    return waitFor(() => {
+        const found = within(shown).getByRole("treeitem", { name: new RegExp(`^${name}, `) });
+        assert.equal(found.getAttribute("aria-level"), "2", `${name} is shown inside its folder`);
+        return found;
+    });
+}
+
+/**
  * Opens the Louvain folder in the tree from the keyboard, so its rows are drawn.
  */
 async function openFolder(): Promise<void> {
@@ -174,14 +190,17 @@ async function varyByGroup(field: HTMLElement, name: string): Promise<HTMLElemen
     const fromEach = within(field).queryByRole("button", { name: new RegExp(`^${name}: from each layer, `) });
     if (fromEach === null) {
         await userEvent.hover(field);
-        await userEvent.click(within(field).getByRole("button", { name: `${name} by attribute` }));
+        await userEvent.click(
+            page.elementLocator(field).getByRole("button", { name: `${name} by attribute`, exact: true }),
+        );
     } else {
-        await userEvent.click(fromEach);
+        await userEvent.click(
+            page.elementLocator(field).getByRole("button", { name: new RegExp(`^${name}: from each layer, `) }),
+        );
         const byLayer = await screen.findByRole("dialog", { name: / from each layer$/ });
-        await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
+        await userEvent.click(page.elementLocator(byLayer).getByRole("button", { name: "Change source", exact: true }));
     }
-    const options = await screen.findAllByRole("option", { name: /group|community|louvain/i });
-    await userEvent.click(options[0]);
+    await userEvent.click(page.getByRole("option", { name: /group|community|louvain/i }).first());
     return screen.findByRole("dialog", { name: / by / });
 }
 
@@ -206,8 +225,8 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
 
         // Shape: "+" adds it to the panel and writes nothing until a value is picked.
         const tab = await screen.findByTestId("style-tab");
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Shape", exact: true }));
         const shape = await line("node.shape");
         assert.isTrue(
             folderRows(session).every((each) => session.styles.get(each.id)?.set?.["node.shape"] === undefined),
@@ -307,8 +326,8 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
             assert.include(heading(), "2 layers", "the panel counts the layers an edit reaches");
         });
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Move to folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Fantine's" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Move to folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Fantine's", exact: true }));
         await waitFor(() => {
             for (const id of [third.id, fourth.id]) {
                 assert.equal(findTreeRow(session.styles.tree(), id)?.folders.at(-1)?.name, "Fantine's");
@@ -327,10 +346,10 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         });
         const folder = session.styles.tree().find((each) => each.name === "Louvain");
         await session.styles.moveRow(labels.row ?? labels.id, { parent: folder?.id ?? null, index: 0 });
-        await userEvent.click(await row("Top 10 labels"));
+        await userEvent.click(await rowInFolder("Top 10 labels"));
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Move to folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Out of Louvain" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Move to folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Out of Louvain", exact: true }));
         await waitFor(() => {
             const found = findTreeRow(session.styles.tree(), labels.row ?? labels.id);
             assert.lengthOf(found?.folders ?? ["?"], 0, "at the top level");
@@ -340,8 +359,8 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
 
         // "+ > Layer" with the folder selected lands inside it.
         await userEvent.click(await row("Louvain"));
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Layer", exact: true }));
         await waitFor(() => {
             const id = store.get().inspected?.id ?? "";
             assert.equal(findTreeRow(session.styles.tree(), id)?.folders.at(-1)?.name, "Louvain");
@@ -351,8 +370,8 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         // "+ > Folder" with two rows selected puts them in it.
         await userEvent.click(await row(first.name));
         await userEvent.click(await row(second.name), { modifiers: ["Shift"] });
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Folder" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Folder", exact: true }));
         await waitFor(() => {
             for (const id of [first.id, second.id]) {
                 assert.equal(findTreeRow(session.styles.tree(), id)?.folders.at(-1)?.name, "New folder");
@@ -376,7 +395,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         // Three groups at size 2 and a layer that sets no size: Size reads 2, and says who is unset.
         await userEvent.click(await row(groups[0].name));
         await userEvent.click(await row(groups[2].name), { modifiers: ["Shift"] });
-        await userEvent.click(await row("Top 10 labels"), { modifiers: ["Control"] });
+        await userEvent.click(await rowInFolder("Top 10 labels"), { modifiers: ["Control"] });
         const size = await line("node.size");
         assert.equal(within(size).getByRole<HTMLInputElement>("spinbutton", { name: /^Node size/ }).value, "2");
         assert.match(
@@ -396,12 +415,14 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         assert.equal(fill.querySelector("[data-notes]")?.getAttribute("data-notes"), "Not set: Top 10 labels");
         assert.isNull(fill.querySelector("[data-varied-line]"));
         await userEvent.hover(fill);
-        await userEvent.click(within(fill).getByRole("button", { name: /^Give all \d+ layers one node color$/ }));
+        await userEvent.click(
+            page.elementLocator(fill).getByRole("button", { name: /^Give all \d+ layers one node color$/ }),
+        );
         assert.isNotNull(
             await within(fill).findByRole("button", { name: /^Pick node color/ }),
             "a swatch to pick from",
         );
-        await userEvent.click(within(fill).getByRole("textbox", { name: /^Node color/ }));
+        await userEvent.click(page.elementLocator(fill).getByRole("textbox", { name: /^Node color/ }));
         await userEvent.keyboard("blue{Enter}");
         await waitFor(() => {
             for (const each of groups) {
@@ -418,12 +439,16 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
             assert.match(store.get().announcement ?? "", /\. Top 10 labels covers every node/);
         });
         assert.isNotNull(within(receipt).getByRole("button", { name: "Undo the color change" }));
-        await userEvent.click(within(receipt).getByRole("button", { name: "Undo the color change" }));
+        await userEvent.click(
+            page.elementLocator(receipt).getByRole("button", { name: "Undo the color change", exact: true }),
+        );
         await waitFor(() => {
             assert.notEqual(session.styles.get(groups[0].id)?.set?.["node.color"], "#0000FF");
         });
         // The step goes by what it did: Control+Z says "Undid changing node color on 6 layers"
-        await userEvent.click(within(await line("node.color")).getByRole("textbox", { name: /^Node color/ }));
+        await userEvent.click(
+            page.elementLocator(await line("node.color")).getByRole("textbox", { name: /^Node color/ }),
+        );
         await userEvent.keyboard("teal{Enter}");
         await waitFor(() => {
             assert.equal(session.styles.get(groups[0].id)?.set?.["node.color"], "#008080");
@@ -446,7 +471,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         // Shape, set by none: Vary copies the rule into every layer, the one holding every group too.
         // A "+" with one thing left adds it at once; with more, it opens a menu.
         const tab = await screen.findByTestId("style-tab");
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
         const shapeItem = await waitFor(() => {
             const found = screen.queryByRole("menuitem", { name: "Shape" });
             assert.isTrue(found !== null || tab.querySelector('.ws-row[data-line="node.shape"]') !== null);

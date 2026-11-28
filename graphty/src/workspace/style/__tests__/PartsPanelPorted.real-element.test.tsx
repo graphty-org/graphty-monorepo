@@ -13,7 +13,7 @@ import "@graphty/graphty-element";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession, RuleTree } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
@@ -60,19 +60,19 @@ async function openScene(): Promise<Scene> {
  */
 async function clickRow(name: string, modifier?: "Control"): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    const row = await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) });
+    const row = (): Locator => page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) });
     if (modifier !== undefined) {
         // A second row joins the selection: the panel of several layers, which has no Style tab.
         await userEvent.keyboard(`{${modifier}>}`);
-        await userEvent.click(row);
+        await userEvent.click(row());
         await userEvent.keyboard(`{/${modifier}}`);
         return screen.getByRole("complementary", { name: "Inspector" });
     }
-    await userEvent.click(row);
+    await userEvent.click(row());
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     const tab = await screen.findByTestId("style-tab");
     assert.isNotNull(tab.querySelector("[data-style-parts]"), "the panel by part");
@@ -101,8 +101,8 @@ function section(kind: "node" | "edge", id: string): HTMLElement {
  * @returns the first new line.
  */
 async function addFrom(kind: "node" | "edge", id: string, item: string): Promise<HTMLElement> {
-    await userEvent.click(within(section(kind, id)).getByRole("button", { name: /^Add to / }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+    await userEvent.click(page.elementLocator(section(kind, id)).getByRole("button", { name: /^Add to / }));
+    await userEvent.click(page.getByRole("menuitem", { name: item, exact: true }));
     return waitFor(() => {
         const line = section(kind, id).querySelector<HTMLElement>(".ws-row[data-line]");
         assert.isNotNull(line, `${kind} ${id}: ${item} added`);
@@ -131,7 +131,7 @@ describe("the old Style panel's tests on the panel by part", () => {
         await clickRow("Both");
         await showKind("node");
         const line = await addFrom("node", "shape", "Shape");
-        await userEvent.click(within(line).getByRole("button", { name: /^Node shape(,|$)/ }));
+        await userEvent.click(page.elementLocator(line).getByRole("button", { name: /^Node shape(,|$)/ }));
         const options = await screen.findAllByRole("option");
         assert.isAbove(options.length, 1);
         assert.deepEqual(
@@ -146,8 +146,8 @@ describe("the old Style panel's tests on the panel by part", () => {
         await clickRow("Both");
         await showKind("node");
         const line = await addFrom("node", "shape", "Shape");
-        await userEvent.click(within(line).getByRole("button", { name: /^Node shape(,|$)/ }));
-        await userEvent.click(await screen.findByRole("option", { name: /^Octahedron/ }));
+        await userEvent.click(page.elementLocator(line).getByRole("button", { name: /^Node shape(,|$)/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Octahedron/ }));
         await waitFor(() => {
             assert.equal(written(session, "node.shape"), "octahedron");
         });
@@ -175,7 +175,9 @@ describe("the old Style panel's tests on the panel by part", () => {
             assert.isUndefined(written(session, channel), `${where}: nothing written before a value`);
             assert.match(store.get().announcement, / added: pick its values$/, where);
             await userEvent.click(
-                within(section(kind, id)).getByRole("button", { name: `Remove ${item.toLowerCase()}` }),
+                page
+                    .elementLocator(section(kind, id))
+                    .getByRole("button", { name: `Remove ${item.toLowerCase()}`, exact: true }),
             );
             await waitFor(() => {
                 assert.isNull(section(kind, id).querySelector(".ws-row"), `${where}: removed`);
@@ -219,7 +221,11 @@ describe("the old Style panel's tests on the panel by part", () => {
         await openScene();
         await clickRow("Both");
         await showKind("node");
-        await userEvent.click(within(section("node", "shaders")).getByRole("button", { name: "Add to node shaders" }));
+        await userEvent.click(
+            page
+                .elementLocator(section("node", "shaders"))
+                .getByRole("button", { name: "Add to node shaders", exact: true }),
+        );
         const gallery = await screen.findByTestId("shader-gallery");
         await userEvent.keyboard("glow");
         const tile = await within(gallery).findByRole("button", { name: "Glow" });

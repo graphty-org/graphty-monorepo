@@ -3014,6 +3014,13 @@ export class LayoutManager implements Manager {
             this.applyHoldMask(this.layoutEngine);
         }
 
+        // Let go, the nodes the preview held are free to move, but a simulation that settled round them
+        // is at rest and would never step again: it steps from where they are once the layout runs
+        // (issue #10215). Whether it runs stays the caller's: a Before or a cancel restores at rest.
+        if (ids === null) {
+            this.layoutEngine?.wakeForLift();
+        }
+
         if (wake) {
             this.takeSeeds();
             this.layoutEngine?.wakeForLift();

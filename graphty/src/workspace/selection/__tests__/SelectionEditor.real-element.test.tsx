@@ -21,7 +21,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -65,7 +65,7 @@ async function openLayer(session: GraphSession, name: string, selector: Selector
     const layer = await session.styles.add({ name, target: "node", selector, set: { "node.color": "#d55e00" } });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-editor"));
     });
@@ -92,7 +92,7 @@ const TWO_GROUPS: UnionLeaf = {
 describe("the start page's hover look, built with the editor (spec 7, acceptance 14)", () => {
     it("the Style Layers + menu offers no Hover highlight template", async () => {
         await openSample();
-        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
         await screen.findByRole("menuitem", { name: "Folder" });
         assert.isNull(screen.queryByRole("menuitem", { name: /hover highlight/i }));
         await userEvent.keyboard("{Escape}");

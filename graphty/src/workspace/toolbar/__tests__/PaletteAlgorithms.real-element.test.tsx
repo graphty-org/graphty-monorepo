@@ -48,7 +48,7 @@ async function openScene(): Promise<GraphSession> {
 async function search(text: string): Promise<HTMLElement> {
     await userEvent.keyboard("{Control>}k{/Control}");
     const field = await screen.findByPlaceholderText("Search commands");
-    await userEvent.type(field, text);
+    await userEvent.type(page.getByPlaceholder("Search commands", { exact: true }), text);
     return field;
 }
 
@@ -92,7 +92,7 @@ describe("algorithms in Quick actions", () => {
         await search("Louvain");
         await screen.findByRole("option", { name: /^Louvain\b/ });
         await userEvent.keyboard("{Enter}");
-        await userEvent.click(await screen.findByRole("button", { name: "Run Louvain" }));
+        await userEvent.click(page.getByRole("button", { name: "Run Louvain", exact: true }));
         await waitFor(() => {
             assert.equal(session.runs.list().find((r) => r.algorithm === "louvain")?.status, "succeeded");
         });

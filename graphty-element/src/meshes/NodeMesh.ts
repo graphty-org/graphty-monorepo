@@ -1911,7 +1911,12 @@ export class NodeMesh {
             const outline = this.solidOutline(fill, seenBy, perspective ? at : undefined, groups).map(
                 ([x, y]): Point2 => [x * onRing, y * onRing],
             );
-            if (shift === drawnShift && grow === drawnGrow && sameOutline(outline, drawn)) {
+            // the box shift is read from moves by float noise on each rebuild: an exact match rebuilt it every frame
+            if (
+                Math.abs(shift - drawnShift) < 1e-6 &&
+                Math.abs(grow - drawnGrow) < 1e-6 &&
+                sameOutline(outline, drawn)
+            ) {
                 return;
             }
 

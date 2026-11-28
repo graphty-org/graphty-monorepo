@@ -6,7 +6,7 @@
  */
 import React, { useState } from "react";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
 import {
@@ -88,7 +88,7 @@ describe("the focus guard", () => {
 
     it("Tab rounds within an open dialog", async () => {
         render(<Page />);
-        await userEvent.click(screen.getByRole("button", { name: "Open" }));
+        await userEvent.click(page.getByRole("button", { name: "Open", exact: true }));
         screen.getByRole("button", { name: "Done" }).focus();
         await userEvent.keyboard("{Tab}");
         assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Inside" }));
@@ -96,8 +96,8 @@ describe("the focus guard", () => {
 
     it("a control removed while it held focus hands focus to the control before it", async () => {
         render(<Page />);
-        await userEvent.click(screen.getByRole("button", { name: "Open" }));
-        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await userEvent.click(page.getByRole("button", { name: "Open", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Open" }));
         });
@@ -124,7 +124,7 @@ describe("the focus guard", () => {
 
     it("a field drawn again by its commit takes focus back", async () => {
         render(<Page />);
-        await userEvent.click(screen.getByRole("textbox", { name: "Name" }));
+        await userEvent.click(page.getByRole("textbox", { name: "Name", exact: true }));
         await userEvent.keyboard("b{Enter}");
         await waitFor(() => {
             const field = screen.getByRole("textbox", { name: "Name" });
@@ -181,7 +181,7 @@ describe("focus after a graph opens", () => {
     it("stays where the reader went while it loaded", async () => {
         render(<Opened />);
         const focusLater = focusOpenedGraphLater();
-        await userEvent.click(screen.getByRole("button", { name: "Elsewhere" }));
+        await userEvent.click(page.getByRole("button", { name: "Elsewhere", exact: true }));
         focusLater();
         assert.equal(document.activeElement, screen.getByRole("button", { name: "Elsewhere" }));
     });
@@ -201,7 +201,7 @@ describe("focus after a graph opens", () => {
         const focusLater = focusOpenedGraphLater(() => {
             heading.focus();
         });
-        await userEvent.click(screen.getByRole("button", { name: "Elsewhere" }));
+        await userEvent.click(page.getByRole("button", { name: "Elsewhere", exact: true }));
         focusLater();
         assert.equal(document.activeElement, screen.getByRole("button", { name: "Elsewhere" }));
     });
@@ -328,7 +328,7 @@ describe("focus on a reopened tab's main heading", () => {
     it("stays where the reader went before the heading was drawn", async () => {
         const view = render(<Reopened title={false} />);
         focusMainHeading();
-        await userEvent.click(screen.getByRole("button", { name: "Elsewhere" }));
+        await userEvent.click(page.getByRole("button", { name: "Elsewhere", exact: true }));
         view.rerender(<Reopened title />);
         assert.isNotNull(screen.queryByRole("heading", { name: "Karate" }));
         assert.equal(document.activeElement, screen.getByRole("button", { name: "Elsewhere" }));

@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, RuleTree } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
@@ -70,7 +70,7 @@ function undoButton(): HTMLElement {
  */
 async function openRow(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
 /**
@@ -124,8 +124,8 @@ describe("undo and redo: words and keys", () => {
         const undo = await screen.findByRole("button", { name: "Undo changing node color on Picked" });
 
         // The pointer presses it and stays: the tooltip it showed now says why it is dimmed.
-        await userEvent.hover(undo);
-        await userEvent.click(undo);
+        await userEvent.hover(page.getByRole("button", { name: "Undo changing node color on Picked", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Undo changing node color on Picked", exact: true }));
         await waitFor(() => {
             assert.strictEqual(undo.getAttribute("aria-disabled"), "true");
             assert.match(store.get().notice?.message ?? "", /^Undid changing node color on Picked/);
@@ -140,7 +140,9 @@ describe("undo and redo: words and keys", () => {
 
         // Pressed again it does nothing, so the notice of the last undo goes. (Playwright will not
         // press an aria-disabled control unless forced; a reader's pointer does.)
-        await userEvent.click(undo, { force: true });
+        await userEvent.click(page.getByRole("button", { name: "Undo", exact: true }), {
+            force: true,
+        });
         await waitFor(() => {
             assert.isNull(store.get().notice, "no 'Undid' left to read as a second undo");
             assert.strictEqual(store.get().announcement, "Nothing to undo");
@@ -158,12 +160,14 @@ describe("undo and redo: words and keys", () => {
         }
         // The cards of two selected layers: one alone opens the selection editor.
         await selectWithTwin(session, "Picked");
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+        await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         if (screen.queryByRole("listbox") === null) {
-            await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+            await userEvent.click(
+                page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+            );
         }
-        await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${degree.name}(,|$)`) }));
+        await userEvent.click(page.getByRole("option", { name: new RegExp(`^${degree.name}(,|$)`) }));
         const card = await waitFor(() =>
             within(region).getByRole("group", { name: new RegExp(`^${degree.name}(,|$)`) }),
         );
@@ -172,7 +176,9 @@ describe("undo and redo: words and keys", () => {
         });
         const start = rangeOf(session, id);
 
-        await userEvent.click(within(card).getByRole("textbox", { name: `${degree.name} from, number` }));
+        await userEvent.click(
+            page.elementLocator(card).getByRole("textbox", { name: `${degree.name} from, number`, exact: true }),
+        );
         await userEvent.keyboard("5");
         await userEvent.tab();
         await waitFor(() => {
@@ -180,8 +186,12 @@ describe("undo and redo: words and keys", () => {
         });
         const typed = rangeOf(session, id);
 
-        const end = within(card).getByRole("slider", { name: `${degree.name} range end` });
-        await userEvent.dragAndDrop(end, within(card).getByRole("slider", { name: `${degree.name} range start` }));
+        const end = (): Locator =>
+            page.elementLocator(card).getByRole("slider", { name: `${degree.name} range end`, exact: true });
+        await userEvent.dragAndDrop(
+            end(),
+            page.elementLocator(card).getByRole("slider", { name: `${degree.name} range start`, exact: true }),
+        );
         await waitFor(() => {
             assert.notStrictEqual(rangeOf(session, id)?.max, start?.max, "the drag moved the end");
         });
@@ -214,15 +224,17 @@ describe("undo and redo: words and keys", () => {
             return found;
         });
         await userEvent.hover(line);
-        await userEvent.click(within(line).getByRole("button", { name: "Node color by attribute" }));
-        await userEvent.click((await screen.findAllByRole("option", { name: /community|louvain/i }))[0]);
+        await userEvent.click(
+            page.elementLocator(line).getByRole("button", { name: "Node color by attribute", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: /community|louvain/i }).nth(0));
         await waitFor(() => {
             const binding = session.styles.get(plain.id)?.encode?.["node.color"];
             assert.isTrue(binding !== undefined && "by" in binding, "the layer varies by Louvain");
         });
-        await userEvent.click(await within(line).findByRole("button", { name: /^Node color: / }));
+        await userEvent.click(page.elementLocator(line).getByRole("button", { name: /^Node color: / }));
         const panel = await screen.findByRole("dialog", { name: /^Color by / });
-        await userEvent.click(within(panel).getByRole("button", { name: "Change source" }));
+        await userEvent.click(page.elementLocator(panel).getByRole("button", { name: "Change source", exact: true }));
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isTrue(panel.contains(document.activeElement), "focus is in the panel");

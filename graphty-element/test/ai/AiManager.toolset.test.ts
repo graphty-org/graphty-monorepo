@@ -13,8 +13,8 @@ import { type AiManager, type AiManagerConfig, createAiManager } from "../../src
 import { MockLlmProvider } from "../../src/ai/providers/MockLlmProvider";
 import type { LlmProvider } from "../../src/ai/providers/types";
 import { ASSISTANT_TOOLS } from "../../src/catalog/assistant";
-import type { Graph } from "../../src/Graph";
 import { assistantSession } from "../helpers/assistant";
+import { type Emitted, graphHandle } from "../helpers/session-graph";
 
 /** The commands the assistant registered on master, in the order it offers them. */
 const HAND_WRITTEN = [
@@ -35,12 +35,6 @@ const HAND_WRITTEN = [
     "zoomToNodes",
 ];
 
-interface Heard {
-    readonly type: string;
-    readonly name?: string;
-    readonly result?: unknown;
-}
-
 /**
  * An assistant over a real session, with what it emits on the graph's event channel.
  * @param session - The session.
@@ -50,20 +44,9 @@ interface Heard {
 function assistantOn(
     session: GraphSession,
     config: Partial<AiManagerConfig> = {},
-): { ai: AiManager; heard: Heard[]; mock: MockLlmProvider } {
-    const heard: Heard[] = [];
-    const graph = {
-        getSession: () => session,
-        eventManager: {
-            emit: (type: string, event: object) => heard.push({ type, ...event }),
-            addListener: () => Symbol("l"),
-            removeListener: () => undefined,
-        },
-        getDataManager: () => ({ nodes: new Map(), edges: new Map() }),
-        getNodeCount: () => 0,
-        getEdgeCount: () => 0,
-        getXRSessionManager: () => undefined,
-    } as unknown as Graph;
+): { ai: AiManager; heard: Emitted; mock: MockLlmProvider } {
+    // Nothing runs XR in a node test.
+    const { graph, emitted: heard } = graphHandle(session, { getXRSessionManager: () => undefined });
     const mock = new MockLlmProvider();
     const ai = createAiManager();
     ai.init(graph, { provider: "mock", providerInstance: mock, ...config });
@@ -76,8 +59,8 @@ function assistantOn(
  * @param type - The kind.
  * @returns The names.
  */
-function namesOn(heard: readonly Heard[], type: string): (string | undefined)[] {
-    return heard.filter((event) => event.type === type).map((event) => event.name);
+function namesOn(heard: Emitted, type: string): unknown[] {
+    return heard.filter(([t]) => t === type).map(([, fields]) => fields.name);
 }
 
 describe("toolset", () => {

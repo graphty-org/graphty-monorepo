@@ -260,7 +260,14 @@ function watchSession(session: GraphSession): () => void {
             // The entry's own step says who made it; an entry that recorded none is no one's.
             const step =
                 entry.step === undefined ? undefined : session.history.steps.find(({ id }) => id === entry.step);
-            if (entry.coalesceKey !== undefined && entry.coalesceKey === lastKey && entry.step === lastStep) {
+            // An entry that recorded no step changed nothing: within a gesture (a slider's handle
+            // that sends its last value again before it draws it), it is that gesture's, and the
+            // gesture's next edit still goes into the step it started.
+            if (
+                entry.coalesceKey !== undefined &&
+                entry.coalesceKey === lastKey &&
+                (entry.step === lastStep || entry.step === undefined)
+            ) {
                 return;
             }
             const own = journalCount(entry, step?.provenance.via === "assistant" ? "assistant" : undefined);

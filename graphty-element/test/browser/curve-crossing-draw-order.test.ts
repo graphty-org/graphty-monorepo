@@ -1,22 +1,23 @@
 /**
  * @file A curved edge and a straight edge that cross draw in row order on renderPath "batched", as on "objects"
- * (issue #9201): where they cross, the edge added later is on top, whichever of them is curved.
+ * (issue #9201, and in the 2D view #10083): where they cross, the edge added later is on top, whichever of them is
+ * curved.
  */
 import "../../src/graphty-element";
 
-import { afterEach, describe, it } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
-import { assertSameFrame, readCanvas } from "../helpers/whole-canvas";
+import { assertSameFrame, type CanvasFrame, readCanvas } from "../helpers/whole-canvas";
 
 afterEach(() => {
     document.body.replaceChildren();
 });
 
 type Path = "objects" | "batched";
-/** The layout's dimensions, in the 3D view. */
-type Dim = 2 | 3;
+/** The layout's dimensions, in the 3D view; "2d" is the 2D view (`viewMode: "2d"`). */
+type Dim = 2 | 3 | "2d";
 
 const NODES = [
     { id: "a", position: { x: -2, y: 1, z: 0 } },
@@ -69,7 +70,11 @@ async function crossing(path: Path, dim: Dim, edges: readonly Row[]): Promise<Gr
     document.body.appendChild(element);
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
-    await element.graph.setLayout("fixed", { dim });
+    await element.graph.setLayout("fixed", { dim: dim === "2d" ? 2 : dim });
+    if (dim === "2d") {
+        await element.setViewMode("2d");
+    }
+
     await element.session.styles.add({
         name: "width",
         target: "edge",
@@ -101,13 +106,33 @@ async function crossing(path: Path, dim: Dim, edges: readonly Row[]): Promise<Gr
     return element;
 }
 
+/**
+ * How red a frame is: the sum of each pixel's red over its green. The red curve is redder where it is drawn over the
+ * gray straight lines it crosses than under them.
+ * @param frame - The frame.
+ * @returns The sum.
+ */
+function redness(frame: CanvasFrame): number {
+    let red = 0;
+    for (let at = 0; at < frame.pixels.length; at += 4) {
+        red += Math.max(0, frame.pixels[at] - frame.pixels[at + 1]);
+    }
+
+    return red;
+}
+
+/** A dimension's name in a test title. */
+function named(dim: Dim): string {
+    return dim === "2d" ? "2D view" : `${String(dim)}D layout`;
+}
+
 describe("a curved and a straight edge that cross draw in row order on batched (#9201)", () => {
-    for (const dim of [2, 3] as const) {
+    for (const dim of [2, 3, "2d"] as const) {
         for (const order of [
             [0, 1, 2],
             [1, 2, 0],
         ]) {
-            it(`${String(dim)}D layout, curve ${order[0] === 0 ? "first" : "last"}: 0 pixels against objects`, async () => {
+            it(`${named(dim)}, curve ${order[0] === 0 ? "first" : "last"}: 0 pixels against objects`, async () => {
                 const edges = order.map((i) => EDGES[i]);
                 const want = await readCanvas((await crossing("objects", dim, edges)).graph);
                 document.body.replaceChildren();
@@ -116,7 +141,7 @@ describe("a curved and a straight edge that cross draw in row order on batched (
             });
         }
 
-        it(`${String(dim)}D layout, bundles with some members curved: 0 pixels against objects`, async () => {
+        it(`${named(dim)}, bundles with some members curved: 0 pixels against objects`, async () => {
             const want = await readCanvas((await crossing("objects", dim, MIXED)).graph);
             document.body.replaceChildren();
             const got = await readCanvas((await crossing("batched", dim, MIXED)).graph);
@@ -165,30 +190,68 @@ describe("a curved and a straight edge that cross draw in row order on batched (
             { src: "c", dst: "b", low: true },
         ],
     };
-    for (const [name, edges] of Object.entries(STACKED)) {
-        it(`${name}: 0 pixels against objects`, async () => {
-            const want = await readCanvas((await crossing("objects", 3, edges)).graph);
+    for (const dim of [3, "2d"] as const) {
+        for (const [name, edges] of Object.entries(STACKED)) {
+            it(`${dim === "2d" ? "2D view, " : ""}${name}: 0 pixels against objects`, async () => {
+                const want = await readCanvas((await crossing("objects", dim, edges)).graph);
+                document.body.replaceChildren();
+                const got = await readCanvas((await crossing("batched", dim, edges)).graph);
+                assertSameFrame(want, got, "batched against objects");
+            });
+        }
+    }
+
+    for (const dim of [3, "2d"] as const) {
+        for (const path of ["objects", "batched"] as const) {
+            it(`${named(dim)} on ${path}: a straight line added once the curve is drawn is over it, as is a higher edge.drawOrder`, async () => {
+                // a curve takes the rest of its pieces when it is first placed, so straight lines added in the same
+                // write are under it
+                const red = async (edges: readonly Row[], after: readonly Row[] = []): Promise<number> => {
+                    const element = await crossing(path, dim, edges);
+                    if (after.length > 0) {
+                        await element.session.data.addEdges([...after]);
+                        await operationQueueOf(element.graph).waitForCompletion();
+                        await element.waitForStableFrame();
+                    }
+
+                    const count = redness(await readCanvas(element.graph));
+                    document.body.replaceChildren();
+                    return count;
+                };
+                const oneWrite = await red(EDGES);
+                const later = await red(EDGES.slice(0, 2), [EDGES[2]]);
+                assert.isBelow(later, oneWrite, "the straight line added later is drawn over the curve");
+                const ordered = await red([
+                    { ...EDGES[0], low: true },
+                    { ...EDGES[1], top: true },
+                    { ...EDGES[2], top: true },
+                ]);
+                assert.isBelow(
+                    ordered,
+                    oneWrite,
+                    "straight lines with a higher edge.drawOrder are drawn over the curve",
+                );
+            });
+        }
+    }
+
+    for (const dim of [3, "2d"] as const) {
+        it(`${dim === "2d" ? "2D view, " : ""}one width, a straight line added after a curve drawn after another straight line: 0 pixels against objects`, async () => {
+            // a curve takes the rest of its pieces when it is first placed, so the straight line added in the same call is
+            // under it on both paths; one added once the curve is drawn is over it
+            const later = async (path: Path): Promise<Graphty> => {
+                const element = await crossing(path, dim, [{ src: "a", dst: "d" }, EDGES[0]]);
+                await element.session.data.addEdges([{ src: "c", dst: "b" }]);
+                await operationQueueOf(element.graph).waitForCompletion();
+                await element.waitForStableFrame();
+                return element;
+            };
+            const want = await readCanvas((await later("objects")).graph);
             document.body.replaceChildren();
-            const got = await readCanvas((await crossing("batched", 3, edges)).graph);
+            const got = await readCanvas((await later("batched")).graph);
             assertSameFrame(want, got, "batched against objects");
         });
     }
-
-    it("one width, a straight line added after a curve drawn after another straight line: 0 pixels against objects", async () => {
-        // a curve takes the rest of its pieces when it is first placed, so the straight line added in the same call is
-        // under it on both paths; one added once the curve is drawn is over it
-        const later = async (path: Path): Promise<Graphty> => {
-            const element = await crossing(path, 3, [{ src: "a", dst: "d" }, EDGES[0]]);
-            await element.session.data.addEdges([{ src: "c", dst: "b" }]);
-            await operationQueueOf(element.graph).waitForCompletion();
-            await element.waitForStableFrame();
-            return element;
-        };
-        const want = await readCanvas((await later("objects")).graph);
-        document.body.replaceChildren();
-        const got = await readCanvas((await later("batched")).graph);
-        assertSameFrame(want, got, "batched against objects");
-    });
 
     it("straight lines drawn before a curve stay under it when restyled", async () => {
         const restyled = async (path: Path): Promise<Graphty> => {

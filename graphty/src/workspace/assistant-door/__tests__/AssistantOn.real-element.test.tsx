@@ -88,9 +88,9 @@ describe("the Assistant door", () => {
     it("names the saved provider in Settings' Privacy, and no line there says nothing leaves", async () => {
         writeAssistantChoice({ provider: "google", model: "gemini-3.8-flash", remember: false });
         await open();
-        await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+        await userEvent.click(page.getByRole("button", { name: "Settings", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
-        await userEvent.click(within(dialog).getByRole("gridcell", { name: "Privacy" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("gridcell", { name: "Privacy", exact: true }));
         await within(dialog).findByText(/^Assistant: .* go straight to Google\. Google charges your key\.$/);
         await within(dialog).findByText(/^Files you open: .* Only what the assistant reads from them is sent\.$/);
         await within(dialog).findByText("Usage data: off.");
@@ -101,9 +101,9 @@ describe("the Assistant door", () => {
     it("keeps Settings' Privacy as it was with no provider saved", async () => {
         writeAssistantChoice(null);
         await open();
-        await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+        await userEvent.click(page.getByRole("button", { name: "Settings", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
-        await userEvent.click(within(dialog).getByRole("gridcell", { name: "Privacy" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("gridcell", { name: "Privacy", exact: true }));
         await within(dialog).findByText("Files you open: read on this computer, never uploaded.");
         assert.isNull(within(dialog).queryByText(/^Assistant:/));
     });
@@ -111,11 +111,11 @@ describe("the Assistant door", () => {
     it("opens on the rail button with focus in the composer, and the active button closes it", async () => {
         const store = await open();
         const door = screen.getByRole("button", { name: "Assistant" });
-        await userEvent.click(door);
+        await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
         await focusOn(await composer());
         assert.strictEqual(door.getAttribute("aria-current"), "page");
 
-        await userEvent.click(door);
+        await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
         await panelGone();
         assert.strictEqual(store.get().place, "graph");
         await focusOn(door);
@@ -123,7 +123,7 @@ describe("the Assistant door", () => {
 
     it("opens on Mod+I from a text field, and Mod+I in the composer closes it", async () => {
         await open();
-        await userEvent.click(await screen.findByRole("combobox", { name: "Find" }));
+        await userEvent.click(page.getByRole("combobox", { name: "Find", exact: true }));
         await userEvent.keyboard(MOD_I);
         await focusOn(await composer());
 
@@ -157,10 +157,10 @@ describe("the Assistant door", () => {
 
     it("closes on the x back to the place it came from, and shows the key in the tooltip", async () => {
         const store = await open();
-        await userEvent.click(screen.getByRole("button", { name: "Notes" }));
-        await userEvent.click(screen.getByRole("button", { name: "Assistant" }));
+        await userEvent.click(page.getByRole("button", { name: "Notes", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
         await composer();
-        const close = screen.getByRole("button", { name: "Close" });
+        const close = page.getByRole("button", { name: "Close", exact: true });
         await userEvent.hover(close);
         assert.include((await screen.findByRole("tooltip")).textContent, "Close");
         await screen.findByText("Ctrl+I");

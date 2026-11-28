@@ -52,7 +52,7 @@ async function openDatedFile(file: File): Promise<GraphSession> {
     }
     if (file === DATED_JSON) {
         // The row's name holds its check, so it is clicked once the check has settled.
-        await userEvent.click(await screen.findByRole("button", { name: /^Edges.*Ready$/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Edges.*Ready$/ }));
     }
     await screen.findByRole("combobox", { name: "Role of sent" });
     const session = document.querySelector("graphty-element")?.session;
@@ -74,14 +74,14 @@ describe("the Data page's time suggestion", () => {
         const session = await openDatedFile(file);
         await screen.findByText(/timeline candidate/);
 
-        await userEvent.click(screen.getByRole("combobox", { name: "Role of sent" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Date or time (suggested)" }));
+        await userEvent.click(page.getByRole("combobox", { name: "Role of sent", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "Date or time (suggested)", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByText(/timeline candidate/));
         });
         assert.isNull(session.time.field, "choosing the role designates nothing before the load");
 
-        await userEvent.click(screen.getByRole("button", { name: "Load" }));
+        await userEvent.click(page.getByRole("button", { name: "Load", exact: true }));
         await waitFor(() => {
             assert.deepEqual(session.time.field, { edges: { start: "sent" } });
         });

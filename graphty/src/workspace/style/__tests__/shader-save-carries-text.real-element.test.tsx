@@ -73,7 +73,9 @@ describe("a save carries the text of every shader the app writes", () => {
         const shader = builtInNodeShader(mounted.session);
 
         const gallery = await openGallery();
-        await userEvent.click(await within(gallery).findByRole("button", { name: shader.plainName }));
+        await userEvent.click(
+            page.elementLocator(gallery).getByRole("button", { name: shader.plainName, exact: true }),
+        );
         await waitFor(() => {
             assert.lengthOf(usesOn(mounted.session, layer), 1);
         });
@@ -89,17 +91,20 @@ describe("a save carries the text of every shader the app writes", () => {
         const text = await mounted.session.shaders.source(shader.id);
 
         const gallery = await openGallery();
-        await userEvent.click(within(gallery).getByRole("button", { name: "New shader..." }));
+        await userEvent.click(page.elementLocator(gallery).getByRole("button", { name: "New shader...", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "New shader" });
         await waitFor(() => {
             assert.isNotNull(dialog.querySelector('[data-editor="ready"]'), "the code editor has loaded");
         });
-        await userEvent.fill(within(dialog).getByRole("textbox", { name: "Shader code" }), text);
+        await userEvent.fill(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Shader code", exact: true }),
+            text,
+        );
         const add = within(dialog).getByRole("button", { name: "Add" });
         await waitFor(() => {
             assert.isNull(add.getAttribute("aria-disabled"), "Add is enabled");
         });
-        await userEvent.click(add);
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Add", exact: true }));
         await waitFor(() => {
             assert.lengthOf(usesOn(mounted.session, layer), 1);
         });

@@ -53,11 +53,11 @@ async function openScene(): Promise<GraphSession> {
  */
 async function openStyle(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     await screen.findByTestId("style-tab");
 }
@@ -71,7 +71,7 @@ async function openStyle(name: string): Promise<void> {
  * @returns the line.
  */
 async function addLine(section: string, channel: Channel, item?: string): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: `Add to node ${section}` }));
+    await userEvent.click(page.getByRole("button", { name: `Add to node ${section}`, exact: true }));
     // A section of one property adds it at once; a section of several opens a menu.
     const menu = await waitFor(() => {
         const found = item === undefined ? null : screen.queryByRole("menuitem", { name: item });
@@ -189,7 +189,7 @@ describe("an unset color line shows no color until one is picked", () => {
         await openStyle("Paint");
         await showKind("node");
         const line = await addLine("shape", "node.shape", "Shape");
-        await userEvent.click(within(line).getByRole("combobox"));
+        await userEvent.click(page.elementLocator(line).getByRole("combobox"));
         const options = await screen.findAllByRole("option");
         assert.isAbove(options.length, 1);
         assert.deepEqual(

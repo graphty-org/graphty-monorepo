@@ -94,7 +94,7 @@ describe("dates in the table", () => {
         });
 
         // Its sort is spoken in dates' words; the oldest site is first.
-        await userEvent.click(within(headerCell("opened")).getByTestId("data-table-sort-button"));
+        await userEvent.click(page.elementLocator(headerCell("opened")).getByTestId("data-table-sort-button"));
         await waitFor(() => {
             assert.strictEqual(store.get().announcement, "Sorted by opened, oldest first");
             const first = within(grid).getAllByRole("row")[1];
@@ -102,13 +102,17 @@ describe("dates in the table", () => {
         });
 
         // The first click on a header of words sorts A to Z, as a spreadsheet does.
-        await userEvent.click(within(headerCell("families")).getByTestId("data-table-sort-button"));
+        await userEvent.click(page.elementLocator(headerCell("families")).getByTestId("data-table-sort-button"));
         await waitFor(() => {
             assert.strictEqual(store.get().announcement, "Sorted by families, A to Z");
         });
 
         // An issue's fix starts where Ignore and Show rows start, under the issue's label.
-        await userEvent.click(within(headerCell("families")).getByRole("button", { name: "Options for families" }));
+        await userEvent.click(
+            page
+                .elementLocator(headerCell("families"))
+                .getByRole("button", { name: "Options for families", exact: true }),
+        );
         const menu = await screen.findByRole("menu");
         const fix = within(menu).getAllByRole("menuitemradio")[0];
         const ignore = within(menu).getAllByRole("menuitem", { name: "Ignore" })[0];
@@ -158,7 +162,7 @@ describe("dates in the table", () => {
             assert.strictEqual(icons?.querySelector<HTMLElement>(".ws-th-role")?.dataset.role, "time");
         });
         assert.strictEqual(fieldsGlyph(), "text");
-        await userEvent.click(within(headerCell("opened")).getByTestId("data-table-sort-button"));
+        await userEvent.click(page.elementLocator(headerCell("opened")).getByTestId("data-table-sort-button"));
         await waitFor(() => {
             assert.strictEqual(store.get().announcement, "Sorted by opened, A to Z");
         });
@@ -170,7 +174,7 @@ describe("dates in the table", () => {
             assert.strictEqual(headerCell("opened").querySelector<HTMLElement>(".ws-th-icons")?.dataset.type, "time");
         });
         assert.strictEqual(fieldsGlyph(), "time");
-        await userEvent.click(within(headerCell("opened")).getByTestId("data-table-sort-button"));
+        await userEvent.click(page.elementLocator(headerCell("opened")).getByTestId("data-table-sort-button"));
         await waitFor(() => {
             assert.strictEqual(store.get().announcement, "Sorted by opened, newest first");
         });

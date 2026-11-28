@@ -15,7 +15,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../samples";
@@ -238,16 +238,16 @@ describe("the loading doors on the real element", () => {
         const { session } = await emptyProject();
         const file = await fixture("tp53-interactions.tsv");
         await commands.chooseNextFile(file.name, "text/tab-separated-values", await file.text());
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "File..." }));
+        await userEvent.click(page.getByRole("button", { name: "Add source", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "File...", exact: true }));
         await holds(session, 60, 120);
     });
 
     it("adds the clipboard's text as a source with Paste", async () => {
         const { session } = await emptyProject();
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
+        await userEvent.click(page.getByRole("button", { name: "Add source", exact: true }));
         await navigator.clipboard.writeText("source,target\na,b\nb,c\n");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Paste" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Paste", exact: true }));
         await holds(session, 3, 2);
         assert.deepEqual(
             session.data.sources().map((source) => source.name),
@@ -260,7 +260,7 @@ describe("the loading doors on the real element", () => {
         drop(await fixture("ships-to-2024-09.csv"));
         await holds(session, 40, 150);
         drop(await fixture("ships-to-2024-10.csv"));
-        await userEvent.click(await screen.findByRole("button", { name: "Replace ships-to-2024-09.csv" }));
+        await userEvent.click(page.getByRole("button", { name: "Replace ships-to-2024-09.csv", exact: true }));
         const receipt = await screen.findByText("Replaced ships-to-2024-09.csv with ships-to-2024-10.csv", {});
         await holds(session, 40, 159);
         // The receipt's own Undo, not the header's.
@@ -270,7 +270,7 @@ describe("the loading doors on the real element", () => {
             [...(toast?.querySelectorAll(".cm-entity-text") ?? [])].map((chip) => chip.textContent),
             ["+12", "-3", "40 changed"],
         );
-        await userEvent.click(within(toast).getByRole("button", { name: "Undo" }));
+        await userEvent.click(page.elementLocator(toast).getByRole("button", { name: "Undo", exact: true }));
         await holds(session, 40, 150);
     });
 });

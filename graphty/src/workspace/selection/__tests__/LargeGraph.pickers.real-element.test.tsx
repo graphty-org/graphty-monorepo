@@ -7,10 +7,10 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
-import { screen, waitFor } from "../../../test/test-utils";
+import { waitFor } from "../../../test/test-utils";
 import { listed, oneStep, openGenerated, openLayer, selectStep } from "./large-graph";
 
 // Every experiment stays off here.
@@ -21,7 +21,7 @@ describe("the selection editor on 50,000 nodes", () => {
         const session = await openGenerated();
         await openLayer(session, "Near", oneStep("near", { kind: "hops", max: 2 }));
         await selectStep("near");
-        await userEvent.click(await screen.findByRole("button", { name: "Reference" }));
+        await userEvent.click(page.getByRole("button", { name: "Reference", exact: true }));
         await waitFor(() => {
             assert.include(listed().headings, "Nodes 50,000");
         });

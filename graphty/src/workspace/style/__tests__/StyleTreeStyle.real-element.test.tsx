@@ -50,7 +50,7 @@ describe("a run's layer from the style tree", () => {
         // The reader's path: the run's layer in the style tree opens its Style in the inspector.
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(
-            await within(tree).findByRole("treeitem", {
+            page.elementLocator(tree).getByRole("treeitem", {
                 name: new RegExp(
                     `^${label.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}, (node |edge |node and edge )?layer`,
                 ),

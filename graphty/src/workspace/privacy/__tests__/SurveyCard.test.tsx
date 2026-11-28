@@ -5,7 +5,7 @@
  */
 import type { Survey } from "posthog-js";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import {
     count,
@@ -209,8 +209,8 @@ describe("SurveyCard", () => {
         const { unmount } = render(<SurveyCard />);
         moment(succeeded);
 
-        await userEvent.click(screen.getByRole("radio", { name: "Make a figure for a paper or talk" }));
-        await userEvent.click(screen.getByRole("button", { name: "Send" }));
+        await userEvent.click(page.getByRole("radio", { name: "Make a figure for a paper or talk", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Send", exact: true }));
 
         assert.isNull(card());
         assert.equal(readSurveyState().use_case, "make-a-figure-for-a-paper-or-talk");
@@ -236,7 +236,7 @@ describe("SurveyCard", () => {
         share();
         const first = render(<SurveyCard />);
         moment(succeeded);
-        await userEvent.click(screen.getByRole("button", { name: "Dismiss survey" }));
+        await userEvent.click(page.getByRole("button", { name: "Dismiss survey", exact: true }));
         assert.isNull(card());
         assert.isDefined(captured.find((entry) => entry.event === "survey dismissed"));
         first.unmount();
@@ -245,7 +245,7 @@ describe("SurveyCard", () => {
         moment(succeeded);
         assert.isNull(card());
         moment(exported);
-        await userEvent.click(screen.getByRole("button", { name: "4" }));
+        await userEvent.click(page.getByRole("button", { name: "4", exact: true }));
         assert.equal(captured.find((entry) => entry.event === "survey sent")?.properties["$survey_response_q-ease"], 4);
         second.unmount();
 
@@ -260,10 +260,10 @@ describe("SurveyCard", () => {
         render(<SurveyCard />);
         moment(succeeded);
 
-        await userEvent.click(screen.getByRole("radio", { name: "Other" }));
+        await userEvent.click(page.getByRole("radio", { name: "Other", exact: true }));
         assert.isNotNull(screen.getByText("Do not paste data from your graph. What you type here is sent."));
-        await userEvent.type(screen.getByRole("textbox", { name: "Your answer" }), "mapping supply chains");
-        await userEvent.click(screen.getByRole("button", { name: "Send" }));
+        await userEvent.type(page.getByRole("textbox", { name: "Your answer", exact: true }), "mapping supply chains");
+        await userEvent.click(page.getByRole("button", { name: "Send", exact: true }));
 
         const sent = captured.find((entry) => entry.event === "survey sent");
         assert.equal(sent?.properties["$survey_response_q-use"], "mapping supply chains");

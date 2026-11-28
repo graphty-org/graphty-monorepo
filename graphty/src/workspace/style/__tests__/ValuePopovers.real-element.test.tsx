@@ -63,11 +63,11 @@ async function openScene(width: number, height: number): Promise<Record<"degree"
 async function openStyle(name: string): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
     const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escaped}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${escaped}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     return screen.findByTestId("style-tab");
 }
@@ -79,7 +79,7 @@ async function openStyle(name: string): Promise<HTMLElement> {
  */
 async function openColorFromData(row: string): Promise<HTMLElement> {
     const tab = await openStyle(row);
-    await userEvent.click(await within(tab).findByRole("button", { name: /^Node color: / }));
+    await userEvent.click(page.elementLocator(tab).getByRole("button", { name: /^Node color: / }));
     const dialog = await screen.findByRole("dialog", { name: /^Color by / });
     await settled(dialog);
     return dialog;
@@ -104,7 +104,7 @@ describe("value popovers", () => {
         const dialog = await openColorFromData(rows.closeness);
         const before = dialog.getBoundingClientRect();
 
-        await userEvent.click(within(dialog).getByRole("switch", { name: "Clamp outliers" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("switch", { name: "Clamp outliers", exact: true }));
         await within(dialog).findByRole("group", { name: "Clamp at percentiles" });
         await waitFor(() => {
             assert.isAbove(dialog.getBoundingClientRect().height, before.height);
@@ -128,8 +128,8 @@ describe("value popovers", () => {
         const dialog = await openColorFromData(rows.louvain);
         const before = dialog.getBoundingClientRect();
 
-        await userEvent.click(within(dialog).getByRole("combobox", { name: /^No value/ }));
-        await userEvent.click(await screen.findByRole("option", { name: "Use one value" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: /^No value/ }));
+        await userEvent.click(page.getByRole("option", { name: "Use one value", exact: true }));
         await within(dialog).findByTestId("compact-color-input");
         await settled(dialog);
         const after = dialog.getBoundingClientRect();
@@ -156,7 +156,9 @@ describe("value popovers", () => {
             return found;
         });
         await userEvent.hover(row);
-        await userEvent.click(await within(row).findByRole("button", { name: "Node opacity by attribute" }));
+        await userEvent.click(
+            page.elementLocator(row).getByRole("button", { name: "Node opacity by attribute", exact: true }),
+        );
         const fits = await screen.findByRole("group", { name: "Does not fit" });
         const label = fits.querySelector<HTMLElement>(".cm-qa-row-label");
         assert.isNotNull(label);
@@ -181,9 +183,11 @@ describe("value popovers", () => {
             return found;
         });
         await userEvent.hover(row);
-        await userEvent.click(await within(row).findByRole("button", { name: "Node opacity by attribute" }));
+        await userEvent.click(
+            page.elementLocator(row).getByRole("button", { name: "Node opacity by attribute", exact: true }),
+        );
         // The vary picker names a measure by its method.
-        await userEvent.click(await screen.findByRole("option", { name: /^Degree/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Degree/ }));
         const session = document.querySelector("graphty-element")?.session;
         await waitFor(() => {
             const bound = session?.styles

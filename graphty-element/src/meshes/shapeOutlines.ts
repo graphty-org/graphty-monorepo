@@ -192,7 +192,7 @@ function arcPoints(from: Point2, rx: number, ry: number, sameFlags: boolean, swe
  * @param outline - The outline.
  * @returns The area.
  */
-function signedArea(outline: readonly Point2[]): number {
+export function signedArea(outline: readonly Point2[]): number {
     return outline.reduce((sum, [x, y], i) => {
         const [nx, ny] = outline[(i + 1) % outline.length];
         return sum + x * ny - nx * y;

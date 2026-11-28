@@ -16,7 +16,7 @@ import { GraphtyLogger, type Logger } from "../logging";
 import { DEFAULT_GLOW_COLOR, DEFAULT_OUTLINE_COLOR } from "../session/styles/channels";
 import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { readColor } from "./readColor";
-import { convexHull, offsetOutline, type Point2 } from "./shapeOutlines";
+import { convexHull, offsetOutline, type Point2, signedArea } from "./shapeOutlines";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "meshes", "effects"]);
 
@@ -253,18 +253,6 @@ function faceLoops(positions: ArrayLike<number>, indices: ArrayLike<number>, z: 
         loops.push(outline);
     }
     return loops;
-}
-
-/**
- * Twice a closed outline's signed area.
- * @param outline - A closed outline.
- * @returns Twice its signed area: positive counter-clockwise.
- */
-function signedArea(outline: readonly Point2[]): number {
-    return outline.reduce((sum, [x, y], i) => {
-        const [nx, ny] = outline[(i + 1) % outline.length];
-        return sum + x * ny - nx * y;
-    }, 0);
 }
 
 /**

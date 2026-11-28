@@ -13,23 +13,17 @@ import { cleanup, render, screen, waitFor, within } from "../../../test/test-uti
 import { effortConfig, effortLevels, readAssistantChoice, writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { scriptEnable } from "./script-enable";
 
 /** Every configuration the app enabled the assistant with. */
 let enabled: AiManagerConfig[] = [];
 
 beforeEach(() => {
     enabled = [];
-    const tag = customElements.get("graphty-element") as unknown as {
-        prototype: HTMLElementTagNameMap["graphty-element"];
-    };
-    const realEnable = tag.prototype.enableAiControl;
-    vi.spyOn(tag.prototype, "enableAiControl").mockImplementation(async function enable(
-        this: HTMLElementTagNameMap["graphty-element"],
-        config: AiManagerConfig,
-    ) {
+    scriptEnable((config) => {
         enabled.push(config);
         // The mock answers in the provider's place; a stand-in key makes the panel read as set up.
-        await realEnable.call(this, { ...config, apiKey: "stand-in-key", providerInstance: new MockLlmProvider() });
+        return { ...config, apiKey: "stand-in-key", providerInstance: new MockLlmProvider() };
     });
 });
 

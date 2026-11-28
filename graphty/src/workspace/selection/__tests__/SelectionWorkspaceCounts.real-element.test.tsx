@@ -1,15 +1,8 @@
 /**
- * The selection workspace's third polish round (design/ui/studio/tier5/ws-polish-3-*.md) on the
- * REAL graphty-element and Les Miserables, driven by real clicks and keys: a click on the preview
- * canvas never closes the workspace; a style layer's workspace says its count as it changes; a new
- * or cleared rule opens on its value picker; the outline carries No match in place of a key over
- * the preview; the picker is as wide as its field; the outline's levels are the indent's; an edge
- * condition's pick goes on to its Min box and tags nothing until it tests; a long checklist says
- * how many values are not drawn; F6 goes from the workspace to its preview; the Filters header
- * keeps its total while a card is edited; a new card's Nodes | Edges keeps focus on a side switch;
- * a collapsed card's name says its count apart from its title. And round 1's gate
- * (design/ui/studio/tier5/report.md): the matches strip is searched first, the value picker's list
- * is itself the region that scrolls, and a disabled reference says it is unavailable.
+ * The counts and searches of the selection workspace, on the REAL graphty-element and Les
+ * Miserables, driven by real clicks and keys: a style layer's workspace says its new count as a
+ * test changes, a long checklist says how many values are not drawn, and the matches strip is
+ * searched first, typing finding a match among its rows.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.

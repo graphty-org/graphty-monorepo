@@ -8,7 +8,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/ai";
+import { MockLlmProvider } from "@graphty/graphty-element/ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
@@ -20,6 +20,7 @@ import { readAssistantChoice, writeAssistantChoice } from "../../assistant-door/
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { link } from "../connection";
+import { scriptEnable } from "./script-enable";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -71,23 +72,6 @@ class ScriptedModel extends MockLlmProvider {
 }
 
 let model = new ScriptedModel();
-
-/**
- * Every enable reaches the scripted model instead of the network, with the rest of the app's own
- * configuration as it is, a given key included.
- */
-function scriptEnable(): void {
-    const tag = customElements.get("graphty-element") as unknown as {
-        prototype: HTMLElementTagNameMap["graphty-element"];
-    };
-    const real = tag.prototype.enableAiControl;
-    vi.spyOn(tag.prototype, "enableAiControl").mockImplementation(async function enable(
-        this: HTMLElementTagNameMap["graphty-element"],
-        config: AiManagerConfig,
-    ) {
-        await real.call(this, { ...config, providerInstance: model });
-    });
-}
 
 /**
  * The workspace, once its element has reported.
@@ -228,7 +212,7 @@ describe("talking to the Assistant", () => {
             indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
         });
         model = new ScriptedModel();
-        scriptEnable();
+        scriptEnable((config) => ({ ...config, providerInstance: model }));
     });
 
     afterEach(() => {

@@ -1,12 +1,6 @@
 /**
- * The selection workspace's first polish round (design/ui/studio/tier5/ws-polish-1-*.md) on the
- * REAL graphty-element and Les Miserables, driven by real clicks and keys: a selection with no step
- * opens on its new step's pane; the value picker opens beside its field; a fully covered group
- * says where it is drawn; a selected group is marked; Or... then Escape keeps the row selected;
- * Enter on All nodes goes into the pane; one count per place; the canvas toolbar takes no focus
- * under the workspace; a Links tag is one word; Clear starts where a new layer does; a lone group
- * never takes another's letter; a filter card is drawn over the full graph; the layer row follows
- * an undo; the group pane has Color and Save as set.
+ * The style tree after an undo, on the REAL graphty-element and Les Miserables, driven by real
+ * clicks and keys: a layer row reads the layer's count again when Mod+Z takes a filter back.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.

@@ -7,21 +7,7 @@ import { assert, beforeEach, describe, it } from "vitest";
 
 import { SystemPromptBuilder } from "../../../src/ai/prompt/SystemPromptBuilder";
 import type { SchemaSummary } from "../../../src/ai/schema/types";
-import type { Graph } from "../../../src/Graph";
-
-/**
- * Create a minimal mock graph for testing.
- */
-function createMockGraph(): Graph {
-    return {
-        getNodeCount: () => 10,
-        getEdgeCount: () => 5,
-        getViewMode: () => "3d",
-        getLayoutManager: () => ({
-            layoutEngine: { type: "ngraph" },
-        }),
-    } as unknown as Graph;
-}
+import { createCommandGraph } from "../../helpers/session-graph";
 
 /**
  * Create a test schema summary.
@@ -44,12 +30,20 @@ function createTestSchema(overrides: Partial<SchemaSummary> = {}): SchemaSummary
 
 describe("SystemPromptBuilder with schema", () => {
     let builder: SystemPromptBuilder;
-    let mockGraph: Graph;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         builder = new SystemPromptBuilder();
-        mockGraph = createMockGraph();
-        builder.setGraph(mockGraph);
+        // A real headless session holding 10 nodes and 5 edges, the counts the schema states.
+        builder.setGraph(await createCommandGraph({ nodeCount: 10, edgeCount: 5 }));
+    });
+
+    it("states the session's counts, view dimension and layout engine", () => {
+        const prompt = builder.build({ includeStats: true, includeLayout: true });
+
+        assert.include(prompt, "- Total nodes: 10");
+        assert.include(prompt, "- Total edges: 5");
+        assert.include(prompt, "- Visualization mode: 3D");
+        assert.include(prompt, "- Current layout: ngraph");
     });
 
     describe("setSchema", () => {

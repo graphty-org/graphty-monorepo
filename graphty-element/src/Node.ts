@@ -82,6 +82,7 @@ import {
     isPatternedBorder,
     PATTERN_UNIT_FLOOR_PX,
     type Point2,
+    rayReach,
     shapeTexts,
 } from "./meshes/shapeOutlines";
 import type { TemplateAnimation } from "./models/animateTemplate";
@@ -1023,6 +1024,8 @@ export class Node implements ModelUser {
         style: NodeStyleConfig | null;
         fit: { width: number; height: number } | null;
         value: readonly Point2[] | null;
+        /** The shape's own outline and its drawn-in fill's, in the mesh's units, for {@link Node.borderReachAlong}. */
+        drawn: { outline: readonly Point2[]; fill: readonly Point2[] } | null;
     } | null = null;
 
     /**
@@ -1283,6 +1286,20 @@ export class Node implements ModelUser {
         const inset = outline === null ? 0 : this.fillInset();
         if (outline === null || inset <= 0) {
             return reach;
+        }
+
+        // the fill as drawn is the outline drawn in by the inset on every side, not the box shrunk by it: the line
+        // runs from where it leaves that fill to where it crosses the shape's own outline
+        const drawn = this.reachOutlineBuilt?.drawn ?? null;
+        const own = this.#anchor.scaling;
+        const [x, y] = [dir.x / Math.abs(own.x), dir.y / Math.abs(own.y)];
+        const fromFill = drawn === null ? 0 : rayReach(drawn.fill, x, y);
+        if (drawn !== null && fromFill > 0) {
+            const box = this.outlineHalfExtents;
+            // never further than the border's width past the shape drawn in to its box shrunk by the inset, as below
+            const shrunk = surfaceReach(dir, { x: box.x - inset, y: box.y - inset, z: box.z }, null, outline);
+            const past = rayReach(drawn.outline, x, y) - fromFill + reach - inset;
+            return Math.max(0, Math.min(shrunk + reach - fromFill, past));
         }
 
         const toOutline =
@@ -4707,12 +4724,19 @@ export class Node implements ModelUser {
 
         const style = this.drawnStyle;
         const shape = style?.shape;
-        const value = NodeMesh.reachOutlineOf(
-            { shape: this.fittedExtent === null ? shape : { ...shape, ...this.fittedExtent }, border: style?.border },
-            this.size,
-            source,
-        );
-        this.reachOutlineBuilt = { mesh: source, style, fit: this.fittedExtent, value };
+        const options = {
+            shape: this.fittedExtent === null ? shape : { ...shape, ...this.fittedExtent },
+            border: style?.border,
+        };
+        const value = NodeMesh.reachOutlineOf(options, this.size, source);
+        const drawn =
+            value === null
+                ? null
+                : {
+                      outline: NodeMesh.faceOf({ shape: options.shape }, this.size, source).outline,
+                      fill: NodeMesh.faceOf(options, this.size, source).outline,
+                  };
+        this.reachOutlineBuilt = { mesh: source, style, fit: this.fittedExtent, value, drawn };
         return value;
     }
 
@@ -4742,7 +4766,24 @@ export class Node implements ModelUser {
         const half = this.drawnHalfExtents;
         // every mesh, fitted or kept at its own proportions, is drawn in by the border's inset (#10403)
         const inset = this.fillInset();
-        return inset === 0 ? half : { x: half.x + inset, y: half.y + inset, z: half.z };
+        if (inset === 0) {
+            return half;
+        }
+        // a polygon's fill is its outline drawn in by the inset on every side, not its box shrunk by it: a triangle's
+        // drawn-in fill is a smaller triangle whose box is more than the inset inside the outline's, so the outline is
+        // out from the fill by what its box is out from the fill's
+        const drawn = this.reachOutline === null ? null : this.reachOutlineBuilt?.drawn;
+        if (drawn) {
+            const own = this.#anchor.scaling;
+            const span = (points: readonly Point2[], axis: 0 | 1): number =>
+                Math.max(...points.map((pt) => pt[axis])) - Math.min(...points.map((pt) => pt[axis]));
+            return {
+                x: half.x + ((span(drawn.outline, 0) - span(drawn.fill, 0)) / 2) * Math.abs(own.x),
+                y: half.y + ((span(drawn.outline, 1) - span(drawn.fill, 1)) / 2) * Math.abs(own.y),
+                z: half.z,
+            };
+        }
+        return { x: half.x + inset, y: half.y + inset, z: half.z };
     }
 
     /**

@@ -1246,9 +1246,13 @@ This demo integrates:
                          rendered: the layout steps on every frame, and a frame drawn between an
                          add of nodes and an add of edges lays the nodes out without their edges
                          for however many frames fit in the gap, so the settled picture depended
-                         on how fast the machine was. -->
+                         on how fast the machine was. An unseeded force layout still draws a
+                         different picture depending on how the two writes reach it (#9985), so
+                         the story passes a seed: a seeded layout draws the same picture however
+                         the data arrives. -->
                     <graphty-element
                         layout-type="ngraph"
+                        .layoutConfig=${{ seed: 42 }}
                         .nodeData=${SAMPLE_NODES}
                         .edgeData=${SAMPLE_EDGES}
                     ></graphty-element>

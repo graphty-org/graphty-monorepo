@@ -113,4 +113,37 @@ describe("source-steps drafts: preview.made", () => {
         d.dispose();
         session.dispose();
     });
+    it("counts the nodes the graph holds that the steps take out, as the key does, not the rows", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("p.csv", "id,boss", "P1,", "P2,P1", "P3,"), { key: "id", type: "person" });
+        const people = session.data.sources()[0].key;
+        const d = session.data.draft();
+        d.connect({ from: { source: people, field: "boss" }, into: { space: "person" }, unlinked: "remove" });
+        const preview = d.preview();
+        const step = d.steps().at(-1);
+        assert.strictEqual(preview.marks.nodes.removed, 1, "P3: P1 is linked by P2's row");
+        assert.isAbove((step?.buckets?.emptyKey ?? 0) + (step?.buckets?.unmatched ?? 0), 1, "more rows reach no node");
+        assert.strictEqual(preview.made(every(d)).nodes.removed, 1);
+        assert.strictEqual(preview.made([]).nodes.removed, 0);
+        d.dispose();
+        session.dispose();
+    });
+
+    it("counts the nodes a merge leaves out under unmatchedFrom drop, and none for a step that takes none", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(ACCOUNTS, { key: "account", type: "account" });
+        const watch = await session.data.stage(WATCH, { key: "value" });
+        const first = session.data.draft();
+        first.merge({ from: { source: watch, field: "value" }, into: { space: "account", field: "phone" } });
+        await first.commit();
+        const d = session.data.draft();
+        const keep = [...d.steps()].reverse().find((row) => row.op === "join.merge")?.index ?? -1;
+        assert.strictEqual(d.preview().made([keep]).nodes.removed, 0, "kept, the rows naming no account stay");
+        d.editStep(keep, { unmatchedFrom: "drop" });
+        const preview = d.preview();
+        assert.strictEqual(preview.marks.nodes.removed, 3, "d1, 404 and 405 name no phone");
+        assert.strictEqual(preview.made([keep]).nodes.removed, preview.marks.nodes.removed);
+        d.dispose();
+        session.dispose();
+    });
 });

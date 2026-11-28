@@ -843,7 +843,7 @@ export class SourceDraftHandle implements SourceDraft {
                 const at = steps.join(",");
                 let out = made.get(at);
                 if (out === undefined) {
-                    out = madeCounts(state, drawn, steps);
+                    out = madeCounts(base, state, drawn, steps);
                     made.set(at, out);
                 }
                 return out;

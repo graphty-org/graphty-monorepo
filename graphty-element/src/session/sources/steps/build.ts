@@ -905,6 +905,8 @@ class Builder {
     readonly readerResults: ReaderResult[] = [];
     // what each count counted, by step place and count name (see DrillUnit)
     readonly drill = new Map<number, Map<string, DrillUnit[]>>();
+    // by step place, the nodes it took out (a row nothing links, a node 2 a merge leaves out)
+    readonly dropped = new Map<number, Set<string>>();
     // `<source>#<table>` -> the rows a filtered step read, for the no-step fate
     private readonly reads = new Map<string, { src: string; table: TableName; n: number; read: Set<number> }>();
     private readonly types: readonly TypeEntry[];
@@ -1421,7 +1423,8 @@ class Builder {
                 }
             }
         }
-        const { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults, drill, duplicate } = this;
+        const { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults, drill, dropped, duplicate } =
+            this;
         return {
             nodes,
             edges,
@@ -1434,6 +1437,7 @@ class Builder {
             fates,
             readerResults,
             drill,
+            dropped,
             ...(duplicate === undefined ? {} : { duplicate }),
         };
     }
@@ -1926,7 +1930,7 @@ class Builder {
         }
         st.mergedEdges = held?.folded.size ?? 0;
         this.reportEmpty(s.source, empties);
-        this.dropUnlinked(s, src, rows, asNodes);
+        this.dropUnlinked(s, st, src, rows, asNodes);
     }
 
     // The node a row is of itself: the step's own (`rowNode`), or the end its key names.
@@ -1969,6 +1973,7 @@ class Builder {
     // made, under `"remove"` one the graph held before too.
     private dropUnlinked(
         s: EdgesStep,
+        st: StepStats,
         src: Source,
         rows: readonly [Row, number][],
         asNodes: ReadonlyMap<number, EndHit>,
@@ -1980,7 +1985,7 @@ class Builder {
             if (!held || !this.mayTakeOut(s, n)) {
                 continue;
             }
-            this.dropNode(n);
+            this.takeOut(st, n);
             this.unmake(n);
             // built by the source's add, and now by nothing
             this.fates.get(s.source)?.set(`${s.read.table ?? "edges"}#${i}`, {
@@ -2762,12 +2767,12 @@ class Builder {
             this.mark(st, "fanOut", unit);
             // it names nodes, so it is no new one: left out with the rows that name none
             if (s.unmatchedFrom === "drop") {
-                this.skipNode2(s, n2);
+                this.skipNode2(s, st, n2);
             }
         } else {
             st.unmatched++;
             this.mark(st, "unmatched", unit);
-            this.unmatchedNode2(s, n2, excluded, v, kept);
+            this.unmatchedNode2(s, st, n2, { excluded, v }, kept);
         }
     }
 
@@ -2983,13 +2988,13 @@ class Builder {
     // A node 2 of a source with no key column has no id of its own, so it takes the value it is joined by.
     private unmatchedNode2(
         s: MergeStep,
+        st: StepStats,
         n2: BuiltNode,
-        excluded: boolean,
-        v: CellValue | undefined,
+        { excluded, v }: { readonly excluded: boolean; readonly v: CellValue | undefined },
         kept: Map<string, BuiltNode[]>,
     ): void {
         if (s.unmatchedFrom === "drop") {
-            this.skipNode2(s, n2);
+            this.skipNode2(s, st, n2);
         } else if (byKey(s) && !excluded && !isEmpty(v) && (text(v) === n2.key || this.keyless(s.source))) {
             const k = text(v);
             kept.set(k, [...(kept.get(k) ?? []), n2]);
@@ -3003,7 +3008,7 @@ class Builder {
     }
 
     // A node 2 left out: its rows, which make no node now, are still there for a later merge to read.
-    private skipNode2(s: MergeStep, n2: BuiltNode): void {
+    private skipNode2(s: MergeStep, st: StepStats, n2: BuiltNode): void {
         for (const source of new Set([s.source, ...n2.loads])) {
             const rows = this.skipped.get(source) ?? new Map<number, Row>();
             for (const t of ownTouches(n2, source)) {
@@ -3011,7 +3016,14 @@ class Builder {
             }
             this.skipped.set(source, rows);
         }
-        this.dropNode(n2);
+        this.takeOut(st, n2);
+    }
+
+    // A node a step takes out, noted as that step's.
+    private takeOut(st: StepStats, n: BuiltNode): void {
+        const dropped = this.dropped.get(st.step) ?? new Set<string>();
+        this.dropped.set(st.step, dropped.add(n.id));
+        this.dropNode(n);
     }
 
     // A kept node 2 moves into node 1's space; its former place becomes its alias (3.6).

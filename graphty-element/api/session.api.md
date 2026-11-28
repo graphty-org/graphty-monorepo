@@ -7952,6 +7952,7 @@ export interface SourceDraftMadeCounts {
     readonly nodes: {
         readonly new: number;
         readonly merged: number;
+        readonly removed: number;
     };
 }
 

@@ -81,6 +81,30 @@ function stopDrawing(element: Graphty): void {
 }
 
 /**
+ * The number that stands while the list of what is drawn is frozen, or null while it is not: what
+ * decides whether a pick reads the frozen table (`useFrozenRows`).
+ * @param element - The element.
+ * @returns The number, or null.
+ */
+function frozenListEpoch(element: Graphty): number | null {
+    return element.graph.getUpdateManager().frozenListEpoch();
+}
+
+/**
+ * Let the still graph draw until its list of what is drawn freezes, then stop drawing frames, so
+ * every pick reads the nodes from the frozen table: the path a reader's pointer takes over a graph
+ * that has stopped moving.
+ * @param element - The element.
+ */
+async function stopDrawingFrozen(element: Graphty): Promise<void> {
+    await vi.waitFor(() => {
+        assert.isNotNull(frozenListEpoch(element), "the still graph's list of what is drawn froze");
+    });
+    element.graph.engine.stopRenderLoop();
+    assert.isNotNull(frozenListEpoch(element), "the list is still frozen once drawing stops");
+}
+
+/**
  * Where node `t` is drawn.
  * @param element - The element.
  * @returns Its center in CSS pixels from the element's top-left corner.
@@ -156,9 +180,10 @@ describe("the pointer over the nodes", () => {
  * Move the pointer onto the canvas at an empty spot and then onto node `t`, through real input, counting the picking rays Babylon builds
  * meanwhile (one per mesh a pick tests, in that mesh's space), and check the hover reported `t`.
  * @param size - The node count.
+ * @param list - Whether the picks walk the meshes ("thawed") or read the frozen table ("frozen").
  * @returns The rays built.
  */
-async function raysFor(size: number): Promise<number> {
+async function raysFor(size: number, list: "thawed" | "frozen"): Promise<number> {
     const element = await mounted(size);
     const hovered: unknown[] = [];
     element.addEventListener("graphty-node-hover", (event) => {
@@ -166,7 +191,11 @@ async function raysFor(size: number): Promise<number> {
     });
 
     const at = target(element);
-    stopDrawing(element);
+    if (list === "frozen") {
+        await stopDrawingFrozen(element);
+    } else {
+        stopDrawing(element);
+    }
 
     let rays = 0;
     const unproject = Ray.prototype.unprojectRayToRef;
@@ -188,12 +217,14 @@ async function raysFor(size: number): Promise<number> {
 }
 
 describe("one pointer move onto a node", () => {
-    it("tests the same number of meshes at 10x the nodes", async () => {
-        const [small, large] = [await raysFor(100), await raysFor(1000)];
-        const message = `picking rays built: ${String(small)} at 100 nodes, ${String(large)} at 1000`;
-        assert.isAbove(small, 0, message);
-        assert.strictEqual(large, small, message);
-    });
+    for (const list of ["thawed", "frozen"] as const) {
+        it(`tests the same number of meshes at 10x the nodes, with the drawn list ${list}`, async () => {
+            const [small, large] = [await raysFor(100, list), await raysFor(1000, list)];
+            const message = `picking rays built (${list}): ${String(small)} at 100 nodes, ${String(large)} at 1000`;
+            assert.isAbove(small, 0, message);
+            assert.strictEqual(large, small, message);
+        });
+    }
 });
 
 describe("one click on a node", () => {

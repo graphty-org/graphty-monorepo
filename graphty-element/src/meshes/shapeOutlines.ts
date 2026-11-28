@@ -789,6 +789,9 @@ export function earClip(outline: readonly Point2[]): [number, number, number][] 
         (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
     const inside = (p: Point2, a: Point2, b: Point2, c: Point2): boolean =>
         turn(a, b, p) >= 0 && turn(b, c, p) >= 0 && turn(c, a, p) >= 0;
+    // a point where one of the ear's own corners is (a cut of no width between two pieces, back and forth) is no
+    // obstacle
+    const same = (p: Point2, q: Point2): boolean => p[0] === q[0] && p[1] === q[1];
 
     // ponytail: O(n^3) on an outline of a few dozen corners, built once per style.
     while (left.length > 3) {
@@ -798,7 +801,9 @@ export function earClip(outline: readonly Point2[]): [number, number, number][] 
             return (
                 turn(outline[a], outline[b], outline[c]) > 0 &&
                 !left.some(
-                    (o) => o !== a && o !== b && o !== c && inside(outline[o], outline[a], outline[b], outline[c]),
+                    (o) =>
+                        ![a, b, c].some((k) => same(outline[o], outline[k])) &&
+                        inside(outline[o], outline[a], outline[b], outline[c]),
                 )
             );
         });
@@ -1125,6 +1130,347 @@ export function offsetOutline(outline: readonly Point2[], distance: number): Poi
     });
 }
 
+/**
+ * A closed outline drawn in by a distance on every side: each side moved in parallel to itself, as a straight
+ * skeleton moves it. A side that shrinks to nothing on the way is dropped, its neighbors meeting where it closed (a
+ * rounded corner's arc closes up into a sharp corner, a narrow point's sides into its tip); two sides that meet
+ * across a limb close the limb up; and a corner turned in that runs into a far side cuts the outline in two there
+ * (a figure's neck, where its head comes away), each piece drawn in on its own from then on. A piece narrower than
+ * twice the distance closes up to almost nothing: it is drawn in only as far as it can be. Scaling the shape about
+ * its center instead keeps a side parallel only on a rectangle or an ellipse: a triangle's slanted sides came in by
+ * less than the distance, and its fill sat off-center; and drawn in past where a figure's thin limbs closed up, its
+ * outline turned inside out, past the figure (issue #10408).
+ *
+ * The pieces are joined into one outline by a cut of no width, back and forth between them, so the outline can
+ * have more points than it had: `from` says which of the outline's points each one pairs with.
+ *
+ * ponytail: events in turn, each checked against every side (O(n^3) on an outline of n points); a sweep if
+ * outlines grow to thousands of points.
+ * @param outline - The outline, counter-clockwise.
+ * @param distance - How far in.
+ * @returns The drawn-in outline, with one point for each of the outline's points, in order, and between them the
+ * points that join its pieces; for each point, the index of the outline's point it pairs with; and the outline of the
+ * fill, without the pieces that closed up on the way (each a limb or a head drawn in to almost nothing).
+ */
+export function insetOutline(
+    outline: readonly Point2[],
+    distance: number,
+): { points: Point2[]; from: number[]; fill: Point2[] } {
+    const count = outline.length;
+    // side k runs from point k to point k + 1, on the line n . X = c, n its outward normal; drawn in by t, n . X = c - t
+    const sides = outline.map(([x, y], k) => {
+        const [nx, ny] = outline[(k + 1) % count];
+        const n = unitNormal(x, y, nx, ny);
+        return { n, c: n[0] * x + n[1] * y, d: [nx - x, ny - y] as Point2 };
+    });
+    // where side a's line meets side b's, drawn in by t: null when they are parallel
+    const meet = (a: number, b: number, t: number): Point2 | null => {
+        const [p, q] = [sides[a], sides[b]];
+        const det = p.n[0] * q.n[1] - p.n[1] * q.n[0];
+        if (Math.abs(det) < 1e-9) {
+            return null;
+        }
+        const [ca, cb] = [p.c - t, q.c - t];
+        return [(ca * q.n[1] - cb * p.n[1]) / det, (p.n[0] * cb - q.n[0] * ca) / det];
+    };
+    // a side left, and its place in the outline's order: a side cut in two keeps its own place in one piece and, in
+    // the other, a place just before the side after the corner that cut it
+    interface Entry {
+        readonly side: number;
+        readonly key: number;
+    }
+    // a corner where one piece leaves for another, at a place of its own: the corner that starts `side`
+    interface Mark {
+        readonly key: number;
+        side: number;
+    }
+    // a piece closed up before reach is drawn where it closed, and left out of the fill
+    // where a corner turned in runs into a side: when, the corner and the side (positions among the sides left),
+    // whether in the side's middle or at its end, and where
+    interface Split {
+        readonly t: number;
+        readonly corner: number;
+        readonly side: number;
+        readonly at: "mid" | "end";
+        readonly cut: Point2;
+    }
+    interface Placed {
+        readonly key: number;
+        readonly at: Point2;
+        readonly closed?: boolean;
+    }
+    // the place just before b, after a
+    const before = (a: number, b: number): number => {
+        const gap = (((b - a) % count) + count) % count;
+        return (((b - Math.min(0.5, gap / 2)) % count) + count) % count;
+    };
+    // the corners of the sides left drawn in by t, each at its place, and the marks'
+    const place = (live: readonly Entry[], marks: readonly Mark[], t: number): Placed[] | null => {
+        const drawn: Point2[] = [];
+        for (let j = 0; j < live.length; j++) {
+            const at = meet(live[(j + live.length - 1) % live.length].side, live[j].side, t);
+            if (at === null) {
+                return null;
+            }
+            drawn.push(at);
+        }
+        const startOf = new Map(live.map((e, j) => [e.side, drawn[j]]));
+        return [
+            ...live.map((e, j) => ({ key: e.key, at: drawn[j] })),
+            ...marks.flatMap((m) => {
+                const at = startOf.get(m.side);
+                return at === undefined ? [] : [{ key: m.key, at }];
+            }),
+        ];
+    };
+    // the sides left without those at `drop`; a mark on a side dropped moves to the side after it
+    const without = (live: readonly Entry[], marks: readonly Mark[], drop: ReadonlySet<number>): Entry[] => {
+        for (const m of marks) {
+            let j = live.findIndex((e) => e.side === m.side);
+            for (let k = 0; j >= 0 && drop.has(j) && k < live.length; k++) {
+                j = (j + 1) % live.length;
+            }
+            if (j >= 0) {
+                m.side = live[j].side;
+            }
+        }
+        return live.filter((_, j) => !drop.has(j));
+    };
+
+    // the side of the sides left (corners now at t = 0 and later at t = 1) that closes up first, and when
+    const firstClosing = (
+        live: readonly Entry[],
+        now: Point2[],
+        later: Point2[],
+        since: number,
+    ): { first: number; when: number } => {
+        let first = -1;
+        let when = Infinity;
+        live.forEach((e, j) => {
+            // side j shrinks along its own direction at a steady rate as t grows; it is gone where its length is 0
+            const next = (j + 1) % live.length;
+            const { d } = sides[e.side];
+            const length = d[0] * (now[next][0] - now[j][0]) + d[1] * (now[next][1] - now[j][1]);
+            const rate = d[0] * (later[next][0] - later[j][0]) + d[1] * (later[next][1] - later[j][1]) - length;
+            if (rate < 0 && -length / rate >= since - 1e-9 && -length / rate < when) {
+                [first, when] = [j, -length / rate];
+            }
+        });
+        return { first, when };
+    };
+    // where corner j, turned in, runs into side i, and when, if it does before limit: in the side's middle, or at
+    // the corner that ends it (at: "end", a vertex event, two such corners meeting)
+    const runsInto = (
+        live: readonly Entry[],
+        now: Point2[],
+        later: Point2[],
+        [j, i]: [number, number],
+        [since, limit]: [number, number],
+    ): Split | null => {
+        const size = live.length;
+        const ahead = (i - j + size) % size;
+        const next = (i + 1) % size;
+        if (ahead === 0 || next === j) {
+            return null;
+        }
+        const move = (k: number, t: number): Point2 => [
+            now[k][0] + (later[k][0] - now[k][0]) * t,
+            now[k][1] + (later[k][1] - now[k][1]) * t,
+        ];
+        const { n, c, d } = sides[live[i].side];
+        const v: Point2 = [later[j][0] - now[j][0], later[j][1] - now[j][1]];
+        const closing = n[0] * v[0] + n[1] * v[1] + 1;
+        const t = closing > 1e-12 ? (c - n[0] * now[j][0] - n[1] * now[j][1]) / closing : -1;
+        if (t < since - 1e-9 || t > limit) {
+            return null;
+        }
+        const [s0, s1, hit] = [move(i, t), move(next, t), move(j, t)];
+        const span = (s1[0] - s0[0]) * d[0] + (s1[1] - s0[1]) * d[1];
+        const along = (hit[0] - s0[0]) * d[0] + (hit[1] - s0[1]) * d[1];
+        const near = 1e-6 * span + 1e-12;
+        if (span <= 0 || along < -near || along > span + near) {
+            return null;
+        }
+        const cut = move(j, t);
+        // a corner it runs into that ends its own side is that side closing up, not a cut; the corner that starts
+        // side i ends the side before it
+        if (along > span - near) {
+            return ahead <= size - 3 ? { t, corner: j, side: i, at: "end", cut } : null;
+        }
+        if (along < near) {
+            return ahead >= 2 ? { t, corner: j, side: (i + size - 1) % size, at: "end", cut } : null;
+        }
+        return ahead >= 2 && ahead <= size - 3 ? { t, corner: j, side: i, at: "mid", cut } : null;
+    };
+    // the first time a corner turned in (concave) runs into a far side, cutting the outline in two there (a straight
+    // skeleton's split event), before limit
+    const firstCut = (
+        live: readonly Entry[],
+        now: Point2[],
+        later: Point2[],
+        since: number,
+        limit: number,
+    ): Split | null => {
+        let found: Split | null = null;
+        for (let j = 0; j < live.length; j++) {
+            const [p, q] = [sides[live[(j + live.length - 1) % live.length].side].d, sides[live[j].side].d];
+            for (let i = 0; i < live.length && p[0] * q[1] - p[1] * q[0] < 0; i++) {
+                const hit = runsInto(live, now, later, [j, i], [since, found?.t ?? limit]);
+                if (hit !== null && (found === null || hit.t < found.t)) {
+                    found = hit;
+                }
+            }
+        }
+        return found;
+    };
+    // the two pieces a cut leaves: one runs from the corner's side to the side it met; the other from the side it
+    // met (cut in two, or from the side after the corner it met) back round to the corner; each takes the marks
+    // on its sides, and, met at a corner, a mark where it leaves for the other
+    const cutApart = (
+        live: readonly Entry[],
+        marks: readonly Mark[],
+        { corner, side, at }: Split,
+    ): { live: Entry[]; marks: Mark[] }[] => {
+        const turn = (k: number): Entry => live[(k + live.length) % live.length];
+        const one: Entry[] = [];
+        for (let k = corner; (k - side - 1) % live.length !== 0; k++) {
+            one.push(turn(k));
+        }
+        const [p, n, e, f] = [turn(corner - 1), turn(corner), turn(side), turn(side + 1)];
+        const other: Entry[] = at === "mid" ? [{ side: e.side, key: before(p.key, n.key) }] : [];
+        for (let k = side + 1; (k - corner) % live.length !== 0; k++) {
+            other.push(turn(k));
+        }
+        const inOne = new Set(one.map((x) => x.side));
+        const [oneMarks, otherMarks] = [true, false].map((mine) =>
+            marks.filter((m) => inOne.has(m.side) === mine).map((m) => ({ ...m })),
+        );
+        if (at === "end") {
+            otherMarks.push({ key: before(p.key, n.key), side: f.side });
+            oneMarks.push({ key: before(e.key, f.key), side: n.side });
+        }
+        return [
+            { live: one, marks: oneMarks },
+            { live: other, marks: otherMarks },
+        ];
+    };
+    // the sides left (the same list when no two sides meet in parallel) once the first of two that do goes: a straight run of sides is one line,
+    // so the second goes; two sides facing each other across a limb met where the side between them closed up, so
+    // the limb is gone as far back as the shorter of them reaches and the longer goes on past it; null when the
+    // piece closes up there
+    const unparallel = (live: Entry[], marks: readonly Mark[], since: number): Entry[] | null => {
+        const at = (k: number): number => live[(k + live.length) % live.length].side;
+        const j = live.findIndex((e, k) => meet(at(k - 1), e.side, 0) === null);
+        if (j < 0 || live.length <= 3) {
+            return live;
+        }
+        const [a, b] = [sides[at(j - 1)], sides[at(j)]];
+        if (a.n[0] * b.n[0] + a.n[1] * b.n[1] > 0) {
+            return without(live, marks, new Set([j]));
+        }
+        const back = meet(at(j - 2), at(j - 1), since);
+        const ahead = meet(at(j), at(j + 1), since);
+        if (back === null || ahead === null || live.length <= 4) {
+            return null;
+        }
+        const longer = a.d[0] * (ahead[0] - back[0]) + a.d[1] * (ahead[1] - back[1]);
+        const previous = (j + live.length - 1) % live.length;
+        return without(live, marks, new Set([longer > -1e-9 ? j : -1, longer < 1e-9 ? previous : -1]));
+    };
+
+    // a piece already closed up where it was cut off, each corner at `pinch` (the outline itself, for no cut)
+    const pinchedAt = (start: readonly Entry[], marks: readonly Mark[], pinch: Point2 | null): Placed[] =>
+        [...start, ...marks].map((e) => ({ key: e.key, at: [...(pinch ?? outline[e.side])] as Point2, closed: true }));
+    // a piece drawn in all but a sliver of the way to where it closes up, from the last of its states before then
+    const closedBefore = (
+        states: readonly { live: Entry[]; since: number }[],
+        marks: readonly Mark[],
+        when: number,
+    ): Placed[] | null => {
+        for (const was of [...states].reverse()) {
+            const t = was.since + (when - was.since) * 0.999;
+            const drawn = was.since < when - 1e-12 ? place(was.live, marks, t) : null;
+            if (drawn !== null) {
+                return drawn.map((p) => ({ ...p, closed: true }));
+            }
+        }
+        return null;
+    };
+
+    // a piece's corners drawn in from `from` to reach, each at its place; a piece that closes up first is drawn in
+    // all but a sliver of the way to where it closes, so the fill keeps an area, and one already closed up when it
+    // was cut off (a limb at its root) is drawn at `pinch`, where it was
+    const drawnIn = (
+        start: readonly Entry[],
+        marks: readonly Mark[],
+        from: number,
+        reach: number,
+        pinch: Point2 | null,
+    ): Placed[] => {
+        const pinched = (): Placed[] => pinchedAt(start, marks, pinch);
+        if (start.length < 3) {
+            return pinched();
+        }
+        let live = [...start];
+        let since = from;
+        // the sides left after each side dropped, and since when, for a piece that closes up as several drop at once
+        const history: { live: Entry[]; since: number }[] = [];
+        const closes = (when: number): Placed[] =>
+            closedBefore([...history, { live, since }], marks, when) ?? pinched();
+        for (;;) {
+            const left = unparallel(live, marks, since);
+            if (left === null) {
+                return closes(since);
+            }
+            if (left !== live) {
+                history.push({ live, since });
+                live = left;
+                continue;
+            }
+            const [now, later] = [place(live, [], 0), place(live, [], 1)].map((p) => p?.map((q) => q.at) ?? null);
+            if (now === null || later === null) {
+                return closes(since);
+            }
+            const { first, when } = firstClosing(live, now, later, since);
+            // each piece a cut leaves has fewer sides than the piece it was cut from, so cutting ends
+            const cut = firstCut(live, now, later, since, Math.min(when, reach));
+            if (cut !== null) {
+                return cutApart(live, marks, cut).flatMap((piece) =>
+                    drawnIn(piece.live, piece.marks, cut.t, reach, cut.cut),
+                );
+            }
+            if (first < 0 || when > reach) {
+                return place(live, marks, reach) ?? closes(since);
+            }
+            if (live.length <= 3) {
+                return closes(when);
+            }
+            history.push({ live, since });
+            live = without(live, marks, new Set([first]));
+            since = when;
+        }
+    };
+
+    const start = sides.map((_, k) => ({ side: k, key: k })).filter((e) => Math.hypot(...sides[e.side].d) > 1e-12);
+    if (start.length < 3) {
+        const points = outline.map((p): Point2 => [p[0], p[1]]);
+        return { points, from: outline.map((_, i) => i), fill: points };
+    }
+    // each of the outline's points, and each joining point, takes the corner at the first place at or after its own
+    const placed = drawnIn(start, [], 0, distance, null).sort((a, b) => a.key - b.key);
+    const joins = new Set(placed.map((p) => p.key).filter((key) => Math.abs(key - Math.round(key)) > 1e-9));
+    const keys = [...outline.map((_, i) => i), ...joins].sort((a, b) => a - b);
+    const found = keys.map((key) => placed.find((p) => p.key >= key - 1e-9) ?? placed[0]);
+    const points = found.map((p): Point2 => [p.at[0], p.at[1]]);
+    // the fill leaves out the pieces that closed up, unless they all did
+    const open = points.filter((_, i) => found[i].closed !== true);
+    return {
+        points,
+        from: keys.map((key) => Math.ceil(key - 1e-9) % count),
+        fill: open.length >= 3 ? open : points,
+    };
+}
+
 /** How many rays {@link mitredEdges} casts along an outline to find sides that face each other across a notch. */
 const SIDE_RAYS = 256;
 
@@ -1376,6 +1722,47 @@ export function borderRing(
         outer,
         pattern.map((length) => length * Math.max(width, dashUnit)),
     );
+}
+
+/**
+ * The pieces of a border drawn as the band between two given edges, point for point (a border inside a flat shape:
+ * from its drawn-in fill out to its own outline), for the styles that are a band cut along its length: solid,
+ * double and the dashed patterns. Grown out from the fill instead, a corner the fill closed up came back sharp, past a
+ * rounded shape's outline, and a star's fill closed to a sliver grew back as a blob (issue #10408).
+ * @param inner - The band's inner edge, counter-clockwise.
+ * @param outer - Its outer edge, point for point.
+ * @param style - Its line style.
+ * @param width - How wide the border is, for its dashes' lengths.
+ * @param dashUnit - The shortest one width of a dashed pattern is drawn ({@link borderRing}).
+ * @returns The pieces, or null for a style drawn along a path rather than cut from a band (a stroke, a wave).
+ */
+export function bandRing(
+    inner: readonly Point2[],
+    outer: readonly Point2[],
+    style: string,
+    width: number,
+    dashUnit = 0,
+): RingPiece[] | null {
+    const between = (f: number): Point2[] =>
+        inner.map(([x, y], i): Point2 => [x + (outer[i][0] - x) * f, y + (outer[i][1] - y) * f]);
+    if (style === "solid") {
+        return [{ inner: [...inner], outer: [...outer], closed: true }];
+    }
+    if (style === "double") {
+        return [
+            { inner: [...inner], outer: between(1 / 3), closed: true },
+            { inner: between(2 / 3), outer: [...outer], closed: true },
+        ];
+    }
+    const pattern = PATTERNS[style];
+
+    return pattern === undefined
+        ? null
+        : cutIntoDashes(
+              inner,
+              outer,
+              pattern.map((length) => length * Math.max(width, dashUnit)),
+          );
 }
 
 /**

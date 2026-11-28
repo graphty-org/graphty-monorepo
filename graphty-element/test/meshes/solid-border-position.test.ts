@@ -65,10 +65,17 @@ describe("a border's position on a solid shape (#10403)", () => {
 
             assert.isAbove(outside.ring - outside.fill, width);
             // inside: the fill comes in by the whole width on every side, and the ring ends where the plain fill does
-            assert.approximately(inside.fill, outside.fill - 2 * width, 0.02);
+            // an icosahedron's widest point is a corner, which a side-by-side inset draws in further than its width
+            // (solid-border-parallel-inset.test.ts checks it side by side)
+            const corner = type === "icosahedron";
+            if (!corner) {
+                assert.approximately(inside.fill, outside.fill - 2 * width, 0.02);
+            }
             assert.approximately(inside.ring, outside.fill, 0.02);
             // center: by half the width, so the ring's middle runs along the plain fill's edge
-            assert.approximately(center.fill, outside.fill - width, 0.02);
+            if (!corner) {
+                assert.approximately(center.fill, outside.fill - width, 0.02);
+            }
             // the outline offset half as far as the outside ring's: a mitred corner reaches out in step with it
             assert.approximately(center.ring, (outside.ring + outside.fill) / 2, 0.02);
         });

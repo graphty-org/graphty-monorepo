@@ -226,6 +226,32 @@ describe("show", () => {
         assert.equal(shown(null).code, 1);
     });
 
+    it("prints the oldest and newest comments of a long issue and counts the skipped middle (#10564)", () => {
+        const all = Array.from({ length: 150 }, (_, k) => comment(OWNER, `note-${k + 1}.`));
+        all[149] = comment(user("mallory"), "newest from mallory");
+        const one = withComments(all.slice(0, 10), { newest: { nodes: all.slice(60) } });
+        one.comments.totalCount = 150;
+        const r = shown(one);
+        assert.equal(r.code, 0);
+        assert.match(r.out, /note-1\./);
+        assert.match(r.out, /note-10\./);
+        assert.doesNotMatch(r.out, /note-11\.|note-60\./);
+        assert.match(r.out, /\[50 comments in between not shown\]/);
+        assert.match(r.out, /note-61\./);
+        assert.match(r.out, /note-149\./);
+        assert.doesNotMatch(r.out, /newest from mallory/);
+        assert.match(r.out, /\[comment by mallory withheld: untrusted author\]/);
+    });
+
+    it("prints each comment once when the oldest and newest overlap", () => {
+        const all = Array.from({ length: 30 }, (_, k) => comment(OWNER, `note-${k + 1}.`));
+        const one = withComments(all.slice(0, 10), { newest: { nodes: all } });
+        one.comments.totalCount = 30;
+        const r = shown(one);
+        for (let k = 1; k <= 30; k++) assert.equal(r.out.split(`note-${k}.`).length, 2, `note-${k} once`);
+        assert.doesNotMatch(r.out, /not shown/);
+    });
+
     it("refuses a non-number", () => {
         assert.equal(main(["show", "x"], runner().run, NOW).code, 2);
     });

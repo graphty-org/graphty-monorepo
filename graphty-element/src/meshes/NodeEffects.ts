@@ -1,4 +1,5 @@
 import type { EffectLayer } from "@babylonjs/core";
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
 import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { HighlightLayer } from "@babylonjs/core/Layers/highlightLayer.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
@@ -16,6 +17,7 @@ import { DEFAULT_GLOW_COLOR, DEFAULT_OUTLINE_COLOR } from "../session/styles/cha
 import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import type { MeshCache } from "./MeshCache";
 import { readColor } from "./readColor";
+import { convexHull, offsetOutline, type Point2 } from "./shapeOutlines";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "meshes", "effects"]);
 
@@ -62,9 +64,37 @@ const RING_RIGHT = new Vector3();
 const RING_UP = new Vector3();
 const NODE_AXES = [new Vector3(), new Vector3(), new Vector3()] as const;
 
+/** What separates a ring's color from the node outline it follows, in the ring's name. */
+const OUTLINE_SHAPE_MARK = "-o";
+
+/** How far a node's outline may stand off the ellipse through its half-extents and still be drawn round. */
+const ROUND_TOLERANCE = 0.02;
+
+/** The most distinct corners a node's mesh may have for its reach to be measured from them rather than its ellipsoid. */
+const MAX_REACH_CORNERS = 64;
+
+/**
+ * The outline a ring follows, from its node's mesh: the front (local x, y) outline in its half-extents
+ * (null for a round one, which the ring draws as an ellipse), and the mesh's distinct corners in its
+ * own units when there are few enough to measure its reach from (null for a finely tessellated one).
+ */
+interface RingShape {
+    outline: Point2[] | null;
+    corners: Vector3[] | null;
+    /** What tells this outline's ring apart from another's in its name; empty for a round one. */
+    key: string;
+}
+
+/** Each node source mesh's ring shape, worked out once from its vertices. */
+const RING_SHAPES = new WeakMap<AbstractMesh, RingShape>();
+
+/** Each ring source mesh's outline (null for an ellipse), so a width change rebuilds it with its own. */
+const RING_OUTLINES = new WeakMap<Mesh, Point2[] | null>();
+
 /** What a ring keeps between frames: its node's half-extents, and the world matrix it is drawn with. */
 interface OutlineRingMetadata {
     outlineExtent: Vector3;
+    shape: RingShape;
     /** How far the node's border and outer border reach past its fill, in the fill's own units. */
     borderReach: () => number;
     world: Matrix;
@@ -213,7 +243,7 @@ export class NodeEffects {
                 mesh.name.startsWith(OUTLINE_RING_PREFIX) &&
                 !mesh.name.includes(OUTLINE_WIDTH_MARK)
             ) {
-                this.ringVertexData(outer).applyToMesh(mesh, true);
+                this.ringVertexData(outer, RING_OUTLINES.get(mesh) ?? null).applyToMesh(mesh, true);
             }
         }
     }
@@ -295,13 +325,15 @@ export class NodeEffects {
         // alone and drawn at the scene's width, which setOutlineWidth rewrites in place.
         const own = outline.width;
         const widthPart = own === undefined ? "" : OUTLINE_WIDTH_MARK + String(own);
-        const name = `${OUTLINE_RING_PREFIX}${rgb.toHexString()}${widthPart}`;
+        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
+        const shape = this.ringShapeOf(mesh, extent);
+        const name = `${OUTLINE_RING_PREFIX}${rgb.toHexString()}${shape.key}${widthPart}`;
         const scene = mesh.getScene();
         const ring =
             existing?.name === name && !existing.isDisposed()
                 ? existing
                 : cache.get(name, () =>
-                      this.createOutlineRingSource(name, rgb, scene, this.outlineWidthOf(scene, own)),
+                      this.createOutlineRingSource(name, rgb, scene, this.outlineWidthOf(scene, own), shape.outline),
                   );
 
         if (ring !== existing) {
@@ -316,7 +348,6 @@ export class NodeEffects {
             });
         }
 
-        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
         const kept = ring.metadata as Partial<OutlineRingMetadata> | null;
         const metadata: OutlineRingMetadata = {
             outlineExtent: new Vector3(
@@ -324,6 +355,7 @@ export class NodeEffects {
                 Math.max(extent.y, MIN_RING_RADIUS),
                 Math.max(extent.z, MIN_RING_RADIUS),
             ),
+            shape,
             world: kept?.world ?? new Matrix(),
             borderReach,
         };
@@ -332,6 +364,69 @@ export class NodeEffects {
         if (camera) {
             this.followCamera(ring, camera);
         }
+    }
+
+    /**
+     * The outline a node's ring follows, worked out once per node source mesh from its vertices: the
+     * convex hull of its front (x, y), in its half-extents. An outline on the ellipse through them (a
+     * sphere, an ellipse, a cylinder) is drawn as that ellipse; any other (a box, a rectangle, a
+     * diamond, a capsule) as itself, so the ring goes round the corners instead of across them (#10437).
+     * @param mesh - The node's mesh.
+     * @param extent - Its half-extents.
+     * @returns The ring shape.
+     */
+    private static ringShapeOf(mesh: AbstractMesh, extent: Vector3): RingShape {
+        const source = this.resolveRenderedMesh(mesh);
+        const kept = RING_SHAPES.get(source);
+        if (kept !== undefined) {
+            return kept;
+        }
+
+        const positions = source.getVerticesData(VertexBuffer.PositionKind) ?? [];
+        const ex = Math.max(extent.x, MIN_RING_RADIUS);
+        const ey = Math.max(extent.y, MIN_RING_RADIUS);
+        const ez = Math.max(extent.z, MIN_RING_RADIUS);
+        const distinct = new Map<string, Vector3>();
+        const front: Point2[] = [];
+        for (let i = 0; i + 2 < positions.length; i += 3) {
+            const [x, y, z] = [positions[i], positions[i + 1], positions[i + 2]];
+            front.push([x / ex, y / ey]);
+            if (distinct.size <= MAX_REACH_CORNERS) {
+                // in half-extents, as reach() measures them along each axis's world image times its half-extent
+                distinct.set(`${x.toFixed(5)},${y.toFixed(5)},${z.toFixed(5)}`, new Vector3(x / ex, y / ey, z / ez));
+            }
+        }
+        const hull = convexHull(front);
+        // Round when every corner and the middle of every side is on the ellipse: a diamond's
+        // corners are on it, but the middles of its sides are well inside.
+        const round =
+            hull.length < 3 ||
+            hull.every(([x, y], i) => {
+                const [nx, ny] = hull[(i + 1) % hull.length];
+                return (
+                    Math.hypot(x, y) <= 1 + ROUND_TOLERANCE &&
+                    Math.hypot((x + nx) / 2, (y + ny) / 2) >= 1 - ROUND_TOLERANCE
+                );
+            });
+        const corners = distinct.size <= MAX_REACH_CORNERS ? [...distinct.values()] : null;
+        const outline = round ? null : hull;
+        const key = outline === null ? "" : OUTLINE_SHAPE_MARK + this.outlineKey(outline);
+        const shape: RingShape = { outline, corners, key };
+        RING_SHAPES.set(source, shape);
+        return shape;
+    }
+
+    /**
+     * A short name for an outline, the same for the same points to three places.
+     * @param outline - The outline.
+     * @returns The name.
+     */
+    private static outlineKey(outline: readonly Point2[]): string {
+        let hash = 5381;
+        for (const ch of outline.map(([x, y]) => `${x.toFixed(3)},${y.toFixed(3)}`).join(";")) {
+            hash = ((hash * 33) ^ (ch.codePointAt(0) ?? 0)) >>> 0;
+        }
+        return hash.toString(36);
     }
 
     /**
@@ -372,7 +467,10 @@ export class NodeEffects {
         // out). With a border, its inner edge is the border's outer edge rather than a little inside
         // the fill's, so nothing the node draws is under it.
         const border = metadata?.borderReach?.() ?? 0;
-        const grow = (e: number): number => (border > 0 ? (e + border) / OUTLINE_RING_INNER : e);
+        const outline = metadata?.shape?.outline ?? null;
+        const corners = metadata?.shape?.corners ?? null;
+        // An outline with corners is grown past the border in the ring's plane, below; an ellipse here.
+        const grow = (e: number): number => (border > 0 && outline === null ? (e + border) / OUTLINE_RING_INNER : e);
         const { m } = node.computeWorldMatrix();
         // The node's half-extents as world vectors: each local axis's image, times its half-extent.
         NODE_AXES[0].set(m[0], m[1], m[2]).scaleInPlace(grow(extent.x));
@@ -381,8 +479,20 @@ export class NodeEffects {
         // How far the node reaches along a world direction, taken as the ellipsoid in its bounding
         // box: exact for a sphere, capsule or ellipse, and inside a box's corners as a circle was.
         // The box itself would reach up to 1.7 times a sphere's radius along a slanted line of sight.
-        const reach = (u: Vector3): number =>
-            Math.hypot(Vector3.Dot(u, NODE_AXES[0]), Vector3.Dot(u, NODE_AXES[1]), Vector3.Dot(u, NODE_AXES[2]));
+        // A mesh with few corners (a box, a flat shape) is measured from them, exactly: its
+        // ellipsoid passes inside a box's corners, so a box turned to the camera reached further.
+        const reach = (u: Vector3): number => {
+            const [ax, ay, az] = NODE_AXES.map((axis) => Vector3.Dot(u, axis));
+            if (corners === null) {
+                return Math.hypot(ax, ay, az);
+            }
+            let most = 0;
+            for (const c of corners) {
+                most = Math.max(most, Math.abs(ax * c.x + ay * c.y + az * c.z));
+            }
+            return most;
+        };
+        const worldBorder = outline === null ? 0 : border * (Math.hypot(m[0], m[1], m[2]) || 1);
 
         const center = node.getAbsolutePosition();
         const toCamera = TO_CAMERA;
@@ -403,14 +513,28 @@ export class NodeEffects {
         right.normalize();
         Vector3.CrossToRef(toCamera, right, up);
 
-        const lift = OUTLINE_RING_LIFT * reach(toCamera);
+        const lift = OUTLINE_RING_LIFT * (reach(toCamera) + worldBorder);
         // The cone's radius at the ring's distance from the camera, for a node of half-size h.
         const seen = (h: number): number =>
             Number.isFinite(distance)
                 ? (Math.max(distance - lift, 0) * h) / Math.sqrt(Math.max(distance * distance - h * h, h * h * 1e-6))
                 : h;
-        const sx = seen(Math.max(reach(right), MIN_RING_RADIUS));
-        const sy = seen(Math.max(reach(up), MIN_RING_RADIUS));
+        let hx = Math.max(reach(right), MIN_RING_RADIUS);
+        let hy = Math.max(reach(up), MIN_RING_RADIUS);
+        if (outline !== null && worldBorder > 0) {
+            // THE RING FOLLOWS THE BORDER'S CORNERS (#10437). The border is the outline offset with
+            // mitred corners, which reach further than the border's width (a wide diamond's points
+            // by more than twice it). The ring is the outline stretched to that offset's half-width
+            // and half-height: exact for a rectangle, a diamond and a regular polygon.
+            const [x, y] = offsetOutline(
+                outline.map(([px, py]): Point2 => [px * hx, py * hy]),
+                worldBorder,
+            ).reduce(([wx, wy], [px, py]) => [Math.max(wx, Math.abs(px)), Math.max(wy, Math.abs(py))], [0, 0]);
+            hx = x / OUTLINE_RING_INNER;
+            hy = y / OUTLINE_RING_INNER;
+        }
+        const sx = seen(hx);
+        const sy = seen(hy);
 
         Matrix.FromValuesToRef(
             right.x * sx,
@@ -438,17 +562,18 @@ export class NodeEffects {
      * A ring's geometry: a flat band from {@link OUTLINE_RING_INNER} to an outer radius in the XY
      * plane, facing +z.
      * @param outer - The outer radius.
+     * @param outline - The node outline the band follows, in its half-extents; null for an ellipse.
      * @returns The vertex data.
      */
-    private static ringVertexData(outer: number): VertexData {
+    private static ringVertexData(outer: number, outline: readonly Point2[] | null): VertexData {
         const positions: number[] = [];
         const indices: number[] = [];
-        for (let i = 0; i <= OUTLINE_RING_SEGMENTS; i++) {
-            const angle = (i / OUTLINE_RING_SEGMENTS) * Math.PI * 2;
-            const x = Math.cos(angle);
-            const y = Math.sin(angle);
+        const segments = outline?.length ?? OUTLINE_RING_SEGMENTS;
+        for (let i = 0; i <= segments; i++) {
+            const angle = (i / segments) * Math.PI * 2;
+            const [x, y] = outline?.[i % segments] ?? [Math.cos(angle), Math.sin(angle)];
             positions.push(x * OUTLINE_RING_INNER, y * OUTLINE_RING_INNER, 0, x * outer, y * outer, 0);
-            if (i < OUTLINE_RING_SEGMENTS) {
+            if (i < segments) {
                 const at = i * 2;
                 indices.push(at, at + 1, at + 2, at + 1, at + 3, at + 2);
             }
@@ -470,11 +595,19 @@ export class NodeEffects {
      * @param color - The ring's color.
      * @param scene - The scene to build it in.
      * @param width - The band's width, as a multiple of its own.
+     * @param outline - The node outline the ring follows, in its half-extents; null for an ellipse.
      * @returns The source mesh.
      */
-    private static createOutlineRingSource(name: string, color: Color3, scene: Scene, width: number): Mesh {
+    private static createOutlineRingSource(
+        name: string,
+        color: Color3,
+        scene: Scene,
+        width: number,
+        outline: Point2[] | null,
+    ): Mesh {
         const source = new Mesh(name, scene);
-        this.ringVertexData(this.ringOuterOf(width)).applyToMesh(source, true);
+        this.ringVertexData(this.ringOuterOf(width), outline).applyToMesh(source, true);
+        RING_OUTLINES.set(source, outline);
 
         const material = new StandardMaterial(`${name}-material`, scene);
         // Unlit: a ring is a mark on the node, the same color from every side.

@@ -11,6 +11,7 @@ import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
 import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { Scene } from "@babylonjs/core/scene.js";
@@ -731,7 +732,7 @@ export class NodeMesh {
         if (!this.isFitted(createOptions.shape)) {
             // keeping its own proportions, the solid still draws its fill in by the inset of a border centered on or
             // inside its outline, so the ring ends where the plain solid would (#10403)
-            NodeMesh.insetOutline(mesh, inset);
+            NodeMesh.shrinkFill(mesh, inset);
             return mesh;
         }
 
@@ -992,8 +993,26 @@ export class NodeMesh {
             if (band !== null) {
                 outline = this.fillOutline(shape, sized, inset);
             }
-            const piecesOf = (round: Point2[]): RingPiece[] =>
-                band ?? borderRing(round, width, style, wave, options.dashUnit);
+            // a solid's outline is the plain solid's (solidOutline): its ring is the same band, round whatever outline
+            // the view shows
+            const solidBand = !flat && inset > 0 && this.fillScales.has(this.sourceOf(fill));
+            const piecesOf = (round: Point2[]): RingPiece[] => {
+                if (!solidBand) {
+                    return band ?? borderRing(round, width, style, wave, options.dashUnit);
+                }
+                const inner = insetOutline(round, inset);
+                const pieces =
+                    wave === undefined
+                        ? bandRing(
+                              inner,
+                              width > inset ? offsetOutline(round, width - inset) : round,
+                              style,
+                              width,
+                              options.dashUnit,
+                          )
+                        : null;
+                return pieces ?? borderRing(inner, width, style, wave, options.dashUnit);
+            };
             const color = border?.color ?? "#000000";
 
             const ring = { outline, depth, piecesOf, flat, color, opacity };
@@ -1048,11 +1067,13 @@ export class NodeMesh {
             const extents = this.fillExtents(sized, inset);
             const outline = flat ? this.fillOutline(shape, sized, inset) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
+            // a shrunk solid's outline is already the plain solid's, the inset out from its fill
+            const from = !flat && this.fillScales.has(this.sourceOf(fill)) ? gap - inset : gap;
             // each further ring (`count`, Graphviz's peripheries) starts the offset beyond the one before
             const step = width + Math.max(0, (outerBorder?.offset ?? 0) * perSize);
             const piecesOf = (round: Point2[]): RingPiece[] =>
                 Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
-                    const at = gap + i * step;
+                    const at = from + i * step;
                     // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
                     const base = at > 0 ? mitredEdges(round, [at])[0] : round;
                     return borderRing(base, width, outerBorder?.style ?? "solid", undefined, options.dashUnit);
@@ -1537,9 +1558,15 @@ export class NodeMesh {
             return silhouetteOutline(points, triangles);
         }
 
-        const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
+        const source = this.sourceOf(fill);
+        // a fill shrunk inside its border is seen at its plain size: its rings keep to the plain solid's outline
+        const scale = this.fillScales.get(source);
+        const plain =
+            scale === undefined
+                ? view
+                : Matrix.Scaling(1 / scale.x, 1 / scale.y, 1 / scale.z).multiply(view ?? Matrix.Identity());
 
-        return convexHull(projectedVertices(source, view, at));
+        return convexHull(projectedVertices(source, plain, at));
     }
 
     /**
@@ -1656,19 +1683,52 @@ export class NodeMesh {
     }
 
     /**
-     * Shrinks a mesh drawn at its own proportions so its outline across the view comes in by `inset` on every
-     * side: the fill of a solid whose border sits centered on or inside its size.
+     * The source mesh a node's mesh draws.
+     * @param fill - A node's mesh or an instance of it.
+     * @returns The source mesh.
+     */
+    private static sourceOf(fill: AbstractMesh): Mesh {
+        return fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
+    }
+
+    /**
+     * How a solid's fill was shrunk on each axis by {@link NodeMesh.shrinkFill}, keyed by its source mesh, so the
+     * outline its rings follow is the plain solid's ({@link NodeMesh.solidOutline}).
+     */
+    private static readonly fillScales = new WeakMap<Mesh, Vector3>();
+
+    /**
+     * Shrinks a mesh drawn at its own proportions so it comes in by `inset` on every side along each axis: the fill
+     * of a solid whose border sits centered on or inside its size. Scaling it by its largest extent alone drew a
+     * cone's, a capsule's or a cylinder's short side in by less than the inset (issue #10438). Its rings are built
+     * from the plain solid's outline, not this one.
+     *
+     * ponytail: a slanted side (a cone's, a dipyramid's) still comes in by a little less than the inset, under the
+     * ring; a true parallel inset of a solid would need its outline per view.
      * @param mesh - The mesh a shape creator returned.
      * @param inset - How far in, on each side, in world units.
      */
-    private static insetOutline(mesh: Mesh, inset: number): void {
-        mesh.computeWorldMatrix(true);
-        const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
-        const across = Math.max(max.x - min.x, max.y - min.y);
-        if (inset > 0 && across > 0) {
-            mesh.scaling.scaleInPlace(Math.max(across - 2 * inset, MIN_NODE_SIZE) / across);
-            mesh.bakeCurrentTransformIntoVertices();
+    private static shrinkFill(mesh: Mesh, inset: number): void {
+        if (inset <= 0) {
+            return;
         }
+
+        mesh.refreshBoundingInfo();
+        const { minimum: min, maximum: max } = mesh.getBoundingInfo().boundingBox;
+        const shrink = (across: number): number =>
+            across > 0 ? Math.max(across - 2 * inset, MIN_NODE_SIZE) / across : 1;
+        const scale = new Vector3(shrink(max.x - min.x), shrink(max.y - min.y), shrink(max.z - min.z));
+        mesh.bakeTransformIntoVertices(Matrix.Scaling(scale.x, scale.y, scale.z));
+        // a scale that is not the same on every axis turns the normals: work them out again from the faces
+        const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+        const indices = mesh.getIndices();
+        if ((scale.x !== scale.y || scale.x !== scale.z) && positions !== null && indices !== null) {
+            const normals: number[] = [];
+            VertexData.ComputeNormals(positions, indices, normals);
+            mesh.setVerticesData(VertexBuffer.NormalKind, normals);
+        }
+        mesh.refreshBoundingInfo();
+        this.fillScales.set(mesh, scale);
     }
 
     /**

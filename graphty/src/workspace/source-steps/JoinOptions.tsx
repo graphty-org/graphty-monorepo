@@ -14,7 +14,7 @@ import React from "react";
 import { directions, NO_MATCH_WORDS, sameEnds } from "./cardWords";
 import { edgeTypeChoices } from "./join";
 import { type CardLine, type CardResult, DEFAULT_RESULT, directionOf, noMatchOf, noMatchWays } from "./joinCards";
-import { Pick } from "./Pick";
+import { Pick, type PickChoice } from "./Pick";
 import {
     BUCKET_WORDS,
     bucketCount,
@@ -87,25 +87,19 @@ function Choice<T extends string>({
  * @param props - Component props
  * @param props.label - its name
  * @param props.value - the name now
- * @param props.placeholder - what an empty one reads
  * @param props.options - the names offered
- * @param props.trim - whether the spaces around it are taken off
  * @param props.onChange - takes a name
  * @returns the row
  */
 function NameRow({
     label,
     value,
-    placeholder = label,
     options,
-    trim = true,
     onChange,
 }: Readonly<{
     label: string;
     value: string;
-    placeholder?: string;
     options: readonly { readonly value: string }[];
-    trim?: boolean;
     onChange: (value: string) => void;
 }>): React.JSX.Element {
     return (
@@ -114,11 +108,11 @@ function NameRow({
                 label={label}
                 width="100%"
                 variant="outlined"
-                placeholder={placeholder}
+                placeholder={label}
                 options={options.map((each) => ({ ...each }))}
                 value={value}
                 onChange={(next) => {
-                    const text = trim ? String(next).trim() : String(next);
+                    const text = String(next).trim();
                     if (text !== value) {
                         onChange(text);
                     }
@@ -223,7 +217,17 @@ const SEVERAL_MATCH = [
 ] as const;
 
 /** The separators a cell of several values commonly holds. */
-const SEPARATORS = [{ value: ";" }, { value: "," }, { value: "|" }];
+const SEPARATORS = [";", ",", "|"];
+
+/**
+ * The Split on choices: none, the common separators, and the one set now when it is another.
+ * @param split - the separator now, or "" for none
+ * @returns the choices
+ */
+function separatorChoices(split: string): PickChoice[] {
+    const separators = split === "" || SEPARATORS.includes(split) ? SEPARATORS : [...SEPARATORS, split];
+    return [{ value: "", label: WORKSPACE_WORDS.none }, ...separators.map((each) => ({ value: each, label: each }))];
+}
 
 /**
  * Whether a merge step's nodes take several rows, so how their columns reduce is asked: a group is the
@@ -415,16 +419,16 @@ function newNodesOptions(props: OptionProps, edgeType: AdvancedRow, newType: Adv
     return {
         basic: (
             <>
-                <NameRow
-                    label={WORKSPACE_WORDS.splitOn}
-                    placeholder={WORKSPACE_WORDS.none}
-                    options={SEPARATORS}
-                    value={result.split}
-                    trim={false}
-                    onChange={(split) => {
-                        onSet({ split });
-                    }}
-                />
+                <Row label={WORKSPACE_WORDS.splitOn}>
+                    <Pick
+                        name={WORKSPACE_WORDS.splitOn}
+                        data={separatorChoices(result.split)}
+                        value={result.split}
+                        onPick={(split) => {
+                            onSet({ split });
+                        }}
+                    />
+                </Row>
                 {newType.row}
             </>
         ),

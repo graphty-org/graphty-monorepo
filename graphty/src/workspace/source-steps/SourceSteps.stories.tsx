@@ -335,8 +335,8 @@ export const JoinWorkspaceNewNodes: Story = {
         const modal = await openJoin(context);
         await match(modal, ["shifts", "tags"], ["As new nodes", null]);
         await joinAs(modal, "Node per tags, linked to shifts");
-        const split = await within(modal).findByRole("combobox", { name: "Split on" });
-        await userEvent.type(split, ";{Enter}");
+        await within(modal).findByRole("combobox", { name: "Split on" });
+        await choose(modal, "Split on", ";");
         await waitFor(() => {
             if (session.data.currentDraft()?.steps().at(-1)?.extract?.split !== ";") {
                 throw new Error("the tags are split");

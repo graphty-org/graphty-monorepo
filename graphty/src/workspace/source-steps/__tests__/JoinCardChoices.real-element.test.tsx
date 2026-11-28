@@ -11,7 +11,7 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, describe, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
@@ -211,7 +211,7 @@ describe("a join card's choices (source-steps)", () => {
         await pickFields(modal, "tags", null);
         await joinAs(modal, "Node per tags, linked to people");
         await newest(session, (step) => step.extract?.column === "tags", "a node per value");
-        await typeIn(modal, "Split on", ";");
+        await choose(modal, "Split on", ";");
         const split = await newest(session, (step) => step.extract?.split === ";", "split");
         assert.deepInclude(split.buckets, { newNodes: 2, newEdges: 4 });
         await typeIn(modal, "New type", "tag");
@@ -224,6 +224,18 @@ describe("a join card's choices (source-steps)", () => {
         assert.deepStrictEqual(joinLines(modal), ["people + tags"]);
         await done(modal);
         assert.strictEqual(session.data.count({ type: "tag" }).nodes, 2, "key and night");
+    });
+
+    it("Split on opens its separators from a click on the field, not only its chevron", async () => {
+        const { session, modal } = await opened();
+        await pickSources(modal, "people", "As new nodes");
+        await pickFields(modal, "tags", null);
+        await joinAs(modal, "Node per tags, linked to people");
+        await newest(session, (step) => step.extract?.column === "tags", "a node per value");
+        await userEvent.click(page.elementLocator(modal).getByRole("combobox", { name: "Split on", exact: true }));
+        await expect.element(page.getByRole("option", { name: "|", exact: true })).toBeVisible();
+        await userEvent.click(page.getByRole("option", { name: "|", exact: true }));
+        await newest(session, (step) => step.extract?.split === "|", "split on the picked separator");
     });
 
     it("New nodes of another field are that field's own, not the first one's kind", async () => {

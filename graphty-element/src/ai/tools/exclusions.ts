@@ -409,7 +409,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "NodeDragHandler",
-        members: ["onPointerDown", "onPointerMove", "onPointerUp", "onHover"],
+        members: ["onPointerDown", "onPointerMove", "onPointerUp", "cancelPress", "onHover"],
         reason: "internal-handle",
         kind: BY_DESIGN,
     },

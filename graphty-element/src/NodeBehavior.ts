@@ -179,6 +179,35 @@ function tappedNode(scene: Scene, roster: NodePointerRoster, pointerInfo: Pointe
     return id === undefined ? undefined : roster.byId.get(id);
 }
 
+/**
+ * Deliver a press to the node under it.
+ *
+ * A SECOND FINGER MAKES IT A PINCH. A press on a node switches the camera's input off, its pinch
+ * recognizer with it, so a pinch whose first finger landed on a node moved nothing at all. A press
+ * by a later finger drops every press that has not started dragging, which gives the camera its
+ * input back (see {@link NodeDragHandler.cancelPress}), and presses no node.
+ * @param scene - The scene.
+ * @param roster - The scene's nodes.
+ * @param pointerInfo - The press.
+ */
+function deliverPress(scene: Scene, roster: NodePointerRoster, pointerInfo: PointerInfoPre): void {
+    if ((pointerInfo.event as Partial<PointerEvent>).isPrimary === false) {
+        for (const handler of roster.engaged) {
+            handler.cancelPress();
+        }
+
+        return;
+    }
+
+    // nodeId from mesh metadata works with both regular and instanced meshes
+    const pickedId = pickPressedNodeId(scene);
+    roster.pressed = { id: pickedId, x: scene.pointerX, y: scene.pointerY };
+    roster.cameraDrag = pickedId === undefined;
+    if (pickedId !== undefined) {
+        roster.byId.get(pickedId)?.dragHandler?.onPointerDown(pointerInfo);
+    }
+}
+
 /** The roster of each scene; see {@link nodePointerRosterOf}. */
 const nodePointerRosters = new WeakMap<Scene, NodePointerRoster>();
 
@@ -197,17 +226,9 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
     }
 
     switch (pointerInfo.type) {
-        case PointerEventTypes.POINTERDOWN: {
-            // nodeId from mesh metadata works with both regular and instanced meshes
-            const pickedId = pickPressedNodeId(scene);
-            roster.pressed = { id: pickedId, x: scene.pointerX, y: scene.pointerY };
-            roster.cameraDrag = pickedId === undefined;
-            if (pickedId !== undefined) {
-                roster.byId.get(pickedId)?.dragHandler?.onPointerDown(pointerInfo);
-            }
-
+        case PointerEventTypes.POINTERDOWN:
+            deliverPress(scene, roster, pointerInfo);
             break;
-        }
         case PointerEventTypes.POINTERMOVE: {
             // A release the element never heard (outside the page) ends the camera drag at the next move.
             roster.cameraDrag &&= pointerInfo.event.buttons !== 0;
@@ -1024,6 +1045,21 @@ export class NodeDragHandler {
         this.pressed = true;
         this.roster.engaged.add(this);
         (this.scene.metadata as { cameraManager?: CameraManager } | null)?.cameraManager?.temporarilyDisableInput();
+    }
+
+    /**
+     * Drop a press that has not started dragging, as if it never happened: no click, no drag, and
+     * the camera has its input back. A drag already under way carries on.
+     */
+    public cancelPress(): void {
+        if (!this.pressed) {
+            return;
+        }
+
+        this.pressed = false;
+        this.clickState = null;
+        this.releaseCamera();
+        this.settle();
     }
 
     /** A move: carry this node along while it is being dragged. Called for engaged handlers. */

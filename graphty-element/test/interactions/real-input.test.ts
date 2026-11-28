@@ -1071,6 +1071,29 @@ describe("touch", () => {
 
         assert.isAbove(spread(element), gap, "the drawing grew with the fingers");
     });
+
+    // Each finger lands on a node: the first one's press switched the camera's input off, its
+    // pinch recognizer with it, and the whole pinch moved nothing.
+    it.each(["2d", "3d"] as const)(
+        "in %s, a pinch whose fingers land on nodes zooms and moves no node",
+        async (viewMode) => {
+            const element = await mounted(viewMode);
+            const a = at(element, "a");
+            const b = at(element, "b");
+            const gap = Math.hypot(b.x - a.x, b.y - a.y);
+            const before = camera(element);
+            let dragStarts = 0;
+            element.addEventListener("graphty-node-drag-start", () => dragStarts++);
+
+            await pinch(element, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, gap, gap / 2);
+            await applied(element);
+
+            assert.notEqual(camera(element), before, "the camera zoomed");
+            assert.isBelow(spread(element), gap, "the drawing shrank with the fingers");
+            assert.equal(dragStarts, 0, "no node was dragged");
+            assert.isFalse(element.isPinned("a") || element.isPinned("b"), "no node was placed");
+        },
+    );
 });
 
 describe("the input:* events", () => {

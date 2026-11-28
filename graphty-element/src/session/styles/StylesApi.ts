@@ -4920,6 +4920,30 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
               };
     };
 
+    /**
+     * See {@link SessionStylesApi.settled}.
+     * @param runs - Wait for the runs queued so far too, which paint their suggested layers when they
+     *     finish. Without them, only the repaint of the edits written so far is waited for.
+     * @returns Settles as above.
+     */
+    const settledThrough = async (runs: boolean): Promise<void> => {
+        // What the element starts for itself (a run's suggested layers) waits on the queue;
+        // the repaint of every edit written so far waits on the derivation lane.
+        // The passes nobody awaits (a selection or pointer change asks for one), read before and
+        // again after the queue and lane: a finishing run may ask for one. Each read is bounded
+        // by the passes asked for by then, so steady pointer input cannot extend the wait.
+        // A live set a graph change queued for a later frame is resolved now, and the repaint
+        // its new membership asks for is one of the passes read next.
+        const passes = sources.idle?.();
+        if (runs) {
+            await sources.queue?.settled();
+        }
+        await dispatcher.lane.settled();
+        sources.resolveQueuedSets?.();
+        await passes;
+        await viewPasses;
+        await sources.idle?.();
+    };
     const api: SessionStylesApi = {
         list(): readonly Layer[] {
             return listLayers();
@@ -5606,22 +5630,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return blocks;
         },
 
-        async settled(): Promise<void> {
-            // What the element starts for itself (a run's suggested layers) waits on the queue;
-            // the repaint of every edit written so far waits on the derivation lane.
-            // The passes nobody awaits (a selection or pointer change asks for one), read before and
-            // again after the queue and lane: a finishing run may ask for one. Each read is bounded
-            // by the passes asked for by then, so steady pointer input cannot extend the wait.
-            // A live set a graph change queued for a later frame is resolved now, and the repaint
-            // its new membership asks for is one of the passes read next.
-            const passes = sources.idle?.();
-            await sources.queue?.settled();
-            await dispatcher.lane.settled();
-            sources.resolveQueuedSets?.();
-            await passes;
-            await viewPasses;
-            await sources.idle?.();
-        },
+        settled: () => settledThrough(true),
 
         explain(target: ExplainTarget): StyleExplanation {
             return explainStyle(target, explainSources);
@@ -5952,7 +5961,22 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     PAINTING.set(api, painting);
     OUTLINES.set(api, () => groupOutlineSets(painting(current()), sources, (id) => explainSources.nodeIndex(id)));
+    EDITS_PAINTED.set(api, () => settledThrough(false));
     return api;
+}
+
+/** Each API's {@link editsPainted} wait, by the API that owns it. */
+const EDITS_PAINTED = new WeakMap<SessionStylesApi, () => Promise<void>>();
+
+/**
+ * Settles once the repaint of every edit written so far has run. Unlike `settled()` it does not
+ * wait for the runs queued: a run still going (a long layout, a run waiting on the reader) would
+ * hold back whatever waits for the next drawn edit until it ends.
+ * @param api - A stack {@link createStylesApi} built.
+ * @returns Settles as above; `settled()` for an API built elsewhere.
+ */
+export function editsPainted(api: SessionStylesApi): Promise<void> {
+    return EDITS_PAINTED.get(api)?.() ?? api.settled();
 }
 
 /**

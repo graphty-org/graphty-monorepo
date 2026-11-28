@@ -239,7 +239,7 @@ import {
     STRUCTURE_PATHS,
     STRUCTURE_VALUES,
 } from "./styles/sources";
-import { paintingOf, repaintFailure } from "./styles/StylesApi";
+import { editsPainted, paintingOf, repaintFailure } from "./styles/StylesApi";
 import { drawsOutsideWindow } from "./styles/tree";
 import type { EdgeAgeFade } from "./time/ageFade";
 import { numericBound } from "./time/parse";
@@ -1717,7 +1717,9 @@ class Session implements ElementSession {
      * @returns Settles as above; never rejects.
      */
     private async frameSettled(): Promise<void> {
-        await this.styles.settled().catch(() => undefined);
+        // Not `styles.settled()`: that waits for every queued run too, and a run still going
+        // would hold every after-frame listener (and `afterFrame()`) until it ends.
+        await editsPainted(this.styles).catch(() => undefined);
         await this.paintDrawn();
         await nextTask();
     }

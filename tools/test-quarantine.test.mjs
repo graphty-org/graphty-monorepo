@@ -25,6 +25,8 @@ import {
     HANG_NAME,
     hangFailures,
     hangReport,
+    LOW_MEMORY_MB,
+    memoryWatch,
     quarantineEnabled,
     runShard,
     shardOfRun,
@@ -271,6 +273,43 @@ function deadlineClock(t, root) {
         runAll: () => t.mock.timers.runAll(),
     };
 }
+
+describe("memoryWatch", () => {
+    it("warns once per floor crossed, naming what runs, and logs the low point", () => {
+        const dir = mkdtempSync(join(tmpdir(), "memory-watch-"));
+        const running = join(dir, "running.log");
+        writeFileSync(running, "+ test/a.test.ts\t1\n+ test/a.test.ts > big\t2\n");
+        const lines = [];
+        const levels = [8000, 1900, 1800, 900, 950, 400, 300];
+        let at = 0;
+        const watch = memoryWatch(running, {
+            read: () => ({ available: levels[at++], total: 16000 }),
+            top: () => "chrome 1 3000 MB",
+            log: (l) => lines.push(l),
+        });
+        levels.forEach(() => watch.sample());
+        watch.stop();
+        rmSync(dir, { recursive: true });
+        const warnings = lines.filter((l) => l.startsWith("::warning::[LOW-MEMORY]"));
+        assert.equal(warnings.length, LOW_MEMORY_MB.length);
+        assert.match(
+            warnings[0],
+            /1900 MB of 16000 MB available; running: test\/a.test.ts > big; largest processes: chrome/,
+        );
+        assert.equal(
+            lines.at(-1),
+            "test-quarantine: memory low point 300 MB of 16000 MB, running: test/a.test.ts > big",
+        );
+    });
+
+    it("does nothing where the machine's memory cannot be read", () => {
+        const lines = [];
+        const watch = memoryWatch("/nonexistent", { read: () => null, log: (l) => lines.push(l) });
+        watch.sample();
+        watch.stop();
+        assert.deepEqual(lines, []);
+    });
+});
 
 describe("runShard", () => {
     const run = async (c, env = {}, name = "graphty-1") => {

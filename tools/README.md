@@ -306,6 +306,9 @@ test: <name>`, stops the browser and exits 1, here and in CI. A test file is hel
 - CI's test job also stops the whole run 26 minutes after its first shard started, before GitHub's job limit, and prints
   `[HANG]` with the test or file still running (`withTestDeadline()` in `tools/results/run-group.mjs`): a job of
   several files can pass the job limit with each file under the file guard, and GitHub keeps no log of a job it cancels.
+  The same run watches the runner's memory (`memoryWatch()` in `tools/test-quarantine.mjs`): under 2 GB, 1 GB and
+  512 MB available it writes a `[LOW-MEMORY]` warning annotation naming the tests running and the largest processes,
+  which stays on the job when a runner out of memory freezes past the deadline (#10008), and every run logs its low point.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Never run a whole CI shard before pushing: CI runs them, and two graphty-element browser shards held about
   15 GB of vitest and Chromium on this shared machine. `./tools/run-tests.sh <shard>` is for reproducing one

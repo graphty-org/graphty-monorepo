@@ -542,7 +542,7 @@ export class EdgeMesh {
         const dashes = `${String(style.line?.dashLength ?? "")}|${String(style.line?.dashGap ?? "")}|${String(this.dashArrayOf(style))}`;
         const order = style.line?.drawOrder === undefined ? "" : `|o${String(style.line.drawOrder)}`;
         const key = shared
-            ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${this.pulledPass(style)}|${String(style.line?.patternCount ?? "")}|${dashes}${order}`
+            ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${this.pulledPass(style)}|${String(style.line?.patternCount ?? "")}|${dashes}${order}${this.drawsCurveRuns(style) ? "" : "|r"}`
             : styleKey;
         // A batch shared by shape holds edges of many opacities, so its first edge's opacity is not
         // its mesh's visibility: at 0 Babylon would draw none of them. Its translucent slots put it
@@ -709,6 +709,19 @@ export class EdgeMesh {
             count: style.line?.patternCount,
             gap: dashGap === undefined ? undefined : width * Math.max(0, dashGap + dotShort),
         };
+    }
+
+    /**
+     * Whether a plain 3D line's batch lets a slot draw a whole curve (`curveRun`, `EdgeLineBatch.placeCurve`, #10046).
+     * Once one slot of a batch draws a curve, the batch draws every slot from the curve's template of `MAX_PIECES`
+     * copies, so a slot laid as a run of a slot a piece costs 64 times its piece. Not for a style whose curves are
+     * routed (`routed`): a center arc (`line.arcRadius`) or a line through bends is laid a slot a piece, and a batch of
+     * them that took the template for its few lone curves drew some fifty times the vertices it needs.
+     * @param style - The resolved style.
+     * @returns True when the batch's slots may draw whole curves.
+     */
+    static drawsCurveRuns(style: EdgeStyleConfig): boolean {
+        return style.line?.arcRadius === undefined && parseBends(style.line?.bends) === null;
     }
 
     /**
@@ -1293,6 +1306,8 @@ export class EdgeMesh {
                 pulled: pulled !== false,
                 pulledCurve: pulled === "curve",
                 pulledLean: pulled === "smooth" ? "smooth" : pulled === "lean",
+                // a plain 3D line's slot may draw a whole lone curve (`EdgeLineBatch.placeCurve`, #10046)
+                curveRun: pulled === false && !widened && pattern === undefined && this.drawsCurveRuns(style),
             },
             scene,
         );

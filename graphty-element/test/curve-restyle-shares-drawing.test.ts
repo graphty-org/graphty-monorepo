@@ -1,9 +1,10 @@
 /**
  * @file A curve restyle on the "objects" path draws every curve of one look from shared drawing: restyling N
- * straight edges to curves creates no mesh and no material per edge (issue #10046). A curve is a run of slots in
- * the line batch a straight line of its look takes (`Edge.placeCurve`), with or without an arrowhead.
+ * straight edges to curves creates no mesh and no material per edge (issue #10046). A curve is drawn from the line
+ * batch a straight line of its look takes: a lone curve with no cap from ONE slot, which the vertex shader draws
+ * piece by piece (`Edge.placeCurveRun`, `EdgeLineBatch.placeCurve`); a capped curve as a run of a slot a piece.
  */
-import { NullEngine, Scene } from "@babylonjs/core";
+import { NullEngine, Scene, type Vector3 } from "@babylonjs/core";
 import { cloneDeep } from "lodash";
 import { afterEach, assert, describe, it } from "vitest";
 
@@ -112,12 +113,38 @@ describe("a curve restyle on the objects path (#10046)", () => {
             const madeMaterials = scene.materials.length - materials;
             assert.isAtMost(madeMeshes, 0, "meshes made for the restyle");
             assert.isAtMost(madeMaterials, 0, "materials made for the restyle");
-            // and the curves are drawn: each edge holds a run of slots in its batch, not one straight slot
-            const runs = edges.map((e) => (e as unknown as { lineSlots: number[] }).lineSlots.length);
+            // and the curves are drawn: each edge's drawn line bows through more than its two ends
             assert.isTrue(
-                runs.every((r) => r > 1),
+                edges.every((e) => (e.drawnCurve?.length ?? 0) > 2),
                 "every edge is drawn as a curve",
             );
+            const runs = edges.map((e) => (e as unknown as { lineSlots: number[] }).lineSlots.length);
+            if (arrowHead === "none") {
+                // a lone curve costs one slot, not one a piece
+                assert.deepEqual(new Set(runs), new Set([1]), "slots per curve");
+                // and its middle (where a label sits) is on the drawn curve, not on the chord between its nodes
+                for (const edge of edges) {
+                    const curve = edge.drawnCurve ?? [];
+                    const chord = curve[0].add(curve[curve.length - 1]).scale(0.5);
+                    const middle = (edge as unknown as { routeMiddle(): Vector3 | null }).routeMiddle();
+                    assert.isAbove(
+                        middle?.subtract(chord).length() ?? 0,
+                        0.1,
+                        `${edge.id}: the label's place is off the chord`,
+                    );
+                    assert.isAbove(
+                        edge.drawnCenter.subtract(chord).length(),
+                        0.1,
+                        `${edge.id}: the center is off the chord`,
+                    );
+                }
+            } else {
+                // a capped curve is still a run of a slot a piece
+                assert.isTrue(
+                    runs.every((r) => r > 1),
+                    "a capped curve is a run",
+                );
+            }
         });
     }
 });

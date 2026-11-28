@@ -4,7 +4,8 @@
  *
  * A curve batch drew unindexed, 30 vertices a piece, and each of them worked out six points of its curve from the row
  * table: a still frame of 100,000 curved edges took about 40% more GPU time than the objects path, whose batch draws
- * the template's 14 vertices a piece, indexed. The batch now draws the template indexed, an instance a piece.
+ * the template's 14 vertices a piece, indexed. The batch now draws the template indexed: an instance a curve, whose
+ * template is a copy of the join template for each piece it may draw (#10046).
  */
 
 import "../../src/graphty-element";
@@ -15,6 +16,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { JOIN_TEMPLATE_VERTICES } from "../../src/meshes/edgeJoinShader";
+import { CURVE_STRIDE } from "../../src/meshes/pulledCurve";
 
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
 const RENDERERS = ADAPTER === "" ? (["webgl"] as const) : (["webgl", "webgpu"] as const);
@@ -34,14 +36,20 @@ afterEach(() => {
 });
 
 /**
- * Mount a batched element with every edge curved.
+ * Mount an element with every edge curved.
  * @param renderer - The renderer.
+ * @param path - The render path.
+ * @param look - What the edges' style sets besides a curve with no head.
  * @returns The element, settled.
  */
-async function curved(renderer: "webgl" | "webgpu"): Promise<Graphty> {
+async function curved(
+    renderer: "webgl" | "webgpu",
+    path: "objects" | "batched" = "batched",
+    look: Record<string, unknown> = {},
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderer = renderer;
-    element.renderPath = "batched";
+    element.renderPath = path;
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";
@@ -55,7 +63,7 @@ async function curved(renderer: "webgl" | "webgpu"): Promise<Graphty> {
         name: "curves",
         target: "edge",
         selector: { match: "everything" },
-        set: { "edge.arrowHead": "none", "edge.curvature": true, "edge.fanned": false },
+        set: { "edge.arrowHead": "none", "edge.curvature": true, "edge.fanned": false, ...look },
     } as never);
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
@@ -128,6 +136,41 @@ describe.each(RENDERERS)("a curve batch's vertex work on %s", (renderer) => {
         assert.isAbove(pieces, EDGES.length, "each curve is drawn in several pieces");
         const { vertices, draws } = vertexWork(element, batch);
         assert.strictEqual(draws, 1, "the batch draws once a frame");
-        assert.strictEqual(vertices, pieces * JOIN_TEMPLATE_VERTICES, `${String(pieces)} pieces`);
+        // one instance a curve, its template a copy of the join template a piece it may draw (#10046), as the object
+        // path's batch draws a curve from one slot
+        assert.strictEqual(
+            vertices,
+            EDGES.length * CURVE_STRIDE * JOIN_TEMPLATE_VERTICES,
+            `${String(EDGES.length)} curves`,
+        );
+    });
+});
+
+describe.each(RENDERERS)("the objects path's line batches on %s", (renderer) => {
+    /**
+     * The flag each edge line batch was made with: whether its slots may draw whole curves (`curveRun`).
+     * @param element - The element.
+     * @returns One flag a batch.
+     */
+    function curveRuns(element: Graphty): boolean[] {
+        return element.graph.scene.meshes
+            .filter((mesh) => mesh.name.startsWith("edge-line") || mesh.name.startsWith("edge-style"))
+            .map((mesh) => (mesh.metadata as { curveRun?: boolean } | null)?.curveRun === true);
+    }
+
+    it("lets a lone curve's batch draw whole curves", async () => {
+        const element = await curved(renderer, "objects");
+        const flags = curveRuns(element);
+        assert.isNotEmpty(flags, "the edges are drawn from line batches");
+        assert.isTrue(flags.every(Boolean), "every line batch may draw whole curves");
+    });
+
+    // A center arc is laid a slot a piece; a batch that also drew one whole curve drew every one of its slots from the
+    // 64-copy template, and Data/File Styles GEXF's frame took 18 times as long under SwiftShader (#10349).
+    it("keeps a center arc's batch on the one-piece template", async () => {
+        const element = await curved(renderer, "objects", { "edge.arcRadius": 1 / 1.2 });
+        const flags = curveRuns(element);
+        assert.isNotEmpty(flags, "the edges are drawn from line batches");
+        assert.isFalse(flags.some(Boolean), "no line batch of center arcs draws whole curves");
     });
 });

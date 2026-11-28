@@ -41,11 +41,12 @@ const DENSITY = 8;
 export const MAX_PIECES = 64;
 
 /**
- * Pieces one entry of a curve batch draws (`PulledLineBatch`): a curve of more takes a run of entries, so a short
- * curve draws fewer than this many spare slots whatever its neighbors ask for, and a million curves of
- * {@link MAX_PIECES} take 16 million texels, inside a 4096 x 4096 table.
+ * Pieces one entry of a curve batch draws (`PulledLineBatch`): every piece of a curve of up to {@link MAX_PIECES}, from
+ * one draw slot, as the object path's line batch draws it from one slot (`EdgeLineBatch.placeCurve`, #10046); only a
+ * line through more bends takes a run of entries.
  */
-export const CURVE_STRIDE = 16;
+// ponytail: the same number as MAX_PIECES, written out so the two read as their own names; keep them equal
+export const CURVE_STRIDE = 64;
 
 /** A route block's first texel is written as (texel % ROUTE_SPLIT, texel / ROUTE_SPLIT): see {@link curveShape}. */
 export const ROUTE_SPLIT = 65_536;
@@ -529,11 +530,11 @@ function along(src: Xyz, dst: Xyz, t: number): Xyz {
 }
 
 /**
- * The span's shape as the shader's three numbers: (bow or where an uncut curve starts; 0 for no span,
+ * The span's shape as the shader's three numbers: (bow or where an uncut curve starts; 0 for no span or a plain lone curve,
  * 1 for a fanned arc, 3 for a lone curve between two points of the chord, 4 for a raised arc
  * (its height first), 5 for a great-circle arc (its height first), or for a self-loop's teardrop (its controls'
  * mean x first) 6 plus its share k, under tan(pi / 5), 7 for a curve through a support point (its share along
- * first), 8 for a straight line through bends, a center arc or a plain lone curve (the texel its cut path starts
+ * first), 8 for a straight line through bends or a center arc (the texel its cut path starts
  * at in the route table first, modulo {@link ROUTE_SPLIT}); where that
  * curve stops, a great-circle arc's angle, the teardrop's mean y, or the support point's share across; the routed
  * texel over {@link ROUTE_SPLIT}), the last three
@@ -574,10 +575,11 @@ export function curveShape(span: Shape | null, route = 0): [number, number, numb
     }
 
     // a center arc is routed too: the shader's float32 sine and cosine put its points a last bit off the object
-    // path's, which flips a multisample on its edge (#6392); and so is a plain lone curve, whose float32 cubic is a
-    // last bit off the object path's doubles in about half its coordinates, on WebGL and WebGPU alike (#9456)
+    // path's, which flips a multisample on its edge (#6392). A plain lone curve is not (#9456 routed it while the object
+    // path placed its pieces in doubles): the object path's line batch now samples it with this same program from the
+    // same span (`EdgeLineBatch.placeCurve`, #10046), so both draw the same float32 points
     const bow = span?.bow ?? null;
-    if ((span?.turn ?? null) !== null || (span !== null && bow === null)) {
+    if ((span?.turn ?? null) !== null) {
         return [route % ROUTE_SPLIT, 8, Math.floor(route / ROUTE_SPLIT)];
     }
 
@@ -586,7 +588,7 @@ export function curveShape(span: Shape | null, route = 0): [number, number, numb
 
 /**
  * Whether a span's cut path is read from the batch's route table, placed in doubles, rather than worked out by the
- * shader: a line through bends, a center arc and a plain lone curve ({@link curveShape} kind 8).
+ * shader: a line through bends and a center arc ({@link curveShape} kind 8).
  * @param span - The span.
  * @returns True when its points go in the route table.
  */
@@ -947,10 +949,51 @@ export function curvePathPoint(src: Xyz, dst: Xyz, span: CurveSpan, j: number): 
 /**
  * {@link curvePathPoint} for a shader: `pulledCurvePoint(src, dst, span, cut, j)`, where `span` is
  * (samples, first, pieces, then {@link curveShape}'s third number) and `cut` is (startAt, endAt, then its first two).
+ * With `routes`, a routed path ({@link routed}, kind 8) is read from the batch's route table (`edgeRoutes`); without,
+ * the program declares no route table and draws every other kind, as the object path's line batch does
+ * (`EdgeLineBatch.placeCurve`).
+ * @param routes - Whether the program reads the route table.
+ * @returns The GLSL.
  */
-export const PULLED_CURVE_GLSL = `
-uniform highp sampler2D edgeRoutes;
+export function curvePointGlsl(routes: boolean): string {
+    const routed = routes
+        ? `
+    if (cut.w > 7.5) {
+        // a straight line through bends: its cut path's point j, read from the route table from texel cut.z, at the
+        // width the batch made it (PulledLineBatch's tableShape)
+        int texel = int(cut.z + 0.5) + int(span.w + 0.5) * ${String(ROUTE_SPLIT)} + j;
+        int width = textureSize(edgeRoutes, 0).x;
+        return texelFetch(edgeRoutes, ivec2(texel & (width - 1), texel >> int(log2(float(width)) + 0.5)), 0).xyz;
+    }`
+        : "";
+    return `${routes ? "uniform highp sampler2D edgeRoutes;\n" : ""}${CURVE_SAMPLE_GLSL}
+vec3 pulledCurvePoint(vec3 src, vec3 dst, vec4 span, vec4 cut, int j) {${routed}
+    if (abs(cut.w - 3.0) < 0.5) {
+        // the lone curve between two points of the chord, where a gap moves an uncut curve's ends
+        vec3 start = mix(src, dst, cut.z);
+        dst = mix(src, dst, span.w);
+        src = start;
+        cut = vec4(cut.xy, 0.0, 0.0);
+    }
+    float samples = span.x;
+    float first = span.y;
+    int pieces = int(span.z + 0.5);
+    if (j <= 0) {
+        vec3 a = pulledCurveSample(src, dst, first - 1.0, samples, cut, span.w);
+        return a + (pulledCurveSample(src, dst, first, samples, cut, span.w) - a) * cut.x;
+    }
+    if (j >= pieces) {
+        float outside = first + float(pieces) - 1.0;
+        vec3 a = pulledCurveSample(src, dst, outside, samples, cut, span.w);
+        return a + (pulledCurveSample(src, dst, outside - 1.0, samples, cut, span.w) - a) * cut.y;
+    }
+    return pulledCurveSample(src, dst, first + float(j) - 1.0, samples, cut, span.w);
+}
+`;
+}
 
+/** The samplers of every path {@link curvePointGlsl} draws (`pulledCurveSample`), shared by both programs. */
+const CURVE_SAMPLE_GLSL = `
 vec3 pulledArcSample(vec3 src, vec3 dst, float i, float samples, float bow) {
     vec2 d = dst.xy - src.xy;
     float chord = length(d);
@@ -1059,33 +1102,7 @@ vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples, vec4 cut, flo
     return cut.w > 0.5 ? pulledArcSample(src, dst, i, samples, cut.z) : pulledLoneSample(src, dst, i, samples);
 }
 
-vec3 pulledCurvePoint(vec3 src, vec3 dst, vec4 span, vec4 cut, int j) {
-    if (cut.w > 7.5) {
-        // a straight line through bends: its cut path's point j, read from the route table from texel cut.z, at the
-        // width the batch made it (PulledLineBatch's tableShape)
-        int texel = int(cut.z + 0.5) + int(span.w + 0.5) * ${String(ROUTE_SPLIT)} + j;
-        int width = textureSize(edgeRoutes, 0).x;
-        return texelFetch(edgeRoutes, ivec2(texel & (width - 1), texel >> int(log2(float(width)) + 0.5)), 0).xyz;
-    }
-    if (abs(cut.w - 3.0) < 0.5) {
-        // the lone curve between two points of the chord, where a gap moves an uncut curve's ends
-        vec3 start = mix(src, dst, cut.z);
-        dst = mix(src, dst, span.w);
-        src = start;
-        cut = vec4(cut.xy, 0.0, 0.0);
-    }
-    float samples = span.x;
-    float first = span.y;
-    int pieces = int(span.z + 0.5);
-    if (j <= 0) {
-        vec3 a = pulledCurveSample(src, dst, first - 1.0, samples, cut, span.w);
-        return a + (pulledCurveSample(src, dst, first, samples, cut, span.w) - a) * cut.x;
-    }
-    if (j >= pieces) {
-        float outside = first + float(pieces) - 1.0;
-        vec3 a = pulledCurveSample(src, dst, outside, samples, cut, span.w);
-        return a + (pulledCurveSample(src, dst, outside - 1.0, samples, cut, span.w) - a) * cut.y;
-    }
-    return pulledCurveSample(src, dst, first + float(j) - 1.0, samples, cut, span.w);
-}
 `;
+
+/** The pulled curve batch's {@link curvePointGlsl}: every kind, routed ones from the route table. */
+export const PULLED_CURVE_GLSL = curvePointGlsl(true);

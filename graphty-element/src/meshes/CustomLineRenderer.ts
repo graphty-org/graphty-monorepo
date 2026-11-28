@@ -11,16 +11,19 @@ import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
 import { Scene } from "@babylonjs/core/scene.js";
 
 import {
+    CURVE_RUN_SLOT_NAMES,
     EDGE_JOIN_FRAGMENT_SHADER,
     EDGE_JOIN_VERTEX_SHADER,
     EDGE_MITER_LIMIT,
     EDGE_STATIC_ATTRIBUTES,
     JOIN_TEMPLATE_INDICES,
     JOIN_TEMPLATE_POSITIONS,
+    JOIN_TEMPLATE_VERTICES,
     NEAR_TRIM_GLSL,
 } from "./edgeJoinShader";
 import type { EdgeAgeState } from "./FrameRoster";
 import { PerSceneMaterials } from "./PerSceneMaterials";
+import { MAX_PIECES } from "./pulledCurve";
 
 /** The define a line fading by age is compiled with. */
 const AGED_DEFINE = "#define EDGE_AGED";
@@ -142,6 +145,11 @@ export interface JoinedLineOptions {
      * `"smooth"` also widens it by a pixel and smooths its edges in the fragment shader (`EDGE_LINE_AA`).
      */
     pulledLean?: boolean | "smooth";
+    /**
+     * Let a slot draw a whole curve (`EDGE_CURVE_RUN`, `EdgeLineBatch.placeCurve`): a plain 3D line only, not with
+     * `widened`, a `program`, a `fade`, a `pattern`, `worldWidth` or `pulled`.
+     */
+    curveRun?: boolean;
 }
 
 /**
@@ -213,6 +221,7 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.pulled === true && options.pulledCurve === true ? ["#define EDGE_PULLED_CURVE"] : []),
         ...(options.pulled === true && options.pulledCurve !== true ? leanDefines(options) : []),
         ...(drawsSlotColor(options, widened) ? ["#define EDGE_SLOT_COLOR"] : []),
+        ...(options.curveRun === true ? ["#define EDGE_CURVE_RUN"] : []),
     ];
 }
 
@@ -243,6 +252,7 @@ function joinedLineMeta(options: JoinedLineOptions, widened: boolean, color: Col
         ...(drawsSlotColor(options, widened)
             ? { color: [color.r, color.g, color.b, opaque ? 1 : (options.opacity ?? 1)] as const }
             : {}),
+        ...(options.curveRun === true ? { curveRun: true } : {}),
     };
 }
 
@@ -267,18 +277,14 @@ function drawsSlotColor(options: JoinedLineOptions, widened: boolean): boolean {
 function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): string[] {
     if (options.pulled === true) {
         // a curve batch draws the template indexed and reads its vertex (`EDGE_PULLED_CURVE`)
-        return options.pulledCurve === true ? ["position"] : [];
+        return options.pulledCurve === true ? ["position", "curvePiece"] : [];
     }
 
     return [
         "position",
-        "pPrev2",
-        "pPrev",
-        "pA",
-        "pB",
-        "pNext",
-        "pNext2",
-        "run",
+        ...(options.curveRun === true
+            ? ["curvePiece", ...CURVE_RUN_SLOT_NAMES]
+            : ["pPrev2", "pPrev", "pA", "pB", "pNext", "pNext2", "run"]),
         "edgeHidden",
         ...(drawsSlotColor(options, widened) ? ["edgeColor"] : []),
         ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
@@ -618,14 +624,7 @@ void main(void) {
         this.registerShaders();
 
         const mesh = new Mesh("joined-line", scene);
-        const vertexData = new VertexData();
-        vertexData.positions = [...JOIN_TEMPLATE_POSITIONS];
-        // a straight pulled batch draws unindexed (`PulledLineBatch`); a curve batch draws the template indexed, an
-        // instance a piece, as the object path's batch does
-        if (options.pulled !== true || options.pulledCurve === true) {
-            vertexData.indices = [...JOIN_TEMPLATE_INDICES];
-        }
-        vertexData.applyToMesh(mesh);
+        this.applyJoinTemplate(mesh, options);
 
         const { program, fade } = options;
         const opaque = options.opaque === true;
@@ -728,6 +727,58 @@ void main(void) {
         mesh.metadata = joinedLineMeta(options, widened, colorObj);
 
         return mesh;
+    }
+
+    /**
+     * Give a joined line's mesh the template its pieces are drawn from: one piece of the join template, indexed but for
+     * a straight pulled batch (which draws unindexed, `PulledLineBatch`); a pulled curve batch's template of a piece a
+     * copy (`setCurveTemplate`); and a curve run's piece number, copy 0, until a slot draws a curve.
+     * @param mesh - The mesh.
+     * @param options - Its look.
+     */
+    private static applyJoinTemplate(mesh: Mesh, options: JoinedLineOptions): void {
+        const vertexData = new VertexData();
+        vertexData.positions = [...JOIN_TEMPLATE_POSITIONS];
+        // a straight pulled batch draws unindexed (`PulledLineBatch`); a curve batch draws the template indexed, an
+        // instance a piece, as the object path's batch does
+        if (options.pulled !== true || options.pulledCurve === true) {
+            vertexData.indices = [...JOIN_TEMPLATE_INDICES];
+        }
+        vertexData.applyToMesh(mesh);
+        if (options.pulled === true && options.pulledCurve === true) {
+            // a pulled curve's entry draws every piece of its curve (`EDGE_PULLED_CURVE`)
+            this.setCurveTemplate(mesh);
+        } else if (options.curveRun === true) {
+            // one piece, copy 0, until a slot draws a curve (`setCurveTemplate`)
+            mesh.setVerticesData("curvePiece", new Array<number>(JOIN_TEMPLATE_VERTICES).fill(0), true, 1);
+        }
+    }
+
+    /**
+     * Give a curve run's mesh (`curveRun`) the template a slot draws a whole curve from: {@link MAX_PIECES} (the most pieces a curve is cut into)
+     * copies of the join template, each vertex carrying its copy's number. Done once, when its batch's first curve is
+     * placed (`EdgeLineBatch.placeCurve`); a batch of straight lines keeps the one-piece template.
+     * ponytail: never shrinks back when the batch's last curve leaves; shrink it if straight batches that once held a
+     * curve cost too many vertices.
+     * @param mesh - A mesh from {@link CustomLineRenderer.createJoinedLineMesh} with `curveRun`.
+     */
+    static setCurveTemplate(mesh: Mesh): void {
+        const positions: number[] = [];
+        const pieces: number[] = [];
+        const indices: number[] = [];
+        for (let k = 0; k < MAX_PIECES; k++) {
+            positions.push(...JOIN_TEMPLATE_POSITIONS);
+            for (let v = 0; v < JOIN_TEMPLATE_VERTICES; v++) {
+                pieces.push(k);
+            }
+            for (const i of JOIN_TEMPLATE_INDICES) {
+                indices.push(i + k * JOIN_TEMPLATE_VERTICES);
+            }
+        }
+
+        mesh.setVerticesData("position", positions, true, 3);
+        mesh.setVerticesData("curvePiece", pieces, true, 1);
+        mesh.setIndices(indices);
     }
 
     /**

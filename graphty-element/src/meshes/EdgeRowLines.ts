@@ -640,7 +640,8 @@ export class EdgeRowLines implements StraightPieceHolder {
         const drawnWidth = EdgeMesh.drawsFlat(scene) || look.patterned ? width / 40 : width * 20;
         let piece: number;
         try {
-            piece = batch.acquire(drawnWidth, style.line?.drawOrder);
+            // a curve takes its draw slot when it is first placed, as an `Edge`'s does (`PulledLineBatch.acquire`)
+            piece = batch.acquire(drawnWidth, style.line?.drawOrder, look.curve);
         } catch (error) {
             // a batch the card cannot hold more of: the row's `Edge` draws it, and reports it (`Edge.refuseTooLarge`)
             if (error instanceof GraphtyError && error.code === "E_TOO_LARGE") {

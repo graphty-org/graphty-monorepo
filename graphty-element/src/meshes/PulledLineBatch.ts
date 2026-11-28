@@ -37,10 +37,10 @@ import { placedEnds, type PulledCapLook, type RestSource, RestWatch, roundRowsEn
  * A CURVE batch (stage 21, `EDGE_PULLED_CURVE`) draws curves (`line.bezier`), lone or fanned out of a
  * bundle: an edge takes a run of entries, each its rows, its look, its part of the run and its span, two texels more
  * than a straight piece's: (samples, first, pieces, startAt), then (endAt and the shape, `curveShape`). An entry
- * holds `CURVE_STRIDE` (16) pieces of its edge's path. Each piece the edge's longest cut has needed takes a draw SLOT
- * of its own, handed out and freed exactly as the object path's line batch hands out its slots, so the pieces draw
- * in the object path's order; the SLOT TABLE (`edgeSlots`, a name a slot) says which entry and which of its 16
- * pieces a slot draws. The shader works out piece j's place along the cut path from the two rows' places and the span
+ * holds `CURVE_STRIDE` (64, `MAX_PIECES`) pieces of its edge's path, all drawn from ONE draw SLOT, an instance of the
+ * batch's template of 64 pieces (#10046): handed out and freed exactly as the object path's line batch hands out the
+ * one slot its curve takes (`EdgeLineBatch.placeCurve`), so the curves draw in the object path's order; the SLOT TABLE
+ * (`edgeSlots`, a name a slot) says which entry a slot draws. The shader works out piece j's place along the cut path from the two rows' places and the span
  * (`meshes/pulledCurve.ts`); a piece past its own curve's draws nothing. A curve batch draws the join template indexed,
  * an instance a slot, as the object path's batch draws it: 14 vertex shader runs a piece, not 30 (#9486). An entry per 16 pieces and four bytes a
  * piece, not four texels, keep a million long curves (64 pieces each) to 4096 x 4096 tables (#9160).
@@ -479,7 +479,7 @@ export class PulledLineBatch {
         this.orderTable = this.buildOrder(new Float32Array(order.flags));
         this.sort();
         if (curve) {
-            this.entrySlots = new Int32Array((first.texels / texels) * CURVE_STRIDE).fill(-1);
+            this.entrySlots = new Int32Array(first.texels / texels).fill(-1);
             this.growSlots(first.texels / texels);
             const routes = this.shape(TABLE_WIDTH);
             this.routeWidth = routes.width;
@@ -565,9 +565,12 @@ export class PulledLineBatch {
      * @param drawOrder - Its `edge.drawOrder`: a piece of a higher one is drawn after, so over, every piece of a
      *     lower one, and a piece with none after every piece with one, as the object path's batches are drawn
      *     (`stackByDrawOrder`). Undefined for none.
+     * @param curve - A curve batch's entry for a curve: its draw slot is taken when the curve is first placed
+     *     ({@link PulledLineBatch.setCurve}), as the object path's curve takes its slot (`Edge.takeLineSlot`), so
+     *     straight lines made in the same write are under it and one added once it is drawn is over it (#10083).
      * @returns The piece.
      */
-    acquire(width = 0, drawOrder?: number): number {
+    acquire(width = 0, drawOrder?: number, curve = false): number {
         if (this.slots === null) {
             return this.takeSlot(width, drawOrder);
         }
@@ -583,15 +586,20 @@ export class PulledLineBatch {
 
         this.entryWidths[entry] = width;
         this.entryOrders[entry] = drawOrder;
-        this.slotsFor(entry, 1);
+        if (curve) {
+            this.groupOf(width);
+        } else {
+            this.slotsFor(entry, 1);
+        }
+
         return entry;
     }
 
     /**
-     * Give an entry's first `count` pieces a draw slot each, in piece order, those it has kept: a curve keeps the
-     * slots its longest cut took, as the object path's curve keeps its batch slots.
+     * Give an entry its one draw slot, which draws all its pieces, unless it has one: kept while the entry is, as the
+     * object path's curve keeps its one batch slot.
      * @param entry - The entry.
-     * @param count - Pieces, at most `CURVE_STRIDE`.
+     * @param count - Pieces it draws: none takes no slot.
      */
     private slotsFor(entry: number, count: number): void {
         const { slotNames } = this;
@@ -599,14 +607,10 @@ export class PulledLineBatch {
             return;
         }
 
-        for (let j = 0; j < count; j++) {
-            if ((this.entrySlots[entry * CURVE_STRIDE + j] ?? -1) >= 0) {
-                continue;
-            }
-
+        if (count > 0 && (this.entrySlots[entry] ?? -1) < 0) {
             const slot = this.takeSlot(this.entryWidths[entry] ?? 0, this.entryOrders[entry]);
-            this.entrySlots[entry * CURVE_STRIDE + j] = slot;
-            this.nameSlot(slot, NAME_BASE + entry * CURVE_STRIDE + j);
+            this.entrySlots[entry] = slot;
+            this.nameSlot(slot, NAME_BASE + entry);
         }
     }
 
@@ -663,13 +667,7 @@ export class PulledLineBatch {
             this.setCount();
         }
 
-        let group = this.groups.get(width);
-        if (group === undefined) {
-            group = { rank: this.ranked.length, highWater: 0, free: [] };
-            this.groups.set(width, group);
-            this.ranked.push(group);
-        }
-
+        const group = this.groupOf(width);
         const key = group.rank * SLOTS_PER_RANK + (group.free.pop() ?? group.highWater++);
         // With one width a piece's key is its own number, as the free pieces are taken in the same order, so the keys
         // are kept only from the second width on, starting from that identity.
@@ -695,6 +693,23 @@ export class PulledLineBatch {
     }
 
     /**
+     * The draw order group of a width, made the first time the width is seen: a width ranks where its first piece was
+     * handed out, as the object path's batch of that width is made with its first line.
+     * @param width - The width.
+     * @returns The group.
+     */
+    private groupOf(width: number): WidthGroup {
+        let group = this.groups.get(width);
+        if (group === undefined) {
+            group = { rank: this.ranked.length, highWater: 0, free: [] };
+            this.groups.set(width, group);
+            this.ranked.push(group);
+        }
+
+        return group;
+    }
+
+    /**
      * Hand a piece back: it draws nothing.
      * @param piece - The piece.
      */
@@ -710,14 +725,12 @@ export class PulledLineBatch {
             return;
         }
 
-        // its slots go back in piece order, as the object path's curve gives its batch slots back
-        for (let j = 0; j < CURVE_STRIDE; j++) {
-            const slot = this.entrySlots[piece * CURVE_STRIDE + j] ?? -1;
-            if (slot >= 0) {
-                this.nameSlot(slot, 0);
-                this.freeSlot(slot);
-                this.entrySlots[piece * CURVE_STRIDE + j] = -1;
-            }
+        // its slot goes back, as the object path's curve gives its batch slot back
+        const slot = this.entrySlots[piece] ?? -1;
+        if (slot >= 0) {
+            this.nameSlot(slot, 0);
+            this.freeSlot(slot);
+            this.entrySlots[piece] = -1;
         }
 
         this.freeEntries.push(piece);
@@ -893,7 +906,7 @@ export class PulledLineBatch {
         this.rows[at + 12] = span?.endAt ?? 0;
         [this.rows[at + 13], this.rows[at + 14], this.rows[at + 15]] = curveShape(span, route);
         this.touch(piece);
-        this.slotsFor(piece, Math.min(CURVE_STRIDE, (span?.pieces ?? 0) - part * CURVE_STRIDE));
+        this.slotsFor(piece, (span?.pieces ?? 0) > part * CURVE_STRIDE ? 1 : 0);
     }
 
     /**
@@ -1261,7 +1274,7 @@ export class PulledLineBatch {
         const corners = Math.max(this.template.indices.length, LEAN_TEMPLATE.indices.length);
         const most = Math.min(
             this.mostTexture() ** 2 * FLAGS_PER_TEXEL,
-            MOST_ENTRIES * CURVE_STRIDE,
+            MOST_ENTRIES,
             Math.floor(MOST_VERTICES / corners),
         );
         if (this.highWater >= most) {
@@ -1459,7 +1472,7 @@ export class PulledLineBatch {
         }
 
         if (this.slots !== null) {
-            const entrySlots = new Int32Array(pieces * CURVE_STRIDE).fill(-1);
+            const entrySlots = new Int32Array(pieces).fill(-1);
             entrySlots.set(this.entrySlots);
             this.entrySlots = entrySlots;
             return;

@@ -1313,6 +1313,12 @@ export class Edge {
     /** Whether this edge's line is a curve, drawn as a run of slots rebuilt as its ends move. */
     private lineIsCurve = false;
 
+    /**
+     * The lone curve this edge's one line slot draws whole ({@link Edge.placeCurveRun}, issue #10046): the two centers it
+     * is cut between and its span; null while the line is drawn another way.
+     */
+    private curveRun: { src: Vector3; dst: Vector3; span: CurveSpan } | null = null;
+
     /** The batch this edge's selection halo is drawn from while it is selected; see `paintHalo`. */
     private haloBatch: EdgeLineBatch | null = null;
 
@@ -1610,13 +1616,17 @@ export class Edge {
         const batch = this.lineBatch;
 
         const ownColor = this.lineSlots.length > 0 && batch.colorOf(this.lineSlots[0]) !== null;
+        const whole = this.curveRunPoints();
         const center = this.curveMiddle(batch);
         return {
             // A batch keyed by shape draws every color, so the look it draws this edge in is named
             // with the color and opacity the edge wrote into its slots.
             name: ownColor ? `${batch.name}|${this.lineColor}|${String(this.lineOpacity)}` : batch.name,
             // A curve's length is its whole run's.
-            length: this.lineSlots.reduce((sum, slot) => sum + batch.lengthOf(slot), 0),
+            length:
+                whole === null
+                    ? this.lineSlots.reduce((sum, slot) => sum + batch.lengthOf(slot), 0)
+                    : whole.reduce((sum, p, i) => (i === 0 ? 0 : sum + Vector3.Distance(whole[i - 1], p)), 0),
             // The width `createLine` built the batch with, from the same style.
             width: this.drawnStyle?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
             // A batch keyed by shape draws each slot at the opacity this edge wrote into it.
@@ -1634,7 +1644,50 @@ export class Edge {
      * @param batch - The batch the slots are in.
      * @returns The point, as a fresh vector.
      */
+    /**
+     * The points of the lone curve this edge's one slot draws ({@link Edge.placeCurveRun}), as the shader places them,
+     * in the floats the card holds them in, as {@link Edge.drawnCurve} reads a pulled curve's.
+     * @returns The points, or null while the line is drawn another way.
+     */
+    private curveRunPoints(): Vector3[] | null {
+        const run = this.curveRun;
+        if (run === null || this.lineBatch === null) {
+            return null;
+        }
+
+        return Edge.cardPoints(curvePath(run.src, run.dst, run.span));
+    }
+
+    /**
+     * Points in the floats the card holds them in, as fresh vectors.
+     * @param flat - The points, flat x, y, z.
+     * @returns The points.
+     */
+    private static cardPoints(flat: readonly number[]): Vector3[] {
+        return Array.from(
+            { length: flat.length / 3 },
+            (_, j) => new Vector3(Math.fround(flat[3 * j]), Math.fround(flat[3 * j + 1]), Math.fround(flat[3 * j + 2])),
+        );
+    }
+
+    /**
+     * The middle of a run of points as {@link Edge.curveMiddle} reads a run of slots: the middle of the middle piece,
+     * or the joint between the two middle ones.
+     * @param points - The points, at least two.
+     * @returns The point, as a fresh vector.
+     */
+    private static runMiddle(points: readonly Vector3[]): Vector3 {
+        const n = points.length - 1;
+        return n % 2 === 1 ? Vector3.Center(points[(n - 1) / 2], points[(n + 1) / 2]) : points[n / 2].clone();
+    }
+
     private curveMiddle(batch: EdgeLineBatch): Vector3 {
+        // a curve drawn from one slot keeps its points in its span, not in its slots
+        const whole = this.curveRunPoints();
+        if (whole !== null) {
+            return Edge.runMiddle(whole);
+        }
+
         const n = this.lineSlots.length;
 
         return n % 2 === 1 ? batch.centreOf(this.lineSlots[(n - 1) / 2]) : batch.endsOf(this.lineSlots[n / 2])[0];
@@ -1656,17 +1709,17 @@ export class Edge {
             // a pulled curve's points, as its pieces place them (`meshes/pulledCurve.ts`), in the floats the card
             // holds them in, as the object path reads its slots: the camera frames the graph by these points, and a
             // frame placed from doubles sits a last bit off the object path's and moves a sample (ThreeDBends)
-            const flat = curvePath(path.src, path.dst, path.span);
-            return Array.from(
-                { length: flat.length / 3 },
-                (_, j) =>
-                    new Vector3(Math.fround(flat[3 * j]), Math.fround(flat[3 * j + 1]), Math.fround(flat[3 * j + 2])),
-            );
+            return Edge.cardPoints(curvePath(path.src, path.dst, path.span));
         }
 
         if (this.mesh instanceof PatternedLineMesh) {
             const route = this.mesh.drawnRoute();
             return route !== null && route.length > 2 ? route : null;
+        }
+
+        const whole = this.curveRunPoints();
+        if (whole !== null) {
+            return whole;
         }
 
         const batch = this.lineBatch;
@@ -2051,6 +2104,7 @@ export class Edge {
         this.bentMiddle = null;
         this.lifted = lift !== 0 && this.laysRoute();
         let bent = this.lifted;
+        this.curveRun = null;
         if (this.lifted) {
             this.bundled = false;
             this.laidCurve = null;
@@ -2146,8 +2200,7 @@ export class Edge {
                     ? { bends: [...laid], srcPort: null, dstPort: null, loop: true }
                     : Edge.laidRoute(laid, laidEnds),
             );
-        const route = !bent && !followsLayout && lays ? this.bundleRoute(src, dst) : null;
-        this.bundled = followsLayout || (route !== null && this.placeRoute(batch, src, dst, route));
+        this.bundled = followsLayout || (!bent && lays && this.placeAlongRoute(batch, src, dst));
         if (!bent && !this.bundled) {
             // a straight line the layout ends itself runs between its ends, as a laid route does
             const { srcPoint, dstPoint } =
@@ -2845,6 +2898,12 @@ export class Edge {
                 old.release(slot);
             }
 
+            // a curve that has not taken its slot yet moves its hold (`takeLineSlot`)
+            if (this.lineSlots.length === 0) {
+                next.hold();
+                old.dropHold();
+            }
+
             this.lineBatch = next;
             this.lineSlots = slots;
             this.mesh = next.mesh;
@@ -3008,6 +3067,25 @@ export class Edge {
         }
 
         shaded(this.lineBatch)?.setSpeed(slot, this.lineSpeed);
+    }
+
+    /**
+     * Take the line's first slot, for a curve made with none (`createLine`): a curve's slot is taken when it is first
+     * placed, as a run of a slot a piece takes the rest of its pieces, so straight lines made in the same write are
+     * under it and one added once it is drawn is over it (#10083). It is the lowest free slot (`EdgeLineBatch.takeHeld`);
+     * a pulled curve's slot is taken the same way (`PulledLineBatch.acquire`).
+     * @param batch - The line's batch.
+     * @returns The slot.
+     */
+    private takeLineSlot(batch: EdgeLineBatch): number {
+        const slot = batch.takeHeld(this);
+        this.lineSlots.push(slot);
+        if (this.drawnStyle !== null) {
+            this.colorLine(this.drawnStyle);
+        }
+
+        this.prepareLineSlot(slot);
+        return slot;
     }
 
     /**
@@ -3361,7 +3439,16 @@ export class Edge {
         if (this.lineBatch) {
             // A curve's run of slots is sized to its length when it is first placed.
             this.readRoute(drawnStyle);
-            this.lineSlots = [this.lineBatch.acquire(this)];
+            // a curve its batch draws from one slot takes the slot when it is first placed (`takeLineSlot`)
+            const later =
+                this.lineBatch.drawsCurves &&
+                this.lineRoute === null &&
+                EdgeMesh.pullsCurve(drawnStyle, this.isLoop, this.route);
+            if (later) {
+                this.lineBatch.hold();
+            }
+
+            this.lineSlots = later ? [] : [this.lineBatch.acquire(this)];
             this.colorLine(drawnStyle);
             this.lineStatic = null;
             this.createOutline(meshKey, drawnStyle);
@@ -3731,7 +3818,7 @@ export class Edge {
         const drawOrder = style.line?.drawOrder;
         let piece: number;
         try {
-            piece = batch.acquire(look.width, drawOrder);
+            piece = batch.acquire(look.width, drawOrder, this.pullsCurve(style));
         } catch (error) {
             // a batch the card cannot hold more of: this line is drawn as the object path draws it
             this.refuseTooLarge(batch, error);
@@ -3840,13 +3927,23 @@ export class Edge {
             return;
         }
 
+        this.pullSpan(this.curveSpanAt(src, dst), src, this.isLoop ? src : dst);
+    }
+
+    /**
+     * The span of this edge's curve between two centers, as {@link Edge.pullCurve} draws it (see there): a self-loop's
+     * is cut between its node's center and itself.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @returns The span, or null where `curveSpan` draws it another way.
+     */
+    private curveSpanAt(src: Vector3, dst: Vector3): CurveSpan | null {
         if (this.isLoop) {
             // a self-loop's teardrop, whatever else its style asks for, as `bundleRoute` draws it
             const { rank, count } = this.context.getDataManager().drawnBundle(this);
             const around = Edge.outside(this.srcNode, src);
             const loop = loopShape(rank, count, Edge.reachFrom(this.srcNode));
-            this.pullSpan(curveSpan(src, src, around, around, { loop }), src, src);
-            return;
+            return curveSpan(src, src, around, around, { loop });
         }
 
         // a straight line through bends wins over every route, as `placeLine` lays it; where no bend clears both nodes it
@@ -3862,8 +3959,7 @@ export class Edge {
                 this.bareEnd("target", dst, src),
             ]);
             if (route === "straight" || (bent?.bends ?? null) !== null) {
-                this.pullSpan(bent, src, dst);
-                return;
+                return bent;
             }
         }
 
@@ -3881,7 +3977,7 @@ export class Edge {
         }
         // a curve that does not fan is drawn on its circle when it has a radius, as `bundleRoute` draws it
         const radius = fan === null && via === null ? (this.drawnStyle?.line?.arcRadius ?? null) : null;
-        const span = curveSpan(
+        return curveSpan(
             src,
             dst,
             outSrc,
@@ -3897,7 +3993,6 @@ export class Edge {
             },
             () => [this.bareEnd("source", src, dst), this.bareEnd("target", dst, src)],
         );
-        this.pullSpan(span, src, dst);
     }
 
     /**
@@ -4152,10 +4247,7 @@ export class Edge {
         this.haloBands = [];
 
         if (this.lineBatch) {
-            for (const slot of this.lineSlots) {
-                this.lineBatch.release(slot);
-            }
-
+            this.releaseLineSlots(this.lineBatch);
             this.lineBatch = null;
             this.lineSlots = [];
             return;
@@ -4164,6 +4256,21 @@ export class Edge {
         // PatternedLineMesh has its own dispose logic, so it is called whatever the state.
         if (this.mesh instanceof PatternedLineMesh || !this.mesh.isDisposed()) {
             this.mesh.dispose();
+        }
+    }
+
+    /**
+     * Hand the line's slots back to its batch, or the hold of a curve that has not taken its slot yet
+     * ({@link Edge.takeLineSlot}).
+     * @param batch - The line's batch.
+     */
+    private releaseLineSlots(batch: EdgeLineBatch): void {
+        for (const slot of this.lineSlots) {
+            batch.release(slot);
+        }
+
+        if (this.lineSlots.length === 0) {
+            batch.dropHold();
         }
     }
 
@@ -4817,6 +4924,10 @@ export class Edge {
         // A batched line is sixteen floats in a shared buffer, and this is the write that moves
         // it. The whole buffer reaches the GPU once a frame, from the batch itself.
         if (this.lineBatch && this.lineIsCurve) {
+            if (this.lineSlots.length === 0) {
+                this.takeLineSlot(this.lineBatch);
+            }
+
             const curve = this.placeCurve(this.lineBatch, this.lineSlots, srcPoint, dstPoint);
             this.placeBands(curve);
         } else if (this.lineBatch) {
@@ -5168,6 +5279,75 @@ export class Edge {
      * @param route - The route, flat x, y, z, from `src` to `dst`.
      * @returns False, drawing nothing, when no part of the route is outside both nodes.
      */
+    /**
+     * Lay the line along the element's own route for it: a lone curve from one slot ({@link Edge.placeCurveRun}), else
+     * its bundle's route ({@link Edge.bundleRoute}), cut at its nodes ({@link Edge.placeRoute}).
+     * @param batch - The line's batch, or null for a patterned line's elements.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @returns Whether it was laid along a route; false for a straight line.
+     */
+    private placeAlongRoute(batch: EdgeLineBatch | null, src: Vector3, dst: Vector3): boolean {
+        if (this.placeCurveRun(src, dst)) {
+            return true;
+        }
+
+        const route = this.bundleRoute(src, dst);
+        return route !== null && this.placeRoute(batch, src, dst, route);
+    }
+
+    /**
+     * Draw this edge's curve from one slot of its line batch (`EdgeLineBatch.placeCurve`, issue #10046), cut where it
+     * leaves each node as {@link Edge.placeRoute} cuts it, rather than as a run of a slot a piece: any path a pulled
+     * curve batch draws from its span alone (a lone or fanned curve, a raised or great-circle arc, a support point's
+     * quadratic, a self-loop's teardrop), with no cap and no bends, in a batch whose slots draw curves. Its selection
+     * band and what it carries (an outline, a gradient, effects) are still laid along its points.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @returns False, drawing nothing, when the curve is drawn another way: then {@link Edge.bundleRoute} lays it.
+     */
+    private placeCurveRun(src: Vector3, dst: Vector3): boolean {
+        const batch = this.lineBatch;
+        const style = this.drawnStyle;
+        const slot = this.lineSlots[0];
+        if (
+            batch?.drawsCurves !== true ||
+            style === null ||
+            !EdgeMesh.pullsCurve(style, this.isLoop, this.route) ||
+            this.lineRoute !== null ||
+            this.arrowCap !== null ||
+            this.arrowTailCap !== null ||
+            this.arrowMiddleHeadCap !== null ||
+            this.arrowMiddleTailCap !== null
+        ) {
+            return false;
+        }
+
+        // the span a pulled curve batch draws (`Edge.pullCurve`), so both render paths draw the same points; a path
+        // the shader reads from a route table (a center arc), or a straight piece, is laid as a run
+        const span = this.curveSpanAt(src, dst);
+        if (span === null || routed(span) || span.pieces < 2) {
+            return false;
+        }
+
+        // a self-loop is cut between its node's center and itself
+        const to = this.isLoop ? src : dst;
+        this.laidCurve = null;
+        Edge.releaseRun(batch, this.lineSlots);
+        batch.placeCurve(slot ?? this.takeLineSlot(batch), src, to, span);
+        this.curveRun = { src: src.clone(), dst: to.clone(), span };
+        if (this.haloBatch !== null || this.hasBands()) {
+            const flat = curvePath(src, to, span);
+            if (this.haloBatch !== null) {
+                this.placeRun(this.haloBatch, this.haloSlots, flat);
+            }
+
+            this.placeBands(flat);
+        }
+
+        return true;
+    }
+
     private placeRoute(batch: EdgeLineBatch | null, src: Vector3, dst: Vector3, route: readonly number[]): boolean {
         const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
         const outSrc = Edge.outside(this.endMeasure("source"), src, srcGap);
@@ -5672,6 +5852,10 @@ export class Edge {
      */
     private placeLineRun(batch: EdgeLineBatch | null, flat: readonly number[]): void {
         if (batch !== null) {
+            if (this.lineSlots.length === 0) {
+                this.takeLineSlot(batch);
+            }
+
             this.placeRun(batch, this.lineSlots, flat, (slot) => {
                 this.prepareLineSlot(slot);
             });
@@ -5818,6 +6002,10 @@ export class Edge {
      * @param dstPoint - Where it ends.
      */
     private placeStraight(batch: EdgeLineBatch, srcPoint: Vector3, dstPoint: Vector3): void {
+        if (this.lineSlots.length === 0) {
+            this.takeLineSlot(batch);
+        }
+
         const tapers = tapersBothEnds(this.drawnStyle);
         // a plain line of one slot, nearly every line, is placed with no points list (issue #9420)
         if (!tapers && this.lineSlots.length <= 1 && !this.hasBands()) {

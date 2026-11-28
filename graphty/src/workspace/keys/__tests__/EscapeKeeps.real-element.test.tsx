@@ -96,7 +96,7 @@ describe("keys a dialog or the Assistant panel keeps", () => {
 
     it("Esc on the Assistant panel, outside the composer, leaves the selection", async () => {
         const { session } = await selected();
-        await userEvent.click(screen.getByRole("button", { name: "Assistant" }));
+        await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
         const panel = await screen.findByRole("region", { name: "Assistant" });
         const button = panel.querySelector<HTMLElement>("header button");
         assert.isNotNull(button);

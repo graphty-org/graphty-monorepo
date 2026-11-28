@@ -33,7 +33,7 @@ withFeatures([]);
  */
 async function openWs(): Promise<HTMLElement> {
     if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
     }
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
@@ -51,7 +51,7 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
     const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
     const row = within(where).queryByRole("treeitem", { name: /^(And|Add)\.\.\.$/ });
     if (row !== null) {
-        await userEvent.click(row);
+        await userEvent.click(page.elementLocator(where).getByRole("treeitem", { name: /^(And|Add)\.\.\.$/ }));
         return;
     }
     if (document.querySelector(".sel-ws") === null) {
@@ -127,7 +127,7 @@ async function openLayer(
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-editor"));
     });
@@ -254,7 +254,7 @@ describe("the style tree's reorder keys", () => {
                 .map((each) => each.name);
         assert.deepEqual(order(), ["Low", "High"], "bottom first");
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Low, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Low, / }));
         // Figma: Ctrl+] brings forward (up the drawn list), Ctrl+[ sends backward.
         await userEvent.keyboard("{Control>}]{/Control}");
         await waitFor(() => {

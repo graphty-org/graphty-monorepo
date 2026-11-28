@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import { defineSource, type GraphSession, registerSource, replayFetch } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
 import { forgetAutosave } from "../../../test/reload";
@@ -75,7 +75,7 @@ function recordedNdex(): string[] {
 async function openChooser(): Promise<{ store: WorkspaceStore; chooser: HTMLElement }> {
     const store = createWorkspaceStore();
     render(<Workspace store={store} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
+    await userEvent.click(page.getByRole("button", { name: "Open network data", exact: true }));
     return { store, chooser: await screen.findByRole("dialog", { name: "Open network data" }) };
 }
 
@@ -90,7 +90,7 @@ async function openForm(kind: RegExp = /^NDEx/): Promise<{
     form: HTMLElement;
 }> {
     const { store, chooser } = await openChooser();
-    await userEvent.click(within(chooser).getByRole("button", { name: kind }));
+    await userEvent.click(page.elementLocator(chooser).getByRole("button", { name: kind, exact: true }));
     const form = await screen.findByRole("form", { name: "Network data" });
     // The form draws once the project's session exists.
     const session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
@@ -105,7 +105,7 @@ async function openForm(kind: RegExp = /^NDEx/): Promise<{
  * @param form - the form, on its first kind (NDEx).
  */
 async function typeWp5483(form: HTMLElement): Promise<void> {
-    await userEvent.type(within(form).getByRole("textbox", { name: "Network UUID" }), WP5483);
+    await userEvent.type(page.elementLocator(form).getByRole("textbox", { name: "Network UUID", exact: true }), WP5483);
 }
 
 /**
@@ -113,7 +113,7 @@ async function typeWp5483(form: HTMLElement): Promise<void> {
  * @param form - the form.
  */
 async function pressLoad(form: HTMLElement): Promise<void> {
-    await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+    await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
 }
 
 /**
@@ -191,11 +191,11 @@ describe("network data from the start page", () => {
         sessionStorage.clear();
         const store = createWorkspaceStore({ autosave: true });
         const first = render(<Workspace store={store} />);
-        await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
+        await userEvent.click(page.getByRole("button", { name: "Open network data", exact: true }));
         const chooser = await screen.findByRole("dialog", { name: "Open network data" });
-        await userEvent.click(within(chooser).getByRole("button", { name: /^NDEx/ }));
+        await userEvent.click(page.elementLocator(chooser).getByRole("button", { name: /^NDEx/ }));
         await screen.findByRole("form", { name: "Network data" });
-        await userEvent.click(screen.getByRole("button", { name: "Close Network data" }));
+        await userEvent.click(page.getByRole("button", { name: "Close Network data", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
@@ -223,18 +223,18 @@ describe("network data from the start page", () => {
             assert.isNull(store.get().project);
         };
         const reopen = async (): Promise<HTMLElement> => {
-            await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+            await userEvent.click(page.getByRole("button", { name: "Open network data", exact: true }));
             return screen.findByRole("dialog", { name: "Open network data" });
         };
 
         await userEvent.keyboard("{Escape}");
         await closed();
-        await userEvent.click(within(await reopen()).getByRole("button", { name: "Close" }));
+        await userEvent.click(page.elementLocator(await reopen()).getByRole("button", { name: "Close", exact: true }));
         await closed();
         await reopen();
         const backdrop = document.querySelector<HTMLElement>(".mantine-Modal-overlay");
         assert.isNotNull(backdrop);
-        await userEvent.click(backdrop, { position: { x: 5, y: 5 } });
+        await userEvent.click(page.getByCss(".mantine-Modal-overlay").first(), { position: { x: 5, y: 5 } });
         await closed();
     });
 
@@ -254,7 +254,7 @@ describe("network data from the start page", () => {
         await waitFor(() => {
             assert.isDefined(signal);
         });
-        await userEvent.click(screen.getByRole("button", { name: "Close Network data" }));
+        await userEvent.click(page.getByRole("button", { name: "Close Network data", exact: true }));
         await waitFor(() => {
             assert.isTrue(signal?.aborted);
         });
@@ -284,8 +284,8 @@ describe("network data from the start page", () => {
     it("keeps the sign-in typed into the form for the project", async () => {
         recordedNdex();
         const { store, session, form } = await openForm();
-        await userEvent.type(within(form).getByRole("textbox", { name: "User" }), "reader");
-        await userEvent.type(within(form).getByLabelText("Password"), "hunter2");
+        await userEvent.type(page.elementLocator(form).getByRole("textbox", { name: "User", exact: true }), "reader");
+        await userEvent.type(page.elementLocator(form).getByLabelText("Password", { exact: true }), "hunter2");
         await typeWp5483(form);
         await pressLoad(form);
         await waitFor(() => {
@@ -330,15 +330,15 @@ describe("network data from the start page", () => {
         recordedNdex();
         const { form } = await openForm();
         await typeWp5483(form);
-        await userEvent.click(within(form).getByRole("button", { name: "Test" }));
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Test", exact: true }));
         const preview = await within(form).findByRole("group", { name: "Preview" });
         assert.include(preview.textContent, "25+");
         assert.isNull(form.querySelector("[data-error]"));
 
-        const limit = within(form).getByLabelText("Limit");
-        await userEvent.clear(limit);
-        await userEvent.type(limit, "10");
-        await userEvent.click(within(form).getByRole("button", { name: "Test" }));
+        const limit = (): Locator => page.elementLocator(form).getByLabelText("Limit", { exact: true });
+        await userEvent.clear(limit());
+        await userEvent.type(limit(), "10");
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Test", exact: true }));
         await waitFor(() => {
             assert.strictEqual(form.querySelector("[data-error]")?.textContent, "57 nodes: over Limit");
         });
@@ -347,7 +347,7 @@ describe("network data from the start page", () => {
     it("closes only the dropdown on Escape, keeping what was typed", async () => {
         const { form } = await openForm();
         await typeWp5483(form);
-        await userEvent.click(within(form).getByRole("combobox", { name: "Kind" }));
+        await userEvent.click(page.elementLocator(form).getByRole("combobox", { name: "Kind", exact: true }));
         await screen.findByRole("option", { name: "Start people" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -363,8 +363,8 @@ describe("network data from the start page", () => {
 
     it("puts Database with the sign-in, above Limit", async () => {
         const { form } = await openForm();
-        await userEvent.click(within(form).getByRole("combobox", { name: "Kind" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^Neo4j/ }));
+        await userEvent.click(page.elementLocator(form).getByRole("combobox", { name: "Kind", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: /^Neo4j/ }));
         const database = await within(form).findByRole("textbox", { name: "Database" });
         const limit = within(form).getByLabelText("Limit");
         assert.isTrue(Boolean(database.compareDocumentPosition(limit) & Node.DOCUMENT_POSITION_FOLLOWING));
@@ -375,7 +375,7 @@ describe("network data from the start page", () => {
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
         await screen.findByRole("heading", { level: 1, name: "Welcome back." });
-        await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
+        await userEvent.click(page.getByRole("button", { name: "Open network data", exact: true }));
         await screen.findByRole("dialog", { name: "Open network data" });
         assert.isNull(store.get().project);
     });
@@ -416,7 +416,7 @@ describe("network data from the start page", () => {
         recordedNdex();
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
-        const tile = await screen.findByRole("button", { name: "Load network data: WikiPathways WP5483" });
+        const tile = page.getByRole("button", { name: "Load network data: WikiPathways WP5483", exact: true });
         const session = await openBy(store, () => userEvent.click(tile));
         await landedOnStylePanel(store, session, 57);
         assert.strictEqual(store.get().project?.name, "WikiPathways WP5483");
@@ -436,7 +436,9 @@ describe("network data from the start page", () => {
         render(<Workspace store={store} />);
         const tile = await screen.findByRole("button", { name: "Load network data: WikiPathways WP5483" });
         const session = await openBy(store, async () => {
-            await userEvent.click(tile);
+            await userEvent.click(
+                page.getByRole("button", { name: "Load network data: WikiPathways WP5483", exact: true }),
+            );
             await waitFor(() => {
                 assert.strictEqual(tile.getAttribute("aria-busy"), "true");
             });
@@ -458,12 +460,14 @@ describe("network data from the start page", () => {
         });
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
-        await userEvent.click(await screen.findByRole("button", { name: "Load network data: WikiPathways WP5483" }));
+        await userEvent.click(
+            page.getByRole("button", { name: "Load network data: WikiPathways WP5483", exact: true }),
+        );
         await waitFor(() => {
             assert.isDefined(signal);
         });
         await openBy(store, () =>
-            userEvent.click(screen.getByRole("button", { name: /^Open the Zachary's karate club sample/ })),
+            userEvent.click(page.getByRole("button", { name: /^Open the Zachary's karate club sample/ })),
         );
         await waitFor(() => {
             assert.isTrue(signal?.aborted);
@@ -481,15 +485,17 @@ describe("network data from the start page", () => {
          * @returns its Network section.
          */
         const networkSamples = async (): Promise<HTMLElement> => {
-            await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
+            await userEvent.click(page.getByRole("button", { name: "Add source", exact: true }));
+            await userEvent.click(page.getByRole("menuitem", { name: /Samples/ }));
             const dialog = await screen.findByRole("dialog", { name: "Samples" });
             return within(dialog).getByRole("region", { name: "Network" });
         };
 
         const into = await networkSamples();
         const session = await openBy(store, () =>
-            userEvent.click(within(into).getByRole("button", { name: "WikiPathways WP5483: NDEx" })),
+            userEvent.click(
+                page.elementLocator(into).getByRole("button", { name: "WikiPathways WP5483: NDEx", exact: true }),
+            ),
         );
         assert.strictEqual(session.data.statistics().nodeCount, 57);
         assert.deepEqual(
@@ -501,10 +507,12 @@ describe("network data from the start page", () => {
         const separate = await networkSamples();
         const opened = await openBy(store, async () => {
             await userEvent.click(
-                within(separate).getByRole("button", { name: "Open WikiPathways WP5483 as a separate graph" }),
+                page
+                    .elementLocator(separate)
+                    .getByRole("button", { name: "Open WikiPathways WP5483 as a separate graph", exact: true }),
             );
             const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-            await userEvent.click(within(ask).getByRole("button", { name: "Discard" }));
+            await userEvent.click(page.elementLocator(ask).getByRole("button", { name: "Discard", exact: true }));
         });
         await landedOnStylePanel(store, opened, 57);
         assert.strictEqual(store.get().project?.name, "WikiPathways WP5483", "a project of its own");
@@ -516,7 +524,7 @@ describe("network data from the start page", () => {
         stubNdex((request) => (refuse ? Promise.resolve(new Response("{}", { status: 500 })) : replay(request)));
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
-        const tile = await screen.findByRole("button", { name: "Load network data: WikiPathways WP5483" });
+        const tile = page.getByRole("button", { name: "Load network data: WikiPathways WP5483", exact: true });
         await userEvent.click(tile);
         await waitFor(() => {
             assert.isTrue(store.get().notice?.error);

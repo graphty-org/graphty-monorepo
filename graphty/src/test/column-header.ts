@@ -4,9 +4,9 @@
  * "Options for <name>" menu in its header.
  */
 
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
-import { screen, within } from "./test-utils";
+import { screen } from "./test-utils";
 
 /**
  * Opens a column's header menu in the table dock.
@@ -16,11 +16,13 @@ import { screen, within } from "./test-utils";
  */
 export async function openColumnMenu(kind: "node" | "edge", name: string): Promise<HTMLElement> {
     if (screen.queryByRole("region", { name: "Table" }) === null) {
-        await userEvent.click(screen.getByRole("button", { name: /^Table/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Table/ }));
     }
     const dock = await screen.findByRole("region", { name: "Table" });
-    await userEvent.click(await within(dock).findByRole("tab", { name: kind === "node" ? "Nodes" : "Edges" }));
-    await userEvent.click(await within(dock).findByRole("button", { name: `Options for ${name}` }));
+    await userEvent.click(
+        page.elementLocator(dock).getByRole("tab", { name: kind === "node" ? "Nodes" : "Edges", exact: true }),
+    );
+    await userEvent.click(page.elementLocator(dock).getByRole("button", { name: `Options for ${name}`, exact: true }));
     return screen.findByRole("menu");
 }
 
@@ -32,5 +34,5 @@ export async function openColumnMenu(kind: "node" | "edge", name: string): Promi
  */
 export async function columnVerb(kind: "node" | "edge", name: string, verb: string): Promise<void> {
     const menu = await openColumnMenu(kind, name);
-    await userEvent.click(within(menu).getByRole("menuitem", { name: verb }));
+    await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: verb, exact: true }));
 }

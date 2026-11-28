@@ -20,7 +20,7 @@ describe("the Export dialog", () => {
         assert.isNotNull(within(dialog).getByRole("heading", { name: "Data" }));
         assert.isNotNull(within(dialog).getByRole("combobox", { name: "Format" }));
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel", exact: true }));
         assert.isNull(store.get().dialog);
     });
 
@@ -30,7 +30,7 @@ describe("the Export dialog", () => {
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         const list = within(dialog).getByRole("grid", { name: "What to export" });
         for (const name of ["Data", "Image", "Report", "Styles", "Recipe", "Project"]) {
-            await userEvent.click(within(list).getByText(name));
+            await userEvent.click(page.elementLocator(list).getByText(name, { exact: true }));
             assert.isNotNull(await within(dialog).findByRole("heading", { name }));
         }
     });

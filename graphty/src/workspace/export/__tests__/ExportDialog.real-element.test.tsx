@@ -101,7 +101,12 @@ async function openExport(names: readonly string[] = OUTPUTS): Promise<HTMLEleme
  * @param name - the output.
  */
 async function pick(dialog: HTMLElement, name: string): Promise<void> {
-    await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText(name));
+    await userEvent.click(
+        page
+            .elementLocator(dialog)
+            .getByRole("grid", { name: "What to export", exact: true })
+            .getByText(name, { exact: true }),
+    );
 }
 
 describe("Export: save a picture and the numbers (task T13)", () => {
@@ -137,7 +142,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         });
         assert.include(preview.textContent, header);
         // CSV holds no styles, as Format says: Export saves at once.
-        await userEvent.click(within(again).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(again).getByRole("button", { name: "Export", exact: true }));
         await screen.findByText("Exported untitled_nodes.csv", TOAST);
         const table = saved.find(({ name }) => name === "untitled_nodes.csv");
         assert.isDefined(table, "the table was saved");
@@ -167,10 +172,13 @@ describe("Export: save a picture and the numbers (task T13)", () => {
             await userEvent.keyboard("{Control>}e{/Control}");
             const dialog = await screen.findByRole("dialog", { name: "Export" });
             await userEvent.click(
-                within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"),
+                page
+                    .elementLocator(dialog)
+                    .getByRole("grid", { name: "What to export", exact: true })
+                    .getByText("Data", { exact: true }),
             );
-            await userEvent.click(within(dialog).getByRole("combobox", { name: "Format" }));
-            await userEvent.click(await screen.findByRole("option", { name: label }));
+            await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Format", exact: true }));
+            await userEvent.click(page.getByRole("option", { name: label, exact: true }));
             await waitFor(() => {
                 assert.notInclude(
                     within(dialog).getByLabelText("Preview of the exported data").textContent,
@@ -178,7 +186,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
                 );
             });
             assert.isNull(within(dialog).queryByRole("alert"), "the file can be written");
-            await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+            await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Export", exact: true }));
             await screen.findByText(`Exported ${file}`, TOAST);
             // The graph has no layers of its own, so nothing about its styles is lost: no warning.
             assert.isNull(screen.queryByRole("alertdialog"));
@@ -198,9 +206,9 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         // Data, Shown 4 of 6: four node rows under one header.
         let dialog = await openExport();
         await pick(dialog, "Data");
-        await userEvent.click(within(dialog).getByRole("combobox", { name: "Scope" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Shown 4 of 6" }));
-        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Scope", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "Shown 4 of 6", exact: true }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Export", exact: true }));
         await screen.findByText("Exported untitled_nodes.csv", TOAST);
         const table = saved.find(({ name }) => name === "untitled_nodes.csv");
         const rows = (await table?.blob.text())?.trim().split(/\r?\n/) ?? [];
@@ -209,7 +217,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         // Styles: a style file of layers only.
         dialog = await openExport();
         await pick(dialog, "Styles");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Export", exact: true }));
         await screen.findByText("Exported untitled_styles.style.json", TOAST);
         const styles = JSON.parse(
             (await saved.find(({ name }) => name === "untitled_styles.style.json")?.blob.text()) ?? "{}",
@@ -222,7 +230,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         // Recipe: names the score column, never a node id.
         dialog = await openExport();
         await pick(dialog, "Recipe");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Export", exact: true }));
         await screen.findByText("Exported untitled_recipe.json", TOAST);
         const recipe = (await saved.find(({ name }) => name === "untitled_recipe.json")?.blob.text()) ?? "";
         assert.include(recipe, '"score"');
@@ -235,9 +243,9 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await openScoredGraph();
         const dialog = await openExport();
         await pick(dialog, "Data");
-        await userEvent.click(within(dialog).getByRole("combobox", { name: "Format" }));
-        await userEvent.click((await screen.findAllByRole("option", { name: /CSV/ }))[0]);
-        await userEvent.click(await within(dialog).findByRole("button", { name: /^Format settings/ }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Format", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: /CSV/ }).nth(0));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: /^Format settings/ }));
         await screen.findByRole("dialog", { name: "Format settings" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -269,11 +277,22 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         assert.isNotNull(within(sections).getByRole("checkbox", { name: "Methods (1)" }));
         assert.isNotNull(within(sections).getByRole("checkbox", { name: "Data changes (1)" }));
         // Data tables left out; a title, a row cap of 2, and the reader's own summary and findings.
-        await userEvent.click(within(sections).getByRole("checkbox", { name: /^Data tables/ }));
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Title" }), "Ring study");
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Summary" }), "A ring of six.");
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Findings" }), "Every node has degree two.");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Generate report" }));
+        await userEvent.click(page.elementLocator(sections).getByRole("checkbox", { name: /^Data tables/ }));
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Title", exact: true }),
+            "Ring study",
+        );
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Summary", exact: true }),
+            "A ring of six.",
+        );
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Findings", exact: true }),
+            "Every node has degree two.",
+        );
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Generate report", exact: true }),
+        );
         await screen.findByText("Exported untitled_report.md", TOAST);
         const report = (await saved.find(({ name }) => name === "untitled_report.md")?.blob.text()) ?? "";
         assert.include(report, "# Ring study");
@@ -294,12 +313,12 @@ describe("Export: save a picture and the numbers (task T13)", () => {
             (await within(again).findByRole<HTMLInputElement>("textbox", { name: "Title" })).value,
             "Ring study",
         );
-        await userEvent.click(within(again).getByRole("checkbox", { name: /^Data tables/ }));
+        await userEvent.click(page.elementLocator(again).getByRole("checkbox", { name: /^Data tables/ }));
         const cap = within(again).getByRole("textbox", { name: "Row cap" });
-        await userEvent.tripleClick(cap);
+        await userEvent.tripleClick(page.elementLocator(again).getByRole("textbox", { name: "Row cap", exact: true }));
         await userEvent.keyboard("2");
         assert.equal((cap as HTMLInputElement).value, "2");
-        await userEvent.click(within(again).getByRole("button", { name: "Generate report" }));
+        await userEvent.click(page.elementLocator(again).getByRole("button", { name: "Generate report", exact: true }));
         await waitFor(() => {
             assert.lengthOf(
                 saved.filter(({ name }) => name === "untitled_report.md"),
@@ -316,8 +335,10 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         ] as const) {
             const export_ = await openExport();
             await pick(export_, "Report");
-            await userEvent.click(await within(export_).findByRole("button", { name: "Save issues" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+            await userEvent.click(
+                page.elementLocator(export_).getByRole("button", { name: "Save issues", exact: true }),
+            );
+            await userEvent.click(page.getByRole("menuitem", { name: item, exact: true }));
             await screen.findByText(`Exported ${file}`, TOAST);
         }
         const validation = JSON.parse(
@@ -357,10 +378,15 @@ describe("Export: the report's image and its saved configurations (issue #187)",
             within(sections).getByRole<HTMLInputElement>("checkbox", { name: "Image (1)" }).checked,
             "the image is in by default",
         );
-        await userEvent.click(within(sections).getByRole("checkbox", { name: /^Data tables/ }));
-        await userEvent.click(within(sections).getByRole("checkbox", { name: /^Methods/ }));
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Title" }), "Ring study");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Generate report" }));
+        await userEvent.click(page.elementLocator(sections).getByRole("checkbox", { name: /^Data tables/ }));
+        await userEvent.click(page.elementLocator(sections).getByRole("checkbox", { name: /^Methods/ }));
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Title", exact: true }),
+            "Ring study",
+        );
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Generate report", exact: true }),
+        );
         await screen.findByText("Exported ring_report.md", TOAST);
         const report = (await saved.find(({ name }) => name === "ring_report.md")?.blob.text()) ?? "";
         assert.match(report, /## Image\n\n!\[Ring study\]\(data:image\/png;base64,[A-Za-z0-9+/=]{100,}\)/);
@@ -368,10 +394,10 @@ describe("Export: the report's image and its saved configurations (issue #187)",
         // Saved under its title, and written as a file.
         const again = await openExport();
         await pick(again, "Report");
-        await userEvent.click(await within(again).findByRole("button", { name: "Save report" }));
+        await userEvent.click(page.elementLocator(again).getByRole("button", { name: "Save report", exact: true }));
         assert.equal(within(again).getByRole<HTMLInputElement>("combobox", { name: "Saved" }).value, "Ring study");
-        await userEvent.click(within(again).getByRole("button", { name: "Saved reports" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Export report (JSON)" }));
+        await userEvent.click(page.elementLocator(again).getByRole("button", { name: "Saved reports", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Export report (JSON)", exact: true }));
         await screen.findByText("Exported ring-study_report.json", TOAST);
         const fileText = (await saved.find(({ name }) => name === "ring-study_report.json")?.blob.text()) ?? "{}";
         const file = JSON.parse(fileText) as { name: string; sections: string[] };
@@ -394,8 +420,8 @@ describe("Export: the report's image and its saved configurations (issue #187)",
         const star = await openExport();
         await pick(star, "Report");
         assert.equal((await within(star).findByRole<HTMLInputElement>("textbox", { name: "Title" })).value, "");
-        await userEvent.click(within(star).getByRole("combobox", { name: "Saved" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Ring study" }));
+        await userEvent.click(page.elementLocator(star).getByRole("combobox", { name: "Saved", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "Ring study", exact: true }));
         assert.equal(within(star).getByRole<HTMLInputElement>("textbox", { name: "Title" }).value, "Ring study");
         const loaded = within(star).getByRole("group", { name: "Sections" });
         assert.isFalse(within(loaded).getByRole<HTMLInputElement>("checkbox", { name: /^Data tables/ }).checked);
@@ -403,16 +429,16 @@ describe("Export: the report's image and its saved configurations (issue #187)",
         assert.isTrue(within(loaded).getByRole<HTMLInputElement>("checkbox", { name: /^Notes/ }).checked);
 
         // Deleted from this browser, then read back from its file.
-        await userEvent.click(within(star).getByRole("button", { name: "Saved reports" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Delete report" }));
+        await userEvent.click(page.elementLocator(star).getByRole("button", { name: "Saved reports", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Delete report", exact: true }));
         assert.equal(within(star).getByRole<HTMLInputElement>("combobox", { name: "Saved" }).value, "");
         await commands.chooseNextFile("ring-study_report.json", "application/json", fileText);
-        await userEvent.click(within(star).getByRole("button", { name: "Saved reports" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Import report..." }));
+        await userEvent.click(page.elementLocator(star).getByRole("button", { name: "Saved reports", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Import report...", exact: true }));
         await waitFor(() => {
             assert.equal(within(star).getByRole<HTMLInputElement>("combobox", { name: "Saved" }).value, "Ring study");
         });
-        await userEvent.click(within(star).getByRole("button", { name: "Generate report" }));
+        await userEvent.click(page.elementLocator(star).getByRole("button", { name: "Generate report", exact: true }));
         await screen.findByText("Exported star_report.md", TOAST);
         const starReport = (await saved.find(({ name }) => name === "star_report.md")?.blob.text()) ?? "";
         assert.include(starReport, "# Ring study\n\n3 nodes, 2 edges");
@@ -450,12 +476,16 @@ describe("Export from a camera or a tour", () => {
     async function exportFrom(name: string, item: RegExp, title: string): Promise<HTMLElement> {
         if (screen.queryByRole("region", { name: "Views place" }) === null) {
             await userEvent.click(
-                within(screen.getByRole("toolbar", { name: "Places" })).getByRole("button", { name: "Views" }),
+                page
+                    .getByRole("toolbar", { name: "Places", exact: true })
+                    .getByRole("button", { name: "Views", exact: true }),
             );
         }
         const place = await screen.findByRole("region", { name: "Views place" });
-        await userEvent.click(within(place).getByRole("button", { name: `More for ${name}` }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+        await userEvent.click(
+            page.elementLocator(place).getByRole("button", { name: `More for ${name}`, exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: item, exact: true }));
         const dialog = await screen.findByRole("dialog", { name: title });
         assert.isNull(within(dialog).queryByRole("grid", { name: "What to export" }), "no list of outputs");
         return dialog;
@@ -495,7 +525,7 @@ describe("Export from a camera or a tour", () => {
         const dialog = await exportFrom("Overview", /^Export image/, "Export image");
         assert.equal(within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Camera" }).value, "Overview");
         await within(dialog).findByRole("img", {});
-        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Export", exact: true }));
         await screen.findByText("Exported untitled_overview.png", TOAST);
         const picture = saved.find(({ name }) => name === "untitled_overview.png");
         assert.equal(picture?.blob.type, "image/png");
@@ -509,13 +539,13 @@ describe("Export from a camera or a tour", () => {
             within(dialog).getByRole<HTMLInputElement>("radio", { name: "Transparent" });
         const preset = within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Preset" });
 
-        await userEvent.click(preset);
-        await userEvent.click(await screen.findByRole("option", { name: "Thumbnail" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Preset", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "Thumbnail", exact: true }));
         await waitFor(() => {
             assert.isTrue(transparent().disabled, "JPEG keeps no transparency");
         });
-        await userEvent.click(preset);
-        await userEvent.click(await screen.findByRole("option", { name: "For documentation" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Preset", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "For documentation", exact: true }));
         await waitFor(() => {
             assert.isFalse(transparent().disabled, "PNG keeps transparency");
         });
@@ -526,8 +556,8 @@ describe("Export from a camera or a tour", () => {
     it("offers Image under Main menu > Export..., where Transparent changes only the background (#9308)", async () => {
         await page.viewport(1440, 900);
         await openScoredGraph();
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Export\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Export\.\.\./ }));
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         await pick(dialog, "Image");
         const preset = await within(dialog).findByRole<HTMLInputElement>("combobox", { name: "Preset" });
@@ -535,7 +565,7 @@ describe("Export from a camera or a tour", () => {
         assert.equal(preset.value, "To share");
         assert.isFalse(transparent.checked);
 
-        await userEvent.click(within(dialog).getByText("Transparent"));
+        await userEvent.click(page.elementLocator(dialog).getByText("Transparent", { exact: true }));
         await waitFor(() => {
             assert.isTrue(transparent.checked);
         });
@@ -557,7 +587,7 @@ describe("Export from a camera or a tour", () => {
             ["JPEG", true],
             ["PNG", false],
         ] as const) {
-            await userEvent.click(within(dialog).getByText(format));
+            await userEvent.click(page.elementLocator(dialog).getByText(format, { exact: true }));
             await waitFor(() => {
                 assert.equal(transparent().disabled, refused, format);
             });
@@ -588,7 +618,7 @@ describe("Export from a camera or a tour", () => {
 
         const dialog = await exportFrom("Walk", /^Export video/, "Export video");
         await within(dialog).findByText(/^\d+ frames$/);
-        await userEvent.click(within(dialog).getByRole("button", { name: "Record" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Record", exact: true }));
         const notice = await screen.findByText(/^Exported untitled_walk\.(webm|mp4)/, {});
         const video = saved.find(({ name }) => notice.textContent?.includes(name) ?? false);
         assert.isDefined(video, "the video was saved");
@@ -608,7 +638,7 @@ describe("Export from a camera or a tour", () => {
         await session.tours.save([{ name: "Long", tour: { stops: [{ view: "Overview", hold: 600_000 }] } }]);
 
         const dialog = await exportFrom("Long", /^Export video/, "Export video");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Record" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Record", exact: true }));
         const bar = await within(dialog).findByRole("progressbar", { name: "Recording" });
         assert.isNotNull(bar.getAttribute("aria-valuenow"));
 
@@ -649,12 +679,12 @@ describe("Export from a camera or a tour", () => {
                 return parts.length === 4 ? Number(parts[3]) : 1;
             };
             assert.isBelow(alpha(), 1, "the canvas shows through before recording");
-            await userEvent.click(within(dialog).getByRole("button", { name: "Record" }));
+            await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Record", exact: true }));
             await within(dialog).findByRole("progressbar", { name: "Recording" });
             await waitFor(() => {
                 assert.equal(alpha(), 1, "an opaque layer covers the moving canvas");
             });
-            await userEvent.click(within(dialog).getByRole("button", { name: "Stop" }));
+            await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Stop", exact: true }));
             await waitFor(() => {
                 assert.isBelow(alpha(), 1, "uncovered once the recording ends");
             });

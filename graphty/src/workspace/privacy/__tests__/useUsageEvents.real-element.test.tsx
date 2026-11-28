@@ -224,7 +224,7 @@ describe("usage counts from the real element", () => {
         // From the start page: the workspace writes its starting choices into every project it
         // opens (a project it was handed at first render is left as its maker set it).
         render(<Workspace store={createWorkspaceStore()} />);
-        await userEvent.click(await screen.findByRole("button", { name: "New project" }));
+        await userEvent.click(page.getByRole("button", { name: "New project", exact: true }));
         const { session } = await projectElement();
         await waitFor(() => {
             assert.isTrue(session.config.startingRows, "the starting settings are in");
@@ -319,10 +319,12 @@ describe("usage counts from the real element", () => {
         const actionsBefore = actionOps().length;
         const switched = next("view_mode");
         await userEvent.click(
-            within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", { name: "Mode, 3D" }),
+            page
+                .getByRole("toolbar", { name: "Canvas tools", exact: true })
+                .getByRole("button", { name: "Mode, 3D", exact: true }),
         );
         const menu = await screen.findByRole("menu", { name: /^Mode/ });
-        await userEvent.click(within(menu).getByRole("menuitemradio", { name: /^2D/ }));
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitemradio", { name: /^2D/ }));
         assert.deepEqual({ ...(await switched) }, { mode: "2d" });
         assert.deepEqual(sent("view_mode").counted, [{ mode: "2d" }]);
         assert.lengthOf(actionOps(), actionsBefore, "no graph_action for the switch");
@@ -331,11 +333,13 @@ describe("usage counts from the real element", () => {
     it("counts a view saved in the Views place as camera_saved, never its name", async () => {
         await loadedProject();
         await userEvent.click(
-            within(screen.getByRole("toolbar", { name: "Places" })).getByRole("button", { name: "Views" }),
+            page
+                .getByRole("toolbar", { name: "Places", exact: true })
+                .getByRole("button", { name: "Views", exact: true }),
         );
         const place = await screen.findByRole("region", { name: "Views place" });
         const saved = next("camera_saved");
-        await userEvent.click(within(place).getByRole("button", { name: "Save camera" }));
+        await userEvent.click(page.elementLocator(place).getByRole("button", { name: "Save camera", exact: true }));
         assert.deepEqual({ ...(await saved) }, {});
         assert.deepEqual(sent("camera_saved").counted, [{}]);
         assert.notInclude(actionOps(), "view.save");
@@ -439,14 +443,10 @@ describe("usage counts from the real element", () => {
         // first view_mode after it is the 2D switch, the reader's own.
         const switched = next("view_mode");
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        await userEvent.click(within(toolbar).getByRole("button", { name: "Mode, 3D" }));
-        await userEvent.click(
-            within(await screen.findByRole("menu", { name: /^Mode/ })).getByRole("menuitemradio", { name: /^3D/ }),
-        );
-        await userEvent.click(within(toolbar).getByRole("button", { name: "Mode, 3D" }));
-        await userEvent.click(
-            within(await screen.findByRole("menu", { name: /^Mode/ })).getByRole("menuitemradio", { name: /^2D/ }),
-        );
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Mode, 3D", exact: true }));
+        await userEvent.click(page.getByRole("menu", { name: /^Mode/ }).getByRole("menuitemradio", { name: /^3D/ }));
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Mode, 3D", exact: true }));
+        await userEvent.click(page.getByRole("menu", { name: /^Mode/ }).getByRole("menuitemradio", { name: /^2D/ }));
         assert.deepEqual({ ...(await switched) }, { mode: "2d" });
         sendsNone("SECRET_TURN", "SECRET_AUTHOR");
     });
@@ -659,12 +659,12 @@ describe("usage counts from the real element", () => {
         const fit = next("command_run");
         // Fit from the canvas menu, opened over an empty corner.
         await userEvent.click(canvas, { button: "right", position: { x: 8, y: 8 } });
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Fit(?! selection)/ }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Fit(?! selection)/ }));
         assert.strictEqual((await fit).command, "view.fit");
 
         const actionsBefore = actionOps().length;
         const undo = next("command_run");
-        await userEvent.click(screen.getByRole("button", { name: /^Undo/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Undo/ }));
         assert.strictEqual((await undo).command, "history.undo");
         assert.lengthOf(actionOps(), actionsBefore, "an undo is not a new graph action");
 
@@ -676,11 +676,11 @@ describe("usage counts from the real element", () => {
 
     it("counts a layout chosen in the Layout form by its catalog id", async () => {
         await loadedProject();
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Grid/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Grid/ }));
         const changed = next("layout_changed");
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         assert.deepEqual({ ...(await changed) }, { layout: "grid", outcome: "applied" });
         assert.deepEqual(sent("layout_changed").counted, [{ layout: "grid", outcome: "applied" }]);
     });
@@ -692,15 +692,19 @@ describe("usage counts from the real element", () => {
 
         // An image, from a camera's row menu in the Views place.
         await userEvent.click(
-            within(screen.getByRole("toolbar", { name: "Places" })).getByRole("button", { name: "Views" }),
+            page
+                .getByRole("toolbar", { name: "Places", exact: true })
+                .getByRole("button", { name: "Views", exact: true }),
         );
         const place = await screen.findByRole("region", { name: "Views place" });
-        await userEvent.click(within(place).getByRole("button", { name: "More for Overview" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Export image/ }));
+        await userEvent.click(
+            page.elementLocator(place).getByRole("button", { name: "More for Overview", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Export image/ }));
         let dialog = await screen.findByRole("dialog", { name: "Export image" });
         await within(dialog).findByRole("img", {});
         const image = next("export_done");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Export", exact: true }));
         assert.deepEqual({ ...(await image) }, { kind: "image", format: "png", destination: "download" });
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Export image" }));
@@ -710,10 +714,13 @@ describe("usage counts from the real element", () => {
         await userEvent.keyboard("{Control>}e{/Control}");
         dialog = await screen.findByRole("dialog", { name: "Export" });
         await userEvent.click(
-            within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Project"),
+            page
+                .elementLocator(dialog)
+                .getByRole("grid", { name: "What to export", exact: true })
+                .getByText("Project", { exact: true }),
         );
         const project = next("export_done");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Export", exact: true }));
         assert.deepEqual({ ...(await project) }, { kind: "project", destination: "download" });
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Export" }));
@@ -721,8 +728,8 @@ describe("usage counts from the real element", () => {
 
         // Save local copy..., from the main menu.
         const copy = next("export_done");
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Save local copy...", exact: true }));
         assert.deepEqual({ ...(await copy) }, { kind: "project", destination: "download" });
         await waitFor(() => {
             assert.lengthOf(downloads, 3);
@@ -741,8 +748,8 @@ describe("usage counts from the real element", () => {
 
         // Back to the start page (the save left nothing unsaved, so nothing asks).
         assert.isFalse(session.project.dirty);
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Back to start", exact: true }));
         await screen.findByRole("button", { name: "Samples" });
 
         const own = next("own_file_opened");
@@ -755,9 +762,12 @@ describe("usage counts from the real element", () => {
         // Kept in this browser under a name, then reopened from Recent projects: "browser", where it is kept.
         await userEvent.keyboard("{Control>}s{/Control}");
         const save = await screen.findByRole("dialog", { name: /^Save .* as$/ });
-        await userEvent.clear(within(save).getByRole("textbox", { name: "Name" }));
+        await userEvent.clear(page.elementLocator(save).getByRole("textbox", { name: "Name", exact: true }));
         const kept = next("project_saved");
-        await userEvent.type(within(save).getByRole("textbox", { name: "Name" }), "SECRET_SAVED");
+        await userEvent.type(
+            page.elementLocator(save).getByRole("textbox", { name: "Name", exact: true }),
+            "SECRET_SAVED",
+        );
         // Enter submits only once Save is enabled (with save files version 2 on, after graphty-element's verdict).
         await waitFor(() => {
             assert.isFalse(within(save).getByRole<HTMLButtonElement>("button", { name: "Save" }).disabled);
@@ -787,13 +797,13 @@ describe("usage counts from the real element", () => {
         const again = next("project_saved");
         await userEvent.keyboard("{Control>}s{/Control}");
         assert.deepEqual({ ...(await again) }, { kind: "browser", as: "again" });
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
-        const recent = await screen.findByRole("gridcell", { name: /^SECRET_SAVED/ });
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Back to start", exact: true }));
+        await screen.findByRole("gridcell", { name: /^SECRET_SAVED/ });
         const panelsBefore = sent("panel_opened").posthog.length;
         const actionsBefore = actionOps().length;
         const reopened = next("project_reopened");
-        await userEvent.click(recent);
+        await userEvent.click(page.getByRole("gridcell", { name: /^SECRET_SAVED/ }));
         await reopened;
         await projectElement();
         // The reopen's own writes (its members, the project's name) are not the reader's actions.
@@ -810,7 +820,7 @@ describe("usage counts from the real element", () => {
         const button = await screen.findByRole("button", { name: /^Settings/ });
         assert.strictEqual(button.getAttribute("data-ph-capture-attribute-control"), "settings.open");
         const panel = next("panel_opened");
-        await userEvent.click(button);
+        await userEvent.click(page.getByRole("button", { name: /^Settings/ }));
         assert.deepEqual({ ...(await panel) }, { panel: "settings" });
         assert.deepEqual(sent("command_run").posthog.at(-1)?.command, "settings.open");
         // Shared mode only: commands and panels are never counted for the whole audience.

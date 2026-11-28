@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
@@ -50,7 +50,7 @@ async function openLayer(): Promise<{ session: GraphSession; layer: Layer }> {
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Calm, / }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Calm, / }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -63,14 +63,14 @@ async function openLayer(): Promise<{ session: GraphSession; layer: Layer }> {
  * @returns the modal.
  */
 async function pickPageRank(session: GraphSession): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
     const modal = await waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the modal is open");
         return found;
     });
     // A new selection opens as one empty card, its value picker shut: the card's Value opens it.
-    await userEvent.click(await within(modal).findByRole("button", { name: "Value" }));
+    await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Value", exact: true }));
     await screen.findByRole("combobox", { name: "Find attributes, results" });
     await userEvent.keyboard("PageRank");
     await userEvent.keyboard("{Enter}");
@@ -92,7 +92,7 @@ describe("runs started from a selection card", () => {
         const layers = session.styles.list().length;
         const modal = await pickPageRank(session);
         assert.strictEqual(session.styles.list().length, layers, "the card's run painted nothing");
-        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Cancel/ }));
         await waitFor(() => {
             assert.strictEqual(pagerankRuns(session), 0, "Cancel removed the run the visit started");
         });
@@ -102,7 +102,7 @@ describe("runs started from a selection card", () => {
     it("Done keeps the run the card reads; removing it asks, then the layer waits for Run", async () => {
         const { session, layer } = await openLayer();
         const modal = await pickPageRank(session);
-        await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Done/ }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"), "Done closes it");
             assert.deepEqual(
@@ -114,8 +114,8 @@ describe("runs started from a selection card", () => {
         assert.strictEqual(pagerankRuns(session), 1, "Done kept it as an ordinary run");
 
         // The Data place's Calculated tab lists it, with a quiet mark naming the layer that reads it.
-        await userEvent.click(screen.getByRole("button", { name: /^Data/ }));
-        await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
+        await userEvent.click(page.getByRole("button", { name: /^Data/ }));
+        await userEvent.click(page.getByRole("tab", { name: "Calculated", exact: true }));
         const runs = await screen.findByRole("list", { name: "Results" });
         const row = await waitFor(() => {
             const found = runs.querySelector<HTMLElement>("[data-run]");
@@ -128,8 +128,8 @@ describe("runs started from a selection card", () => {
         );
 
         // Remove, in the row's "...", asks first, naming the layer whose selection will wait.
-        await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Remove result/ }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: /^More for / }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Remove result/ }));
         const confirm = await waitFor(() => {
             const found = document.querySelector<HTMLElement>("[data-confirm-remove]");
             assert.isNotNull(found);
@@ -137,21 +137,20 @@ describe("runs started from a selection card", () => {
         });
         assert.include(confirm.querySelector("[data-waits]")?.textContent ?? "", "Calm");
         assert.strictEqual(pagerankRuns(session), 1, "nothing is removed before the reader agrees");
-        await userEvent.click(within(confirm).getByRole("button", { name: "Remove" }));
+        await userEvent.click(page.elementLocator(confirm).getByRole("button", { name: "Remove", exact: true }));
         await waitFor(() => {
             assert.strictEqual(pagerankRuns(session), 0);
         });
 
         // Back on the Graph place the layer waits: never re-run unasked.
-        await userEvent.click(screen.getByRole("button", { name: /^Graph/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Graph/ }));
         await waitFor(() => {
             assert.isNotNull(document.querySelector("[data-waiting]"), "the layer row's wait mark");
         });
         assert.strictEqual(pagerankRuns(session), 0, "the removed run was not started again");
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Calm, / }));
-        const run = await screen.findByRole("button", { name: /^Run Which nodes/ });
-        await userEvent.click(run);
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Calm, / }));
+        await userEvent.click(page.getByRole("button", { name: /^Run Which nodes/ }));
         await waitFor(() => {
             assert.isTrue(
                 session.runs.list().some((each) => each.algorithm === "pagerank" && each.status === "succeeded"),
@@ -166,7 +165,7 @@ describe("runs started from a selection card", () => {
 describe("a card step computed on So far (design: algo-options cardruns.md, rule 4)", () => {
     it("keeps its result inside the step: no run listed, no column, no undo step, before or after Done", async () => {
         const { session, layer } = await openLayer();
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
         const modal = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found, "the modal is open");
@@ -177,7 +176,7 @@ describe("a card step computed on So far (design: algo-options cardruns.md, rule
             await userEvent.keyboard(name);
             await userEvent.keyboard("{Enter}");
         };
-        await userEvent.click(await within(modal).findByRole("button", { name: "Value" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Value", exact: true }));
         await pick("Degree");
         const card = await waitFor(() => {
             const found = modal.querySelector<HTMLElement>(".sel-card");
@@ -185,14 +184,15 @@ describe("a card step computed on So far (design: algo-options cardruns.md, rule
             return found;
         });
         // Only the busiest people, so PageRank over them differs from PageRank over everyone.
-        const degreeFrom = within(card).getByRole("textbox", { name: "Degree from, number" });
-        await userEvent.tripleClick(degreeFrom);
+        const degreeFrom = (): Locator =>
+            page.elementLocator(card).getByRole("textbox", { name: "Degree from, number", exact: true });
+        await userEvent.tripleClick(degreeFrom());
         await userEvent.keyboard("10{Enter}");
         await waitFor(() => {
             assert.match(card.getAttribute("aria-label") ?? "", /\b\d+ of 77\b/u);
             assert.notMatch(card.getAttribute("aria-label") ?? "", /\b77 of 77\b/u);
         });
-        await userEvent.click(within(card).getByRole("button", { name: /^Keep$/ }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: /^Keep$/ }));
         await pick("PageRank");
         await waitFor(() => {
             assert.isTrue(
@@ -215,10 +215,12 @@ describe("a card step computed on So far (design: algo-options cardruns.md, rule
             return text;
         });
 
-        await userEvent.click(within(modal).getByRole("button", { name: "Settings for PageRank" }));
+        await userEvent.click(
+            page.elementLocator(modal).getByRole("button", { name: "Settings for PageRank", exact: true }),
+        );
         const settings = await screen.findByRole("dialog", { name: "PageRank" });
         const computedOn = await within(settings).findByRole("radiogroup", { name: "Computed on" });
-        await userEvent.click(within(computedOn).getByText("So far"));
+        await userEvent.click(page.elementLocator(computedOn).getByText("So far", { exact: true }));
         await userEvent.keyboard("{Escape}");
         // Its own values landed: the step's range is now that of PageRank over the Degree step's nodes.
         await waitFor(() => {
@@ -236,7 +238,7 @@ describe("a card step computed on So far (design: algo-options cardruns.md, rule
         assert.deepEqual(columns(), [], "no column for the step's own values");
         assert.strictEqual(runSteps(), stepsBefore, "its computation is no undo step");
 
-        await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Done/ }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"), "Done closes it");
             assert.strictEqual(pagerankRuns(session), 0, "the card reads no listed PageRank run");
@@ -248,9 +250,9 @@ describe("a card step computed on So far (design: algo-options cardruns.md, rule
         assert.strictEqual(runSteps(), stepsBefore);
 
         // The Data place's Calculated tab lists no PageRank.
-        await userEvent.click(screen.getByRole("button", { name: /^Data/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Data/ }));
         const calculated = await screen.findByRole("tab", { name: "Calculated" });
-        await userEvent.click(calculated);
+        await userEvent.click(page.getByRole("tab", { name: "Calculated", exact: true }));
         await waitFor(() => {
             assert.strictEqual(calculated.getAttribute("aria-selected"), "true");
             const place = screen.getByRole("region", { name: "Data place" });
@@ -289,26 +291,31 @@ function listedGroups(modal: HTMLElement): Map<string, number> {
 describe("a card's setting its run name does not carry (the owner, 2026-11-04)", () => {
     it("Louvain's Max iterations makes the card's own run: its groups are re-read and the tick follows its group", async () => {
         const { session, layer } = await openLayer();
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
         const modal = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found);
             return found;
         });
-        await userEvent.click(await within(modal).findByRole("button", { name: "Value" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Value", exact: true }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Louvain");
         await userEvent.keyboard("{Enter}");
-        await userEvent.click(await within(modal).findByRole("checkbox", { name: /^Group 1\b/u }));
+        await userEvent.click(page.elementLocator(modal).getByRole("checkbox", { name: /^Group 1\b/u }));
         await waitFor(() => {
             assert.isAbove(cardCount(), 0, "Group 1 ticked");
         });
         const first = session.runs.list().find((run) => run.algorithm === "louvain");
         const firstParams = JSON.stringify(first?.params);
 
-        await userEvent.click(within(modal).getAllByRole("button", { name: /^Settings for /u })[0]);
+        await userEvent.click(
+            page
+                .elementLocator(modal)
+                .getByRole("button", { name: /^Settings for /u })
+                .nth(0),
+        );
         await screen.findByRole("dialog", { name: /Louvain/u });
-        const field = await screen.findByLabelText(/Max iterations/u);
+        const field = page.getByLabelText(/Max iterations/u);
         await userEvent.clear(field);
         await userEvent.type(field, "1{Enter}");
         await userEvent.keyboard("{Escape}");
@@ -347,7 +354,9 @@ describe("a card's setting its run name does not carry (the owner, 2026-11-04)",
         });
         // Each listed group's count is what ticking it adds: the list reads the new run.
         const [name, count] = [...groups][0];
-        await userEvent.click(within(modal).getByRole("checkbox", { name: new RegExp(`^${name}\\b`, "u") }));
+        await userEvent.click(
+            page.elementLocator(modal).getByRole("checkbox", { name: new RegExp(`^${name}\\b`, "u") }),
+        );
         await waitFor(() => {
             assert.strictEqual(cardCount(), count, `${name} adds the ${String(count)} nodes it lists`);
         });

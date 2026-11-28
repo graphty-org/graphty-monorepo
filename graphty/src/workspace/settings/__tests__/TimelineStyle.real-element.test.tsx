@@ -37,7 +37,7 @@ function mount(): WorkspaceStore {
  * @returns the dialog.
  */
 async function openSettings(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: "Settings..." }));
+    await userEvent.click(page.getByRole("button", { name: "Settings...", exact: true }));
     return screen.findByRole("dialog", { name: "Settings" });
 }
 
@@ -48,7 +48,7 @@ async function openSettings(): Promise<HTMLElement> {
 async function chooseStyle(label: "Hidden" | "Ghost"): Promise<void> {
     const dialog = await openSettings();
     await within(dialog).findByText("Default timeline style");
-    await userEvent.click(within(dialog).getByText(label));
+    await userEvent.click(page.elementLocator(dialog).getByText(label, { exact: true }));
     await waitFor(() => {
         assert.isTrue(within(dialog).getByRole<HTMLInputElement>("radio", { name: label }).checked);
     });
@@ -60,7 +60,7 @@ async function chooseStyle(label: "Hidden" | "Ghost"): Promise<void> {
  * @param dialog - the dialog.
  */
 async function closeSettings(dialog: HTMLElement): Promise<void> {
-    await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Done", exact: true }));
     await waitFor(() => {
         assert.isNull(screen.queryByRole("dialog", { name: "Settings" }));
     });
@@ -83,10 +83,13 @@ async function treeRows(): Promise<string[]> {
 async function turnTimelineOn(): Promise<void> {
     // Exact, so "Data place" (the region) does not also match.
     await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
-    const place = within(await screen.findByRole("region", { name: "Data place" }));
-    await userEvent.click(await place.findByRole("button", { name: "Add to edge attributes" }));
-    await userEvent.hover(await screen.findByRole("menuitem", { name: "Time" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /^released/ }));
+    await userEvent.click(
+        page
+            .getByRole("region", { name: "Data place", exact: true })
+            .getByRole("button", { name: "Add to edge attributes", exact: true }),
+    );
+    await userEvent.hover(page.getByRole("menuitem", { name: "Time", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: /^released/ }));
     await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
 }
 
@@ -157,7 +160,7 @@ describe("Default timeline style", () => {
         assert.strictEqual(session.config.timelineHiddenLook, "hidden");
         await userEvent.keyboard("{Control>},{/Control}");
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
-        await userEvent.click(within(dialog).getByText("Ghost"));
+        await userEvent.click(page.elementLocator(dialog).getByText("Ghost", { exact: true }));
         await closeSettings(dialog);
         await waitFor(() => {
             assert.strictEqual(session.config.timelineHiddenLook, "ghost");
@@ -189,14 +192,14 @@ describe("Default timeline style", () => {
         const summary = JSON.stringify(session.visibility.summary);
 
         // The canvas toolbar's Timeline button opens the dock.
-        await userEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+        await userEvent.click(page.getByRole("button", { name: "Timeline", exact: true }));
         const dock = await screen.findByRole("region", { name: "Timeline" });
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
         await waitFor(() => {
             assert.isNotNull(session.time.current);
         });
         const first = Number(session.time.current?.from);
-        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Step forward", exact: true }));
         await waitFor(() => {
             assert.isAbove(Number(session.time.current?.from), first);
         });

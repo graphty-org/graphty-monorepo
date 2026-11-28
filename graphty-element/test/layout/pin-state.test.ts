@@ -32,7 +32,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { AuthoredLayoutDescriptor } from "../../src/catalog/types";
 import type { NodeStyleConfig } from "../../src/config";
-import { WRITABLE_LANE } from "../../src/data/lane";
 import { LayoutEngine, layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
@@ -42,8 +41,9 @@ import { StatsManager } from "../../src/managers/StatsManager";
 import type { NodePaint } from "../../src/managers/StylePainter";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { Node } from "../../src/Node";
+import { createGraphSession } from "../../src/session/GraphSession";
 import { Styles } from "../../src/Styles";
-import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
+import { fakeEdge } from "../helpers/layout-fakes";
 
 const NODE_STYLE: NodeStyleConfig = {
     shape: { type: "icosphere", size: 1 },
@@ -575,49 +575,36 @@ describe("carrying a re-run into the held frame", () => {
 });
 
 describe("a pin survives the freeze that renumbers every node", () => {
-    it("moves to the row its node moved to, still holding the same coordinates", () => {
-        // A compacting freeze hands out entirely new node indices, and the element walks every
-        // render object onto them. A pin that stayed on the old row number would hold whichever
-        // node inherited that row -- a node the reader never touched, fixed in place with nothing
-        // on screen saying why. This is the whole reason the pin lives beside the coordinates
-        // rather than in an engine or a Set of ids.
-        //
-        // The nodes here are stand-ins on a real DataManager. A real `Node` builds a Babylon mesh
-        // in its constructor, and the removal-and-refreeze path this exercises has nothing to do
-        // with a mesh -- it is the store, the remap and the position array.
-        const eventManager = new EventManager();
-        const dm = new DataManager(eventManager, Styles.default());
-        dm.setGraphContext({} as unknown as GraphContext);
-        dm.addEdges([
+    it("moves to the row its node moved to, still holding the same coordinates", async () => {
+        // Removing a node hands out entirely new node indices. A pin that stayed on the old row
+        // number would hold whichever node inherited that row -- a node the reader never touched,
+        // fixed in place with nothing on screen saying why. This is the whole reason the pin lives
+        // beside the coordinates rather than in an engine or a Set of ids. A real headless session
+        // owns the store, the renumbering and the position array this exercises.
+        const session = createGraphSession();
+        await session.data.addEdges([
             { source: "a", target: "b" },
             { source: "b", target: "c" },
         ]);
-        dm.getSnapshot();
-
-        const stubs = ["a", "b", "c"].map((id, index) => {
-            const stub = fakeNode(id, { index, dispose: () => undefined });
-            dataManagerInternals.adoptNode(dm, stub);
-            dm.nodeCache.set(id, stub);
-            return stub;
-        });
-        const [a, , c] = stubs;
-
-        dm[WRITABLE_LANE].grow(3);
-        dm[WRITABLE_LANE].write(c.index, 11, 22, 33);
-        assert.isTrue(dm[WRITABLE_LANE].setPinned(c.index, true), "c is pinned at row 2");
+        await session.positions.set([{ id: "c", x: 11, y: 22, z: 33 }]);
+        await session.positions.pin(["c"]);
+        assert.deepStrictEqual([...session.positions.snapshot().order], ["a", "b", "c"]);
+        assert.isTrue(session.positions.isPinned(2), "c is pinned at row 2");
 
         // Removing a re-numbers everything above it, which is the whole point of the case.
-        dm.removeNodeAndIncidentEdges(a.id);
-        dm.getSnapshot();
+        await session.data.removeNodes(["a"]);
 
-        assert.strictEqual(a.index, INVALID_INDEX, "the removed node lost its row");
-        assert.strictEqual(c.index, 1, "and c was slid down into a new one");
-        assert.isTrue(dm.positions.isPinned(c.index), "the pin came with it");
-        assert.strictEqual(dm.positions.pinnedCount, 1, "and did not multiply on the way");
-
-        const out = { x: 0, y: 0, z: 0 };
-        dm.positions.read(c.index, out);
-        assert.deepStrictEqual(out, { x: 11, y: 22, z: 33 }, "holding the coordinates it was pinning");
+        assert.deepStrictEqual([...session.positions.snapshot().order], ["b", "c"], "c slid down into row 1");
+        assert.isTrue(session.positions.isPinned(1), "the pin came with it");
+        assert.isFalse(session.positions.isPinned(0), "and did not stay on the row b now holds");
+        assert.strictEqual(session.positions.pinnedCount, 1, "and did not multiply on the way");
+        assert.deepStrictEqual([...session.positions.pinned], ["c"]);
+        assert.deepStrictEqual(
+            session.positions.get("c"),
+            { x: 11, y: 22, z: 33 },
+            "holding the coordinates it was pinning",
+        );
+        session.dispose();
     });
 });
 

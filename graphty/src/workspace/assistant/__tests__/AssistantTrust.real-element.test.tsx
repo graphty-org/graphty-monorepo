@@ -6,9 +6,8 @@
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
-import "@graphty/graphty-element";
-
-import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/ai";
+import { Graphty } from "@graphty/graphty-element";
+import { MockLlmProvider } from "@graphty/graphty-element/ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -19,6 +18,7 @@ import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { effectLine } from "../words";
+import { scriptEnable } from "./script-enable";
 
 const COMPOSER = { name: "Message the assistant" };
 
@@ -63,19 +63,10 @@ let sent: { scope?: string; via?: string }[] = [];
 
 /** Every enable reaches the scripted model, and every message is noted with its options. */
 function scriptElement(): void {
-    const tag = customElements.get("graphty-element") as unknown as {
-        prototype: HTMLElementTagNameMap["graphty-element"];
-    };
-    const realEnable = tag.prototype.enableAiControl;
-    vi.spyOn(tag.prototype, "enableAiControl").mockImplementation(async function enable(
-        this: HTMLElementTagNameMap["graphty-element"],
-        config: AiManagerConfig,
-    ) {
-        await realEnable.call(this, { ...config, providerInstance: model });
-    });
-    const realCommand = tag.prototype.aiCommand;
-    vi.spyOn(tag.prototype, "aiCommand").mockImplementation(function command(
-        this: HTMLElementTagNameMap["graphty-element"],
+    scriptEnable((config) => ({ ...config, providerInstance: model }));
+    const realCommand = Graphty.prototype.aiCommand;
+    vi.spyOn(Graphty.prototype, "aiCommand").mockImplementation(function command(
+        this: Graphty,
         ...args: Parameters<typeof realCommand>
     ) {
         sent.push(args[1] ?? {});
@@ -954,10 +945,7 @@ describe("checking what the Assistant says", () => {
 
     it("holds Talk's place until the element says speech is heard, so the composer row never moves", async () => {
         fakeSpeech();
-        const tag = customElements.get("graphty-element") as unknown as {
-            prototype: HTMLElementTagNameMap["graphty-element"];
-        };
-        const realSupport = tag.prototype.getAiVoiceSupport;
+        const realSupport = Graphty.prototype.getAiVoiceSupport;
         // Every read waits until the test lets them answer, however early or often the panel asks.
         let answered = false;
         const asked: (() => void)[] = [];
@@ -967,9 +955,7 @@ describe("checking what the Assistant says", () => {
                 resolve();
             }
         };
-        vi.spyOn(tag.prototype, "getAiVoiceSupport").mockImplementation(function support(
-            this: HTMLElementTagNameMap["graphty-element"],
-        ) {
+        vi.spyOn(Graphty.prototype, "getAiVoiceSupport").mockImplementation(function support(this: Graphty) {
             const held = answered ? Promise.resolve() : new Promise<void>((resolve) => asked.push(resolve));
             return held.then(() => realSupport.call(this));
         });

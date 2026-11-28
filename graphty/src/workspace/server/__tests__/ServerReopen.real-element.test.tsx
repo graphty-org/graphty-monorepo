@@ -10,10 +10,10 @@ import "@graphty/graphty-element";
 
 import { type GraphSession, listAutosaves, replayFetch } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { WORKSPACE_AUTOSAVE_KEY } from "../../autosave/autosave";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -88,12 +88,15 @@ describe("a network load reopened from autosave", () => {
 
     it("draws every node it loaded and asks for no approval", async () => {
         const first = mountWorkspace();
-        await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
-        const card = await screen.findByRole("button", { name: /^NDEx/ });
+        await userEvent.click(page.getByRole("button", { name: "Open network data", exact: true }));
+        const card = page.getByRole("button", { name: /^NDEx/ });
         await userEvent.click(card);
         const form = await screen.findByRole("form", { name: "Network data" });
-        await userEvent.type(within(form).getByRole("textbox", { name: "Network UUID" }), WP5483);
-        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await userEvent.type(
+            page.elementLocator(form).getByRole("textbox", { name: "Network UUID", exact: true }),
+            WP5483,
+        );
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
@@ -124,11 +127,14 @@ describe("a network load reopened from autosave", () => {
 
     it("keeps an edited load's new settings through a reload, with no Approve", async () => {
         const first = mountWorkspace();
-        await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
-        await userEvent.click(await screen.findByRole("button", { name: /^NDEx/ }));
+        await userEvent.click(page.getByRole("button", { name: "Open network data", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: /^NDEx/ }));
         const form = await screen.findByRole("form", { name: "Network data" });
-        await userEvent.type(within(form).getByRole("textbox", { name: "Network UUID" }), WP5483);
-        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await userEvent.type(
+            page.elementLocator(form).getByRole("textbox", { name: "Network UUID", exact: true }),
+            WP5483,
+        );
+        await userEvent.click(page.elementLocator(form).getByRole("button", { name: "Load", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
@@ -136,14 +142,14 @@ describe("a network load reopened from autosave", () => {
         const [{ key, name }] = session.data.sources();
 
         const row = await screen.findByRole("listitem", { name: /NDEx/ });
-        await userEvent.click(row.querySelector(".dp-source-main") ?? row);
+        await userEvent.click(row.querySelector<HTMLElement>("[data-testid=control-section-toggle]") ?? row);
         const panel = await screen.findByRole("complementary", { name: "Inspector" });
-        await userEvent.click(await within(panel).findByRole("button", { name: "Edit source" }));
+        await userEvent.click(page.elementLocator(panel).getByRole("button", { name: "Edit source", exact: true }));
         const edit = await screen.findByRole("form", { name: "Network data" });
-        const limit = within(edit).getByLabelText("Limit");
-        await userEvent.clear(limit);
-        await userEvent.type(limit, "100");
-        await userEvent.click(within(edit).getByRole("button", { name: "Load" }));
+        const limit = (): Locator => page.elementLocator(edit).getByLabelText("Limit", { exact: true });
+        await userEvent.clear(limit());
+        await userEvent.type(limit(), "100");
+        await userEvent.click(page.elementLocator(edit).getByRole("button", { name: "Load", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });

@@ -35,6 +35,7 @@ import type { GraphtyErrorCode } from "../errors";
 import { GraphtyError } from "../errors/GraphtyError";
 import { forceAtlas2MaxIterFor } from "../layout/forceAtlas2Iterations";
 import { bestRole, cachedGazetteer, type Gazetteer, GAZETTEER_URL } from "../layout/locationMap/gazetteer";
+import { detectionRows } from "../layout/locationMap/sample";
 import {
     chosenLocation,
     type ColumnValues,
@@ -335,6 +336,14 @@ export interface PlanningContext {
     readonly snapshot?: () => GraphSnapshot;
     /** The values a layout's `groupBy` names, by row of the snapshot, or null when no node carries it. */
     readonly nodeValues?: (path: string) => readonly unknown[] | null;
+    /**
+     * {@link PlanningContext.nodeValues} of many paths, each node's record read once for all of
+     * them; with `rows`, only those rows are read and the others left empty.
+     */
+    readonly nodeColumns?: (
+        paths: readonly string[],
+        rows?: readonly number[],
+    ) => readonly (readonly unknown[] | null)[];
     /** The run whose result field a `groupBy` path is, or undefined for a data attribute. */
     readonly runOf?: (path: string) => string | undefined;
     /** Every node attribute's name, for a layout that looks for its input among them. */
@@ -888,12 +897,19 @@ function layoutRefusal(
 }
 
 /**
- * Every node attribute with its values, for finding the location.
+ * Every node attribute with its values, for finding the location: read only at the rows that
+ * decide what a column holds ({@link detectionRows}), so a wide graph costs a bounded read.
  * @param context - What planning reads.
  * @returns The columns.
  */
 function nodeColumns(context: PlanningContext): ColumnValues[] {
-    return (context.nodeAttributes?.() ?? []).map((name) => ({ name, values: context.nodeValues?.(name) ?? [] }));
+    const names = context.nodeAttributes?.() ?? [];
+    const count = context.snapshot?.().nodeCount;
+    const read = context.nodeColumns?.(names, count === undefined ? undefined : detectionRows(count));
+    return names.map((name, at) => ({
+        name,
+        values: (read === undefined ? context.nodeValues?.(name) : read[at]) ?? [],
+    }));
 }
 
 /**

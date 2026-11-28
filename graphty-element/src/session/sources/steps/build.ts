@@ -10,7 +10,7 @@
  */
 
 import { reduce } from "../../join";
-import { readTimeValue, type TimeUnit } from "../../time/parse";
+import { readsAsDate, readTimeValue, type TimeUnit } from "../../time/parse";
 import type { JoinReduce, SourceRefreshIssue, SourceRoleName } from "../../types";
 import { escapeKey, keylessEdgeKeys, keylessNodeKeys } from "../rowKeys";
 import {
@@ -27,6 +27,7 @@ import {
     type DrillUnit,
     type EdgesStep,
     type EdgeValuesStep,
+    type LinkRead,
     type MergeStep,
     type NodeValuesStep,
     type OwnValue,
@@ -77,12 +78,40 @@ export const ownSpace = (sourceId: string): string => `source:${sourceId}`;
  */
 export const copyKey = (src: Source): string => src.origin.rows ?? src.origin.copy;
 
+// The name a reader knows a source by, which spells the NodeIds its nodes are first told apart by.
+const namedBy = (src: Source): string => src.label ?? src.id;
+
 /**
  * The space a source's node rows key into.
  * @param src - The source.
  * @returns Its mapping's node space, else its own space.
  */
 export const nodeSpace = (src: Source): string => src.mapping.nodes?.space ?? ownSpace(src.id);
+
+/**
+ * The space a source's rows key into when each is a node of an edge step (`rowNode`).
+ * @param src - The source.
+ * @param table - The table the step reads.
+ * @returns The space its node rows key into; for edge rows, the source's own.
+ */
+export const rowNodeSpace = (src: Source, table: TableName): string =>
+    table === "nodes" ? nodeSpace(src) : ownSpace(src.id);
+
+/**
+ * A name no other one takes: itself, or with a number after it.
+ * @param name - The name.
+ * @param taken - The names taken.
+ * @returns The name.
+ */
+export function freeName(name: string, taken: ReadonlySet<string | undefined>): string {
+    let n = 1;
+    let out = name;
+    while (taken.has(out)) {
+        n++;
+        out = `${name} ${String(n)}`;
+    }
+    return out;
+}
 
 export const isEmpty = (v: Value | undefined): v is null | undefined | "" => v === undefined || v === null || v === "";
 const text = (v: CellValue | undefined): string => (v === undefined || v === null ? "" : String(v));
@@ -109,7 +138,14 @@ export function normalize(v: CellValue | undefined, o: MatchOptions = {}): strin
     }
     return s;
 }
-const listed = (f: RowFilter, r: Row): boolean => f.values.some((v) => normalize(v) === normalize(r[f.column]));
+const listed = (f: RowFilter, r: Row): boolean => {
+    const same = (v: CellValue, column: string): boolean => normalize(v) === normalize(r[column]);
+    const { cells } = f;
+    return (
+        f.values.some((v) => same(v, f.column)) ||
+        cells?.pairs.some((pair) => same(pair.value, f.column) && same(pair.with, cells.column)) === true
+    );
+};
 
 /**
  * A source's rows of one table as read, under their working names (`renamed`, 4.4).
@@ -127,9 +163,11 @@ export function tableRows(
     if (!rows) {
         return null;
     }
+    const { numbered } = src;
+    const read = numbered === undefined || src.mapping.nodes?.key === numbered ? rows : without(rows, numbered);
     const renamed = src.mapping[table]?.renamed ?? {};
     if (Object.keys(renamed).length === 0) {
-        return rows;
+        return read;
     }
     // A rename onto a name the row also carries as read is not applied: two columns never share
     // one working name, and neither one's values replace the other's (7.12).
@@ -137,7 +175,24 @@ export function tableRows(
         const w = renamed[k];
         return w === undefined || (w in r && (renamed[w] ?? w) === w) ? k : w;
     };
-    return rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [name(r, k), v])));
+    return read.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [name(r, k), v])));
+}
+
+/** Rows with one column left out, per rows array and column, so every reader shares them. */
+const withoutColumn = new WeakMap<readonly Row[], Map<string, readonly Row[]>>();
+
+/**
+ * Rows with one column left out.
+ * @param rows - The rows.
+ * @param column - The column.
+ * @returns The rows.
+ */
+function without(rows: readonly Row[], column: string): readonly Row[] {
+    const held = withoutColumn.get(rows) ?? new Map<string, readonly Row[]>();
+    withoutColumn.set(rows, held);
+    const out = held.get(column) ?? rows.map(({ [column]: _gone, ...row }) => row);
+    held.set(column, out);
+    return out;
 }
 
 // ---------------------------------------------------------------- dependence (3.2)
@@ -275,7 +330,14 @@ function ownNeeds(step: Step, src: Source): Need[] {
     const edgeStep = step.op === "join.edges" || step.op === "join.edge-values";
     const table = step.read.table ?? (edgeStep ? "edges" : "nodes");
     named(table, step.read);
-    for (const c of step.columns ?? []) {
+    if (step.op === "join.edges" && step.rowNode !== undefined && table === "nodes") {
+        named("nodes", { key: src.mapping.nodes?.key });
+    }
+    const more =
+        step.op === "join.edges"
+            ? [...(step.link?.of === "nodes" ? [] : (step.link?.columns ?? [])), ...(step.extract?.columns ?? [])]
+            : [];
+    for (const c of [...(step.columns ?? []), ...more]) {
         out.push([table, c, undefined]);
     }
     return out;
@@ -482,13 +544,15 @@ type Held = [origin: string, value: Value];
  * @param v - The cell.
  * @returns True when it does.
  */
-export const isNumber = (v: Value | undefined): boolean => !isEmpty(v) && !Array.isArray(v) && !Number.isNaN(Number(v));
+export const isNumber = (v: Value | undefined): boolean =>
+    !isEmpty(v) && !Array.isArray(v) && !Number.isNaN(Number(v)) && !(typeof v === "string" && v.startsWith("+"));
 /**
  * Whether a cell reads as a date, as `min` and `max` order it.
  * @param v - The cell.
  * @returns True when it does.
  */
-export const isDate = (v: Value | undefined): boolean => typeof v === "string" && parseTime(v) !== null;
+export const isDate = (v: Value | undefined): boolean =>
+    typeof v === "string" && readsAsDate(v) && parseTime(v) !== null;
 /**
  * Whether a numeric clash rule fits these values (3.10): `mean` needs numbers, `min` and `max`
  * numbers or dates.
@@ -554,6 +618,7 @@ function newStats(step: Step, si: number): StepStats {
         ...(step.op === "join.edges" ? { part: step.part } : {}),
         newNodes: 0,
         newEdges: 0,
+        mergedEdges: 0,
         matched: 0,
         unmatched: 0,
         fanOut: 0,
@@ -566,6 +631,7 @@ function newStats(step: Step, si: number): StepStats {
         keptNew: 0,
         groups: [],
         selfLoops: 0,
+        pairsBelowMin: 0,
         emptyKey: 0,
         repeatedKept: 0,
         hub: [],
@@ -622,7 +688,7 @@ function repeats(values: Iterable<readonly [string, DrillUnit]>): Map<string, Dr
 function mergeKeys(s: MergeStep, node2s: readonly BuiltNode[]): (readonly [string, DrillUnit])[] {
     return node2s.flatMap((n2) =>
         n2.touch.flatMap((t) => {
-            if (t.source !== s.source || t.table !== "nodes") {
+            if (t.source !== s.source || t.table !== "nodes" || t.valued === true) {
                 return [];
             }
             const r = t.cells;
@@ -655,6 +721,9 @@ const reach = (n: BuiltNode, src: string): void => {
 };
 const settle = (n: BuiltNode): void => {
     const supplied = n.loads.length > 0;
+    if (!supplied && n.ends !== undefined && n.ends.length > 0) {
+        n.byEnds = [...n.ends];
+    }
     for (const src of n.ends ?? []) {
         if (supplied) {
             name(n, src);
@@ -666,8 +735,11 @@ const settle = (n: BuiltNode): void => {
 };
 
 type Lookup = (v: CellValue | undefined) => string[];
+type EndLookups = Readonly<Record<"source" | "target", Lookup | null>>;
 const MISS_ORDER = ["left-out:empty-end", "left-out:fan-out", "left-out:unmatched"] as const;
-type EndHit = { n: BuiltNode } | { miss: "left-out:empty-end" | "left-out:fan-out" | "left-out:unmatched" };
+type RowHalf = "source" | "target";
+type EndMiss = (typeof MISS_ORDER)[number];
+type EndHit = { n: BuiltNode } | { miss: EndMiss };
 
 // Where one written cell came from.
 interface WriteAt {
@@ -703,6 +775,75 @@ interface EdgeArgs {
     readonly ends: { readonly source: string; readonly target: string };
     // the step's `repeated` on join.edges; absent leaves repeats to repeatedEdges
     readonly repeated?: "first" | "last" | "both";
+    // under `existing: "merge"`: the edges earlier steps made, and those this step folded rows into
+    readonly held?: HeldEdges;
+}
+
+// The edges a step found, by end pair, in build order, and the ones its rows folded into.
+interface HeldEdges {
+    readonly byPair: ReadonlyMap<string, readonly BuiltEdge[]>;
+    readonly folded: Set<string>;
+}
+
+// One row of a join.edges step.
+interface EdgeRow {
+    readonly s: EdgesStep;
+    readonly si: number;
+    readonly st: StepStats;
+    readonly src: Source;
+    readonly table: TableName;
+    readonly row: Row;
+    readonly index: number;
+    // what its edge is keyed by when no edge id names it
+    readonly key: string | undefined;
+    // whether a list in one of its cells names several nodes, with an edge to each
+    readonly many: boolean;
+    readonly held: HeldEdges | undefined;
+}
+
+// The index of no row: what a link over nodes makes is read from none.
+const NO_ROW = -1;
+
+// One row holding a value of a link.
+interface LinkRow {
+    readonly row: Row;
+    readonly index: number;
+}
+
+// One value of a link's columns: how the first row spells it, and the rows of each node holding it.
+interface SharedValue {
+    readonly column: string;
+    readonly given: CellValue | undefined;
+    readonly holders: Map<BuiltNode, LinkRow[]>;
+}
+
+// A join.edges step that links.
+interface LinkAt {
+    readonly s: EdgesStep;
+    readonly si: number;
+    readonly st: StepStats;
+    readonly src: Source;
+    readonly table: TableName;
+    readonly link: LinkRead;
+    // the rows that link something
+    readonly linked: Map<number, string>;
+    // the nodes it links
+    readonly linkedNodes: Set<BuiltNode>;
+}
+
+// A merge under way: how many rows each node 1 takes, and the values naming several node 1s.
+interface MergeAt {
+    readonly s: MergeStep;
+    readonly si: number;
+    readonly st: StepStats;
+    readonly groups: Map<string, number>;
+    readonly fanned: Map<string, DrillUnit>;
+}
+
+// A row as a node (`rowNode`): the key its edges are named by, and the node.
+interface RowNode {
+    readonly key: string;
+    readonly hit: EndHit;
 }
 
 // The weight, meaning and time column an edge row carries (3.8, 3.9).
@@ -771,9 +912,18 @@ class Builder {
     private readonly reads = new Map<string, { src: string; table: TableName; n: number; read: Set<number> }>();
     private readonly types: readonly TypeEntry[];
     // the rows each `aggregate` column read so far, per element (see gather)
-    private readonly gathered = new WeakMap<BuiltElement, Map<string, Value[]>>();
+    private readonly gathered = new WeakMap<BuiltElement, Map<string, Map<number, Value>>>();
     // the step that made each element, for its counts by type once the build is done
     private readonly madeBy = new WeakMap<BuiltElement, StepStats>();
+    // by source, the node each edge row was merged into, and the nodes merges made of rows naming none
+    private readonly placed = new Map<string, Map<number, BuiltNode>>();
+    private readonly keptRows = new WeakSet<BuiltNode>();
+    // by step, the nodes it made of values a column of its end's nodes does not hold
+    private readonly columnEnds = new Map<EdgesStep, Map<string, BuiltNode>>();
+    // what counts noted of elements since taken back, by step place and count name
+    private readonly unmarked = new Map<number, Map<string, Set<string>>>();
+    // by source, the rows whose node a merge left out (`unmatchedFrom: "drop"`): a later merge reads them too
+    private readonly skipped = new Map<string, Map<number, Row>>();
     // the merge step that last folded one of an edge's ends, for its parallel pair or self-loop
     private readonly endFoldedBy = new WeakMap<BuiltEdge, StepStats>();
 
@@ -796,6 +946,24 @@ class Builder {
             list.push(unit);
         } else {
             byCount.set(count, [unit]);
+        }
+    }
+
+    // Take back what a count noted of one element.
+    private unmark(st: StepStats, count: string, element: string): void {
+        const byCount = this.unmarked.get(st.step) ?? new Map<string, Set<string>>();
+        this.unmarked.set(st.step, byCount.set(count, (byCount.get(count) ?? new Set()).add(element)));
+    }
+
+    private settleMarks(): void {
+        for (const [step, byCount] of this.unmarked) {
+            const lists = this.drill.get(step);
+            for (const [count, gone] of byCount) {
+                lists?.set(
+                    count,
+                    (lists.get(count) ?? []).filter((unit) => !gone.has(unit.element ?? "")),
+                );
+            }
         }
     }
 
@@ -847,8 +1015,19 @@ class Builder {
         m.set(k, cur);
     }
 
-    private touch(el: BuiltElement, step: Step, si: number, table: TableName, row: Row, i: number): void {
-        el.touch.push({ step: si, source: step.source, table, row: i, cells: row });
+    private touch(
+        el: BuiltElement,
+        step: Step,
+        si: number,
+        table: TableName,
+        row: Row,
+        i: number,
+        valued: { readonly valued?: true } = {},
+    ): void {
+        if (i === NO_ROW) {
+            return;
+        }
+        el.touch.push({ step: si, source: step.source, table, row: i, cells: row, ...valued });
         this.fate(step.source, table, i, "built", el.id);
     }
 
@@ -920,10 +1099,12 @@ class Builder {
 
     // Writes one cell from one source by the step's clash rule (3.3, 3.10).
     private write(el: BuiltElement, col: string, v: Value | undefined, at: WriteAt): void {
-        if (isEmpty(v)) {
+        const { src, st, step } = at;
+        const { numbered, mapping } = this.source(src);
+        // a key the rows were numbered by is no column of theirs
+        if (isEmpty(v) || (col === numbered && col === mapping.nodes?.key)) {
             return;
         }
-        const { src, st, step } = at;
         el.own[src] ??= {};
         const mine = el.own[src][col] as OwnValue | undefined;
         const agg = aggregateFor(step, col);
@@ -939,6 +1120,10 @@ class Builder {
                 const unit = { source: src, row: at.row, element: el.id, name: col };
                 this.mark(st, "rowsDiffer", unit);
                 this.mark(st, "rowsDifferIn", unit);
+                if (mine.step !== at.si && step.op === "join.merge" && !sameCell(mine.v, v)) {
+                    this.meetAgain(el, col, mine, v, at);
+                    return;
+                }
             }
             if (!("repeated" in step) || step.repeated !== "last") {
                 return;
@@ -947,17 +1132,67 @@ class Builder {
         this.writeOwn(el, col, v, at);
     }
 
-    // Each row an `aggregate` column read for one element, per step and source, reduced so far (3.3).
+    // Two matches of one source bring an element two values: the later step's clash rule settles them, as
+    // it does two sources'.
+    private meetAgain(el: BuiltElement, col: string, mine: OwnValue, v: Value, at: WriteAt): void {
+        const { src, st, step } = at;
+        this.countDiffer(el, col, at);
+        el.metAgain ??= {};
+        const met = el.metAgain[col] ?? { source: src, values: [mine.v] };
+        met.values.push(v);
+        el.metAgain[col] = met;
+        const clash = ruleFor(step, col);
+        el.rule ??= {};
+        el.rule[col] = clash;
+        el.ruleStep ??= {};
+        el.ruleStep[col] = at.si;
+        if (clash === "both") {
+            this.clashColumn(el, col, v, at);
+            return;
+        }
+        let next = clash === "overwrite" ? v : mine.v;
+        const rule = FUSE[clash];
+        if (rule) {
+            const got = rule([
+                [src, mine.v],
+                [src, v],
+            ]);
+            if (!got) {
+                st.ruleType[col] = (st.ruleType[col] ?? 0) + 1;
+                this.mark(st, "ruleType", { element: el.id, name: col });
+            }
+            next = got?.[1] ?? mine.v;
+        }
+        el.own[src][col] = { v: next, step: at.si, row: at.row };
+        if (el.origin[col] === src) {
+            el.values[col] = next;
+        }
+    }
+
+    // A cell two steps bring different values counts once per step, however many of the step's rows write it (5.4).
+    private countDiffer(el: BuiltElement, col: string, { src, si, st, row }: WriteAt): void {
+        el.differAt ??= {};
+        const differAt = (el.differAt[col] ??= []);
+        if (!differAt.includes(si)) {
+            differAt.push(si);
+            st.valuesDiffer[col] = (st.valuesDiffer[col] ?? 0) + 1;
+            this.mark(st, "valuesDiffer", { source: src, row, element: el.id, name: col });
+        }
+    }
+
+    // Each row an `aggregate` column read for one element, per source, reduced so far (3.3): a row two
+    // steps read counts once.
     private gather(el: BuiltElement, col: string, v: Value, at: WriteAt, rule: JoinReduce): Value {
-        const k = `${at.si}\u0001${at.src}\u0001${col}`;
+        const k = `${at.src}\u0001${col}`;
         let byKey = this.gathered.get(el);
         if (!byKey) {
             byKey = new Map();
             this.gathered.set(el, byKey);
         }
-        const all = [...(byKey.get(k) ?? []), v];
+        const all = byKey.get(k) ?? new Map<number, Value>();
+        all.set(at.row, v);
         byKey.set(k, all);
-        return (reduce(rule, all) as Value | undefined) ?? null;
+        return (reduce(rule, [...all.values()]) as Value | undefined) ?? null;
     }
 
     // Sets one source's value for a cell, then settles the cell against other sources by the clash rule.
@@ -970,21 +1205,17 @@ class Builder {
             el.origin[col] = src;
             return;
         }
-        const differ = el.values[col] !== v;
-        el.differAt ??= {};
-        const differAt = (el.differAt[col] ??= []);
-        // a cell counts once per step, however many of the step's rows write it (5.4)
-        if (differ && !differAt.includes(at.si)) {
-            differAt.push(at.si);
-            st.valuesDiffer[col] = (st.valuesDiffer[col] ?? 0) + 1;
-            this.mark(st, "valuesDiffer", { source: src, row: at.row, element: el.id, name: col });
+        const held = el.values[col];
+        const differ = !sameCell(held, v);
+        if (differ) {
+            this.countDiffer(el, col, at);
         }
         const clash = ruleFor(step, col);
         el.rule ??= {};
         el.rule[col] = clash;
         el.ruleStep ??= {};
         el.ruleStep[col] = at.si;
-        if (clash === "overwrite" && differ) {
+        if (clash === "overwrite" && (differ || held !== v)) {
             el.values[col] = v;
             el.origin[col] = src;
         } else if (clash === "both") {
@@ -1024,6 +1255,15 @@ class Builder {
 
     // A field-to-field translation through a mapping table (3.5): value -> nodes.
     private translator(step: MergeStep | NodeValuesStep | EdgesStep): Lookup | null {
+        if (step.nodeColumn !== undefined) {
+            let space: string | undefined;
+            if (step.op === "join.edges") {
+                space = step.viaEnd === "source" ? step.read.sourceSpace : step.read.targetSpace;
+            } else {
+                ({ space } = step.read);
+            }
+            return this.nodeColumnLookup(step, step.nodeColumn, space);
+        }
         const through = step.via ?? step.lookup;
         if (through === undefined || step.mapping === undefined) {
             return null;
@@ -1034,26 +1274,58 @@ class Builder {
         const space = step.mapping.space ?? nodeSpace(m);
         const idx = new Map<string, Set<string>>();
         for (const r of this.rows(m, table) ?? []) {
-            if (isEmpty(r[fromCol]) || isEmpty(r[toCol])) {
+            if (isEmpty(r[toCol])) {
                 continue;
             }
-            const k = normalize(r[fromCol], step);
-            const set = idx.get(k) ?? new Set<string>();
-            set.add(text(r[toCol]));
-            idx.set(k, set);
+            for (const v of cellValues(r[fromCol]).filter((each) => !isEmpty(each))) {
+                const k = normalize(v, step);
+                const set = idx.get(k) ?? new Set<string>();
+                set.add(text(r[toCol]));
+                idx.set(k, set);
+            }
         }
         const passThrough = step.lookup !== undefined && step.via === undefined;
-        return (v) => {
+        return eachValue((v) => {
             const keys = idx.get(normalize(v, step));
             if (!keys) {
                 const id = passThrough ? this.resolve(space, text(v)) : undefined;
                 return id === undefined ? [] : [id];
             }
             // a key and an alias reaching one node are one match
-            return [
-                ...new Set([...keys].map((k) => this.resolve(space, k)).filter((x): x is string => x !== undefined)),
-            ];
-        };
+            return [...keys].map((k) => this.resolve(space, k)).filter((x): x is string => x !== undefined);
+        });
+    }
+
+    // How each end of an edge step finds its nodes when not by their key: `via` or `nodeColumn` at one
+    // end, `otherColumn` at the other.
+    private endLookups(s: EdgesStep): EndLookups {
+        const one = s.viaEnd ?? "target";
+        const other = one === "source" ? "target" : "source";
+        const space = other === "source" ? s.read.sourceSpace : s.read.targetSpace;
+        return {
+            [one]: this.translator(s),
+            [other]: s.otherColumn === undefined ? null : this.nodeColumnLookup(s, s.otherColumn, space),
+        } as unknown as EndLookups;
+    }
+
+    // The nodes of a space by a column of theirs, as built so far, each value of a list apart.
+    private nodeColumnLookup(step: MatchOptions, column: string, space: string | undefined): Lookup {
+        const idx = new Map<string, string[]>();
+        for (const n of this.nodes.values()) {
+            for (const v of n.space === space ? cellValues(n.values[column]) : []) {
+                if (!isEmpty(v)) {
+                    const k = normalize(v, step);
+                    const ids = idx.get(k) ?? [];
+                    ids.push(n.id);
+                    idx.set(k, ids);
+                }
+            }
+        }
+        // a node an earlier row of the step folded away is the node it folded into
+        const live = (id: string): string | undefined => (this.nodes.has(id) ? id : this.aliases.get(id));
+        return eachValue((v) =>
+            (idx.get(normalize(v, step)) ?? []).map((id) => live(id)).filter((id) => id !== undefined),
+        );
     }
 
     private lookupIn(step: MergeStep | NodeValuesStep, space: string): Lookup {
@@ -1063,7 +1335,7 @@ class Builder {
         }
         const one = (id: string | undefined): string[] => (id === undefined ? [] : [id]);
         if (step.ignoreCase !== true && step.ignoreSpaces !== true) {
-            return (v) => one(this.resolve(space, text(v)));
+            return eachValue((v) => one(this.resolve(space, text(v))));
         }
         const idx = new Map<string, string>();
         for (const n of this.nodes.values()) {
@@ -1071,7 +1343,7 @@ class Builder {
                 idx.set(normalize(n.key, step), n.id);
             }
         }
-        return (v) => one(idx.get(normalize(v, step)));
+        return eachValue((v) => one(idx.get(normalize(v, step))));
     }
 
     // The rows of one table a step reads, through its `rows` and `except` filters.
@@ -1102,10 +1374,18 @@ class Builder {
                 this.nodeValues(s, si, st);
                 break;
             case "join.merge":
-                this.merge(s, si, st);
+                if (s.read.table === "edges") {
+                    this.mergeRows(s, si, st);
+                } else {
+                    this.merge(s, si, st);
+                }
                 break;
             case "join.edges":
-                this.edgesStep(s, si, st);
+                if (s.link === undefined) {
+                    this.edgesStep(s, si, st);
+                } else {
+                    this.linkStep(s, s.link, si, st);
+                }
                 break;
             default:
                 this.edgeValues(s, si, st);
@@ -1125,6 +1405,7 @@ class Builder {
             this.stats.push(st);
             this.runStep(s, si, st);
         });
+        this.settleMarks();
         for (const n of this.nodes.values()) {
             settle(n);
         }
@@ -1149,6 +1430,8 @@ class Builder {
             edges,
             aliases,
             edgeAliases,
+            spaceNames: this.spaceNames(),
+            nodeIds: this.input.nodeIds ?? {},
             stats,
             issues,
             fates,
@@ -1156,6 +1439,18 @@ class Builder {
             drill,
             ...(duplicate === undefined ? {} : { duplicate }),
         };
+    }
+
+    // What a source's own space is spelled by: its source's name, unless another space has that name.
+    private spaceNames(): ReadonlyMap<string, string> {
+        const taken = new Set([...this.nodes.values()].map((n) => n.space));
+        const out = new Map<string, string>();
+        for (const src of Object.values(this.input.sources)) {
+            const spelled = freeName(namedBy(src), taken);
+            taken.add(spelled);
+            out.set(ownSpace(src.id), spelled);
+        }
+        return out;
     }
 
     // The elements each step made that the graph still holds, by their final type.
@@ -1334,8 +1629,9 @@ class Builder {
         const seen = new Set<string>();
         // a source with no key column keys its node rows by their content (spec 6.1)
         const keyless = nodeRows && src.mapping.nodes?.key === undefined ? keylessNodeKeys(nodeRows) : [];
+        const moved = this.movedOff(s.source, "nodes");
         nodeRows?.forEach((r, i) => {
-            this.addNodeRow(s, src, { si, st, seen, empties, keyless }, r, i);
+            this.addNodeRow(s, src, { si, st, seen, empties, keyless, moved }, r, i);
         });
         const key = src.mapping.nodes?.key;
         if (nodeRows && key !== undefined) {
@@ -1357,6 +1653,39 @@ class Builder {
         this.reportEmpty(s.source, empties);
     }
 
+    // Whether a column of a row is carried by a node one of the source's other steps reads it onto: a row
+    // whose own cell names no such node keeps it.
+    private movedOff(source: string, table: TableName): (row: Row, column: string) => boolean {
+        interface Move {
+            readonly names: (row: Row) => boolean;
+            readonly columns: ReadonlySet<string>;
+        }
+        const on = this.input.steps.filter((o) => o.source === source && o.off !== true);
+        const moves = on.flatMap((o): Move[] => {
+            if (o.op === "join.edges" && (o.read.table ?? "edges") === table) {
+                const { extract, read } = o;
+                return extract?.columns === undefined || read.target === undefined
+                    ? []
+                    : [{ names: (row) => makesNode(o, row), columns: new Set(extract.columns) }];
+            }
+            if (table !== "edges" || o.op !== "join.node-values" || (o.read.table ?? "nodes") !== table) {
+                return [];
+            }
+            const { key, space } = o.read;
+            // the nodes an Extract makes of the same column: a row it leaves out makes none
+            const made = on.find(
+                (e): e is EdgesStep => e.op === "join.edges" && e.read.target === key && e.read.targetSpace === space,
+            );
+            return [
+                {
+                    names: (row) => (made === undefined ? !isEmpty(row[key]) : makesNode(made, row)),
+                    columns: new Set(o.columns),
+                },
+            ];
+        });
+        return (row, column) => moves.some((m) => m.columns.has(column) && m.names(row));
+    }
+
     private addNodeRow(
         s: AddStep,
         src: Source,
@@ -1366,6 +1695,7 @@ class Builder {
             seen: Set<string>;
             empties: Map<string, number>;
             keyless: readonly string[];
+            moved: (row: Row, column: string) => boolean;
         },
         r: Row,
         i: number,
@@ -1389,14 +1719,19 @@ class Builder {
         const n = this.node(space, text(key), { source: s.source }, r, st) as BuiltNode;
         const repeat = at.seen.has(n.id);
         at.seen.add(n.id);
-        this.touch(n, s, si, "nodes", r, i);
-        supply(n, s.source);
-        // `refuse` never meets a repeat here (the load refused it), so it keeps the first as `first` does
+        // `refuse` never meets a repeat here (the load refused it), so it keeps the first as `first` does:
+        // the row is left out, its node keeping the first row's values
         if (repeat && (s.duplicateIds ?? src.settings?.duplicateIds ?? "first") !== "merge") {
+            this.fate(s.source, "nodes", i, "left-out:repeated-key", n.id);
             return;
         }
+        this.touch(n, s, si, "nodes", r, i);
+        supply(n, s.source);
+        n.brought ??= new Set();
+        n.brought.add(s.source);
         const roles = new Set(Object.values(m).filter((v): v is string => typeof v === "string"));
-        for (const [c, v] of Object.entries(r).filter(([c]) => !s.columns || s.columns.includes(c) || roles.has(c))) {
+        const brings = (c: string): boolean => !at.moved(r, c) && (!s.columns || s.columns.includes(c));
+        for (const [c, v] of Object.entries(r).filter(([c]) => brings(c) || roles.has(c))) {
             if (!repeat || isEmpty(n.own[s.source]?.[c]?.v)) {
                 this.write(n, c, v, { src: s.source, si, row: i, step: s, st });
             }
@@ -1414,17 +1749,7 @@ class Builder {
             return;
         }
         // columns another step of this source moves onto nodes stay off the edges (3.3)
-        const moved = new Set(
-            this.input.steps
-                .filter(
-                    (o) =>
-                        o !== s &&
-                        o.source === s.source &&
-                        o.op === "join.node-values" &&
-                        (o.read.table ?? "nodes") === "edges",
-                )
-                .flatMap((o) => o.columns ?? []),
-        );
+        const moved = this.movedOff(s.source, "edges");
         const sSpace = m.sourceSpace ?? ownSpace(src.id);
         const tSpace = m.targetSpace ?? ownSpace(src.id);
         const how = src.settings?.unmatched ?? "add";
@@ -1462,7 +1787,7 @@ class Builder {
             reach(nb, s.source);
             const id = m.edgeId === undefined ? undefined : r[m.edgeId];
             const key = isEmpty(id) ? (keyless[i] as string) : text(id);
-            const values = Object.entries(r).filter(([c]) => !moved.has(c) && (!s.columns || s.columns.includes(c)));
+            const values = Object.entries(r).filter(([c]) => !moved(r, c) && (!s.columns || s.columns.includes(c)));
             this.addEdge(s, si, st, {
                 load: s.source,
                 key,
@@ -1546,7 +1871,7 @@ class Builder {
             return null;
         }
         let n = ids.length === 1 ? (this.nodes.get(ids[0]) ?? null) : null;
-        if (!n && (s.unmatchedRows ?? "leave-out") === "add" && s.via === undefined) {
+        if (!n && (s.unmatchedRows ?? "leave-out") === "add" && byKey(s)) {
             n = this.node(s.read.space, text(v), { source: s.source }, r, st);
         }
         if (!n) {
@@ -1563,54 +1888,468 @@ class Builder {
         const table = s.read.table ?? "edges";
         const rd = s.read;
         const rows = this.filtered(s, table);
-        for (const hub of hubs(rows, rd.target)) {
+        const values = rows.flatMap(([r, i]) => endCells(s, r, "target").map((each): [Row, number] => [each, i]));
+        for (const hub of rd.target === undefined ? [] : hubs(values, rd.target)) {
             st.hub.push(hub);
-            this.issues.push({ code: "W_VALUE_HUB", params: { source: s.source, column: rd.target, ...hub } });
+            this.issues.push({ code: "W_VALUE_HUB", params: { source: s.source, column: rd.target ?? "", ...hub } });
         }
-        const tr = this.translator(s);
+        const tr = this.endLookups(s);
         const empties = new Map<string, number>();
         const loose = s.ignoreCase === true || s.ignoreSpaces === true ? new Map<string, Map<string, string>>() : null;
         // keyless rows count over every row of the table, read by this step or not (spec 4.1.8 rule 3)
-        const keyless = keylessEdgeKeys(this.rows(src, table) ?? [], rd);
+        const keyless = s.rowNode === undefined ? keylessEdgeKeys(this.rows(src, table) ?? [], bothEnds(rd)) : [];
+        const rowNode = s.rowNode === undefined ? null : this.rowNodes(s, si, st, src);
+        const held = s.existing === "merge" ? { byPair: this.edgesByPair(), folded: new Set<string>() } : undefined;
+        const asNodes = new Map<number, EndHit>();
         for (const [r, i] of rows) {
             const here = { table, row: i };
-            const a = this.edgeEnd(s, st, tr, r, "source", loose, here);
-            const b = this.edgeEnd(s, st, tr, r, "target", loose, here);
-            if ("miss" in a || "miss" in b) {
-                // an empty end counts first, then fan-out, then unmatched
-                const misses = [a, b].map((x) => ("miss" in x ? x.miss : null));
-                const miss = MISS_ORDER.find((m) => misses.includes(m)) ?? "left-out:unmatched";
-                this.countMiss(st, miss, misses[0] === "left-out:empty-end" ? rd.source : rd.target, empties, here);
-                this.fate(s.source, table, i, miss);
+            const row = rowNode?.(r, i);
+            asNodes.set(i, row?.hit ?? { miss: "left-out:unmatched" });
+            const ends = (end: "source" | "target"): EndHit[] =>
+                s.rowNode === end && row
+                    ? [row.hit]
+                    : endCells(s, r, end).flatMap((each) => this.edgeEnds(s, st, tr, each, end, loose, here));
+            const as = ends("source");
+            const bs = ends("target");
+            const many = s.extract === undefined && as.length * bs.length > 1;
+            // ponytail: a keyless row naming several nodes by a list is keyed by its place; key it by content if
+            // references to such edges must survive a re-sorted refresh
+            const key = row?.key ?? keyless[i] ?? (many ? String(i) : undefined);
+            const at = { s, si, st, src, table, row: r, index: i, key, many, held };
+            const middle = s.rowNode === "middle" ? row?.hit : undefined;
+            const made = this.rowEdges(at, as, bs, middle);
+            bs.forEach((each) => {
+                this.fillExtracted(at, each);
+            });
+            // a cell of several values counts its row once
+            const a = as.find((each) => "n" in each) ?? as[0];
+            const b = bs.find((each) => "n" in each) ?? bs[0];
+            const misses = [a, b, middle].map((x) => (x && "miss" in x ? x.miss : null));
+            this.countEdgeRow(at, misses, made, empties, this.rowAsNode(s, row?.hit, a, b, src, r));
+        }
+        st.mergedEdges = held?.folded.size ?? 0;
+        this.reportEmpty(s.source, empties);
+        this.dropUnlinked(s, src, rows, asNodes);
+    }
+
+    // The node a row is of itself: the step's own (`rowNode`), or the end its key names.
+    private rowAsNode(
+        s: EdgesStep,
+        own: EndHit | undefined,
+        a: EndHit | undefined,
+        b: EndHit | undefined,
+        src: Source,
+        r: Row,
+    ): EndHit | undefined {
+        if (own !== undefined || s.read.table !== "nodes") {
+            return own;
+        }
+        const n = this.ownNode(src, r);
+        return n !== undefined && [a, b].some((end) => end !== undefined && "n" in end && end.n === n)
+            ? { n }
+            : undefined;
+    }
+
+    // The node a row of a source's node rows is, by its key.
+    private ownNode(src: Source, r: Row): BuiltNode | undefined {
+        const key = src.mapping.nodes?.key;
+        const id = key === undefined || isEmpty(r[key]) ? undefined : this.resolve(nodeSpace(src), text(r[key]));
+        return id === undefined ? undefined : this.nodes.get(id);
+    }
+
+    // Whether a node is the step's to take out: no other source's row is it, and a join made it or
+    // `unlinked` takes out the ones the graph held before too.
+    private mayTakeOut(s: EdgesStep, n: BuiltNode): boolean {
+        const joined =
+            s.unlinked === "remove" ||
+            !this.input.steps.some(
+                (o) => o.op === "join.add" && o.source === s.source && o.joined !== true && o.off !== true,
+            );
+        return joined && n.loads.every((id) => id === s.source);
+    }
+
+    // Takes out the node of each row no edge of any step reaches: under `unlinked: "drop"` only one a join
+    // made, under `"remove"` one the graph held before too.
+    private dropUnlinked(
+        s: EdgesStep,
+        src: Source,
+        rows: readonly [Row, number][],
+        asNodes: ReadonlyMap<number, EndHit>,
+    ): void {
+        for (const [r, i] of s.unlinked === undefined ? [] : rows) {
+            const hit = asNodes.get(i);
+            const n = hit && "n" in hit ? hit.n : this.ownNode(src, r);
+            const held = n !== undefined && this.nodes.has(n.id) && (this.edgesAt.get(n.id)?.size ?? 0) === 0;
+            if (!held || !this.mayTakeOut(s, n)) {
                 continue;
             }
-            st.matched++;
-            reach(a.n, s.source);
-            reach(b.n, s.source);
-            const skip = new Set([rd.source, rd.target, rd.edgeId]);
-            const cols = s.columns ?? Object.keys(r).filter((c) => !skip.has(c));
-            const made = this.addEdge(s, si, st, {
-                load: s.source,
-                key: edgeStepKey(s, r, keyless[i], a.n, b.n),
-                from: a.n,
-                to: b.n,
-                row: r,
-                index: i,
-                values: cols.map((c) => [c, r[c]]),
-                ctx: { source: s.source, part: s.part },
-                roles: src.mapping[table] ?? {},
-                read: rd,
-                table,
-                // a row whose two ends read one column (a key met by the same column) keeps them apart
-                ends:
-                    rd.source === rd.target
-                        ? { source: "source", target: "target" }
-                        : { source: rd.source, target: rd.target },
-                repeated: s.repeated,
+            this.dropNode(n);
+            this.unmake(n);
+            // built by the source's add, and now by nothing
+            this.fates.get(s.source)?.set(`${s.read.table ?? "edges"}#${i}`, {
+                fate: "left-out:unmatched",
+                elements: [],
             });
-            this.mark(st, "matched", { ...here, element: made });
+        }
+    }
+
+    // One join.edges row counted: matched, or the first thing its ends missed.
+    private countEdgeRow(
+        at: EdgeRow,
+        misses: readonly (EndMiss | null)[],
+        made: readonly string[],
+        empties: Map<string, number>,
+        asNode: EndHit | undefined,
+    ): void {
+        const { s, st, table, index } = at;
+        const here = { table, row: index };
+        // an empty end counts first, then fan-out, then unmatched
+        const miss = MISS_ORDER.find((m) => misses.includes(m));
+        if (miss === undefined) {
+            st.matched++;
+            this.mark(st, "matched", { ...here, element: made[0] });
+            return;
+        }
+        const empty = { 0: s.read.source, 1: s.read.target }[misses.indexOf("left-out:empty-end")];
+        // a row the step or its source keeps as a node is that node, linked to nothing
+        const kept = asNode !== undefined && "n" in asNode ? { element: asNode.n.id } : {};
+        this.countMiss(st, miss, empty ?? at.src.mapping.nodes?.key ?? "", empties, { ...here, ...kept });
+        this.fate(s.source, table, index, miss);
+    }
+
+    // The edges one join.edges row makes, by id: one between its ends, or, a row kept as a node
+    // between them (`middle`), one to each end it names.
+    private rowEdges(at: EdgeRow, as: readonly EndHit[], bs: readonly EndHit[], middle: EndHit | undefined): string[] {
+        const { s, src, row } = at;
+        const rd = s.read;
+        const halves: [RowHalf | null, EndHit, EndHit][] =
+            middle === undefined
+                ? as.flatMap((a) => bs.map((b): [null, EndHit, EndHit] => [null, a, b]))
+                : [
+                      ...as.map((a): [RowHalf, EndHit, EndHit] => ["source", a, middle]),
+                      ...bs.map((b): [RowHalf, EndHit, EndHit] => ["target", middle, b]),
+                  ];
+        const skip = new Set([rd.source, rd.target]);
+        const cols = s.columns ?? Object.keys(row).filter((c) => !skip.has(c));
+        const out: string[] = [];
+        for (const [half, from, to] of halves) {
+            if ("miss" in from || "miss" in to) {
+                continue;
+            }
+            reach(from.n, s.source);
+            reach(to.n, s.source);
+            const made = this.addEdge(s, at.si, at.st, {
+                load: s.source,
+                key: edgeStepKey(at, from.n, to.n, half),
+                from: from.n,
+                to: to.n,
+                row,
+                index: at.index,
+                values: cols.map((c) => [c, row[c]]),
+                ctx: { source: s.source, part: s.part },
+                roles: src.mapping[at.table] ?? {},
+                read: rd,
+                table: at.table,
+                ends: endColumns(half === "target" ? undefined : rd.source, half === "source" ? undefined : rd.target),
+                repeated: s.repeated,
+                ...(at.held === undefined ? {} : { held: at.held }),
+            });
+            out.push(made);
+        }
+        return out;
+    }
+
+    // The columns an Extract's new node carries, from a row naming it.
+    private fillExtracted(at: EdgeRow, hit: EndHit): void {
+        const columns = at.s.extract?.columns ?? [];
+        if ("miss" in hit || columns.length === 0) {
+            return;
+        }
+        const { s, si, st, row, index } = at;
+        this.touch(hit.n, s, si, at.table, row, index, { valued: true });
+        supply(hit.n, s.source);
+        for (const c of columns) {
+            this.write(hit.n, c, row[c], { src: s.source, si, row: index, step: s, st });
+        }
+    }
+
+    // ---- join.edges that links nodes sharing a value (3.4)
+    private linkStep(s: EdgesStep, link: LinkRead, si: number, st: StepStats): void {
+        const src = this.source(s.source);
+        const table = s.read.table ?? "edges";
+        const at = {
+            s,
+            si,
+            st,
+            src,
+            table,
+            link,
+            linked: new Map<number, string>(),
+            linkedNodes: new Set<BuiltNode>(),
+        };
+        const rows = link.of === "nodes" ? [] : this.filtered(s, table);
+        const holding = link.of === "nodes" ? this.nodeValuesHeld(at) : null;
+        const { values, left } = holding ?? this.sharedValues(at, rows);
+        const used: SharedValue[] = [];
+        for (const value of values) {
+            if (value.holders.size > link.maxShared) {
+                this.linkHub(at, value);
+            } else if (value.holders.size > 1) {
+                used.push(value);
+            }
+        }
+        if (link.as === "nodes") {
+            this.linkNodes(at, used);
+        } else {
+            this.linkPairs(at, used);
+        }
+        const held = new Set(holding?.values.flatMap((value) => [...value.holders.keys()]));
+        for (const n of held) {
+            const count = at.linkedNodes.has(n) ? "matched" : "unmatched";
+            st[count]++;
+            this.mark(st, count, { element: n.id });
+        }
+        const empties = new Map<string, number>();
+        for (const [r, i] of rows) {
+            const here: DrillUnit = { table, row: i };
+            if (at.linked.has(i)) {
+                st.matched++;
+                this.mark(st, "matched", { ...here, element: at.linked.get(i) });
+            } else {
+                // a row whose value is shared with no other node, or with too many
+                const miss = left.get(i) ?? "left-out:unmatched";
+                const empty = [s.read.source, ...link.columns].find((c) => c !== undefined && isEmpty(r[c]));
+                this.countMiss(st, miss, empty ?? src.mapping.nodes?.key ?? "", empties, here);
+                this.fate(s.source, table, i, miss);
+            }
         }
         this.reportEmpty(s.source, empties);
+    }
+
+    // A value too many nodes hold to link them.
+    private linkHub({ s, st, table }: LinkAt, value: SharedValue): void {
+        const hub = { value: text(value.given), rows: [...value.holders.values()].flat().length };
+        st.hub.push(hub);
+        for (const [n, [{ index }]] of value.holders) {
+            const row = index === NO_ROW ? {} : { table, row: index };
+            this.mark(st, "hub", { ...row, element: n.id, key: hub.value, name: value.column });
+        }
+        this.issues.push({ code: "W_VALUE_HUB", params: { source: s.source, column: value.column, ...hub } });
+    }
+
+    // Each value of a link's columns with the nodes holding it, and the rows that hold none.
+    private sharedValues(
+        at: LinkAt,
+        rows: readonly [Row, number][],
+    ): { values: readonly SharedValue[]; left: ReadonlyMap<number, EndMiss> } {
+        const { s, st, src, table, link } = at;
+        const tr = this.endLookups(s);
+        const loose = s.ignoreCase === true || s.ignoreSpaces === true ? new Map<string, Map<string, string>>() : null;
+        const rowNode = s.rowNode === undefined ? null : this.rowNodes(s, at.si, st, src);
+        const values = new Map<string, SharedValue>();
+        const left = new Map<number, EndMiss>();
+        for (const [r, i] of rows) {
+            const holder = rowNode?.(r, i).hit ?? this.edgeEnd(s, st, tr, r, "source", loose, { table, row: i });
+            const cells = link.columns.flatMap((column) =>
+                cellValues(r[column]).map((v) => ({ column, given: v, compared: normalize(v, s) })),
+            );
+            const full = cells.filter((each) => each.compared !== "");
+            if ("miss" in holder || full.length === 0) {
+                left.set(i, "miss" in holder ? holder.miss : "left-out:empty-end");
+                continue;
+            }
+            for (const { column, given, compared } of full) {
+                const k = `${column}\u0001${compared}`;
+                const value = values.get(k) ?? { column, given, holders: new Map<BuiltNode, LinkRow[]>() };
+                values.set(k, value);
+                value.holders.set(holder.n, [...(value.holders.get(holder.n) ?? []), { row: r, index: i }]);
+            }
+        }
+        return { values: [...values.values()], left };
+    }
+
+    // Each value of a link's columns the nodes of its space carry, as built so far, read from no row.
+    private nodeValuesHeld(at: LinkAt): {
+        values: readonly SharedValue[];
+        left: ReadonlyMap<number, EndMiss>;
+    } {
+        const { s, link } = at;
+        const values = new Map<string, SharedValue>();
+        for (const n of this.nodes.values()) {
+            // a node is left out by its key, the only thing a link over nodes lists it by
+            const out = s.except !== undefined && listed({ ...s.except, column: "key" }, { key: n.key });
+            for (const column of n.space === s.read.sourceSpace && !out ? link.columns : []) {
+                for (const given of cellValues(n.values[column]).filter((v) => !isEmpty(v))) {
+                    const k = `${column}\u0001${normalize(given, s)}`;
+                    const value = values.get(k) ?? { column, given, holders: new Map<BuiltNode, LinkRow[]>() };
+                    values.set(k, value);
+                    value.holders.set(n, [{ row: {}, index: NO_ROW }]);
+                }
+            }
+        }
+        return { values: [...values.values()], left: new Map() };
+    }
+
+    // One edge per pair of nodes sharing at least `minShared` values, with the count in `shared`.
+    // ponytail: pairs per value are quadratic in its holders, bounded by maxShared.
+    private linkPairs(at: LinkAt, used: readonly SharedValue[]): void {
+        // an edge runs from the node built earlier, as the graph orders them
+        const place = new Map([...this.nodes.values()].map((n, i) => [n, i]));
+        const of = (n: BuiltNode): number => place.get(n) ?? 0;
+        const pairs = new Map<string, { a: BuiltNode; b: BuiltNode; count: number; rows: Map<number, Row> }>();
+        for (const { holders } of used) {
+            const all = [...holders].sort(([a], [b]) => of(a) - of(b));
+            all.forEach(([a, rowsA], n) => {
+                for (const [b, rowsB] of all.slice(n + 1)) {
+                    const k = `${String(of(a))}|${String(of(b))}`;
+                    const pair = pairs.get(k) ?? { a, b, count: 0, rows: new Map<number, Row>() };
+                    pairs.set(k, pair);
+                    pair.count++;
+                    [...rowsA, ...rowsB].forEach(({ row, index }) => pair.rows.set(index, row));
+                }
+            });
+        }
+        for (const { a, b, count, rows } of pairs.values()) {
+            if (count < at.link.minShared) {
+                at.st.pairsBelowMin++;
+                this.mark(at.st, "pairsBelowMin", { key: `${a.key}|${b.key}`, pair: [a.id, b.id] });
+            } else {
+                this.linkEdge(at, a, b, [["shared", count]], rows);
+            }
+        }
+    }
+
+    // One node per shared value, with an edge to it from each node holding it.
+    private linkNodes(at: LinkAt, used: readonly SharedValue[]): void {
+        const { s, si, st, table } = at;
+        const space = s.read.targetSpace ?? ownSpace(s.source);
+        for (const { column, given, holders } of used) {
+            const ctx = { source: s.source, part: s.part, end: "target" as const };
+            const [[first]] = holders.values();
+            const n = this.node(space, `${column}:${text(given)}`, ctx, first.row, st);
+            if (n === null) {
+                continue;
+            }
+            supply(n, s.source);
+            for (const [holder, rows] of holders) {
+                for (const { row, index } of rows) {
+                    this.touch(n, s, si, table, row, index, { valued: true });
+                }
+                this.linkEdge(at, holder, n, [], new Map(rows.map((each) => [each.index, each.row])));
+            }
+            this.write(n, column, given, { src: s.source, si, row: first.index, step: s, st });
+        }
+    }
+
+    // One edge of a link, read from every row that makes it.
+    private linkEdge(
+        at: LinkAt,
+        from: BuiltNode,
+        to: BuiltNode,
+        values: [string, CellValue | undefined][],
+        rows: ReadonlyMap<number, Row>,
+    ): void {
+        const { s, si, st, src, table } = at;
+        const [[index, row], ...others] = rows;
+        const key = `${s.part}/${escapeKey(from.key)}|${escapeKey(to.key)}`;
+        // a link over nodes lists its edges by their keys, so an edge is left out by its key too
+        if (at.link.of === "nodes" && s.except !== undefined && listed({ ...s.except, column: "key" }, { key })) {
+            return;
+        }
+        reach(from, s.source);
+        reach(to, s.source);
+        const id = this.addEdge(s, si, st, {
+            load: s.source,
+            key,
+            from,
+            to,
+            row,
+            index,
+            values,
+            ctx: { source: s.source, part: s.part },
+            roles: src.mapping[table] ?? {},
+            read: s.read,
+            table,
+            ends: endColumns(undefined, undefined),
+        });
+        const e = this.edges.get(id);
+        for (const [i, r] of others) {
+            if (e !== undefined) {
+                this.touch(e, s, si, table, r, i);
+            }
+        }
+        for (const i of rows.keys()) {
+            at.linked.set(i, at.linked.get(i) ?? id);
+        }
+        at.linkedNodes.add(from).add(to);
+    }
+
+    // Every edge built so far, by its end pair, in build order.
+    private edgesByPair(): Map<string, BuiltEdge[]> {
+        const out = new Map<string, BuiltEdge[]>();
+        for (const e of this.edges.values()) {
+            const pair = `${e.from}\u0001${e.to}`;
+            const list = out.get(pair);
+            if (list) {
+                list.push(e);
+            } else {
+                out.set(pair, [e]);
+            }
+        }
+        return out;
+    }
+
+    // Each row of a step as a node (`rowNode`): the node the source's `join.add` made of it, else one
+    // the step makes, with every column of the row.
+    private rowNodes(s: EdgesStep, si: number, st: StepStats, src: Source): (r: Row, i: number) => RowNode {
+        const table = s.read.table ?? "edges";
+        const column = table === "nodes" ? src.mapping.nodes?.key : undefined;
+        const keyless = column === undefined ? keylessNodeKeys(this.rows(src, table) ?? []) : [];
+        const space = rowNodeSpace(src, table);
+        const added =
+            table === "nodes" &&
+            this.input.steps.slice(0, si).some((o) => o.op === "join.add" && o.source === s.source && o.off !== true);
+        const times = new Map<string, number>();
+        return (r, i) => {
+            const key = column === undefined ? keyless[i] : text(r[column]);
+            if (key === "") {
+                return { key, hit: { miss: "left-out:empty-end" } };
+            }
+            // two rows of one key are one node, with an edge each
+            const n = (times.get(key) ?? 0) + 1;
+            times.set(key, n);
+            const named = n === 1 ? key : `${key}#${String(n)}`;
+            const ctx = { source: s.source, part: s.part };
+            const node = this.node(space, key, ctx, r, st, added ? "leave-out" : "add");
+            if (node === null) {
+                return { key: named, hit: { miss: "left-out:unmatched" } };
+            }
+            if (!added) {
+                this.fillRowNode(node, s, si, st, src.mapping[table] ?? {}, r, i);
+            }
+            return { key: named, hit: { n: node } };
+        };
+    }
+
+    // A node a step makes of a row takes every column of it, and its time.
+    private fillRowNode(
+        node: BuiltNode,
+        s: EdgesStep,
+        si: number,
+        st: StepStats,
+        roles: EdgeRole,
+        r: Row,
+        i: number,
+    ): void {
+        this.touch(node, s, si, s.read.table ?? "edges", r, i);
+        supply(node, s.source);
+        for (const [c, v] of Object.entries(r)) {
+            this.write(node, c, v, { src: s.source, si, row: i, step: s, st });
+        }
+        if (typeof roles.time === "string" && node.time === null) {
+            node.time = parseTime(r[roles.time], roles.timeParseZone, roles.timeUnit);
+            node.timeFrom = node.time === null ? null : s.source;
+        }
     }
 
     private countMiss(
@@ -1633,33 +2372,58 @@ class Builder {
         }
     }
 
+    // The nodes one end of a join.edges row reaches: one, or, under `fanOut: "each"`, each its value names.
+    private edgeEnds(
+        s: EdgesStep,
+        st: StepStats,
+        tr: EndLookups,
+        r: Row,
+        which: "source" | "target",
+        loose: Map<string, Map<string, string>> | null,
+        at: DrillUnit,
+    ): EndHit[] {
+        const column = s.read[which];
+        const look = tr[which];
+        if (s.fanOut === "each" && look && column !== undefined) {
+            const met = look(r[column]).flatMap((id) => this.nodes.get(id) ?? []);
+            if (met.length > 1) {
+                for (const n of met) {
+                    this.end(st, n.space, n.id, at);
+                }
+                return met.map((n) => ({ n }));
+            }
+        }
+        return [this.edgeEnd(s, st, tr, r, which, loose, at)];
+    }
+
     // The node one end of a join.edges row reaches, through `via` on `viaEnd`; under `ignoreCase` or
     // `ignoreSpaces` an end meets the node of its space whose key compares equal, kept per space in `loose`.
     private edgeEnd(
         s: EdgesStep,
         st: StepStats,
-        tr: Lookup | null,
+        tr: EndLookups,
         r: Row,
         which: "source" | "target",
         loose: Map<string, Map<string, string>> | null,
         at: DrillUnit,
     ): EndHit {
-        const rd = s.read;
-        const v = r[which === "source" ? rd.source : rd.target];
-        if (isEmpty(v)) {
+        const [column, space] =
+            which === "source" ? [s.read.source, s.read.sourceSpace] : [s.read.target, s.read.targetSpace];
+        const v = column === undefined ? undefined : r[column];
+        if (isEmpty(v) || space === undefined) {
             return { miss: "left-out:empty-end" };
         }
-        const space = which === "source" ? rd.sourceSpace : rd.targetSpace;
-        if (tr && which === (s.viaEnd ?? "target")) {
-            const ids = tr(v);
+        const look = tr[which];
+        if (look) {
+            const ids = look(v);
             if (ids.length > 1) {
                 return { miss: "left-out:fan-out" };
             }
-            const n = ids.length === 1 ? this.nodes.get(ids[0]) : undefined;
+            const n = ids.length === 1 ? this.nodes.get(ids[0]) : this.namedByColumn(s, st, r, which, space);
             this.end(st, n?.space ?? space, n?.id, at);
             return n ? { n } : { miss: "left-out:unmatched" };
         }
-        const how = s.unmatchedRows ?? this.source(s.source).settings?.unmatched ?? "add";
+        const how = this.unmatchedEnd(s, which);
         const idx = loose === null ? null : this.looseKeys(loose, space, s);
         const key = idx?.get(normalize(v, s)) ?? text(v);
         this.end(st, space, this.resolve(space, key), at);
@@ -1668,6 +2432,46 @@ class Builder {
             idx.set(normalize(v, s), n.key);
         }
         return n ? { n } : { miss: "left-out:unmatched" };
+    }
+
+    // The node an end looked up by a column of its nodes makes of a value none of them holds: keyed by the
+    // value and holding it in that column, so a later row of the value is the same node. None when the end
+    // adds no nodes, or a node has that key already.
+    private namedByColumn(
+        s: EdgesStep,
+        st: StepStats,
+        r: Row,
+        which: "source" | "target",
+        space: string,
+    ): BuiltNode | undefined {
+        const at = s.read[which];
+        // Through a source's rows (`via`), the column is the one its value is found in there.
+        const viaColumn = s.via === undefined ? undefined : s.mapping?.columns[0];
+        const column = (s.viaEnd ?? "target") === which ? (s.nodeColumn ?? viaColumn) : s.otherColumn;
+        if (at === undefined || column === undefined || this.unmatchedEnd(s, which) !== "add") {
+            return undefined;
+        }
+        const v = r[at] ?? "";
+        const made = `${which}\u0001${normalize(v, s)}`;
+        const byValue = this.columnEnds.get(s) ?? new Map<string, BuiltNode>();
+        this.columnEnds.set(s, byValue);
+        const met = byValue.get(made);
+        if (met !== undefined || this.resolve(space, text(v)) !== undefined) {
+            return met;
+        }
+        const n = this.node(space, text(v), { source: s.source, part: s.part, end: which }, r, st, "add");
+        if (n !== null) {
+            n.values[column] = v;
+            n.origin[column] = s.source;
+            n.own[s.source] = { ...n.own[s.source], [column]: { v, step: st.step, row: 0 } };
+            byValue.set(made, n);
+        }
+        return n ?? undefined;
+    }
+
+    // What an end's value naming no node does: the end the step adds nodes at, else what the step or its source says.
+    private unmatchedEnd(s: EdgesStep, which: "source" | "target"): "add" | "leave-out" {
+        return s.addEnd === which ? "add" : (s.unmatchedRows ?? this.source(s.source).settings?.unmatched ?? "add");
     }
 
     // Each node key of a space, by its compared form, built once per step.
@@ -1734,6 +2538,11 @@ class Builder {
         }
         const policy = a.repeated === undefined ? (this.input.repeatedEdges ?? "keep") : "keep";
         const type = typeOf(this.types, "edge", a.ctx, a.row);
+        const into = heldEdge(a, type);
+        if (into) {
+            this.foldEdgeRow(into, id, step, si, st, a, timeCol);
+            return into.id;
+        }
         // 3.8, 8.6: edges of different types never reduce; meanings matter only to a combining rule
         const byMeaning = policy !== "first" && policy !== "last" && policy !== "error";
         const pairKey = (m: string | null): string => JSON.stringify([a.from.id, a.to.id, type, byMeaning ? m : null]);
@@ -1772,13 +2581,15 @@ class Builder {
             time: null,
             timeFrom: null,
             ends: a.ends,
+            ...linked(step),
         };
         this.putEdge(e);
         if (!this.pairs.has(pairKey(e.weightMeaning))) {
             this.pairs.set(pairKey(e.weightMeaning), id);
         }
         st.newEdges++;
-        this.mark(st, "newEdges", { table: a.table, row: a.index, element: e.id });
+        const unit = a.index === NO_ROW ? {} : { table: a.table, row: a.index };
+        this.mark(st, "newEdges", { ...unit, element: e.id });
         this.madeBy.set(e, st);
         supply(e, a.load);
         this.touch(e, step, si, a.table, a.row, a.index);
@@ -1787,6 +2598,30 @@ class Builder {
         }
         span(e, a, timeCol);
         return e.id;
+    }
+
+    // A row folded into an edge an earlier step made (`existing: "merge"`): its columns meet the
+    // edge's by the step's clash rule, and its key is an alias of the edge.
+    private foldEdgeRow(
+        into: BuiltEdge,
+        id: string,
+        step: Step,
+        si: number,
+        st: StepStats,
+        a: EdgeArgs,
+        timeCol: string | null,
+    ): void {
+        if (a.held?.folded.has(into.id) === false) {
+            a.held.folded.add(into.id);
+            this.mark(st, "mergedEdges", { table: a.table, row: a.index, element: into.id });
+        }
+        supply(into, a.load);
+        this.touch(into, step, si, a.table, a.row, a.index);
+        this.edgeAliases.set(id, into.id);
+        for (const [c, v] of a.values) {
+            this.write(into, c, v, { src: a.load, si, row: a.index, step, st });
+        }
+        span(into, a, timeCol);
     }
 
     // A second row with an existing edge's key: the step's `repeated`, else E_EDGE_KEY_COLLISION (3.3).
@@ -1819,56 +2654,317 @@ class Builder {
         const { space } = s.read;
         const look = this.lookupIn(s, space);
         const node2s = [...this.nodes.values()].filter((n) =>
-            n.touch.some((t) => t.source === s.source && t.table === "nodes" && t.step < si),
+            n.touch.some((t) => t.source === s.source && t.table === "nodes" && t.step < si && t.valued !== true),
         );
-        const groups = new Map<string, number>();
+        const at: MergeAt = { s, si, st, groups: new Map(), fanned: new Map() };
         const kept = new Map<string, BuiltNode[]>();
-        const reached = new Set<string>();
         const before = [...this.nodes.values()].filter((n) => n.space === space).map((n) => n.id);
-        const fanned = new Map<string, DrillUnit>();
-        for (const n2 of node2s) {
-            const own = n2.touch.filter((t) => t.source === s.source && t.table === "nodes");
-            const rows = own.map((t) => t.cells);
-            const [r] = rows;
-            const excluded =
-                (s.except !== undefined && listed(s.except, r)) || (s.rows !== undefined && !listed(s.rows, r));
-            const v = r[s.read.key];
-            const ids = excluded || isEmpty(v) ? [] : look(v).filter((id) => id !== n2.id);
-            const n1 = ids.length === 1 ? this.nodes.get(ids[0]) : undefined;
-            const unit = { table: "nodes", row: own[0].row, element: n2.id, key: n2.key } as const;
-            if (ids.length > 1) {
-                st.fanOut++;
-                this.mark(st, "fanOut", unit);
-                fanned.set(text(v), fanned.get(text(v)) ?? unit);
-            } else if (n1) {
-                this.fold(n1, n2, { src: s.source, si, row: 0, step: s, st }, rows);
-                reached.add(n1.id);
-                groups.set(n1.id, (groups.get(n1.id) ?? 1) + rows.length);
-                st.merged++;
-                this.mark(st, "merged", unit);
-            } else {
-                st.unmatched++;
-                this.mark(st, "unmatched", unit);
-                this.unmatchedNode2(s, n2, excluded, v, kept);
-            }
+        // A row an earlier merge folded or left out, or whose node another source's rows are too, is no node
+        // of its own: only its columns join the node it names, and the node it is in stays. A node other rows
+        // were folded into is its own source's still, and takes them along.
+        const isOwn = (n: BuiltNode): boolean => n.brought?.size === 1 && n.brought.has(s.source);
+        const own = node2s.filter((n) => isOwn(n));
+        const shared = node2s.filter((n) => !isOwn(n));
+        this.mergeRowsAgain(at, shared, look);
+        for (const n2 of own) {
+            this.mergeNode2(at, n2, look, kept);
         }
         this.settleKept(st, space, kept);
         // What the merge leaves of source 2 as nodes of their own: neither folded nor dropped.
         const live = new Set(this.nodes.values());
-        for (const n2 of node2s) {
+        for (const n2 of own) {
             if (live.has(n2)) {
                 st.keptNew++;
                 this.mark(st, "keptNew", { element: n2.id, key: n2.key });
             }
         }
-        const untouched = before.filter((id) => !reached.has(id) && this.nodes.has(id));
+        const untouched = before.filter((id) => !at.groups.has(id) && this.nodes.has(id));
         for (const id of untouched) {
             this.mark(st, "untouched", { element: id });
         }
         st.untouched = untouched.length;
-        st.groups = [...groups.values()].sort((a, b) => b - a);
-        st.repeated1 = this.keys(st, "repeated1", fanned);
+        st.groups = [...at.groups.values()].sort((a, b) => b - a);
+        st.repeated1 = this.keys(st, "repeated1", at.fanned);
         st.repeated2 = this.keys(st, "repeated2", repeats(mergeKeys(s, node2s)));
+    }
+
+    // The rows of a merge's source that are no node of their own (see `merge`), each once: its columns fold
+    // into the nodes its value names, and a row naming none is left where it is.
+    private mergeRowsAgain(at: MergeAt, shared: readonly BuiltNode[], look: Lookup): void {
+        const { s } = at;
+        const rows = new Map<number, { readonly r: Row; readonly held?: BuiltNode }>();
+        for (const [row, r] of this.skipped.get(s.source) ?? []) {
+            rows.set(row, { r });
+        }
+        for (const n of shared) {
+            for (const t of ownTouches(n, s.source).filter((each) => !rows.has(each.row))) {
+                rows.set(t.row, { r: t.cells, held: n });
+            }
+        }
+        for (const [i, { r, held }] of rows) {
+            this.mergeRowAgain(at, look, r, i, held);
+        }
+    }
+
+    // The nodes a value folds into: the one it names, or each of several under `fanOut`, noted as such.
+    private mergeTargets({ s, fanned }: MergeAt, ids: readonly string[], value: string, unit: DrillUnit): BuiltNode[] {
+        if (ids.length > 1) {
+            fanned.set(value, fanned.get(value) ?? unit);
+        }
+        return (ids.length === 1 || s.fanOut === "each" ? ids : []).flatMap((id) => this.nodes.get(id) ?? []);
+    }
+
+    // One such row, and the node it is in, if any.
+    private mergeRowAgain(at: MergeAt, look: Lookup, r: Row, i: number, held: BuiltNode | undefined): void {
+        const { s, si, st } = at;
+        const v = r[s.read.key];
+        const ids = leftOut(s, r) || isEmpty(v) ? [] : look(v);
+        const unit = { table: "nodes", row: i, key: text(v) } as const;
+        const n1s = this.mergeTargets(at, ids, text(v), unit);
+        for (const n1 of n1s) {
+            this.countMergedRow(at, n1, { ...unit, element: n1.id });
+            this.foldSharedRow(n1, s, si, st, r, i);
+        }
+        if (n1s.length === 0) {
+            const count = ids.length > 1 ? "fanOut" : "unmatched";
+            st[count]++;
+            this.mark(st, count, held === undefined ? unit : { ...unit, element: held.id });
+        }
+    }
+
+    // One such row's columns onto a node it names: those the source's add brings.
+    private foldSharedRow(n1: BuiltNode, s: MergeStep, si: number, st: StepStats, r: Row, i: number): void {
+        const brought = this.input.steps.find((o): o is AddStep => o.op === "join.add" && o.source === s.source);
+        this.touch(n1, s, si, "nodes", r, i);
+        supply(n1, s.source);
+        for (const c of Object.keys(r).filter((each) => brought?.columns?.includes(each) !== false)) {
+            this.write(n1, c, r[c], { src: s.source, si, row: i, step: s, st });
+        }
+    }
+
+    // One node 2 of a merge: folded into the node 1 it names (or each of several, under `fanOut`), or kept or dropped.
+    private mergeNode2(at: MergeAt, n2: BuiltNode, look: Lookup, kept: Map<string, BuiltNode[]>): void {
+        const { s, si, st, groups } = at;
+        const own = ownTouches(n2, s.source);
+        const rows = own.map((t) => t.cells);
+        const [r] = rows;
+        const excluded = leftOut(s, r);
+        const v = r[s.read.key];
+        const ids = excluded || isEmpty(v) ? [] : look(v).filter((id) => id !== n2.id);
+        const unit = { table: "nodes", row: own[0].row, element: n2.id, key: n2.key } as const;
+        const n1s = this.mergeTargets(at, ids, text(v), unit);
+        for (const n1 of n1s) {
+            groups.set(n1.id, (groups.get(n1.id) ?? 1) + rows.length);
+            st.merged++;
+            this.mark(st, "merged", { ...unit, element: n1.id });
+        }
+        if (n1s.length > 0) {
+            this.foldInto(n1s, n2, { src: s.source, si, row: 0, step: s, st }, own);
+        } else if (ids.length > 1) {
+            st.fanOut++;
+            this.mark(st, "fanOut", unit);
+            // it names nodes, so it is no new one: left out with the rows that name none
+            if (s.unmatchedFrom === "drop") {
+                this.skipNode2(s, n2);
+            }
+        } else {
+            st.unmatched++;
+            this.mark(st, "unmatched", unit);
+            this.unmatchedNode2(s, n2, excluded, v, kept);
+        }
+    }
+
+    // A merge reading edge rows, which are no node 2s: each row's columns fold into the node 1 it
+    // names; a row naming none makes the node (one per value), or is left out under Only 2: Drop.
+    private mergeRows(s: MergeStep, si: number, st: StepStats): void {
+        const look = this.lookupIn(s, s.read.space);
+        const before = [...this.nodes.values()].filter((n) => n.space === s.read.space);
+        const type = before[0]?.type ?? null;
+        const made = new Set<string>();
+        const groups = new Map<string, number>();
+        const keys: (readonly [string, DrillUnit])[] = [];
+        const fanned = new Map<string, DrillUnit>();
+        const at: MergeAt = { s, si, st, groups, fanned };
+        for (const [r, i] of this.filtered(s, "edges")) {
+            this.mergeEdgeRow(at, look, { made, type, keys }, r, i);
+        }
+        for (const n of before.filter((each) => !groups.has(each.id))) {
+            st.untouched++;
+            this.mark(st, "untouched", { element: n.id });
+        }
+        st.groups = [...groups.values()].sort((x, y) => y - x);
+        st.repeated1 = this.keys(st, "repeated1", fanned);
+        st.repeated2 = this.keys(st, "repeated2", repeats(keys));
+        this.reportEmpty(s.source, new Map(st.emptyKey > 0 ? [[s.read.key, st.emptyKey]] : []));
+    }
+
+    // One edge row of a merge: folded into the node 1 it names, or into each of several, or kept or left out.
+    private mergeEdgeRow(
+        at: MergeAt,
+        look: Lookup,
+        into: {
+            readonly made: Set<string>;
+            readonly type: string | null;
+            readonly keys: (readonly [string, DrillUnit])[];
+        },
+        r: Row,
+        i: number,
+    ): void {
+        const { s, si, st } = at;
+        const { made, type, keys } = into;
+        const here = { table: "edges", row: i } as const;
+        const v = r[s.read.key];
+        if (isEmpty(v)) {
+            st.emptyKey++;
+            this.mark(st, "emptyKey", here);
+            this.fate(s.source, "edges", i, "left-out:empty-key");
+            return;
+        }
+        const unit: DrillUnit = { ...here, key: text(v) };
+        const ids = look(v);
+        const before = this.placedIn(s.source, i);
+        if (ids.length > 1) {
+            keys.push([text(v), s.fanOut === "each" ? { ...unit, element: ids[0] } : unit]);
+            if (s.fanOut === "each" && before !== undefined && this.keptRows.has(before)) {
+                this.mergeFannedAgain(at, before, ids, unit);
+            } else {
+                this.mergeFannedRow(at, ids, unit, r, i);
+            }
+            return;
+        }
+        const met = made.has(ids[0] ?? "") ? undefined : this.nodes.get(ids[0] ?? "");
+        if (before !== undefined && before !== met && (met === undefined || this.keptRows.has(before))) {
+            keys.push([text(v), { ...unit, element: (met ?? before).id }]);
+            this.mergeAgain(at, before, met, unit);
+            return;
+        }
+        const n = met ?? this.keptRow(s, st, text(v), type, made, unit);
+        const reached = n === null ? unit : { ...unit, element: n.id };
+        keys.push([text(v), reached]);
+        if (met) {
+            this.countMergedRow(at, met, reached);
+        } else {
+            st.unmatched++;
+            this.mark(st, "unmatched", reached);
+        }
+        this.mergeRow(s, si, st, n, r, i);
+    }
+
+    // An edge row an earlier match put in a node: one it made of the row folds whole into the node the row
+    // names now, and a row naming none stays where it is.
+    private mergeAgain(at: MergeAt, before: BuiltNode, met: BuiltNode | undefined, unit: DrillUnit): void {
+        const { s, si, st } = at;
+        if (met === undefined) {
+            st.unmatched++;
+            this.mark(st, "unmatched", { ...unit, element: before.id });
+            return;
+        }
+        this.unmake(before);
+        const rows = before.touch.filter((t) => t.source === s.source && t.table === "edges");
+        this.fold(met, before, { src: s.source, si, row: unit.row ?? 0, step: s, st }, rows);
+        this.countMergedRow(at, met, { ...unit, element: met.id });
+    }
+
+    // An edge row an earlier match kept as a node of its own, now naming several node 1s under `fanOut: each`:
+    // that node folds whole into each of them, as `mergeAgain` folds it into one.
+    private mergeFannedAgain(at: MergeAt, before: BuiltNode, ids: readonly string[], unit: DrillUnit): void {
+        const { s, si, st, fanned } = at;
+        fanned.set(unit.key ?? "", fanned.get(unit.key ?? "") ?? unit);
+        const mets = ids.flatMap((id) => this.nodes.get(id) ?? []);
+        this.unmake(before);
+        const rows = before.touch.filter((t) => t.source === s.source && t.table === "edges");
+        this.foldInto(mets, before, { src: s.source, si, row: unit.row ?? 0, step: s, st }, rows);
+        for (const met of mets) {
+            this.countMergedRow(at, met, { ...unit, element: met.id });
+        }
+    }
+
+    // The node an earlier match put an edge row in.
+    private placedIn(source: string, row: number): BuiltNode | undefined {
+        const n = this.placed.get(source)?.get(row);
+        const id = n === undefined ? "" : n.id;
+        return this.nodes.get(id) ?? this.nodes.get(this.aliases.get(id) ?? "");
+    }
+
+    // A node a step made that the graph no longer holds is no new one of that step's.
+    private unmake(n: BuiltNode): void {
+        const made = this.madeBy.get(n);
+        if (made !== undefined) {
+            made.newNodes--;
+            this.unmark(made, "newNodes", n.id);
+        }
+        if (made !== undefined && this.keptRows.has(n)) {
+            made.keptNew--;
+            this.unmark(made, "keptNew", n.id);
+        }
+    }
+
+    // One edge row folded into a node 1, counted.
+    private countMergedRow({ st, groups }: MergeAt, met: BuiltNode, unit: DrillUnit): void {
+        st.merged++;
+        this.mark(st, "merged", unit);
+        groups.set(met.id, (groups.get(met.id) ?? 1) + 1);
+    }
+
+    // An edge row whose value names several node 1s: folded into each under `fanOut`, else left out.
+    private mergeFannedRow(at: MergeAt, ids: readonly string[], unit: DrillUnit, r: Row, i: number): void {
+        const { s, si, st, fanned } = at;
+        const value = unit.key ?? "";
+        fanned.set(value, fanned.get(value) ?? unit);
+        if (s.fanOut !== "each") {
+            st.fanOut++;
+            this.mark(st, "fanOut", unit);
+            this.fate(s.source, "edges", i, "left-out:fan-out");
+            return;
+        }
+        for (const met of ids.flatMap((id) => this.nodes.get(id) ?? [])) {
+            this.countMergedRow(at, met, { ...unit, element: met.id });
+            this.mergeRow(s, si, st, met, r, i);
+        }
+    }
+
+    // One edge row's columns onto the node it folds into, or left out when there is none.
+    private mergeRow(s: MergeStep, si: number, st: StepStats, n: BuiltNode | null, r: Row, i: number): void {
+        if (n === null) {
+            this.fate(s.source, "edges", i, "left-out:unmatched");
+            return;
+        }
+        this.touch(n, s, si, "edges", r, i);
+        supply(n, s.source);
+        const placed = this.placed.get(s.source) ?? new Map<number, BuiltNode>();
+        this.placed.set(s.source, placed.set(i, n));
+        for (const c of s.columns ?? Object.keys(r).filter((c) => c !== s.read.key)) {
+            this.write(n, c, r[c], { src: s.source, si, row: i, step: s, st });
+        }
+    }
+
+    // The node a merged edge row naming no node 1 makes, one per value: in node 1's space, of its
+    // type, or, when the field is not node 1's key, in the source's own space. Null under Only 2: Drop.
+    private keptRow(
+        s: MergeStep,
+        st: StepStats,
+        key: string,
+        type: string | null,
+        made: Set<string>,
+        unit: DrillUnit,
+    ): BuiltNode | null {
+        if (s.unmatchedFrom === "drop") {
+            return null;
+        }
+        const space = byKey(s) ? s.read.space : ownSpace(s.source);
+        const met = this.nodes.get(this.resolve(space, key) ?? "");
+        if (met) {
+            return met;
+        }
+        const n = this.mkNode(space, key, byKey(s) ? type : null);
+        made.add(n.id);
+        st.newNodes++;
+        st.keptNew++;
+        this.mark(st, "newNodes", { ...unit, element: n.id });
+        this.mark(st, "keptNew", { ...unit, element: n.id });
+        this.madeBy.set(n, st);
+        this.keptRows.add(n);
+        return n;
     }
 
     // Kept node 2s move into node 1's space by their key, unless several share it or it is taken.
@@ -1885,7 +2981,9 @@ class Builder {
         }
     }
 
-    // Only 2: Drop drops it; Keep, when field 1 is node 1's key, moves it into node 1's space later (3.6 item 3).
+    // Only 2: Drop drops it; Keep, when field 1 is node 1's key and field 2 node 2's own, moves it into node 1's
+    // space later (3.6 item 3). A node 2 joined by another of its fields keeps its id: its value names no node.
+    // A node 2 of a source with no key column has no id of its own, so it takes the value it is joined by.
     private unmatchedNode2(
         s: MergeStep,
         n2: BuiltNode,
@@ -1894,11 +2992,29 @@ class Builder {
         kept: Map<string, BuiltNode[]>,
     ): void {
         if (s.unmatchedFrom === "drop") {
-            this.dropNode(n2);
-        } else if (s.via === undefined && !excluded && !isEmpty(v)) {
+            this.skipNode2(s, n2);
+        } else if (byKey(s) && !excluded && !isEmpty(v) && (text(v) === n2.key || this.keyless(s.source))) {
             const k = text(v);
             kept.set(k, [...(kept.get(k) ?? []), n2]);
         }
+    }
+
+    // A source with no key column: its rows are keyed by their content, or numbered.
+    private keyless(source: string): boolean {
+        const { numbered, mapping } = this.source(source);
+        return mapping.nodes?.key === undefined || mapping.nodes.key === numbered;
+    }
+
+    // A node 2 left out: its rows, which make no node now, are still there for a later merge to read.
+    private skipNode2(s: MergeStep, n2: BuiltNode): void {
+        for (const source of new Set([s.source, ...n2.loads])) {
+            const rows = this.skipped.get(source) ?? new Map<number, Row>();
+            for (const t of ownTouches(n2, source)) {
+                rows.set(t.row, t.cells);
+            }
+            this.skipped.set(source, rows);
+        }
+        this.dropNode(n2);
     }
 
     // A kept node 2 moves into node 1's space; its former place becomes its alias (3.6).
@@ -1972,8 +3088,22 @@ class Builder {
         this.aliasesOf.set(to, of);
     }
 
+    // Node 2 folds into each node 1 its value names: the first takes its edges and its key with its values,
+    // the others its values.
+    private foldInto(n1s: readonly BuiltNode[], n2: BuiltNode, at: WriteAt, rows: BuiltNode["touch"]): void {
+        const [first, ...others] = n1s;
+        for (const n1 of others) {
+            n2.loads.forEach((l) => {
+                supply(n1, l);
+            });
+            n1.touch.push(...n2.touch);
+            this.foldValues(n1, n2, at, rows);
+        }
+        this.fold(first, n2, at, rows);
+    }
+
     // Node 2 folds into node 1 (3.4 join.merge): edges, sources, aliases, then values.
-    private fold(n1: BuiltNode, n2: BuiltNode, at: WriteAt, rows: Row[]): void {
+    private fold(n1: BuiltNode, n2: BuiltNode, at: WriteAt, rows: BuiltNode["touch"]): void {
         for (const e of this.edgesAt.get(n2.id) ?? []) {
             this.endFoldedBy.set(e, at.st);
         }
@@ -1991,6 +3121,9 @@ class Builder {
         for (const [col, steps] of Object.entries(n2.differAt ?? {})) {
             n1.differAt ??= {};
             n1.differAt[col] = [...new Set([...(n1.differAt[col] ?? []), ...steps])];
+        }
+        if (n2.metAgain !== undefined) {
+            n1.metAgain = { ...n2.metAgain, ...n1.metAgain };
         }
         n1.aliases.push({ space: n2.space, key: n2.key, type: n2.type }, ...n2.aliases);
         if (n2.type !== n1.type) {
@@ -2014,43 +3147,52 @@ class Builder {
     }
 
     // Every row of every node 2 is one value of the merge source's aggregate columns.
-    private foldAggregates(n1: BuiltNode, n2: BuiltNode, at: WriteAt, rows: Row[]): void {
-        for (const [col, cell] of Object.entries(n2.own[at.src] ?? {})) {
+    private foldAggregates(n1: BuiltNode, n2: BuiltNode, at: WriteAt, rows: BuiltNode["touch"]): void {
+        for (const col of Object.keys(n2.own[at.src] ?? {})) {
             if (aggregateFor(at.step, col) !== undefined) {
-                for (const r of rows) {
-                    this.write(n1, col, r[col], { ...at, row: cell.row });
+                for (const { cells, row } of rows) {
+                    this.write(n1, col, cells[col], { ...at, row });
                 }
             }
         }
     }
 
-    private foldValues(n1: BuiltNode, n2: BuiltNode, at: WriteAt, rows: Row[]): void {
+    private foldValues(n1: BuiltNode, n2: BuiltNode, at: WriteAt, rows: BuiltNode["touch"]): void {
         const last = "repeated" in at.step && at.step.repeated === "last";
         const pick = last ? [...rows].reverse() : rows;
         this.foldAggregates(n1, n2, at, rows);
         const aggregated = (src: string, col: string): boolean =>
             src === at.src && aggregateFor(at.step, col) !== undefined;
+        const readFrom = (src: string, col: string): Value | undefined =>
+            src === at.src ? pick.map(({ cells }) => cells[col]).find((x) => !isEmpty(x)) : undefined;
         for (const [src, cells] of Object.entries(n2.own)) {
             for (const [col, cell] of Object.entries(cells).filter(([c]) => !aggregated(src, c))) {
-                const v = pick.map((r) => r[col]).find((x) => !isEmpty(x)) ?? cell.v;
+                const v = readFrom(src, col) ?? cell.v;
                 const had = n1.own[src]?.[col] as OwnValue | undefined;
                 n1.alt ??= [];
-                if (had && last && had.v !== v) {
-                    // 3.3: several node 2s of one source folding into one node 1 are repeats; Last takes the later value
-                    n1.alt.push({ src, col, v: had.v });
-                    n1.own[src][col] = { v, step: at.si, row: cell.row };
-                    if (n1.origin[col] === src) {
-                        n1.values[col] = v;
-                    }
-                    at.st.rowsDiffer++;
-                    this.mark(at.st, "rowsDiffer", { source: src, row: cell.row, element: n1.id, name: col });
-                } else if (had) {
-                    n1.alt.push({ src, col, v, from: n2.key });
+                const here = { ...at, src, row: cell.row };
+                if (had === undefined) {
+                    this.write(n1, col, v, here);
+                } else if (src === at.src && had.step !== at.si && !sameCell(had.v, v)) {
+                    this.meetAgain(n1, col, had, v, here);
+                } else if (last && had.v !== v) {
+                    this.takeLater(n1, col, had, v, here);
                 } else {
-                    this.write(n1, col, v, { ...at, src, row: cell.row });
+                    n1.alt.push({ src, col, v, from: n2.key });
                 }
             }
         }
+    }
+
+    // 3.3: several node 2s of one source folding into one node 1 are repeats; Last takes the later value
+    private takeLater(n1: BuiltNode, col: string, had: OwnValue, v: Value, { src, si, st, row }: WriteAt): void {
+        n1.alt?.push({ src, col, v: had.v });
+        n1.own[src][col] = { v, step: si, row };
+        if (n1.origin[col] === src) {
+            n1.values[col] = v;
+        }
+        st.rowsDiffer++;
+        this.mark(st, "rowsDiffer", { source: src, row, element: n1.id, name: col });
     }
 }
 
@@ -2066,18 +3208,144 @@ function hubs(rows: [Row, number][], column: string): { value: string; rows: num
     return [...counts].filter(([, c]) => c > HUB_SHARE * rows.length).map(([value, c]) => ({ value, rows: c }));
 }
 
-// A join.edges row's key: <part>/<key>, <part>/<from>|<to> escaped when reduced, else <part>/<from>|<to>#<n> (spec 4.1.8 rule 3).
-function edgeStepKey(s: EdgesStep, r: Row, rowKey: string | undefined, from: BuiltNode, to: BuiltNode): string {
-    const keyless = `${s.part}/${rowKey ?? ""}`;
-    if (s.read.edgeId !== undefined) {
+// A join.edges row's key: <part>/<key>, <part>/<from>|<to> escaped when reduced, else <part>/<from>|<to>#<n> (spec 4.1.8 rule 3);
+// the two edges of a row kept as a node between its ends add which end each is (`|source`, `|target`).
+function edgeStepKey(at: EdgeRow, from: BuiltNode, to: BuiltNode, half: RowHalf | null): string {
+    const { s, row: r } = at;
+    const pair = `${escapeKey(from.key)}|${escapeKey(to.key)}`;
+    const halved = half === null ? "" : `|${half}`;
+    const end = at.many ? `|${pair}${halved}` : halved;
+    const row = at.key ?? "";
+    const keyless = `${s.part}/${s.rowNode === undefined ? row : escapeKey(row)}${end}`;
+    if (s.read.edgeId !== undefined && s.rowNode === undefined) {
         const v = r[s.read.edgeId];
-        return isEmpty(v) ? keyless : `${s.part}/${text(v)}`;
+        return isEmpty(v) ? keyless : `${s.part}/${text(v)}${end}`;
     }
     // only a step that reduces its rows to one edge per end pair keys by the pair; `both` keeps every row
     if ((s.repeated !== undefined && s.repeated !== "both") || s.aggregate !== undefined) {
-        return `${s.part}/${escapeKey(from.key)}|${escapeKey(to.key)}`;
+        return `${s.part}/${pair}${halved}`;
     }
-    return keyless;
+    // a row of several extracted values is an edge to each
+    return s.extract === undefined ? keyless : `${s.part}/${escapeKey(row)}|${escapeKey(to.key)}`;
+}
+
+/**
+ * A cell's values: each of a list's, which a cell as read may hold at run time too, or the cell.
+ * @param v - The cell.
+ * @returns Its values.
+ */
+export function cellValues(v: Value | undefined): readonly (CellValue | undefined)[] {
+    return Array.isArray(v) ? (v as readonly CellValue[]) : [v as CellValue | undefined];
+}
+
+// A lookup of a cell by each of its values: every node any of them finds, once.
+function eachValue(one: Lookup): Lookup {
+    return (v) => (Array.isArray(v) ? [...new Set(cellValues(v).flatMap((each) => one(each)))] : [...new Set(one(v))]);
+}
+
+// Whether a step looks its values up by the nodes' key, so a value naming none may become one.
+function byKey(s: MergeStep | NodeValuesStep): boolean {
+    return s.via === undefined && s.nodeColumn === undefined;
+}
+
+// A row as each node the cell of one end names: itself, or once per value of a list (or, the target of
+// an `extract`, of a split cell), each a row of that value.
+function endCells(s: EdgesStep, r: Row, end: "source" | "target"): readonly Row[] {
+    const column = s.read[end];
+    const extracted = end === "target" && s.extract !== undefined;
+    if (column === undefined || !(extracted || Array.isArray(r[column]))) {
+        return [r];
+    }
+    const split = extracted ? s.extract?.split : undefined;
+    const values = cellValues(r[column]);
+    const parts =
+        split === undefined
+            ? values
+            : values.flatMap((v) =>
+                  text(v)
+                      .split(split)
+                      .map((part) => part.trim()),
+              );
+    const out = extracted && s.except?.column === column ? s.except : undefined;
+    const full = [
+        ...new Set(parts.filter((v) => !isEmpty(v) && (out === undefined || !listed(out, { ...r, [column]: v })))),
+    ];
+    // an empty cell is one row naming nothing
+    return full.length === 0 ? [{ ...r, [column]: null }] : full.map((v) => ({ ...r, [column]: v }));
+}
+
+/**
+ * Whether two cells say the same: a code one file holds as text and another as a number is one code, and a
+ * list of nothing but a value is that value.
+ * @param a - One cell.
+ * @param b - The other.
+ * @returns True when they do.
+ */
+export function sameCell(a: Value | undefined, b: Value | undefined): boolean {
+    const many = (v: Value | undefined): v is readonly CellValue[] => Array.isArray(v);
+    const all = (list: readonly CellValue[], one: Value | undefined): boolean =>
+        list.length > 0 && list.every((each) => sameCell(each, one));
+    if (many(a) && !many(b)) {
+        return all(a, b);
+    }
+    if (many(b) && !many(a)) {
+        return all(b, a);
+    }
+    return a === b || (!Array.isArray(a) && typeof a !== typeof b && String(a) === String(b));
+}
+
+/**
+ * The node rows of a source a node is, not those only naming it.
+ * @param n - The node.
+ * @param source - The source.
+ * @returns What touched it.
+ */
+export function ownTouches(n: BuiltNode, source: string): BuiltNode["touch"] {
+    return n.touch.filter((t) => t.source === source && t.table === "nodes" && t.valued !== true);
+}
+
+// Whether a step leaves a row out.
+function leftOut(s: Step, r: Row): boolean {
+    return (s.except !== undefined && listed(s.except, r)) || (s.rows !== undefined && !listed(s.rows, r));
+}
+
+// What an edge linking nodes that share a value says of its direction.
+function linked(step: Step): Pick<BuiltEdge, "undirected"> {
+    return step.op === "join.edges" && step.link !== undefined ? { undirected: true } : {};
+}
+
+// Whether a row names a node at the target end of a step: its cell holds a value, and neither the
+// value nor the row is left out.
+function makesNode(s: EdgesStep, r: Row): boolean {
+    const { target } = s.read;
+    const out = s.except !== undefined && s.except.column !== target && listed(s.except, r);
+    if (target === undefined || out || (s.rows !== undefined && !listed(s.rows, r))) {
+        return false;
+    }
+    return endCells(s, r, "target").some(
+        (each) => !isEmpty(each[target]) && (s.except?.column !== target || !listed(s.except, each)),
+    );
+}
+
+// The edge an earlier step made that a row folds into (`existing: "merge"`): a row of no type folds
+// into an edge of any type, a typed one only into its own.
+function heldEdge(a: EdgeArgs, type: string | null): BuiltEdge | undefined {
+    return a.held?.byPair.get(`${a.from.id}\u0001${a.to.id}`)?.find((e) => type === null || e.type === type);
+}
+
+// The columns of a step reading both ends.
+function bothEnds(rd: EdgesStep["read"]): { source: string; target: string; edgeId?: string } {
+    return { source: rd.source ?? "", target: rd.target ?? "", edgeId: rd.edgeId };
+}
+
+// The columns a join.edges edge's ends are read from. An end that is the row's own node reads none,
+// and a row whose two ends read one column (a key met by the same column) keeps them apart.
+function endColumns(
+    source: string | undefined,
+    target: string | undefined,
+): { readonly source: string; readonly target: string } {
+    const ends = { source: source ?? "source", target: target ?? "target" };
+    return ends.source === ends.target ? { source: "source", target: "target" } : ends;
 }
 
 function reduceWeight(

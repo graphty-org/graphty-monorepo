@@ -33,6 +33,7 @@ import {
 import { type EdgeLineBatch, stackByDrawOrder } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
+import { FLAT_CAP_LIFT } from "./flatHalo";
 import { FrameRoster } from "./FrameRoster";
 import { MaterialHelper } from "./MaterialHelper";
 import type { MeshCache } from "./MeshCache";
@@ -71,6 +72,8 @@ interface EdgeMeshOptions {
     styleId: string;
     width: number;
     color: string;
+    /** The share of a solid line's width left undrawn down its middle (`JoinedLineOptions.hollow`); default 0. */
+    hollow?: number;
 }
 
 export interface ArrowHeadOptions {
@@ -612,7 +615,7 @@ export class EdgeMesh {
                         scene,
                         widened,
                         style.line?.minScreenWidth,
-                        { fade, opaque },
+                        { fade, opaque, hollow: options.hollow },
                     ),
                 ),
                 scene,
@@ -807,7 +810,7 @@ export class EdgeMesh {
 
         return cache.getPulledBatch(key, () => {
             const mesh = flat
-                ? this.createFlatPulledLine(options, style, scene, leanLine, pattern)
+                ? this.createFlatPulledLine(options, style, scene, leanLine, pattern, curve)
                 : this.createStaticLine(options, style, scene, false, kind, pattern);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
@@ -873,6 +876,7 @@ export class EdgeMesh {
      * @param scene - The scene.
      * @param lean - Whether it draws the lean program (`EDGE_PULLED_LEAN`), as a straight 3D batch does.
      * @param pattern - A dashed or dotted line's pattern, as the 2D joined line draws it (`lineBatch`).
+     * @param curve - Whether it is a curve batch (`EDGE_PULLED_CURVE`), as a 3D one is (#10083).
      * @returns The mesh.
      */
     private static createFlatPulledLine(
@@ -880,7 +884,8 @@ export class EdgeMesh {
         style: EdgeStyleConfig,
         scene: Scene,
         lean: LeanLines,
-        pattern?: JoinedLineOptions["pattern"],
+        pattern: JoinedLineOptions["pattern"] | undefined,
+        curve: boolean,
     ): Mesh {
         return CustomLineRenderer.createJoinedLineMesh(
             {
@@ -891,6 +896,7 @@ export class EdgeMesh {
                 minScreenWidth: style.line?.minScreenWidth,
                 opaque: this.drawsOpaque(style),
                 pulled: true,
+                pulledCurve: curve,
                 pulledLean: lean,
                 pattern,
             },
@@ -986,7 +992,7 @@ export class EdgeMesh {
                 scene,
                 `2d|image|${src}|${String(opacity)}${widthKey}`,
                 () => widened(this.createImageCap(src, opacity, scene), breadth),
-                { scale: length, billboard: false },
+                { scale: length, billboard: false, lift: FLAT_CAP_LIFT },
             );
         }
 
@@ -1039,7 +1045,7 @@ export class EdgeMesh {
                     source.visibility = opacity;
                     return source;
                 },
-                { scale: length, billboard: false },
+                { scale: length, billboard: false, lift: FLAT_CAP_LIFT },
             );
         }
 
@@ -1281,6 +1287,7 @@ export class EdgeMesh {
                 opacity: this.opacityOf(style),
                 widened,
                 minScreenWidth: style.line?.minScreenWidth,
+                hollow: options.hollow,
                 fade: widened ? this.fadeOf(style) : undefined,
                 opaque: this.drawsOpaque(style),
                 pulled: pulled !== false,
@@ -1585,8 +1592,9 @@ export class EdgeMesh {
 
             // A vee's line runs on under it to its notch, half the cap back from its tip: Graphviz strokes a shaft
             // from the notch to the back (arrows.c arrow_type_crow0), Cytoscape.js and vis-network draw the line on
-            // under the vee
+            // under the vee; a hollow vee's line meets its outline at the notch
             case "vee":
+            case "hollow-vee":
                 return {
                     positioningMode: "tip",
                     needsRotation: false,

@@ -16,8 +16,9 @@ import { page, userEvent } from "vitest/browser";
 
 import canary from "../../../../sites/canary.json";
 import { withFeatures } from "../../../test/features";
+import { modeTo2d } from "../../../test/mode-2d";
 import { openSampleFromStart } from "../../../test/open";
-import { screen, waitFor, within } from "../../../test/test-utils";
+import { waitFor } from "../../../test/test-utils";
 
 withFeatures(canary.features);
 
@@ -112,20 +113,6 @@ async function inkedEdges(element: Element, session: GraphSession): Promise<numb
         return a !== undefined && b !== undefined && ink((a.x + b.x) / 2, (a.y + b.y) / 2, 1) > 0;
     });
     return edges.length === 0 ? 0 : inked.length / edges.length;
-}
-
-/**
- * Switch to 2D with the Mode tool, as a reader does.
- * @param session - the session.
- */
-async function modeTo2d(session: GraphSession): Promise<void> {
-    const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-    await userEvent.click(within(toolbar).getByRole("button", { name: /^Mode/ }));
-    const menu = await screen.findByRole("menu", { name: /^Mode/ });
-    await userEvent.click(within(menu).getByRole("menuitemradio", { name: /^2D/ }));
-    await waitFor(() => {
-        assert.equal(session.layout.dimension, "2d");
-    });
 }
 
 describe("drawing with canary's experiments on", () => {

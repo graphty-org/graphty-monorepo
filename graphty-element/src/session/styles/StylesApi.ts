@@ -149,7 +149,7 @@ import type { HistoryCause, SourceElementRef } from "../types";
 import { valueLabelsAt } from "../valueLabels";
 import { type HiddenNotDrawn, hiddenNotDrawn } from "../visibility/VisibilityApi";
 import { beneathAuthored, placementLayers } from "./autoApply";
-import { branchLayers, draftLayers, isStateMark } from "./branchesView";
+import { branchLayers, draftLayers, draftRings, isStateMark } from "./branchesView";
 import { carriedFor, checkCarried, holdCarried } from "./carried";
 import {
     channelDescriptor,
@@ -545,6 +545,11 @@ export interface DraftView {
      * reached. Absent, those nodes keep the base look.
      */
     readonly untouched?: string;
+    /**
+     * While Before shows: the dashed border's color on each node the commit would remove, and each edge
+     * it would remove, both drawn at 0.4 opacity. Absent, they keep the base look.
+     */
+    readonly removed?: string;
     /** `"faint"` draws every element the view does not mark faint; absent or `"plain"`, at the base look. */
     readonly rest?: "faint" | "plain";
     /**
@@ -563,9 +568,9 @@ export interface DraftView {
           };
     /**
      * Colors by step instead of by what the commit does: each listed step's merged nodes get a ring,
-     * its new nodes and edges a dashed border, and its untouched nodes a dotted border, all in the
-     * step's color; `merged`, `new` and `untouched` then draw only what no listed step drew. Read
-     * when the view is shown: show it again after the draft changes.
+     * its new nodes and edges a dashed border, and, with an `untouched` color, its untouched nodes a
+     * dotted border, all in the step's color; `merged`, `new` and `untouched` then draw only what no
+     * listed step drew. Read when the view is shown: show it again after the draft changes.
      */
     readonly steps?: readonly {
         /** The step's place in `draft.steps()`. */
@@ -573,6 +578,44 @@ export interface DraftView {
         /** The step's color, any CSS color. */
         readonly color: string;
     }[];
+    /**
+     * Steps whose merged nodes get a ring of their own, drawn over every other ring: the step's color
+     * from `steps`, else `merged`, at `ring` times the node's size. What the reader is deciding about
+     * then reads apart from what other steps merged. Only a node every focused step that merges a node
+     * merges gets it: in a join of several steps (a watchlist read through the identifiers onto
+     * accounts) a node only some of them reach keeps the merged ring. Absent, no step's ring differs.
+     */
+    readonly focus?: {
+        /** The steps, by their place in `draft.steps()`. */
+        readonly steps: readonly number[];
+        /** The ring's scale, a multiple of the node's size, above 0 (the merged ring is 1.4). */
+        readonly ring: number;
+    };
+    /**
+     * The size on screen each node the commit would add, or remove (drawn while Before shows, with
+     * `removed`), is drawn at, as `node.size` with `node.sizeSpace: "screen"` (a node of size s covers
+     * s / 50 of the view's height), so it stays in sight on a graph framed whole. Absent, such a node
+     * keeps its own size.
+     */
+    readonly newSize?: number;
+}
+
+/**
+ * A ring a draft view draws wider than the merged ring, and how many nodes it is drawn on: what a key beside the
+ * canvas names, one row a kind.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface DraftRing {
+    /**
+     * `"mergedAgain"`: a node two or more of the view's `steps` merge. `"focus"`: a node every step of the view's
+     * `focus` merges, drawn over the other.
+     */
+    readonly kind: "mergedAgain" | "focus";
+    /** The ring's scale, a multiple of the node's size (the merged ring is 1.4). */
+    readonly scale: number;
+    /** The nodes it is drawn on, each counted under the ring drawn on top. */
+    readonly nodes: number;
 }
 
 /**
@@ -612,18 +655,23 @@ export interface StylesApi {
      * Draw a displayed source draft's join preview (`draft.display(true)`, under the `source-steps`
      * experiment): every layer of the stack is suspended (kept, listed, and not an undo step), as a
      * branches view suspends it; a ring is drawn on each node the commit would merge, a dashed
-     * border on each node it would add, and each edge it would add is drawn dashed, read from
-     * `graphty.draft`. The selection ring and the hover mark stay. It shares the one view with
+     * border round a hollow node, in front of the edges and behind every node the graph holds (so the
+     * graph the reader has stays in sight under hundreds of new nodes), on each node it would add, and each edge it
+     * would add is drawn dashed, read from `graphty.draft`; with `steps`, a node two listed steps
+     * merge gets a wider ring; with `removed`, what it would remove is marked while Before shows. The selection ring and the hover mark stay. It shares the one view with
      * `showBranches`: either call replaces the other's view, whose `end()` then does nothing. Not
      * a layer, not saved, and not a branches view (`showingBranches` stays false).
      * Experimental: may change or be removed in a minor release.
      * @param view - The colors.
-     * @returns Ends the view, the stack's picture back in the same repaint.
+     * @returns Ends the view, the stack's picture back in the same repaint; and `rings`, the rings it draws wider
+     *   than the merged ring, read when it is read (empty once the view has ended).
      * @beta
      */
     showDraft(view: DraftView): {
         /** Ends the view, the stack's picture back in the same repaint. */
         end(): void;
+        /** The rings the view draws wider than the merged ring, one a kind, each on at least one node. */
+        readonly rings: readonly DraftRing[];
     };
     /**
      * The draft view drawn now, as it was given, or null: what a key beside the canvas describes.
@@ -1564,6 +1612,8 @@ export interface SessionStylesApi extends StylesApi {
      * @returns The compiled layers, bottom first.
      */
     compiled(): readonly CompiledLayer[];
+    /** Work the shown draft view's layers out again from the draft as it is drawn now, repainting nothing. */
+    refreshDraftView(): void;
     /**
      * Whether the page's own code named this model URL, in a layer it added or updated directly
      * (`styles.add`, `styles.update`). Only such a URL is fetched without the page allowing its
@@ -2389,8 +2439,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                   sources.liftDrawn?.() ?? false,
                   sources.encodingRevision?.() ?? 0,
               ];
+    /**
+     * Run a fresh read with each element state resolved once for it (`SelectorSource.reading`).
+     * @param read - The read.
+     * @returns What it returns.
+     */
+    const reading = <T>(read: () => T): T =>
+        sources.elements.reading === undefined ? read() : sources.elements.reading(read);
     /** A reading of the stack, kept while nothing it reads changes (see `readingCache.ts`). */
-    const kept = createReadingCache(readingToken);
+    const kept = createReadingCache(readingToken, reading);
     /**
      * Counts kept across selection, hover and pin changes, for a layer those states cannot move
      * ({@link pointerFree}): the same token with the state revision that ignores them.
@@ -2401,9 +2458,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return token === null || input === undefined || state === undefined
             ? null
             : [...token.slice(0, 4), input(), state(), ...token.slice(6)];
-    });
+    }, reading);
     /** The selector answers of one moment, kept apart from the readings: a reading asks for them mid-read. */
-    const keptMatches = createReadingCache(readingToken);
+    const keptMatches = createReadingCache(readingToken, reading);
 
     /** One disabled stand-in per element base layer, so a repaint sees the same object each time. */
     const baseStandIns = new WeakMap<CompiledLayer, CompiledLayer>();
@@ -2442,7 +2499,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     /** The branches view drawn now, and the layers it draws. */
     // A draft view (`showDraft`) is held here too, with no branches view to tell.
     let branchesShown: {
-        readonly layers: readonly CompiledLayer[];
+        layers: readonly CompiledLayer[];
         readonly view: BranchesView | null;
         readonly draft?: DraftView;
     } | null = null;
@@ -2795,7 +2852,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param id - The layer.
      * @returns The two counts.
      */
-    const amongDrawn = (id: LayerId): { readonly matched: number; readonly of: number } => {
+    const amongDrawn = (id: LayerId): { readonly matched: number; readonly of: number } =>
+        // Kept as `counts` is: the graphty app reads the legend on every run and style event, and
+        // each read walked every drawn element through the layer's selector (issue #10227).
+        kept(JSON.stringify(["amongDrawn", id, sources.workingGraph?.() === true]), () => walkDrawn(id));
+    /**
+     * The walk behind {@link amongDrawn}.
+     * @param id - The layer.
+     * @returns The two counts.
+     */
+    const walkDrawn = (id: LayerId): { readonly matched: number; readonly of: number } => {
+        drawnCounters.walks++;
         const compiled = byId().get(id);
         const edges = compiled?.layer.target === "edge";
         const drawn = sources.drawn?.() ?? elementsOf(DRAWN);
@@ -2876,27 +2943,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return cut === -1 ? painted : painted.slice(0, cut);
     };
 
-    /**
-     * What a layer selects among the elements drawn: a filter step that hides some of them takes
-     * them out of the count, so a key never counts nodes the drawing does not show.
-     * @param id - The layer.
-     * @returns How many, and out of how many of its kind.
-     */
-    const selectsAmongDrawn = (id: LayerId): { count: number; of: number } => {
-        const whole = sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope();
-        const compiled = byId().get(id);
-        const edges = compiled?.layer.target === "edge";
-        const drawn = sources.drawn?.() ?? elementsOf(DRAWN);
-        const test = compiled?.selector.test ?? null;
-        let count = 0;
-        for (const index of edges ? drawn.edges : drawn.nodes) {
-            if (test === null || test(index)) {
-                count++;
-            }
-        }
-        return { count, of: edges ? whole.edgeCount : whole.nodeCount };
-    };
-
     /** What a legend is read from. */
     const legendSources: LegendSources = {
         // The stack's own layers: a branches view's stand-ins are not layers and never reach a key.
@@ -2919,8 +2965,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const { matched, of } = amongDrawn(id);
             return { count: matched, of: edges ? whole.edgeCount : whole.nodeCount, visible: of };
         },
-        reach: (id, channel) => valueReach(id, channel, elementsOf(WHOLE_GRAPH), countSources()),
-        carried: (id, path) => categoryCounts(id, path, WHOLE_GRAPH),
+        reach: (id, channel) =>
+            kept(JSON.stringify(["reach", id, channel]), () =>
+                valueReach(id, channel, elementsOf(WHOLE_GRAPH), countSources()),
+            ),
+        carried: (id, path) => kept(JSON.stringify(["carried", id, path]), () => categoryCounts(id, path, WHOLE_GRAPH)),
         // With the working graph on, a row is a category some shown element of the layer carries.
         shown: (id, channel) => {
             const binding = byId().get(id)?.layer.encode?.[channel];
@@ -4924,11 +4973,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         showDraft(view: DraftView): {
             /** Ends the view, the stack's picture back in the same repaint. */
             end(): void;
+            /** The rings the view draws wider than the merged ring. */
+            readonly rings: readonly DraftRing[];
         } {
             const layers = draftLayers(view, current(), check, sources.draftIds);
             const replaced = branchesShown?.view ?? null;
             const before = painting(current());
-            const shown = { layers, view: null, draft: Object.freeze({ ...view }) };
+            const draft = Object.freeze({ ...view });
+            const shown = { layers, view: null, draft };
             branchesShown = shown;
             shownKeys = [];
             if (replaced !== null) {
@@ -4949,7 +5001,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     branchesShown = null;
                     repaintBetween(drawn, painting(current()));
                 },
+                get rings(): readonly DraftRing[] {
+                    return branchesShown === shown ? draftRings(draft, sources.draftIds) : [];
+                },
             };
+        },
+
+        refreshDraftView(): void {
+            if (branchesShown?.draft !== undefined) {
+                branchesShown.layers = draftLayers(branchesShown.draft, current(), check, sources.draftIds);
+            }
         },
 
         get showingBranches(): boolean {
@@ -5740,7 +5801,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         drawnCount(id: LayerId): number {
-            return selectsAmongDrawn(id).count;
+            return amongDrawn(id).matched;
         },
 
         drawnValues(channel: Channel): readonly DrawnValue[] {
@@ -5900,6 +5961,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
  * out by them.
  */
 export const GROUP_OUTLINE_CAP = 32;
+
+/** Work the legend's reading of what a layer selects among the drawn elements did, for tests to count. */
+export const drawnCounters = {
+    /** Walks of the drawn elements through one layer's selector. */
+    walks: 0,
+};
 
 /** A group's key: its `groupBy` value, or null for a use drawing one outline. */
 export type GroupKey = string | number | boolean | null;

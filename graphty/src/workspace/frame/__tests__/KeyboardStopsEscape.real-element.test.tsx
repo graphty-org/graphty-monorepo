@@ -68,7 +68,7 @@ describe("Keyboard stops and Escape (real element)", () => {
         await openGraph();
         // Table puts focus in the grid and makes Table the toolbar's roving stop, so Analyze is
         // no Tab stop of its own when Shift+A opens the list.
-        await userEvent.click(within(toolbar()).getByRole("button", { name: "Table" }));
+        await userEvent.click(page.elementLocator(toolbar()).getByRole("button", { name: "Table", exact: true }));
         await waitFor(() => {
             assert.isNotNull(document.activeElement?.closest('[role="grid"]'), focused());
         });
@@ -98,7 +98,9 @@ describe("Keyboard stops and Escape (real element)", () => {
         // itself, so this one would not; the pointer still moves to the heading and the test waits
         // until no tooltip is open, so the Escape below meets the page alone. The theme's tooltips
         // are inaccessible to a role query by default, hence hidden: true.
-        await userEvent.hover(heading);
+        await userEvent.hover(
+            page.elementLocator(inspector).getByRole("heading", { name: new RegExp(String(first.id)) }),
+        );
         await waitFor(() => {
             assert.isNull(screen.queryByRole("tooltip", { hidden: true }), "a tooltip is still open");
         });
@@ -117,7 +119,7 @@ describe("Keyboard stops and Escape (real element)", () => {
                 .map((node) => node.id),
         });
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Picked, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Picked, / }));
         // The Fill line's Color box, a field holding the layer's color.
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
         const box = await within(inspector).findByDisplayValue(/D55E00/i, {});
@@ -129,7 +131,7 @@ describe("Keyboard stops and Escape (real element)", () => {
     it("Escape in the table's grid moves focus to the Table tool", async () => {
         await openGraph();
         const table = within(toolbar()).getByRole("button", { name: "Table" });
-        await userEvent.click(table);
+        await userEvent.click(page.elementLocator(toolbar()).getByRole("button", { name: "Table", exact: true }));
         await waitFor(() => {
             assert.isNotNull(document.activeElement?.closest('[role="grid"]'), focused());
         });
@@ -143,16 +145,22 @@ describe("Keyboard stops and Escape (real element)", () => {
     it("a style switch that cannot change says why on hover", async () => {
         await openGraph();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Picked, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Picked, / }));
         const box = await screen.findByRole("checkbox", { name: "Style nodes" });
         assert.isTrue(box.hasAttribute("disabled") || box.getAttribute("aria-disabled") === "true");
         const label = box.closest(".ws-kind-switch")?.querySelector("label");
         assert.exists(label);
         // The box itself, where a pointer aims first, and then its words.
-        await userEvent.hover(box);
+        await userEvent.hover(page.getByRole("checkbox", { name: "Style nodes", exact: true }));
         await screen.findByRole("tooltip", {});
-        await userEvent.unhover(box);
-        await userEvent.hover(label);
+        await userEvent.unhover(page.getByRole("checkbox", { name: "Style nodes", exact: true }));
+        await userEvent.hover(
+            page
+                .getByCss(".ws-kind-switch")
+                .filter({ has: page.getByRole("checkbox", { name: "Style nodes", exact: true }) })
+                .getByCss("label")
+                .first(),
+        );
         const tip = await screen.findByRole("tooltip", {});
         assert.match(tip.textContent ?? "", /^Stays on: style edges first/);
     });

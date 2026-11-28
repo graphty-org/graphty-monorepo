@@ -4,10 +4,10 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
-import { screen, waitFor, within } from "../../../test/test-utils";
+import { screen, waitFor } from "../../../test/test-utils";
 import { framesUntilClosed, oneStep, openGenerated, openLayer, REPAINTED_NODES } from "./large-graph";
 
 // Every experiment stays off here.
@@ -28,14 +28,14 @@ describe("the selection editor on 50,000 nodes", () => {
             if (row === null) {
                 throw new Error("the Style Nodes... line is drawn");
             }
-            await userEvent.click(row);
+            await userEvent.click(page.getByCss(".sel-rest [data-edit]").first());
             const values = await screen.findByRole("group", { name: "community values" });
             await waitFor(() => {
                 assert.isTrue(session.styles.showingBranches);
                 assert.isNull(document.querySelector(".sel-ws-head [data-drawing]"));
             });
             const count = document.querySelector(".sel-ws-head .sel-count")?.textContent ?? null;
-            await userEvent.click(within(values).getAllByRole("checkbox")[0]);
+            await userEvent.click(page.elementLocator(values).getByRole("checkbox").nth(0));
             await waitFor(() => {
                 assert.notStrictEqual(document.querySelector(".sel-ws-head .sel-count")?.textContent ?? null, count);
                 assert.isNull(document.querySelector(".sel-ws-head [data-drawing]"));
@@ -46,7 +46,7 @@ describe("the selection editor on 50,000 nodes", () => {
             }
             const closing = await framesUntilClosed(() =>
                 // A button's name may carry its key after its word.
-                userEvent.click(within(ws).getByRole("button", { name: new RegExp(`^${button}`) })),
+                userEvent.click(page.elementLocator(ws).getByRole("button", { name: new RegExp(`^${button}`) })),
             );
             assert.strictEqual(
                 closing.quiet,

@@ -13,6 +13,16 @@ const DECLARED = new WeakMap<object, readonly NodeId[]>();
  * @param snapshot - The imported graph.
  */
 export function declarePins(reader: object, snapshot: GraphSnapshot): void {
+    DECLARED.set(reader, fixedIdsOf(snapshot));
+}
+
+/**
+ * The nodes a snapshot's `fixed` column marks: a file's, or a sample dataset's, which loads with no
+ * reader parsing it.
+ * @param snapshot - The graph.
+ * @returns Their ids; empty when it marks none.
+ */
+export function fixedIdsOf(snapshot: GraphSnapshot): readonly NodeId[] {
     const column = snapshot.nodes.byRole("fixed");
     const ids: NodeId[] = [];
     for (let row = 0; column !== null && row < snapshot.nodeCount; row++) {
@@ -21,7 +31,7 @@ export function declarePins(reader: object, snapshot: GraphSnapshot): void {
         }
     }
 
-    DECLARED.set(reader, Object.freeze(ids));
+    return Object.freeze(ids);
 }
 
 /**

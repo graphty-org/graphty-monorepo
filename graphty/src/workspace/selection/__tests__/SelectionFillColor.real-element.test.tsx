@@ -1,0 +1,99 @@
+/**
+ * The selection workspace's empty Fill color box on the REAL graphty-element and Les Miserables,
+ * driven by real clicks and keys: it says what it takes, and its picker stays open over the first
+ * pick.
+ */
+
+// Registers the real <graphty-element>, as main.tsx does.
+import "@graphty/graphty-element";
+
+import type { GraphSession, UnionLeaf } from "@graphty/graphty-element/session";
+import { assert, describe, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
+
+import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../../test/features";
+import { render, screen, waitFor } from "../../../test/test-utils";
+import { REGISTRATIONS } from "../../registrations";
+import { createWorkspaceStore } from "../../state/store";
+import { Workspace } from "../../Workspace";
+
+// Every experiment stays off here.
+withFeatures([]);
+
+/**
+ * Les Miserables in the workspace.
+ * @param place - the place it opens on.
+ * @returns The session.
+ */
+async function openSample(place: "graph" | "data" = "graph"): Promise<GraphSession> {
+    await page.viewport(1440, 900);
+    const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place });
+    render(<Workspace store={store} registrations={REGISTRATIONS} />);
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
+    if (session === undefined) {
+        throw new Error("the element never came up");
+    }
+    await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+    return session;
+}
+
+/**
+ * A reader's layer on everything, selected in the style tree.
+ * @param session - The session.
+ * @param name - Its name.
+ * @param set - What it sets.
+ * @param where - Its selection, or everything.
+ * @returns The layer's id.
+ */
+async function openLayer(
+    session: GraphSession,
+    name: string,
+    set: Record<string, unknown>,
+    where?: UnionLeaf,
+): Promise<string> {
+    const { id } = await session.styles.add({
+        name,
+        target: "node",
+        selector: where === undefined ? { match: "everything" } : { match: "rule", where },
+        set,
+    });
+    await session.styles.settled();
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await waitFor(() => {
+        assert.isNotNull(document.querySelector(".sel-rest"));
+    });
+    return id;
+}
+
+describe("the empty Fill color box", () => {
+    // Insight 5: an empty box with no cue, whose picker closed on its first click.
+    it("says what it takes, and its picker stays open over the first pick", async () => {
+        const session = await openSample();
+        const id = await openLayer(session, "Unpainted", { "node.size": 2 });
+        await userEvent.click(page.getByRole("button", { name: "Add to node fill", exact: true }));
+        // Fill offers Color and Picture in a menu.
+        await userEvent.click(page.getByRole("menuitem", { name: "Color", exact: true }));
+        const box = await waitFor(() => {
+            const found = document.querySelector<HTMLInputElement>('[data-line="node.color"] input');
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.strictEqual(box?.placeholder, "Pick or type");
+        await userEvent.click(page.getByRole("button", { name: /^Pick node color/ }));
+        const field = await screen.findByTestId("color-picker-saturation");
+        const at = field.getBoundingClientRect();
+        await userEvent.click(page.getByTestId("color-picker-saturation"), {
+            position: { x: at.width * 0.8, y: at.height * 0.3 },
+        });
+        await waitFor(() => {
+            assert.isString(session.styles.get(id)?.set?.["node.color"], "the pick is written");
+        });
+        assert.isNotNull(screen.queryByTestId("color-picker-saturation"), "the picker is still open");
+    });
+});

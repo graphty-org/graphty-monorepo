@@ -126,6 +126,32 @@ describe("TwoDCameraController", () => {
             assert.closeTo(controller.velocity.x, 0.85, 1e-9, "one frame of panDamping");
         });
 
+        test("damps per unit of time: one 50 ms pass coasts as three 16.7 ms passes do", () => {
+            controller.velocity.x = 1;
+            controller.applyInertia(3);
+            const slow = { x: controller.camera.position.x, v: controller.velocity.x };
+
+            controller.camera.position.x = 0;
+            controller.velocity.x = 1;
+            for (let frame = 0; frame < 3; frame++) {
+                controller.applyInertia(1);
+            }
+
+            assert.closeTo(slow.v, controller.velocity.x, 1e-9, "the same speed left");
+            assert.closeTo(slow.x, 3, 1e-9, "the slow pass moved three frames at the speed it had");
+            assert.isAbove(controller.camera.position.x, 0, "the fast passes moved too");
+        });
+
+        test("comes to rest once a frame moves the view under a quarter of a render pixel", () => {
+            // NullEngine renders 512 pixels wide, so a pixel is halfWidth / 256 world units.
+            const pixel = controller.halfWidth / 256;
+            controller.velocity.x = (0.28 * pixel) / 0.85;
+            controller.applyInertia();
+            assert.isAbove(controller.velocity.x, 0, "0.28 px a frame still moves");
+            controller.applyInertia();
+            assert.strictEqual(controller.velocity.x, 0, "0.238 px is under 0.25 px: at rest");
+        });
+
         test("damps the turn velocity by rotateDamping each frame", () => {
             controller.velocity.rotate = 0.1;
 

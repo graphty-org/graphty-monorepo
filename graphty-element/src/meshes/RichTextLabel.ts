@@ -43,7 +43,7 @@ import { drawablePicture } from "./pictureSize";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { hasWords, measureLine, RichTextParser, wrapLines } from "./RichTextParser";
-import { RichTextRenderer } from "./RichTextRenderer";
+import { type CanvasRect, RichTextRenderer } from "./RichTextRenderer";
 import { pixelsPerUnit } from "./screenSize";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "meshes", "label"]);
@@ -252,6 +252,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "wrapUnkerned"
     | "wrapEllipsis"
     | "wrapAnywhere"
+    | "underline"
     | "wrapSpaceCount"
     | "maxLines"
     | "maxLinesEllipsis"
@@ -927,6 +928,7 @@ export class RichTextLabel {
             textOutlineJoin: this.options.textOutlineJoin,
             runAlign: this.options.runAlign,
             lineBox: this.options.lineBox,
+            underline: this.options.underline,
         });
 
         this.pointerRenderer = new PointerRenderer();
@@ -1213,6 +1215,16 @@ export class RichTextLabel {
                 );
             }
         }
+    }
+
+    /**
+     * The lines drawn under the words (`underline`), one per run, in canvas units from the label's top left corner;
+     * empty for a label drawn with none.
+     * @returns Each line's box.
+     * @internal
+     */
+    public get underlines(): readonly CanvasRect[] {
+        return this.renderer.underlines;
     }
 
     /**
@@ -1846,6 +1858,7 @@ export class RichTextLabel {
             ctx.drawImage(picture, box.x, box.y, box.width, box.height);
         }
 
+        this.renderer.underlines.length = 0;
         if (this.tableDrawing === null) {
             this.renderer.drawText(ctx, this.parsedContent, textArea);
         } else {

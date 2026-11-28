@@ -39,7 +39,7 @@ async function sessionNow(): Promise<GraphSession> {
 /** Opens Add filter in the Data place and picks Degree from 5, leaving its workspace open. */
 async function newDegreeFilter(): Promise<void> {
     await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
-    await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+    await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
     // The value picker opens on a new card's arrival, or from its empty Value.
     const empty = await waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws [data-new-step] [data-first-focus]");
@@ -51,7 +51,7 @@ async function newDegreeFilter(): Promise<void> {
     }
     await screen.findByRole("combobox", { name: "Find attributes, results" });
     await userEvent.keyboard("Degree{Enter}");
-    const from = await screen.findByRole<HTMLInputElement>("textbox", { name: "Degree from, number" });
+    const from = page.getByRole("textbox", { name: "Degree from, number", exact: true });
     await userEvent.clear(from);
     await userEvent.type(from, "5{Enter}");
     await screen.findAllByRole("region", { name: "A, 41 of 77 nodes" });
@@ -68,9 +68,9 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
 
         it("reopens the Export dialog on the table it opened on (issue #9659)", async () => {
             const before = await openAutosaved("Les Miserables");
-            await userEvent.click(await screen.findByRole("button", { name: "Table" }));
+            await userEvent.click(page.getByRole("button", { name: "Table", exact: true }));
             const dock = await screen.findByRole("region", { name: "Table" });
-            await userEvent.click(await within(dock).findByRole("tab", { name: /^Edges/ }));
+            await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: /^Edges/ }));
             await userEvent.keyboard("{Control>}e{/Control}");
             const dialog = await screen.findByRole("dialog", { name: "Export" });
             assert.strictEqual(
@@ -97,7 +97,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await session.selection.apply({ edges: [edge.id] });
             (document.activeElement as HTMLElement | null)?.blur();
             await userEvent.keyboard("n");
-            const field = await screen.findByRole("textbox", { name: "Note" });
+            const field = page.getByRole("textbox", { name: "Note", exact: true });
             await userEvent.type(field, "Check this tie");
             const about = (): string => document.querySelector(".nt-editor")?.textContent ?? "";
             const chips = about();
@@ -111,7 +111,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 assert.strictEqual(about(), chips, "the note is still about the same edge");
             });
             const reopened = await sessionNow();
-            await userEvent.click(screen.getByRole("button", { name: "Save note" }));
+            await userEvent.click(page.getByRole("button", { name: "Save note", exact: true }));
             await waitFor(() => {
                 const [note] = reopened.notes.list();
                 assert.isDefined(note);
@@ -124,7 +124,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
 
         it("reopens the project name being edited (issue #9662)", async () => {
             const before = await openAutosaved("Les Miserables");
-            await userEvent.click(await screen.findByRole("button", { name: /^Project: / }));
+            await userEvent.click(page.getByRole("button", { name: /^Project: / }));
             await screen.findByRole("textbox", { name: "Project name" });
 
             const after = await reload(before, { lostSession });
@@ -143,7 +143,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             });
             await session.styles.settled();
             const tree = await screen.findByRole("tree", { name: "Style layers" });
-            await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Busy, / }));
+            await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Busy, / }));
             await userEvent.keyboard("{F2}");
             await screen.findByRole("textbox", { name: "Layer name" });
 
@@ -158,7 +158,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await newDegreeFilter();
             const ws = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(ws);
-            await userEvent.click(within(ws).getByRole("button", { name: /, rename$/ }));
+            await userEvent.click(page.elementLocator(ws).getByRole("button", { name: /, rename$/ }));
             await within(ws).findByRole("textbox", { name: /^Rename / });
 
             const after = await reload(before, { lostSession });
@@ -176,13 +176,13 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await newDegreeFilter();
             const ws = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(ws);
-            await userEvent.click(within(ws).getByRole("button", { name: /^Done/ }));
+            await userEvent.click(page.elementLocator(ws).getByRole("button", { name: /^Done/ }));
             await waitFor(() => {
                 assert.lengthOf(session.visibility.conditions, 1, "Done writes the filter");
                 assert.isNull(document.querySelector(".sel-ws"), "the workspace is closed");
             });
-            await userEvent.click(await screen.findByRole("button", { name: "More" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: /^Rename/ }));
+            await userEvent.click(page.getByRole("button", { name: "More", exact: true }));
+            await userEvent.click(page.getByRole("menuitem", { name: /^Rename/ }));
             await screen.findByRole("textbox", { name: /^Rename / });
 
             const after = await reload(before, { lostSession });

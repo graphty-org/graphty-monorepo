@@ -19,6 +19,7 @@ import {
     type Sample,
     SHAPE_CLASS,
     textOf,
+    widthToSpacing,
 } from "../../../graph-io/test/programs/program-file-facts";
 
 /** Where a label is drawn round its node. */
@@ -76,20 +77,6 @@ export const EXPECTED: Readonly<Record<string, Expected>> = {
     // Pajek draws a label beside its vertex, at the default label angle (0, to the right)
     pajek: { labelPositions: { right: 111 } },
 };
-
-/**
- * The median width of the visible nodes on screen over the median distance from one to its nearest neighbor.
- * @param nodes - the drawn nodes
- * @returns the ratio
- */
-export function widthToSpacing(nodes: readonly SceneNode[]): number {
-    const shown = nodes.filter((node) => node.visible);
-    const middle = (values: number[]): number => values.sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
-    const nearest = shown.map((a) =>
-        Math.min(...shown.filter((b) => b !== a).map((b) => Math.hypot(a.x - b.x, a.y - b.y))),
-    );
-    return middle(shown.map((node) => node.w)) / middle(nearest);
-}
 
 /**
  * Checks one drawing of a styled sample against its file.

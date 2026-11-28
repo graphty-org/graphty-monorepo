@@ -4,6 +4,7 @@ import { ActionIcon, Select, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { MEANING_WORDS } from "../analyze/words";
+import { sourceStepsOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { TIME_FIELD_EVENTS, useSessionEvents } from "../sessionEvents";
@@ -14,7 +15,6 @@ import { failWords } from "../table/columns";
 import { designate, unitOf } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import { pickEnd } from "./commands";
-import { FiltersSection } from "./Filters";
 import { TypeGlyphIcon } from "./TypeGlyphIcon";
 import {
     columnChoices,
@@ -34,7 +34,6 @@ import {
     roleHolder,
     ROWS_ARE,
     sidesOf,
-    sourceName,
     tableRoles,
     type TypeGlyph,
     unusedWords,
@@ -473,10 +472,15 @@ function SideGroup({
     const reloadable = source?.reloadable === true && roles !== undefined;
     // `located` is read once a render: it reads every node's values.
     const located = side === "nodes" ? session?.layout.locationColumns() : undefined;
-    const locationOf = (entry: FieldEntry): string | null | undefined =>
-        located === undefined || !LOCATION_ENTRIES.some((each) => each.id === entry.id)
-            ? undefined
-            : (located.kinds[entry.id as keyof typeof located.kinds] ?? null);
+    const locationOf = (entry: FieldEntry): string | null | undefined => {
+        if (located === undefined || !LOCATION_ENTRIES.some((each) => each.id === entry.id)) {
+            return undefined;
+        }
+        // The graph's location, listed under the load whose rows carry its column.
+        const column = located.kinds[entry.id as keyof typeof located.kinds] ?? null;
+        const own = source === undefined || attributes.some((each) => each.kind === kind && each.name === column);
+        return own ? column : null;
+    };
     const holderOf = (entry: FieldEntry): string | null => {
         const location = locationOf(entry);
         if (location !== undefined) {
@@ -641,9 +645,32 @@ function SideGroup({
                     <EntityChip kind={kind}>{formatNumber(count)}</EntityChip>
                 </span>
             </FieldRow>
+            {side === "nodes" ? <RepeatedIds source={source} /> : null}
             {fixed}
             {entries.map(rowOf)}
         </div>
+    );
+}
+
+/**
+ * How many of a source's node rows were left out for repeating an earlier row's key (the node
+ * keeps the first row's values), as graphty-element counts them; nothing when none was.
+ * @param props - Component props
+ * @param props.source - the load
+ * @returns the row, or null
+ */
+function RepeatedIds({ source }: Readonly<{ source: LoadedSource | undefined }>): React.JSX.Element | null {
+    const repeated = source?.rowsLeftOut?.["left-out:repeated-key"] ?? 0;
+    if (repeated === 0) {
+        return null;
+    }
+    return (
+        <FieldRow>
+            <Text size="xs" truncate>
+                Repeated ids
+            </Text>
+            <Text size="xs">{formatNumber(repeated)}</Text>
+        </FieldRow>
     );
 }
 
@@ -742,27 +769,41 @@ function attributesOf(
 }
 
 /**
- * The sides Fields shows: the load's own, or for a graph not loaded from one, each side with
- * columns.
+ * Whether a join of a source's rows brought nodes, however the rows themselves were read.
+ * @param session - the element's session.
+ * @param source - the source.
+ * @returns true when one did.
+ */
+function joinedNodes(session: GraphSession, source: LoadedSource | undefined): boolean {
+    return (
+        source !== undefined &&
+        source.counts.nodes > 0 &&
+        sourceStepsOn(session) &&
+        session.data.steps().some((step) => step.source === source.key && step.op !== "join.add")
+    );
+}
+
+/**
+ * The sides Fields shows: a load's own and always Edges, or for a graph not loaded from one, each
+ * side with columns.
  * @param attributes - `data.attributes()`.
  * @param source - the selected load.
+ * @param broughtNodes - whether a join of the load's rows brought nodes.
  * @returns the sides.
  */
 function sidesShown(
     attributes: ReturnType<GraphSession["data"]["attributes"]>,
     source: LoadedSource | undefined,
+    broughtNodes = false,
 ): FieldSide[] {
-    const own = sidesOf(source);
-    // A graph file's load has both sides, whether or not it carries columns for them (the owner,
-    // 2026-11-07: Edges is always there for College football, whose edges have none).
-    if (own === undefined && source !== undefined) {
-        return ["nodes", "edges"];
+    const sides = ["nodes", "edges"] as const;
+    if (source === undefined) {
+        return sides.filter((side) => attributes.some((a) => a.kind === KIND_OF[side]));
     }
-    return (["nodes", "edges"] as const).filter((side) =>
-        own === undefined
-            ? attributes.some((a) => a.kind === KIND_OF[side]) || tableRoles(source, side) !== undefined
-            : own.includes(side),
-    );
+    // A load always has Edges, whether or not it made any or carries columns for them (the owner,
+    // 2026-11-07: "Edges should always be present"): a joined file makes edges its own rows are not.
+    const own = sidesOf(source);
+    return sides.filter((side) => side === "edges" || own === undefined || own.includes(side) || broughtNodes);
 }
 
 /**
@@ -831,7 +872,7 @@ function GraphRows({
  * @param props.source - the load, or undefined when the graph was not loaded from one
  * @returns the rows
  */
-function SourceFields({
+export function SourceFields({
     session,
     source,
 }: Readonly<{ session: GraphSession; source: LoadedSource | undefined }>): React.JSX.Element {
@@ -849,7 +890,7 @@ function SourceFields({
     };
     const tables = Object.values(source?.mapping?.tables ?? {});
     const ends = source !== undefined && held?.load === source.key ? held : null;
-    const sides = ends === null ? sidesShown(attributes, source) : [];
+    const sides = ends === null ? sidesShown(attributes, source, joinedNodes(session, source)) : [];
     // The fixed rows read when the rows load: shown only when this load can be read again here.
     const fixedRows = (side: FieldSide): React.ReactNode[] => {
         const roles = tableRoles(source, side);
@@ -916,7 +957,8 @@ function SourceFields({
             {sides.includes("nodes") ? (
                 <SideGroup
                     side="nodes"
-                    count={source?.counts.nodes ?? totalNodes}
+                    // The nodes its rows supplied: not the ones only its edges' ends made (#10490).
+                    count={source === undefined ? totalNodes : source.counts.nodes - (source.endNodes ?? 0)}
                     source={source}
                     attributes={attributes}
                     fixed={fixedRows("nodes")}
@@ -945,79 +987,19 @@ function SourceFields({
 }
 
 /**
- * The Fields section: one collapsible group per load, named after it (the Style panel's kind
- * groups), the selected load's open and first. Picking another load opens its group and scrolls to
- * it; the reader opens and closes the rest. A graph not loaded from a file shows its fields
- * ungrouped.
- * @param props - Component props
- * @param props.sources - `data.sources()`
- * @param props.selected - the selected load
+ * The Attributes section of a graph not loaded from a file: its fields ungrouped. A loaded graph's
+ * fields are in each source's own entry (`SourceEntry`).
  * @returns the section, or nothing before the element has come up
  */
-export function Fields({
-    sources,
-    selected,
-}: Readonly<{
-    sources: readonly LoadedSource[];
-    selected: LoadedSource | undefined;
-}>): React.JSX.Element | null {
+export function UnloadedFields(): React.JSX.Element | null {
     const { session } = useWorkspace();
-    const held = useWorkspaceState((state) => state.ends);
     useSessionEvents(session, TIME_FIELD_EVENTS);
-    // The groups the reader opened or closed; a group they never touched is open only while its load
-    // is selected. A new pick forgets the reader's choice for that group, so it opens.
-    // on reload: fresh: pointer: groups folded for a look, which a new pick forgets too
-    const [opened, setOpened] = useState<Readonly<Record<string, boolean>>>({});
-    // on reload: fresh: derived: the pick the folds belong to, rebuilt from the kept selection
-    const [openedFor, setOpenedFor] = useState(selected?.key);
-    if (openedFor !== selected?.key) {
-        setOpenedFor(selected?.key);
-        if (selected !== undefined) {
-            setOpened(({ [selected.key]: _picked, ...rest }) => rest);
-        }
-    }
-    const groups = useRef<HTMLDivElement>(null);
-    const sourcesRef = useRef(sources);
-    sourcesRef.current = sources;
-    const drawn = useRef(false);
-    useEffect(() => {
-        // Not on the first drawing: only a new pick scrolls the panel.
-        if (drawn.current) {
-            // The picked load's section, at its own place.
-            const at = sourcesRef.current.findIndex((each) => each.key === selected?.key);
-            groups.current?.children.item(Math.max(at, 0))?.scrollIntoView({ block: "nearest" });
-        }
-        drawn.current = true;
-    }, [selected?.key]);
     if (session === null) {
         return null;
     }
-    const empty = (source: LoadedSource | undefined): boolean =>
-        sidesShown(attributesOf(session, source), source).length === 0 &&
-        !(source !== undefined && held?.load === source.key);
-    if (sources.length === 0) {
-        return (
-            <ControlSection label="Attributes" empty={empty(undefined)}>
-                <SourceFields session={session} source={undefined} />
-            </ControlSection>
-        );
-    }
-    // Each load is a section of its own, holding its Filters, in the Data sources list's order.
     return (
-        <div ref={groups} className="dp-source-sections">
-            {sources.map((source) => (
-                <ControlSection
-                    key={source.key}
-                    label={sourceName(source)}
-                    opened={opened[source.key] ?? source === selected}
-                    onOpenChange={(open) => {
-                        setOpened((was) => ({ ...was, [source.key]: open }));
-                    }}
-                >
-                    <SourceFields session={session} source={source} />
-                    <FiltersSection source={source.key} primary={sources.length === 1} headingLevel={3} />
-                </ControlSection>
-            ))}
-        </div>
+        <ControlSection label="Attributes" empty={sidesShown(attributesOf(session, undefined), undefined).length === 0}>
+            <SourceFields session={session} source={undefined} />
+        </ControlSection>
     );
 }

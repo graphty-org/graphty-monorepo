@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { act, findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
@@ -112,10 +112,10 @@ describe("labels from an attribute (task T10) on the real element", () => {
             throw new Error("the Style tab draws no Nodes group");
         }
         const text = within(nodes).getByRole("group", { name: "Text" });
-        await userEvent.click(within(text).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(page.elementLocator(text).getByRole("button", { name: "Add to node text", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Label(?! at )/ }));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
+        await userEvent.click(page.elementLocator(list).getByRole("option", { name: /^name(,|$)/ }));
 
         await waitFor(() => {
             const binding = readerLayers(session).find((l) => l.target === "node")?.encode?.["node.label"];
@@ -148,7 +148,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
         assert.isNull(command.disabled?.(ctx) ?? null);
         await command.run(ctx);
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
+        await userEvent.click(page.elementLocator(list).getByRole("option", { name: /^name(,|$)/ }));
         await waitFor(() => {
             assert.equal(element.labelOf("1")?.text, "Alpha");
         });
@@ -189,9 +189,10 @@ describe("the Selection row's highlight on the real element", () => {
         });
         assert.equal(session.config.selectionStyle.color.toUpperCase(), "#0077BB", "the halo is left alone");
 
-        const size = within(part("Edges")).getByRole("spinbutton", { name: "Size" });
-        await userEvent.clear(size);
-        await userEvent.type(size, "4{Enter}");
+        const size = (): Locator =>
+            page.elementLocator(part("Edges")).getByRole("spinbutton", { name: "Size", exact: true });
+        await userEvent.clear(size());
+        await userEvent.type(size(), "4{Enter}");
         await waitFor(() => {
             assert.equal(session.config.selectionStyle.edgeScale, 4);
         });

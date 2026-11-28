@@ -19,7 +19,7 @@ import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
 import { blendsRows, viewDepth } from "./instanceRowOrder";
 import type { MeshCache } from "./MeshCache";
-import { NodeMesh, styleOpacity } from "./NodeMesh";
+import { NodeMesh, paintedBodyOpacity } from "./NodeMesh";
 import { attachRowPull, glowRowsInPlace } from "./RowPullPlugin";
 import type { Point2 } from "./shapeOutlines";
 
@@ -140,6 +140,12 @@ export class NodeBatch {
         this.mesh.setEnabled(false);
         if (source.material) {
             attachRowPull(source.material);
+            // The batch draws the rows, so the source itself is first drawn when a row gets a mesh of its own: the
+            // first selection, which paid for that shader's compile (issue #10124). Compile it now, in the load.
+            const subMesh = source.subMeshes?.[0];
+            if (subMesh !== undefined) {
+                source.material.isReadyForSubMesh(source, subMesh, true);
+            }
         }
 
         glowRowsInPlace(this.mesh);
@@ -877,7 +883,7 @@ export class ColumnRow implements RowMeasure {
      * @returns The opacity.
      */
     get paintedOpacity(): number {
-        return styleOpacity(this.paint.style.texture);
+        return paintedBodyOpacity(this.paint.style);
     }
 
     /**

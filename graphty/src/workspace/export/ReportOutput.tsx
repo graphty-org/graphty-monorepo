@@ -19,6 +19,7 @@ import { imageKey } from "../canvas/legendWords";
 import { GLYPHS } from "../glyphs";
 import { runName } from "../runWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useDataVersion } from "../style/useStyleVersion";
 import {
     cameraScreenshotOptions,
     DEFAULT_CAMERA_IMAGE,
@@ -99,7 +100,10 @@ export function ReportOutput({ choices, onChange, onCancel, onDone }: Readonly<R
     const [configs, setConfigs] = useState<readonly ReportConfig[]>(readReportConfigs);
     const [savedName, setSavedName] = useState<string | null>(null);
     const pins = useWorkspaceState((state) => state.reportPins);
-    const [counts] = useState(() => (session === null ? null : sectionCounts(session)));
+    // Counted on each draw, which a data change brings: a dialog a reload reopens is drawn before
+    // the work is back.
+    useDataVersion(session, element);
+    const counts = session === null ? null : sectionCounts(session);
     const pinned = session === null ? [] : pinnedRuns(session, pins);
     const countOf = (id: ReportSection): number | undefined => (id === "pinned" ? pinned.length : counts?.[id]);
     const setNote = (run: string, note: string): void => {

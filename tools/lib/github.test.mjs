@@ -45,3 +45,23 @@ test("githubRequest: JSON, text, 204, errors and the rate-limit floor", async ()
     assert.deepEqual(seen.at(-2), { method: "POST", url: "/a", body: '{"a":1}', auth: "Bearer t" });
     assert.deepEqual(seen.at(-1), { method: "PATCH", url: "/b", body: '{"state":"closed"}', auth: "Bearer t" });
 });
+
+// #10481: the floor is for the hourly core bucket; search's own bucket never holds more than 30
+test("githubRequest: the rate-limit floor reads only the core bucket", async () => {
+    const server = createServer((req, res) => {
+        const resource = new URL(req.url, "http://x").searchParams.get("resource");
+        const headers = { "x-ratelimit-remaining": "30", "content-type": "application/json" };
+        if (resource) headers["x-ratelimit-resource"] = resource;
+        res.writeHead(200, headers).end('{"ok":true}');
+    });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    const opts = { base: `http://127.0.0.1:${server.address().port}`, token: "t", minRateLeft: 300 };
+    try {
+        assert.deepEqual(await githubRequest("GET", "/search/issues?resource=search", undefined, opts), { ok: true });
+        await assert.rejects(githubRequest("GET", "/x?resource=core", undefined, opts), /only 30 API requests left/);
+        // no resource header counts as core
+        await assert.rejects(githubRequest("GET", "/x", undefined, opts), /only 30 API requests left/);
+    } finally {
+        server.close();
+    }
+});

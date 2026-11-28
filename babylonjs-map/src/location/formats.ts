@@ -384,8 +384,8 @@ export function parseColumnValue(value: unknown, format: LocationFormat): LatLon
 
 /**
  * Whether a column can be geohashes: every value is text of one length, at least five
- * characters, in the geohash alphabet, with a letter in it. ZIP codes (digits only) and words
- * (lengths vary) are not.
+ * characters, in the geohash alphabet, with a letter in it, and some value with a letter after a
+ * digit. ZIP codes (digits only), words (lengths vary) and serial numbers (E0001, E0002) are not.
  * @param sample - The column's non-empty values.
  * @returns True when the column may be read as geohashes.
  */
@@ -393,6 +393,7 @@ function geohashColumn(sample: readonly unknown[]): boolean {
     const length = typeof sample[0] === "string" ? sample[0].trim().length : 0;
     return (
         length >= 5 &&
+        sample.some((v) => typeof v === "string" && /\d[a-z]/i.test(v)) &&
         sample.every(
             (v) => typeof v === "string" && v.trim().length === length && GEOHASH.test(v.trim()) && /[a-z]/i.test(v),
         )

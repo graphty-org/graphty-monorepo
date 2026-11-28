@@ -3,12 +3,11 @@ import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { HighlightLayer } from "@babylonjs/core/Layers/highlightLayer.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
-import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { Scene } from "@babylonjs/core/scene.js";
 
 import type { NodeStyleConfig } from "../config";
@@ -57,8 +56,19 @@ const OUTLINE_RING_DEPTH_OFFSET = 2;
 /** The smallest node radius a ring is sized for, so a node with no bounds yet still gets one. */
 const MIN_RING_RADIUS = 0.01;
 
-/** Scratch vector, so placing a ring every frame allocates nothing. */
+/** Scratch vectors, so placing a ring every frame allocates nothing. */
 const TO_CAMERA = new Vector3();
+const RING_RIGHT = new Vector3();
+const RING_UP = new Vector3();
+const NODE_AXES = [new Vector3(), new Vector3(), new Vector3()] as const;
+
+/** What a ring keeps between frames: its node's half-extents, and the world matrix it is drawn with. */
+interface OutlineRingMetadata {
+    outlineExtent: Vector3;
+    /** How far the node's border and outer border reach past its fill, in the fill's own units. */
+    borderReach: () => number;
+    world: Matrix;
+}
 
 /**
  * The narrowest and the widest a glow is spread, as multiples of {@link GLOW_SPREAD}. The blur
@@ -254,16 +264,20 @@ export class NodeEffects {
      * ONE SOURCE MESH PER OUTLINE COLOR AND WIDTH, cached in the mesh cache, and one instance of it per
      * outlined node. The instance is a CHILD of the node's mesh, so it moves, hides and is
      * disposed with it (a restyle that rebuilds the mesh takes the old ring with it, and this is
-     * called again for the new mesh). Its scaling is the node's own largest half-extent, and the
-     * node mesh's scaling and the graph root's carry through the parent link.
+     * called again for the new mesh). followCamera sets its world matrix from the node's own
+     * half-extents and world matrix, so the node mesh's scaling and the graph root's carry through.
      * @param mesh - The node's mesh, normally an InstancedMesh from MeshCache.
      * @param effect - The effect configuration from the node style.
      * @param cache - The mesh cache the ring's source mesh is kept in.
+     * @param borderReach - How far the node's border and outer border reach past its fill, in the
+     * fill's own units, read every frame (a screen-pixel border changes with the zoom); the ring
+     * starts there, so it never covers them (#10426).
      */
     static applyOutlineEffect(
         mesh: AbstractMesh,
         effect: NodeStyleConfig["effect"] | undefined,
         cache: MeshCache,
+        borderReach: () => number = () => 0,
     ): void {
         const existing = mesh.getChildMeshes(true).find((child) => child.name.startsWith(OUTLINE_RING_PREFIX));
 
@@ -303,7 +317,17 @@ export class NodeEffects {
         }
 
         const extent = mesh.getBoundingInfo().boundingBox.extendSize;
-        ring.metadata = { outlineRadius: Math.max(extent.x, extent.y, extent.z, MIN_RING_RADIUS) };
+        const kept = ring.metadata as Partial<OutlineRingMetadata> | null;
+        const metadata: OutlineRingMetadata = {
+            outlineExtent: new Vector3(
+                Math.max(extent.x, MIN_RING_RADIUS),
+                Math.max(extent.y, MIN_RING_RADIUS),
+                Math.max(extent.z, MIN_RING_RADIUS),
+            ),
+            world: kept?.world ?? new Matrix(),
+            borderReach,
+        };
+        ring.metadata = metadata;
         const camera = scene.activeCamera;
         if (camera) {
             this.followCamera(ring, camera);
@@ -311,17 +335,24 @@ export class NodeEffects {
     }
 
     /**
-     * Place a node's ring for one camera, before that camera draws: on the line from the node's
-     * center to the camera, {@link OUTLINE_RING_LIFT} node radii toward it, and sized to the cone
-     * of sight lines that graze the node, so its inner edge lies on the node's visible edge.
+     * Place a node's ring for one camera, before that camera draws: square to the line of sight to
+     * the node, in front of its center by its depth toward the camera, and stretched along the
+     * screen's two axes to the node's own half-width and half-height as seen from there, so its
+     * inner edge lies on the node's visible edge whatever the node's shape.
      *
-     * WHY EVERY FRAME. Under perspective a node's visible edge is where that cone meets it, and the
-     * cone depends on how far away and in which direction the camera is. The ring used to be a
-     * billboard turned with the camera's rotation, lifted along the view axis and sized once for a
-     * node straight ahead: for a node off to the side the lift carried the ring further out than
-     * the node, and as the graph turned a node toward the side of the view a gap opened between
-     * the node and its ring (`test/browser/node-outline-perspective.test.ts`). An orthographic
-     * camera has no cone: the ring is the node's own radius, lifted along the view axis, as before.
+     * WHY AN ELLIPSE PER AXIS (#10406). The ring was a circle of the node's LONGEST half-extent, so
+     * around a node that is not round (a capsule, half as wide as it is tall) the ring met the node
+     * at its long ends and stood off it at its short sides (`test/browser/node-outline-follows-shape.test.ts`).
+     * The width and height on screen are the node's bounding ellipsoid measured along the screen's axes,
+     * from the node's world matrix, so a node scaled unequally per axis is measured as drawn.
+     *
+     * WHY EVERY FRAME. Under perspective a node's visible edge is where the cone of sight lines that
+     * graze it meets it, and the cone depends on how far away and in which direction the camera is.
+     * A ring placed for a node straight ahead opened a gap for a node off to the side
+     * (`test/browser/node-outline-perspective.test.ts`). An orthographic camera has no cone.
+     *
+     * THE WORLD MATRIX IS SET DIRECTLY, not through a billboard: a billboard keeps its parent's
+     * scale along the parent's axes, which are not the screen's.
      *
      * Cost: a few vector operations per outlined node per camera, no scene search.
      * @param ring - The node's ring, a child of the node's mesh.
@@ -329,38 +360,78 @@ export class NodeEffects {
      */
     private static followCamera(ring: AbstractMesh, camera: Camera): void {
         const node = ring.parent;
-        const radius = (ring.metadata as { outlineRadius?: number } | null)?.outlineRadius;
-        if (!(node instanceof AbstractMesh) || radius === undefined) {
+        const metadata = ring.metadata as Partial<OutlineRingMetadata> | null;
+        const extent = metadata?.outlineExtent;
+        const world = metadata?.world;
+        if (!(node instanceof AbstractMesh) || extent === undefined || world === undefined) {
             return;
         }
 
+        // THE RING STARTS PAST THE BORDER (#10426). It is drawn in front of the node, so sized from
+        // the fill alone it covered the border and outer border (separate meshes reaching further
+        // out). With a border, its inner edge is the border's outer edge rather than a little inside
+        // the fill's, so nothing the node draws is under it.
+        const border = metadata?.borderReach?.() ?? 0;
+        const grow = (e: number): number => (border > 0 ? (e + border) / OUTLINE_RING_INNER : e);
         const { m } = node.computeWorldMatrix();
-        // The node's world scale; a node is scaled the same along every axis.
-        const scale = Math.hypot(m[0], m[1], m[2]) || 1;
-        const r = radius * scale;
-        const lift = OUTLINE_RING_LIFT * r;
-        const toCamera = TO_CAMERA;
-        let seen = r;
+        // The node's half-extents as world vectors: each local axis's image, times its half-extent.
+        NODE_AXES[0].set(m[0], m[1], m[2]).scaleInPlace(grow(extent.x));
+        NODE_AXES[1].set(m[4], m[5], m[6]).scaleInPlace(grow(extent.y));
+        NODE_AXES[2].set(m[8], m[9], m[10]).scaleInPlace(grow(extent.z));
+        // How far the node reaches along a world direction, taken as the ellipsoid in its bounding
+        // box: exact for a sphere, capsule or ellipse, and inside a box's corners as a circle was.
+        // The box itself would reach up to 1.7 times a sphere's radius along a slanted line of sight.
+        const reach = (u: Vector3): number =>
+            Math.hypot(Vector3.Dot(u, NODE_AXES[0]), Vector3.Dot(u, NODE_AXES[1]), Vector3.Dot(u, NODE_AXES[2]));
 
+        const center = node.getAbsolutePosition();
+        const toCamera = TO_CAMERA;
+        const right = RING_RIGHT;
+        const up = RING_UP;
+        camera.getDirectionToRef(Vector3.Up(), up);
+        let distance = Infinity;
         if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
-            ring.billboardMode = TransformNode.BILLBOARDMODE_ALL;
             camera.getDirectionToRef(Vector3.Forward(camera.getScene().useRightHandedSystem), toCamera);
             toCamera.scaleInPlace(-1);
         } else {
-            // Turned toward the camera's POSITION, not its rotation, so the ring is square to the
-            // line of sight to this node wherever it is in the view.
-            ring.billboardMode = TransformNode.BILLBOARDMODE_ALL | TransformNode.BILLBOARDMODE_USE_POSITION;
-            camera.globalPosition.subtractToRef(node.getAbsolutePosition(), toCamera);
-            const distance = toCamera.length();
+            camera.globalPosition.subtractToRef(center, toCamera);
+            distance = toCamera.length();
             toCamera.scaleInPlace(1 / (distance || 1));
-            // The cone's radius at the ring's distance from the camera.
-            seen = (Math.max(distance - lift, 0) * r) / Math.sqrt(Math.max(distance * distance - r * r, r * r * 1e-6));
         }
+        // Square to the line of sight, kept upright with the camera.
+        Vector3.CrossToRef(up, toCamera, right);
+        right.normalize();
+        Vector3.CrossToRef(toCamera, right, up);
 
-        // The billboard keeps the parent's scale and position but not its rotation, so the
-        // position is a world direction in the parent's units.
-        toCamera.scaleToRef(lift / scale, ring.position);
-        ring.scaling.setAll(seen / scale);
+        const lift = OUTLINE_RING_LIFT * reach(toCamera);
+        // The cone's radius at the ring's distance from the camera, for a node of half-size h.
+        const seen = (h: number): number =>
+            Number.isFinite(distance)
+                ? (Math.max(distance - lift, 0) * h) / Math.sqrt(Math.max(distance * distance - h * h, h * h * 1e-6))
+                : h;
+        const sx = seen(Math.max(reach(right), MIN_RING_RADIUS));
+        const sy = seen(Math.max(reach(up), MIN_RING_RADIUS));
+
+        Matrix.FromValuesToRef(
+            right.x * sx,
+            right.y * sx,
+            right.z * sx,
+            0,
+            up.x * sy,
+            up.y * sy,
+            up.z * sy,
+            0,
+            toCamera.x,
+            toCamera.y,
+            toCamera.z,
+            0,
+            center.x + toCamera.x * lift,
+            center.y + toCamera.y * lift,
+            center.z + toCamera.z * lift,
+            1,
+            world,
+        );
+        ring.freezeWorldMatrix(world);
     }
 
     /**

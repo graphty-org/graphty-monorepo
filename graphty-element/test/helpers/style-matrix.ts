@@ -867,9 +867,12 @@ function nearestOn(edge: Edge2, u: number, v: number): number {
  * @param u - Plane u.
  * @param v - Plane v.
  * @param step - How far to slide, in plane units.
+ * @param within - How little the nearest point may move for a corner (default `step`). Round a convex curve it moves
+ *     less than `step` too (the curve's radius over the point's distance from its center), so a test that must not
+ *     take a curve for a corner asks for no more than the edge's own pixel quantization.
  * @returns True in a corner's wedge.
  */
-export function pastCorner(edge: Edge2, u: number, v: number, step: number): boolean {
+export function pastCorner(edge: Edge2, u: number, v: number, step: number, within = step): boolean {
     const i = nearestOn(edge, u, v);
     const length = i < 0 ? 0 : Math.hypot(u - edge.u[i], v - edge.v[i]);
     if (length === 0) {
@@ -878,7 +881,7 @@ export function pastCorner(edge: Edge2, u: number, v: number, step: number): boo
     const [tu, tv] = [(-(v - edge.v[i]) / length) * step, ((u - edge.u[i]) / length) * step];
     const a = nearestOn(edge, u + tu, v + tv);
     const b = nearestOn(edge, u - tu, v - tv);
-    return Math.hypot(edge.u[a] - edge.u[b], edge.v[a] - edge.v[b]) < step;
+    return Math.hypot(edge.u[a] - edge.u[b], edge.v[a] - edge.v[b]) < within;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1213,6 +1216,17 @@ export interface NodeFrames {
      * by the inset over sin(corner / 2).
      */
     sharpestCorner?: number;
+    /**
+     * The drawn fill mesh's convex hull in plane units (of {@link NodeFrames.plane}), empty or unset when there is
+     * none. A ring too thin in the plane's thinnest direction to hold a pure pixel everywhere still holds one on a
+     * ray leaving through a side the plane stretches enough: the hull's side gives the band's direction there.
+     */
+    fillHull?: readonly P2[];
+    /**
+     * The outline's convex hull in plane units when the drawn fill mesh is the outline (a solid in 3D, whose ring is
+     * drawn over its plain fill's edge); unset where the fill is drawn in from it.
+     */
+    outlineHull?: readonly P2[];
 }
 
 /** The fewest rays a median is taken over: fewer, a plate's or ring's few mitred tips would be its reading. */
@@ -1427,13 +1441,25 @@ export function measureNode(
     // a band narrower than SEEN_BAND_PX across in the plane's thinnest direction (a flat slab seen near edge-on) may
     // hold no pure pixel on a ray, so nothing about it is read there
     numbers.borderAcrossPx = borderWorld * ppu.min;
+    const wide = borderWorld * ppu.min >= SEEN_BAND_PX;
+    // A ring narrower than that everywhere is still SEEN_BAND_PX across where it runs along a side the plane
+    // stretches enough: on a ray leaving the drawn fill through such a side of its hull, every pixel cannot be a
+    // blend, so a ray showing none of the ring there is bare. Elsewhere (a hollow the hull bridges, a fill shifted
+    // off its center) nothing about it can be read.
+    const fillHull = frames.fillHull ?? [];
+    const seeable = (i: number, fillEnd: number): boolean =>
+        wide ||
+        (!shifted &&
+            fillHull.length > 2 &&
+            bandAcrossPx(plane, fillHull, angles[i], fillEnd, borderWorld, edgeTol) >= SEEN_BAND_PX);
 
-    if (s.border !== "none" && !hidden && borderWorld * ppu.min >= SEEN_BAND_PX) {
+    if (s.border !== "none" && !hidden) {
         const gaps: number[] = [];
         const thick: number[] = [];
         const offs: number[] = [];
         const offAngles: number[] = [];
         const corner: boolean[] = [];
+        const fillCorner: boolean[] = [];
         let shiftU = 0;
         let shiftV = 0;
         let shiftCount = 0;
@@ -1453,6 +1479,10 @@ export function measureNode(
             const ring = runs.findIndex((r, k) => k > 0 && r.part === BORDER);
             if (ring < 0 && crossed[i]) {
                 // the crossing tidy ends the ray at took the ring with it (an edge stops at the ring's outer edge)
+                return;
+            }
+            // a ray where the ring may be all blends reads nothing about it, drawn or not
+            if (ring < 0 && !seeable(i, fillEnd)) {
                 return;
             }
             if (ring < 0 || (dashed && next?.part === BG)) {
@@ -1485,6 +1515,10 @@ export function measureNode(
             offs.push(signed(u, v));
             offAngles.push(angles[i]);
             corner.push(pastCorner(plainEdge, u, v, expectedWidth / 2));
+            // where the fill is drawn in, a ray past a corner of the drawn fill reads the distance to that corner,
+            // which the inset pulls back (by up to the inset over sin(half its angle)), not to a side: there the
+            // nearest fill point stays on the corner as the point slides, within the edge points' pixel spacing
+            fillCorner.push(pastCorner(fullFillEdge, u, v, expectedWidth / 2, 2 * edgeTol));
         });
         // A mitred corner reaches past the band by design (up to MITRE_LIMIT widths), and on a shape with many
         // corners those rays can be most of them, so the ring's position is read on the rays that leave it through
@@ -1527,73 +1561,103 @@ export function measureNode(
                 gaps,
             ),
         );
-        if (dashed) {
-            // a dash's square end crosses a ray at a slant, so a dashed ring has no thinnest to read: its median is
-            checks.push(
-                check(
-                    "border-width-median",
-                    "the border is borderWidth size units (or borderScreenWidth pixels) wide",
-                    quantile(thick, 0.5),
-                    expectedWidth,
-                    widthTol,
-                    thick,
-                ),
-            );
+        // Below SEEN_BAND_PX across in the plane's thinnest direction, the ring's width, thickest reach, position and
+        // centering are not read: each puts its two edges within EDGE_PX of where they are, and two edges' slack
+        // (widthTol, 2 EDGE_PX) is then as wide as the ring itself, so a reading could not tell the ring from none
+        // (or a ring off by its own width from one on center). Its mesh is measured instead (meshChecks). What a
+        // seen ring does show is exact at any width: that it is drawn, and that no background parts it from the fill.
+        if (!wide) {
+            numbers.borderSeenRays = drawn + bare;
         } else {
-            // A band of even width with mitred corners is exactly its width thick wherever a ray leaves it through
-            // a side, and thicker (up to MITRE_LIMIT widths) through a corner, so its width is its thinnest reading.
+            if (dashed) {
+                // a dash's square end crosses a ray at a slant, so a dashed ring has no thinnest to read: its median is
+                checks.push(
+                    check(
+                        "border-width-median",
+                        "the border is borderWidth size units (or borderScreenWidth pixels) wide",
+                        quantile(thick, 0.5),
+                        expectedWidth,
+                        widthTol,
+                        thick,
+                    ),
+                );
+            } else {
+                // A band of even width with mitred corners is exactly its width thick wherever a ray leaves it through
+                // a side, and thicker (up to MITRE_LIMIT widths) through a corner, so its width is its thinnest reading.
+                checks.push(
+                    check(
+                        "border-width-thinnest",
+                        "the border is borderWidth size units (or borderScreenWidth pixels) wide at its thinnest",
+                        least(thick),
+                        expectedWidth,
+                        widthTol,
+                        thick,
+                    ),
+                );
+                // Every ray that leaves the band through a side, and meets the drawn fill on a side (not past a corner
+                // of the outline, where a mitre reaches further by design, nor of the fill an inset draws in, whose tip
+                // it pulls back), reads exactly its width, so the median of those rays is the width too, and a ring
+                // right on a few sides and wrong on most fails it where the thinnest alone would pass. An inside ring
+                // has no mitre past the outline, and its outer edge lies on it, where no corner can be told by sliding.
+                checks.push(
+                    check(
+                        "border-width-median",
+                        "the border is borderWidth size units (or borderScreenWidth pixels) wide on its sides",
+                        readMedian(thick.filter((_, j) => !(fraction > 0 && corner[j]) && !fillCorner[j])),
+                        expectedWidth,
+                        widthTol,
+                        thick,
+                    ),
+                );
+            }
+            // The outer part of the ring (fraction of the width past the outline) is mitred to at most MITRE_LIMIT times
+            // its reach. The inner part is the outline moved in by the inset side by side (insetOutline), so the fill's
+            // tip at a corner of angle t retreats inset / sin(t / 2) from the outline's: the thickest a ray can read is
+            // the two added (triangle inequality).
+            const inset = expectedWidth * (1 - fraction);
+            const sharpest = frames.sharpestCorner ?? Math.PI;
+            // where the fill mesh is the outline itself (a solid in 3D, its ring drawn over its edge) the retreat is
+            // the outline's own inset, exact at a corner its tessellation splits into several blunt ones
+            const retreat =
+                inset > 0 && frames.outlineHull !== undefined && frames.outlineHull.length > 2
+                    ? insetRetreat(frames.outlineHull, inset)
+                    : inset / Math.sin(sharpest / 2);
+            const thickest = MITRE_LIMIT * expectedWidth * fraction + (inset > 0 ? retreat : 0);
             checks.push(
-                check(
-                    "border-width-thinnest",
-                    "the border is borderWidth size units (or borderScreenWidth pixels) wide at its thinnest",
-                    least(thick),
-                    expectedWidth,
+                atMost(
+                    "border-width-thickest",
+                    "a mitred corner reaches no more than 3 widths past the outline, and an inset fill's tip retreats no " +
+                        "more than the inset over sin(half its angle)",
+                    most(thick) - thickest,
                     widthTol,
-                    thick,
                 ),
             );
+            checks.push(
+                check(
+                    "border-position",
+                    "borderPosition puts the ring's outer edge width, width/2 or 0 past the fill's own outline",
+                    offMedian,
+                    borderEdge,
+                    widthTol,
+                    offs,
+                ),
+            );
+            // the centroid's shift, in device pixels through the plane's own map (a tilted slab spans fewer pixels a
+            // unit along its foreshortened axis than across it)
+            const [su, sv] =
+                shiftCount === 0 ? [Number.NaN, Number.NaN] : [(2 * shiftU) / shiftCount, (2 * shiftV) / shiftCount];
+            const [x0, y0] = toScreen(plane, 0, 0);
+            const [x1, y1] = toScreen(plane, su, sv);
+            checks.push(
+                atMost(
+                    "border-concentric",
+                    "the ring is centered on the fill (its offset from the outline is the same on opposite sides)",
+                    Math.hypot(x1 - x0, y1 - y0),
+                    1,
+                ),
+            );
+            numbers.borderMedianPx = quantile(thick, 0.5) * ppu.max;
         }
-        // The outer part of the ring (fraction of the width past the outline) is mitred to at most MITRE_LIMIT times
-        // its reach. The inner part is the outline moved in by the inset side by side (insetOutline), so the fill's
-        // tip at a corner of angle t retreats inset / sin(t / 2) from the outline's: the thickest a ray can read is
-        // the two added (triangle inequality).
-        const inset = expectedWidth * (1 - fraction);
-        const sharpest = frames.sharpestCorner ?? Math.PI;
-        const thickest = MITRE_LIMIT * expectedWidth * fraction + (inset > 0 ? inset / Math.sin(sharpest / 2) : 0);
-        checks.push(
-            atMost(
-                "border-width-thickest",
-                "a mitred corner reaches no more than 3 widths past the outline, and an inset fill's tip retreats no " +
-                    "more than the inset over sin(half its angle)",
-                most(thick) - thickest,
-                widthTol,
-            ),
-        );
-        checks.push(
-            check(
-                "border-position",
-                "borderPosition puts the ring's outer edge width, width/2 or 0 past the fill's own outline",
-                offMedian,
-                borderEdge,
-                widthTol,
-                offs,
-            ),
-        );
-        // the centroid's shift, in device pixels through the plane's own map (a tilted slab spans fewer pixels a
-        // unit along its foreshortened axis than across it)
-        const [su, sv] =
-            shiftCount === 0 ? [Number.NaN, Number.NaN] : [(2 * shiftU) / shiftCount, (2 * shiftV) / shiftCount];
-        const [x0, y0] = toScreen(plane, 0, 0);
-        const [x1, y1] = toScreen(plane, su, sv);
-        checks.push(
-            atMost(
-                "border-concentric",
-                "the ring is centered on the fill (its offset from the outline is the same on opposite sides)",
-                Math.hypot(x1 - x0, y1 - y0),
-                1,
-            ),
-        );
-        numbers.borderMedianPx = quantile(thick, 0.5) * ppu.max;
     }
 
     const outerWidth = AMOUNTS.outerWidth * PER_SIZE * sizeFactor;
@@ -2061,8 +2125,19 @@ export type P2 = readonly [number, number];
  * @returns The distance, NaN when the origin is outside it.
  */
 export function rayExit(hull: readonly P2[], angle: number): number {
+    return rayExitSide(hull, angle).at;
+}
+
+/**
+ * Where a ray from the origin leaves a convex polygon, and the side it leaves through.
+ * @param hull - The polygon, in order.
+ * @param angle - The ray's angle.
+ * @returns The distance (NaN when the origin is outside it) and that side's direction.
+ */
+function rayExitSide(hull: readonly P2[], angle: number): { at: number; side: P2 } {
     const [dx, dy] = [Math.cos(angle), Math.sin(angle)];
     let best = Number.NaN;
+    let side: P2 = [0, 0];
     hull.forEach(([x0, y0], i) => {
         const [x1, y1] = hull[(i + 1) % hull.length];
         const [ex, ey] = [x1 - x0, y1 - y0];
@@ -2074,9 +2149,140 @@ export function rayExit(hull: readonly P2[], angle: number): number {
         const s = (x0 * dy - y0 * dx) / den;
         if (t > 0 && s >= -1e-9 && s <= 1 + 1e-9 && !(t <= best)) {
             best = t;
+            side = [ex, ey];
         }
     });
-    return best;
+    return { at: best, side };
+}
+
+/**
+ * How many device pixels across a band `width` plane units wide lies on screen where a ray leaves a convex fill
+ * through one of its sides: the band runs along that side, so its screen width is the distance on screen from the
+ * exit point to the side moved `width` along its normal, taken across the side's own direction on screen (the
+ * plane's local map, perspective included). A ray the drawn fill does not leave where the hull does (a hollow the
+ * hull bridges, another part over the edge) has no side to read: NaN.
+ * @param plane - The plane.
+ * @param hull - The fill's hull in plane units, in order.
+ * @param angle - The ray's angle.
+ * @param exit - Where the ray leaves the drawn fill, in plane units.
+ * @param width - The band's width in plane units.
+ * @param tolerance - How far the drawn exit may be from the hull's, in plane units.
+ * @returns The band's width across on screen, in device pixels, or NaN.
+ */
+export function bandAcrossPx(
+    plane: Plane,
+    hull: readonly P2[],
+    angle: number,
+    exit: number,
+    width: number,
+    tolerance: number,
+): number {
+    const { at: best, side } = rayExitSide(hull, angle);
+    const [dx, dy] = [Math.cos(angle), Math.sin(angle)];
+    if (!(Math.abs(best - exit) <= tolerance)) {
+        return Number.NaN;
+    }
+    const length = Math.hypot(side[0], side[1]);
+    const [tu, tv] = [side[0] / length, side[1] / length];
+    const [pu, pv] = [best * dx, best * dy];
+    const p0 = toScreen(plane, pu, pv);
+    // the normal, either way round: a band's width across is the same on both sides under the local map
+    const p1 = toScreen(plane, pu - tv * width, pv + tu * width);
+    const e = 1e-3;
+    const pt = toScreen(plane, pu + tu * e, pv + tv * e);
+    const [sx, sy] = [pt[0] - p0[0], pt[1] - p0[1]];
+    const along = Math.hypot(sx, sy);
+    return Math.abs((p1[0] - p0[0]) * sy - (p1[1] - p0[1]) * sx) / along;
+}
+
+/**
+ * How far inside the frame a node's drawn extent must stay, in device pixels: its outermost edge pixel is a blend,
+ * and a ray needs one pure background pixel past it to see where the node ends.
+ */
+export const CANVAS_MARGIN_PX = 2;
+
+/**
+ * Whether everything a node draws is on the frame and in front of the camera: each of its meshes' vertices,
+ * projected (x, y in device pixels, z the depth from 0 at the near plane to 1 at the far), at least
+ * {@link CANVAS_MARGIN_PX} inside the frame.
+ * @param points - The projected vertices.
+ * @param width - The frame's width in device pixels.
+ * @param height - Its height.
+ * @returns True when the whole node can be measured.
+ */
+export function drawnOnFrame(
+    points: readonly (readonly [number, number, number])[],
+    width: number,
+    height: number,
+): boolean {
+    const m = CANVAS_MARGIN_PX;
+    return (
+        points.length > 0 &&
+        points.every(([x, y, z]) => z >= 0 && z <= 1 && x >= m && y >= m && x <= width - m && y <= height - m)
+    );
+}
+
+/**
+ * A convex polygon moved in by a distance side by side: the intersection of its sides' half-planes, each moved in
+ * (a side shorter than its corners' retreat drops out, as an inset outline drops it).
+ * @param hull - The polygon, in order (either way round).
+ * @param distance - How far in.
+ * @returns The inset polygon, empty when nothing is left.
+ */
+export function insetPolygon(hull: readonly P2[], distance: number): P2[] {
+    let area = 0;
+    hull.forEach(([x0, y0], i) => {
+        const [x1, y1] = hull[(i + 1) % hull.length];
+        area += x0 * y1 - x1 * y0;
+    });
+    const turn = area > 0 ? 1 : -1;
+    const big = 1e6;
+    let poly: P2[] = [
+        [-big, -big],
+        [big, -big],
+        [big, big],
+        [-big, big],
+    ];
+    hull.forEach(([x0, y0], i) => {
+        const [x1, y1] = hull[(i + 1) % hull.length];
+        const length = Math.hypot(x1 - x0, y1 - y0);
+        if (length === 0) {
+            return;
+        }
+        // the outward normal; keep nx x + ny y <= the side's line moved in
+        const [nx, ny] = [(turn * (y1 - y0)) / length, (-turn * (x1 - x0)) / length];
+        const limit = nx * x0 + ny * y0 - distance;
+        const out: P2[] = [];
+        poly.forEach((p, k) => {
+            const q = poly[(k + 1) % poly.length];
+            const fp = nx * p[0] + ny * p[1] - limit;
+            const fq = nx * q[0] + ny * q[1] - limit;
+            if (fp <= 0) {
+                out.push(p);
+            }
+            if (fp * fq < 0) {
+                const t = fp / (fp - fq);
+                out.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]);
+            }
+        });
+        poly = out;
+    });
+    return poly;
+}
+
+/**
+ * How far an outline's inset (moved in by `inset` side by side) lies from the outline at its farthest: the most
+ * a fill drawn to that inset pulls back from any corner of the outline.
+ * @param outline - The outline, convex, in order.
+ * @param inset - How far in.
+ * @returns The distance; Infinity when the inset leaves nothing.
+ */
+export function insetRetreat(outline: readonly P2[], inset: number): number {
+    const inner = insetPolygon(outline, inset);
+    if (inner.length < 3) {
+        return Infinity;
+    }
+    return Math.max(...outline.map((p) => distanceToPolygon(inner, p)));
 }
 
 /**

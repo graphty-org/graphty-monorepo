@@ -111,6 +111,28 @@ describe("downloads", () => {
         assert.include(body, "grace");
     });
 
+    it("downloadGraph(result) writes the export it is handed, without exporting again", async () => {
+        const { downloads } = watchDownloads();
+        const element = await pioneers();
+        await element.downloadGraph("csv");
+        const bytesOf = async (url: string): Promise<Uint8Array> =>
+            new Uint8Array(await (await fetch(url)).arrayBuffer());
+        const first = await bytesOf(downloads[0].url);
+        const realExport = element.exportGraph.bind(element);
+        let exports = 0;
+        element.exportGraph = async (...args) => {
+            exports++;
+            return realExport(...args);
+        };
+        const result = await element.exportGraph("csv");
+        const returned = await element.downloadGraph(result, { fileName: "copy.csv" });
+        assert.strictEqual(exports, 1, "one export for one file");
+        assert.strictEqual(returned, result);
+        assert.strictEqual(downloads.length, 2);
+        assert.strictEqual(downloads[1].name, "copy.csv");
+        assert.deepEqual(await bytesOf(downloads[1].url), first, "the same bytes as a download that exported itself");
+    });
+
     it("downloadGraph('graphty') leaves dirty unchanged; downloadProject clears it", async () => {
         const { downloads } = watchDownloads();
         const element = await pioneers();

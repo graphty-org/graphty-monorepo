@@ -3745,6 +3745,14 @@ export interface LoadedSource extends DataSourceDescriptor {
      */
     readonly named?: number;
     /**
+     * How many of `counts.nodes` no source's rows hold: nodes it supplied only as an edge end,
+     * such as the node a join adds for a row naming one no file holds (`unmatched: "add"`).
+     * `counts.nodes` minus this is how many it supplied by its rows. Present only under the
+     * source-steps experiment.
+     * @experimental source-steps
+     */
+    readonly endNodes?: number;
+    /**
      * Its rows the build left out, by reason. `"left-out:repeated-key"` counts node rows whose key
      * an earlier row of the source gave: the node keeps the first row's values. Present only under
      * the source-steps experiment.
@@ -8131,10 +8139,9 @@ export interface SessionEventMap {
      * what the gesture did: `"orbit"` turned the view, `"pan"` moved it sideways, `"zoom"` moved
      * it nearer or farther (a wheel, a pinch, the zoom keys).
      *
-     * A gesture's end is defined by the input, never by a timer: a drag or a pinch ends at the
-     * pointer up that ends it; a run of wheel events ends at the first frame in which the camera
-     * comes to rest with no new wheel event since the frame before (wheel events dispatched in one
-     * task are always one gesture); a key gesture ends once the last camera key held is released
+     * A gesture's end is defined by the input: a drag or a pinch ends at the pointer up that ends
+     * it; a run of wheel events ends once the wheel has rested for half a second (a burst of wheel
+     * events is one gesture however the browser spreads it over frames); a key gesture ends once the last camera key held is released
      * and the camera's own inertia has come to rest, and a key pressed before then continues it.
      * Moves the element makes itself (a fit, a glide, `camera.autoRotate`) and calls such as
      * `setCameraState` publish nothing.

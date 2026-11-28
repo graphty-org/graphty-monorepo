@@ -245,6 +245,7 @@ export const EDGE_ARROW_DESCRIPTORS: readonly GlyphDescriptor<EdgeArrowKind>[] =
     ["open-vee", "Open vee", '<path d="M2 12h16 M14 7l8 5-8 5"/>'],
     ["slash", "Slash", '<path d="M2 12h20 M10 7l8 10"/>'],
     ["stem", "Stem", '<path d="M2 12h20"/>'],
+    ["hollow-vee", "Hollow vee", '<path d="M2 12h15"/><path d="M14 7l8 5-8 5 3-5z"/>'],
 ]);
 
 /**

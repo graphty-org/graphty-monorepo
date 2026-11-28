@@ -8,7 +8,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/ai";
+import { MockLlmProvider } from "@graphty/graphty-element/ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
@@ -20,6 +20,7 @@ import { readAssistantChoice, writeAssistantChoice } from "../../assistant-door/
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { link } from "../connection";
+import { scriptEnable } from "./script-enable";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -73,23 +74,6 @@ class ScriptedModel extends MockLlmProvider {
 let model = new ScriptedModel();
 
 /**
- * Every enable reaches the scripted model instead of the network, with the rest of the app's own
- * configuration as it is, a given key included.
- */
-function scriptEnable(): void {
-    const tag = customElements.get("graphty-element") as unknown as {
-        prototype: HTMLElementTagNameMap["graphty-element"];
-    };
-    const real = tag.prototype.enableAiControl;
-    vi.spyOn(tag.prototype, "enableAiControl").mockImplementation(async function enable(
-        this: HTMLElementTagNameMap["graphty-element"],
-        config: AiManagerConfig,
-    ) {
-        await real.call(this, { ...config, providerInstance: model });
-    });
-}
-
-/**
  * The workspace, once its element has reported.
  * @param store - the store to mount with.
  * @returns the store.
@@ -102,7 +86,7 @@ async function open(store = createWorkspaceStore({ project: { name: "Talk", id: 
 
 /** Opens the panel by its rail button. */
 async function openPanel(): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
     await screen.findByRole("region", { name: "Assistant" });
 }
 
@@ -128,18 +112,18 @@ async function say(text: string): Promise<void> {
  * @param model - the model's name.
  */
 async function openModel(model: string): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: "Options" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: `${model}...` }));
+    await userEvent.click(page.getByRole("button", { name: "Options", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: `${model}...`, exact: true }));
 }
 
 /** Sets up Google through the panel's own door, ending in the composer. */
 async function setUpGoogle(): Promise<void> {
     await openPanel();
-    await userEvent.click(await screen.findByRole("button", { name: "AI provider..." }));
+    await userEvent.click(page.getByRole("button", { name: "AI provider...", exact: true }));
     const dialog = await screen.findByRole("dialog", { name: "Settings" });
-    await userEvent.click(await within(dialog).findByLabelText("API key"));
+    await userEvent.click(page.elementLocator(dialog).getByLabelText("API key", { exact: true }));
     await userEvent.keyboard(KEY);
-    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Save", exact: true }));
     await composer();
 }
 
@@ -167,7 +151,7 @@ async function chat(text: string): Promise<void> {
 
 /** Starts a new chat by the header's "+". */
 async function newChat(): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+    await userEvent.click(page.getByRole("button", { name: "New chat", exact: true }));
     await screen.findByRole("button", { name: "Which nodes matter most?" });
 }
 
@@ -200,8 +184,8 @@ async function openList(count: number): Promise<HTMLElement> {
  * @param title - the row's title.
  */
 async function renameByMenu(title: string): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: `${title} menu` }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /^Rename/ }));
+    await userEvent.click(page.getByRole("button", { name: `${title} menu`, exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: /^Rename/ }));
 }
 
 /**
@@ -228,7 +212,7 @@ describe("talking to the Assistant", () => {
             indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
         });
         model = new ScriptedModel();
-        scriptEnable();
+        scriptEnable((config) => ({ ...config, providerInstance: model }));
     });
 
     afterEach(() => {
@@ -251,13 +235,13 @@ describe("talking to the Assistant", () => {
     it("starts the section on Google and its default model, offering neither the mock nor WebLLM", async () => {
         await open();
         await openPanel();
-        await userEvent.click(await screen.findByRole("button", { name: "AI provider..." }));
+        await userEvent.click(page.getByRole("button", { name: "AI provider...", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         const provider = await within(dialog).findByRole("combobox", { name: "Provider" });
         assert.strictEqual((provider as HTMLInputElement).value, "Google");
         const modelField = within(dialog).getByRole("combobox", { name: "Model" });
         assert.strictEqual((modelField as HTMLInputElement).value, "Gemini 3.8 Flash");
-        await userEvent.click(provider);
+        await userEvent.click(page.elementLocator(dialog).getByRole("combobox", { name: "Provider", exact: true }));
         await screen.findByRole("option", { name: "OpenAI" });
         assert.isNull(screen.queryByRole("option", { name: "Mock" }));
         assert.isNull(screen.queryByRole("option", { name: "WebLLM" }));
@@ -266,13 +250,13 @@ describe("talking to the Assistant", () => {
     it("words a key of the wrong shape, on blur and on Save, and does not save it", async () => {
         await open();
         await openPanel();
-        await userEvent.click(await screen.findByRole("button", { name: "AI provider..." }));
+        await userEvent.click(page.getByRole("button", { name: "AI provider...", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
-        await userEvent.click(await within(dialog).findByLabelText("API key"));
+        await userEvent.click(page.elementLocator(dialog).getByLabelText("API key", { exact: true }));
         await userEvent.keyboard("short");
         await userEvent.tab();
         await within(dialog).findByText("This key is too short.");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Save", exact: true }));
         await within(dialog).findByText("This key is too short.");
         assert.isNull(readAssistantChoice());
     });
@@ -287,7 +271,7 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, field);
         });
-        await userEvent.click(screen.getByRole("button", { name: "Options" }));
+        await userEvent.click(page.getByRole("button", { name: "Options", exact: true }));
         await screen.findByRole("menuitem", { name: "Gemini 3.8 Flash..." });
         await userEvent.keyboard("{Escape}");
         await screen.findByRole("button", { name: "Sends to Google" });
@@ -297,7 +281,7 @@ describe("talking to the Assistant", () => {
     it("lists AI provider... in Quick actions, opening the section", async () => {
         await open();
         await userEvent.keyboard("{Control>}k{/Control}");
-        await userEvent.click(await screen.findByRole("option", { name: /^AI provider\.\.\./ }));
+        await userEvent.click(page.getByRole("option", { name: /^AI provider\.\.\./ }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         await within(dialog).findByLabelText("API key");
     });
@@ -306,7 +290,7 @@ describe("talking to the Assistant", () => {
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
         const store = await open();
         await openPanel();
-        await userEvent.click(await screen.findByRole("button", { name: "Which nodes matter most?" }));
+        await userEvent.click(page.getByRole("button", { name: "Which nodes matter most?", exact: true }));
         const field = await composer();
         assert.strictEqual(field.value, "Which nodes matter most?");
         await waitFor(() => {
@@ -385,10 +369,10 @@ describe("talking to the Assistant", () => {
         // A reply that only looked something up says so, and counts no step.
         const steps = await screen.findByRole("button", { name: "Looked something up" });
         assert.strictEqual(steps.getAttribute("aria-expanded"), "false");
-        await userEvent.click(steps);
+        await userEvent.click(page.getByRole("button", { name: "Looked something up", exact: true }));
         // The graph is empty: the summary read says so, in the line and in its Result.
         const step = await screen.findByRole("button", { name: "Read the whole graph: nothing" });
-        await userEvent.click(step);
+        await userEvent.click(page.getByRole("button", { name: "Read the whole graph: nothing", exact: true }));
         const item = step.closest<HTMLElement>("li");
         assert.isNotNull(item);
         await within(item).findByText("Result");
@@ -432,7 +416,7 @@ describe("talking to the Assistant", () => {
         await say("Count and color");
         await screen.findByText("Done.");
         // Two look-ups and one change: only the change counts.
-        await userEvent.click(await screen.findByRole("button", { name: "1 step" }));
+        await userEvent.click(page.getByRole("button", { name: "1 step", exact: true }));
         const turn = screen.getByText("Done.").closest<HTMLElement>(".ws-assistant-turn");
         assert.isNotNull(turn);
         const lines = await waitFor(() => {
@@ -448,7 +432,11 @@ describe("talking to the Assistant", () => {
         assert.strictEqual(lines[2], "Used Catalog");
         // The colored step opens to what it asked for and what came of it, in words.
         const colored = within(turn).getByRole("button", { name: "Colored 3 nodes, in assistant node style" });
-        await userEvent.click(colored);
+        await userEvent.click(
+            page
+                .elementLocator(turn)
+                .getByRole("button", { name: "Colored 3 nodes, in assistant node style", exact: true }),
+        );
         const item = colored.closest<HTMLElement>("li");
         assert.isNotNull(item);
         await within(item).findByText("Asked for");
@@ -486,10 +474,10 @@ describe("talking to the Assistant", () => {
         ];
         await say("How many are even?");
         await screen.findByText("Two are even.");
-        await userEvent.click(await screen.findByRole("button", { name: "Looked something up" }));
+        await userEvent.click(page.getByRole("button", { name: "Looked something up", exact: true }));
         const step = await screen.findByRole("button", { name: /^Found 2 nodes/ });
         assert.strictEqual(step.getAttribute("aria-expanded"), "false");
-        await userEvent.click(step);
+        await userEvent.click(page.getByRole("button", { name: /^Found 2 nodes/ }));
         const item = step.closest<HTMLElement>("li");
         assert.isNotNull(item);
         await within(item).findByText("Asked for");
@@ -502,7 +490,7 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.strictEqual(step.getAttribute("aria-expanded"), "false");
         });
-        await userEvent.click(screen.getByRole("button", { name: "Copy chat" }));
+        await userEvent.click(page.getByRole("button", { name: "Copy chat", exact: true }));
         // The notice shows it, and the status line says it.
         await screen.findAllByText("Chat copied");
         const text = await navigator.clipboard.readText();
@@ -522,10 +510,12 @@ describe("talking to the Assistant", () => {
         const log = await chatLog();
         const reply = within(log).getByText("The reply.");
         assert.strictEqual(getComputedStyle(reply).userSelect, "text");
-        await userEvent.tripleClick(reply);
+        await userEvent.tripleClick(page.elementLocator(log).getByText("The reply.", { exact: true }));
         assert.strictEqual(window.getSelection()?.toString().trim(), "The reply.");
         // The reader's own words select too: a double click takes one word of them.
-        await userEvent.dblClick(within(log).getByText("Hubs please"), { position: { x: 4, y: 4 } });
+        await userEvent.dblClick(page.elementLocator(log).getByText("Hubs please", { exact: true }), {
+            position: { x: 4, y: 4 },
+        });
         assert.strictEqual(window.getSelection()?.toString().trim(), "Hubs");
     });
 
@@ -646,7 +636,7 @@ describe("talking to the Assistant", () => {
         const send = screen.getByRole("button", { name: "Send" });
         assert.strictEqual(send.getAttribute("aria-disabled"), "true");
         // A pointer can still press it: aria-disabled keeps it focusable and draws it dimmed.
-        await userEvent.click(send, { force: true });
+        await userEvent.click(page.getByRole("button", { name: "Send", exact: true }), { force: true });
         assert.strictEqual(model.asked, 0);
 
         await userEvent.keyboard("one{Shift>}{Enter}{/Shift}two");
@@ -664,7 +654,7 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.isTrue(model.held);
         });
-        await userEvent.click(await screen.findByRole("button", { name: "Stop" }));
+        await userEvent.click(page.getByRole("button", { name: "Stop", exact: true }));
         // A stop glyph ends the reply in place of the word.
         await within(screen.getByRole("region", { name: "Chat" })).findByRole("img", { name: "Stopped" });
         assert.notInclude(screen.getByRole("region", { name: "Chat" }).textContent, "Stopped");
@@ -678,7 +668,7 @@ describe("talking to the Assistant", () => {
         });
         const log = screen.getByRole("region", { name: "Chat" });
         assert.notInclude(log.textContent, "Changes taken back", "nothing had changed");
-        await userEvent.click(within(log).getByRole("button", { name: "Send again" }));
+        await userEvent.click(page.elementLocator(log).getByRole("button", { name: "Send again", exact: true }));
         await screen.findByText("The reply.");
     });
 
@@ -735,7 +725,9 @@ describe("talking to the Assistant", () => {
         assert.strictEqual((await composer()).value, "Please answer");
 
         model.clearError();
-        await userEvent.click(within(row.parentElement ?? row).getByRole("button", { name: "Send again" }));
+        await userEvent.click(
+            page.elementLocator(row.parentElement ?? row).getByRole("button", { name: "Send again", exact: true }),
+        );
         await screen.findByText("The reply.");
     });
 
@@ -748,7 +740,7 @@ describe("talking to the Assistant", () => {
         await screen.findByRole("alert");
         model.clearError();
 
-        await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+        await userEvent.click(page.getByRole("button", { name: "New chat", exact: true }));
         await screen.findByRole("button", { name: "Which nodes matter most?" });
         assert.isNull(screen.queryByRole("alert"));
         assert.strictEqual((await composer()).value, "", "the failed words stay with the chat they failed in");
@@ -761,7 +753,9 @@ describe("talking to the Assistant", () => {
         await say("Please answer");
         const row = await screen.findByRole("alert");
         assert.notInclude(row.textContent, "bad key");
-        await userEvent.click(within(row.parentElement ?? row).getByRole("button", { name: "AI provider..." }));
+        await userEvent.click(
+            page.elementLocator(row.parentElement ?? row).getByRole("button", { name: "AI provider...", exact: true }),
+        );
         await screen.findByRole("dialog", { name: "Settings" });
     });
 
@@ -774,7 +768,9 @@ describe("talking to the Assistant", () => {
         const row = await screen.findByRole("alert");
         assert.include(row.textContent, "Could not reach Google: the connection failed or the key was refused.");
         within(row.parentElement ?? row).getByRole("button", { name: "Send again" });
-        await userEvent.click(within(row.parentElement ?? row).getByRole("button", { name: "AI provider..." }));
+        await userEvent.click(
+            page.elementLocator(row.parentElement ?? row).getByRole("button", { name: "AI provider...", exact: true }),
+        );
         await screen.findByRole("dialog", { name: "Settings" });
     });
 
@@ -825,8 +821,8 @@ describe("talking to the Assistant", () => {
         const old = first?.getAiConversation()?.id;
         assert.isDefined(old);
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Back to start", exact: true }));
         await openBy(store, () => pickSample("Florentine families"));
         if (screen.queryByRole("region", { name: "Assistant" }) === null) {
             await openPanel();
@@ -883,15 +879,15 @@ describe("talking to the Assistant", () => {
         await screen.findByRole("region", { name: "Chat" });
 
         await openList(2);
-        await userEvent.click(await screen.findByRole("button", { name: "First talk" }));
+        await userEvent.click(page.getByRole("button", { name: "First talk", exact: true }));
         await within(await chatLog()).findByText("First talk");
         assert.isNull(within(await chatLog()).queryByText("Second talk"));
 
         await openList(2);
-        await userEvent.click(await screen.findByRole("button", { name: "Second talk menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
+        await userEvent.click(page.getByRole("button", { name: "Second talk menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Delete", exact: true }));
         await screen.findByText("Delete this chat?");
-        await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+        await userEvent.click(page.getByRole("button", { name: "Delete", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByText("Second talk"));
         });
@@ -1017,11 +1013,11 @@ describe("talking to the Assistant", () => {
         assert.strictEqual(send.getAttribute("aria-keyshortcuts"), "Enter");
         assert.isBelow(Number(getComputedStyle(send).opacity), 1, "dimmed, not removed");
         const accent = getComputedStyle(send).backgroundColor;
-        await userEvent.hover(send);
+        await userEvent.hover(page.getByRole("button", { name: "Send", exact: true }));
         const tip = await screen.findByRole("tooltip");
         assert.include(tip.textContent, "Send");
         assert.include(tip.textContent, "Enter");
-        await userEvent.unhover(send);
+        await userEvent.unhover(page.getByRole("button", { name: "Send", exact: true }));
 
         model.holdTurn = 0;
         await say("Slow question");
@@ -1125,13 +1121,13 @@ describe("talking to the Assistant", () => {
         await chat("Second talk");
         const list = await openList(2);
 
-        await userEvent.click(within(list).getByRole("button", { name: "Second talk menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
+        await userEvent.click(page.elementLocator(list).getByRole("button", { name: "Second talk menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Delete", exact: true }));
         const keep = await within(list).findByRole("button", { name: "Keep it" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, keep);
         });
-        await userEvent.click(within(list).getByRole("button", { name: "Delete" }));
+        await userEvent.click(page.elementLocator(list).getByRole("button", { name: "Delete", exact: true }));
         const next = await within(list).findByRole("button", { name: "First talk" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, next);
@@ -1145,11 +1141,11 @@ describe("talking to the Assistant", () => {
         assert.isNotNull(element);
         await openModel("Gemini 3.8 Flash");
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
-        await userEvent.click(await within(dialog).findByRole("button", { name: "Forget key" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Forget key", exact: true }));
         await waitFor(() => {
             assert.isNull(readAssistantChoice());
         });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Done", exact: true }));
         await screen.findByRole("button", { name: "AI provider..." });
         assert.isNull(screen.queryByRole("textbox", COMPOSER));
         await screen.findByRole("button", { name: "Local only" });
@@ -1169,17 +1165,19 @@ describe("talking to the Assistant", () => {
         });
         await openModel("Gemini 3.8 Flash");
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
-        await userEvent.click(await within(dialog).findByRole("button", { name: "Forget key" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Forget key", exact: true }));
         await waitFor(() => {
             assert.isNull(readAssistantChoice());
         });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Delete all chats" }));
-        await userEvent.click(await within(dialog).findByRole("button", { name: "Delete all" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Delete all chats", exact: true }),
+        );
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Delete all", exact: true }));
         await within(dialog).findByRole("button", { name: "Delete all chats" });
 
-        await userEvent.click(within(dialog).getByLabelText("API key"));
+        await userEvent.click(page.elementLocator(dialog).getByLabelText("API key", { exact: true }));
         await userEvent.keyboard(KEY);
-        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Save", exact: true }));
         await screen.findByRole("button", { name: "Which nodes matter most?" });
         const list = await document.querySelector("graphty-element")?.listAiConversations();
         assert.deepEqual(list, []);
@@ -1243,7 +1241,7 @@ describe("talking to the Assistant", () => {
             });
         };
         await atFoot();
-        await userEvent.click(screen.getAllByRole("button", { name: "Send again" }).at(-1) as HTMLElement);
+        await userEvent.click(page.getByRole("button", { name: "Send again", exact: true }).last());
         await waitFor(() => {
             assert.strictEqual(model.asked, 3);
         });
@@ -1285,7 +1283,7 @@ describe("talking to the Assistant", () => {
             await waitFor(() => {
                 assert.lengthOf(screen.getAllByRole("button", { name: "Send again" }), 1);
             });
-            await userEvent.click(screen.getByRole("button", { name: "Send again" }));
+            await userEvent.click(page.getByRole("button", { name: "Send again", exact: true }));
             await waitFor(() => {
                 assert.strictEqual(model.asked, sent + 1);
                 assert.lengthOf(screen.getAllByText("Nothing changed."), sent + 1);
@@ -1326,7 +1324,7 @@ describe("talking to the Assistant", () => {
             assert.strictEqual(log.scrollTop, 0);
         });
         await say("Tell me more");
-        await userEvent.click(await screen.findByRole("button", { name: "Jump to newest" }));
+        await userEvent.click(page.getByRole("button", { name: "Jump to newest", exact: true }));
         await waitFor(() => {
             assert.isAbove(log.scrollTop, 0);
         });

@@ -916,11 +916,9 @@ export class DataManager implements Manager {
     init(): Promise<void>;
     get isLoading(): boolean;
     get lastImport(): LoadReport | null;
-    // (undocumented)
     meshCache: MeshCache;
     // @internal
     nodeAtRow(row: number): Node_2 | undefined;
-    // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
     // @internal
     nodeIdAtRow(row: number): NodeIdType | undefined;
@@ -1327,10 +1325,9 @@ export interface EdgeLabelCounts {
     readonly labeled: number;
 }
 
-// @public (undocumented)
+// @public
 export interface EdgePosition {
     bends?: readonly number[];
-    // (undocumented)
     dst: Position;
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
@@ -1343,7 +1340,6 @@ export interface EdgePosition {
         readonly source: readonly [along: number, across: number];
         readonly target: readonly [along: number, across: number];
     };
-    // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];
     xlabelAt?: readonly [along: number, across: number];
@@ -1388,6 +1384,7 @@ export const EdgeStyle: z.ZodObject<{
             "open-vee": "open-vee";
             slash: "slash";
             stem: "stem";
+            "hollow-vee": "hollow-vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1692,6 +1689,7 @@ export const EdgeStyle: z.ZodObject<{
             "open-vee": "open-vee";
             slash: "slash";
             stem: "stem";
+            "hollow-vee": "hollow-vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1996,6 +1994,7 @@ export const EdgeStyle: z.ZodObject<{
             "open-vee": "open-vee";
             slash: "slash";
             stem: "stem";
+            "hollow-vee": "hollow-vee";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -2047,6 +2046,7 @@ export const EdgeStyle: z.ZodObject<{
             "open-vee": "open-vee";
             slash: "slash";
             stem: "stem";
+            "hollow-vee": "hollow-vee";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -3926,7 +3926,7 @@ export class Graphty extends LitElement {
     set directed(value: boolean | "auto" | undefined);
     disableAiControl(): void;
     disconnectedCallback(): void;
-    downloadGraph(format: FormatId, options?: ExportGraphOptions & {
+    downloadGraph(format: FormatId | ExportResult, options?: ExportGraphOptions & {
         readonly fileName?: string;
     }): Promise<ExportResult>;
     downloadProject(options?: ProjectSaveOptions & {
@@ -5911,9 +5911,7 @@ export abstract class LayoutEngine {
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
     static get(type: string, opts?: object): LayoutEngine | null;
     static getClass(type: string): (LayoutEngineClass & LayoutEngineStatics) | null;
-    // (undocumented)
     abstract getEdgePosition(e: Edge): EdgePosition;
-    // (undocumented)
     abstract getNodePosition(n: Node_2): Position;
     getNodeXlabelOffset(_n: Node_2): readonly [right: number, down: number] | undefined;
     static getOptionsForDimension(dimension: 2 | 3): object | null;
@@ -5928,22 +5926,18 @@ export abstract class LayoutEngine {
     static honorsWeights: boolean;
     // @deprecated
     static readonly honoursWeights?: boolean;
-    // (undocumented)
     abstract init(): Promise<void>;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
     isNodeXlabelLeftOut(_n: Node_2): boolean;
-    // (undocumented)
     abstract get isSettled(): boolean;
     // @internal
     protected keepInPublishedBox(n: Node_2 | ElementPositions | undefined, rows: ReadonlySet<number>): void;
     // @internal
     protected lastPublishedBox(): Readonly<Float64Array> | null;
     loadArrangement(): void;
-    // (undocumented)
     static maxDimensions: number;
     get nodePositions(): ReadonlyElementPositions;
-    // (undocumented)
     abstract get nodes(): Iterable<Node_2>;
     get nodeScreenReference(): number | null;
     // @deprecated
@@ -5989,11 +5983,9 @@ export abstract class LayoutEngine {
     protected get shownView(): WorkingView | null;
     // @internal
     get spacesBySize(): boolean;
-    // (undocumented)
     abstract step(): void;
     // @internal
     storeRowOf: ((id: NodeIdType) => number) | null;
-    // (undocumented)
     static type: string;
     get type(): string;
     protected abstract unpin(n: Node_2): void;
@@ -6359,6 +6351,8 @@ class Node_2 implements ModelUser {
         min: Vector3;
         max: Vector3;
     };
+    // @internal
+    framingReach(): number;
     getPosition(): {
         x: number;
         y: number;
@@ -8230,13 +8224,10 @@ export enum PolyhedronType {
     TRIANGULAR_PRISM = 5
 }
 
-// @public (undocumented)
+// @public
 export interface Position {
-    // (undocumented)
     x: number;
-    // (undocumented)
     y: number;
-    // (undocumented)
     z?: number;
 }
 
@@ -8609,6 +8600,7 @@ export class RenderManager implements Manager {
         gpuBehind: number;
         smooth: number;
         awaitedLanding: number;
+        drawnNow: number;
     };
 }
 
@@ -9104,19 +9096,19 @@ export const SHAPE_CONSTANTS: {
     readonly TORUS_THICKNESS_MULTIPLIER: 0.5;
 };
 
-// @public (undocumented)
+// @public
 export const SimpleLayoutConfig: z.ZodObject<{
     scalingFactor: z.ZodDefault<z.ZodNumber>;
 }, z.core.$loose>;
 
-// @public (undocumented)
+// @public
 export type SimpleLayoutConfigType = z.infer<typeof SimpleLayoutConfig>;
 
 // @public @deprecated
 export abstract class SimpleLayoutEngine extends StaticLayoutEngine {
 }
 
-// @public (undocumented)
+// @public
 export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
 
 // @public
@@ -9678,7 +9670,7 @@ export class UpdateManager implements Manager {
     } | null;
     get graphIsDrawn(): boolean;
     // @internal
-    haloTouched(mesh: AbstractMesh, built: boolean): void;
+    haloTouched(mesh: AbstractMesh, built: number): void;
     holdSelectionFollow(following?: readonly Node_2[]): void;
     // @internal
     holdsMesh(node: Node_2): void;

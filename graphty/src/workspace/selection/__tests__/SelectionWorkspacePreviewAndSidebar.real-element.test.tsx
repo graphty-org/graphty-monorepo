@@ -1,12 +1,8 @@
 /**
- * The selection workspace's second polish round (design/ui/studio/tier5/ws-polish-2-*.md) on the
- * REAL graphty-element and Les Miserables, driven by real clicks and keys: the canvas takes the
- * preview cell's box while the workspace is open; the sidebar keeps only its title row; a
- * narrowing step says no verb and has one Except switch; Advanced says edges; an existing rule
- * reopens on a step's pane; the sidebar's Edit shows on hover; the value picker opens
- * below its field; Escape closes an open Advanced; a new filter card keeps Nodes | Edges over its
- * picker, its first Escape goes to the outline and a discarded one is announced; Redo names the
- * filter as it comes back.
+ * The selection workspace's preview and the sidebar beside it, on the REAL graphty-element and
+ * Les Miserables, driven by real clicks and keys: the canvas takes the preview cell's box while
+ * the workspace is open; the sidebar keeps only its Style Nodes... line, with no count at rest and
+ * its open-in-new-window icon inside the line; Redo names the filter as it comes back.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -18,7 +14,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -74,7 +70,7 @@ async function openLayer(session: GraphSession, name: string, where?: UnionLeaf)
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -99,7 +95,7 @@ async function opened(): Promise<HTMLElement> {
  * @returns the open workspace.
  */
 async function edit(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
     return opened();
 }
 
@@ -144,7 +140,7 @@ describe("the preview is the canvas", () => {
                 assert.closeTo(box?.[side] ?? 0, want?.[side] ?? 0, 1, `the drawing's ${side} is the cell's`);
             }
         });
-        await userEvent.click(within(ws).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
             assert.closeTo(element?.getBoundingClientRect().width ?? 0, before?.width ?? 0, 1, "the canvas again");
@@ -192,9 +188,9 @@ describe("Redo", () => {
         await session.visibility.updateCondition("c1", {
             rule: { kind: "range", attribute: "graphty.degree", min: 12 },
         });
-        const toolbar = await screen.findByRole("button", { name: /^Undo/ });
+        const toolbar = page.getByRole("button", { name: /^Undo/ });
         await userEvent.click(toolbar);
-        await userEvent.click(await screen.findByRole("button", { name: /^Redo/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Redo/ }));
         await waitFor(() => {
             const said = store.get().announcement ?? "";
             assert.match(said, /^Redid /);

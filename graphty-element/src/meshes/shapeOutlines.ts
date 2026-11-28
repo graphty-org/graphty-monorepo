@@ -827,10 +827,19 @@ export function convexHull(points: readonly Point2[]): Point2[] {
     const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     const cross = (o: Point2, a: Point2, b: Point2): number =>
         (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    // Points a rounding error apart are one point: kept as two, scaling can land them on each other, and a side
+    // with no length has no direction to offset along (issue #10497).
+    const span = points.reduce((most, [x, y]) => Math.max(most, Math.abs(x), Math.abs(y)), 0);
+    const same = span * 1e-9;
     const half = (list: Point2[]): Point2[] => {
         const chain: Point2[] = [];
 
         for (const point of list) {
+            const last = chain.at(-1);
+            if (last !== undefined && Math.abs(point[0] - last[0]) <= same && Math.abs(point[1] - last[1]) <= same) {
+                continue;
+            }
+
             while (chain.length >= 2 && cross(chain.at(-2) ?? point, chain.at(-1) ?? point, point) <= 0) {
                 chain.pop();
             }
@@ -843,6 +852,265 @@ export function convexHull(points: readonly Point2[]): Point2[] {
     };
 
     return [...half(sorted), ...half([...sorted].reverse())];
+}
+
+/**
+ * The outline a set of triangles shows a camera looking along z: the outer edge of the triangles drawn into a grid
+ * `cells` across, holes filled. Unlike {@link convexHull} it follows a shape that is not convex, such as a person's
+ * head, arms and legs (issue #10376). Parts that do not touch are joined, each to the nearest, by a line of cells
+ * along the shortest way between them, so the outline is one closed line round all of them.
+ *
+ * ponytail: within a cell (1/`cells` of the shape) of the true edge, corners cut at 45 degrees; a finer grid if a
+ * large node shows the steps.
+ * @param points - The triangles' corners, projected.
+ * @param triangles - Each triangle's three corners, as indices into `points`.
+ * @param cells - How many grid cells across the shape's larger side.
+ * @returns The outline, counter-clockwise; empty when the triangles have no extent.
+ */
+export function silhouetteOutline(points: readonly Point2[], triangles: ArrayLike<number>, cells = 256): Point2[] {
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const [x, y] of points) {
+        [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];
+    }
+    const size = Math.max(x1 - x0, y1 - y0) / cells;
+    if (points.length === 0 || size <= 0) {
+        return [];
+    }
+
+    // a free cell all round, so the outside is one region
+    const [nx, ny] = [Math.ceil((x1 - x0) / size) + 3, Math.ceil((y1 - y0) / size) + 3];
+    const grid = new Uint8Array(nx * ny);
+    const gx = (x: number): number => (x - x0) / size + 1;
+    const gy = (y: number): number => (y - y0) / size + 1;
+    for (let t = 0; t + 2 < triangles.length; t += 3) {
+        const corners = [points[triangles[t]], points[triangles[t + 1]], points[triangles[t + 2]]].map(
+            ([x, y]): Point2 => [gx(x), gy(y)],
+        );
+        fillTriangle(grid, nx, corners);
+    }
+
+    while (bridge(grid, nx, ny)) {
+        // joined: the next part, if any
+    }
+    fillHoles(grid, nx, ny);
+
+    return traceOutline(grid, nx, ny).map(([x, y]): Point2 => [x0 + (x - 1) * size, y0 + (y - 1) * size]);
+}
+
+/**
+ * Mark the grid cells a triangle covers: those whose middle is inside it, and those its corners are in, so a
+ * triangle thinner than a cell still marks its cells.
+ * @param grid - The grid, a row of `nx` cells at a time.
+ * @param nx - Cells per row.
+ * @param corners - The triangle, in cells.
+ */
+function fillTriangle(grid: Uint8Array, nx: number, corners: readonly Point2[]): void {
+    const [[ax, ay], [bx, by], [cx, cy]] = corners;
+    for (const [x, y] of corners) {
+        grid[Math.floor(y) * nx + Math.floor(x)] = 1;
+    }
+    const area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    if (area === 0) {
+        return;
+    }
+    const side = (px: number, py: number, qx: number, qy: number, x: number, y: number): number =>
+        ((qx - px) * (y - py) - (qy - py) * (x - px)) * Math.sign(area);
+    for (let j = Math.floor(Math.min(ay, by, cy)); j <= Math.ceil(Math.max(ay, by, cy)); j++) {
+        for (let i = Math.floor(Math.min(ax, bx, cx)); i <= Math.ceil(Math.max(ax, bx, cx)); i++) {
+            const [x, y] = [i + 0.5, j + 0.5];
+            if (side(ax, ay, bx, by, x, y) >= 0 && side(bx, by, cx, cy, x, y) >= 0 && side(cx, cy, ax, ay, x, y) >= 0) {
+                grid[j * nx + i] = 1;
+            }
+        }
+    }
+}
+
+/**
+ * The cells next to a cell, across its four sides, that lie in the grid.
+ * @param at - The cell.
+ * @param nx - Cells per row.
+ * @param ny - Rows.
+ * @returns Their indices.
+ */
+function sides(at: number, nx: number, ny: number): number[] {
+    const [i, j] = [at % nx, Math.floor(at / nx)];
+    const out: number[] = [];
+    if (i > 0) {
+        out.push(at - 1);
+    }
+    if (i < nx - 1) {
+        out.push(at + 1);
+    }
+    if (j > 0) {
+        out.push(at - nx);
+    }
+    if (j < ny - 1) {
+        out.push(at + nx);
+    }
+    return out;
+}
+
+/**
+ * Every cell reached from a start through cells of one value.
+ * @param grid - The grid.
+ * @param nx - Cells per row.
+ * @param ny - Rows.
+ * @param start - The first cell.
+ * @param seen - The cells already reached, marked as this one reaches them.
+ */
+function flood(grid: Uint8Array, nx: number, ny: number, start: number, seen: Uint8Array): void {
+    const value = grid[start];
+    const stack = [start];
+    seen[start] = 1;
+    while (stack.length > 0) {
+        const at = stack.pop() ?? 0;
+        for (const next of sides(at, nx, ny)) {
+            if (seen[next] === 0 && grid[next] === value) {
+                seen[next] = 1;
+                stack.push(next);
+            }
+        }
+    }
+}
+
+/**
+ * Mark every free cell the outside cannot reach.
+ * @param grid - The grid.
+ * @param nx - Cells per row.
+ * @param ny - Rows.
+ */
+function fillHoles(grid: Uint8Array, nx: number, ny: number): void {
+    const outside = new Uint8Array(grid.length);
+    flood(grid, nx, ny, 0, outside);
+    for (let at = 0; at < grid.length; at++) {
+        if (outside[at] === 0) {
+            grid[at] = 1;
+        }
+    }
+}
+
+/**
+ * Join the region of marked cells holding the first marked cell to the nearest other region, by marking the cells
+ * along the shortest way between them.
+ * @param grid - The grid.
+ * @param nx - Cells per row.
+ * @param ny - Rows.
+ * @returns Whether there was another region to join.
+ */
+function bridge(grid: Uint8Array, nx: number, ny: number): boolean {
+    const first = grid.indexOf(1);
+    if (first < 0) {
+        return false;
+    }
+    const seen = new Uint8Array(grid.length);
+    flood(grid, nx, ny, first, seen);
+    const from = new Int32Array(grid.length).fill(-1);
+    const queue: number[] = [];
+    seen.forEach((value, at) => {
+        if (value === 1) {
+            queue.push(at);
+        }
+    });
+    // breadth first out of the region: the first marked cell reached is the nearest other region's
+    for (let head = 0; head < queue.length; head++) {
+        const at = queue[head];
+        for (const next of sides(at, nx, ny).filter((cell) => seen[cell] === 0)) {
+            if (grid[next] === 1) {
+                for (let back = at; from[back] >= 0; back = from[back]) {
+                    grid[back] = 1;
+                }
+                return true;
+            }
+            seen[next] = 1;
+            from[next] = at;
+            queue.push(next);
+        }
+    }
+    return false;
+}
+
+/**
+ * The outer edge of one region of marked cells, its corners cut: the middles of the cell sides along it.
+ * @param grid - The grid, one region, no holes.
+ * @param nx - Cells per row.
+ * @param ny - Rows.
+ * @returns The outline in cell units, counter-clockwise.
+ */
+function traceOutline(grid: Uint8Array, nx: number, ny: number): Point2[] {
+    const next = boundarySides(grid, nx, ny);
+    const pointOf = (corner: number): Point2 => [corner % (nx + 1), Math.floor(corner / (nx + 1))];
+    let best: Point2[] = [];
+    let bestArea = 0;
+    for (const start of next.keys()) {
+        const loop: Point2[] = [];
+        let at: number | undefined = start;
+        while (at !== undefined && (next.get(at)?.length ?? 0) > 0) {
+            loop.push(pointOf(at));
+            at = next.get(at)?.pop();
+        }
+        const area = loop.reduce((sum, [x, y], n) => {
+            const [u, v] = loop[(n + 1) % loop.length];
+            return sum + x * v - u * y;
+        }, 0);
+        if (area > bestArea) {
+            [best, bestArea] = [loop, area];
+        }
+    }
+
+    const middles = best.map(([x, y], n): Point2 => {
+        const [u, v] = best[(n + 1) % best.length];
+        return [(x + u) / 2, (y + v) / 2];
+    });
+    // the steps of the grid smoothed away: no point further than half a cell from the line kept
+    return simplify(middles, 0.5);
+}
+
+/**
+ * Every side between a marked cell and a free one, run with the marked cell on its left, by the grid corner it
+ * starts at (`j * (nx + 1) + i`).
+ * @param grid - The grid.
+ * @param nx - Cells per row.
+ * @param ny - Rows.
+ * @returns The corners each corner's sides run to.
+ */
+function boundarySides(grid: Uint8Array, nx: number, ny: number): Map<number, number[]> {
+    const marked = (i: number, j: number): boolean => i >= 0 && j >= 0 && i < nx && j < ny && grid[j * nx + i] === 1;
+    const next = new Map<number, number[]>();
+    const add = ([i, j]: Point2, [k, l]: Point2): void => {
+        const from = j * (nx + 1) + i;
+        next.set(from, [...(next.get(from) ?? []), l * (nx + 1) + k]);
+    };
+    grid.forEach((value, at) => {
+        const [i, j] = [at % nx, Math.floor(at / nx)];
+        const sides: [Point2, Point2, Point2][] = [
+            [
+                [i, j - 1],
+                [i, j],
+                [i + 1, j],
+            ],
+            [
+                [i + 1, j],
+                [i + 1, j],
+                [i + 1, j + 1],
+            ],
+            [
+                [i, j + 1],
+                [i + 1, j + 1],
+                [i, j + 1],
+            ],
+            [
+                [i - 1, j],
+                [i, j + 1],
+                [i, j],
+            ],
+        ];
+        for (const [[ni, nj], from, to] of sides) {
+            if (value === 1 && !marked(ni, nj)) {
+                add(from, to);
+            }
+        }
+    });
+    return next;
 }
 
 /**
@@ -866,6 +1134,9 @@ export function offsetOutline(outline: readonly Point2[], distance: number): Poi
     });
 }
 
+/** How many rays {@link mitredEdges} casts along an outline to find sides that face each other across a notch. */
+const SIDE_RAYS = 256;
+
 /** How far a corner's mitre reaches past it, at most, as a multiple of the offset (see {@link offsetOutline}). */
 const MITRE_LIMIT = 3;
 
@@ -884,6 +1155,37 @@ const MITRE_LIMIT = 3;
 export function mitredEdges(outline: readonly Point2[], distances: readonly number[]): Point2[][] {
     const count = outline.length;
     const edges: Point2[][] = distances.map(() => []);
+    const widest = Math.max(...distances);
+    // rays at fixed places along the outline, whatever the distances, so a ring offset from this ring's outer edge
+    // (an outer border) takes its points where this ring took them
+    // ponytail: SIDE_RAYS rays, each against every side; a sweep-line offset if outlines grow to thousands of points
+    const step = Math.max(cumulativeLengths(outline).at(-1) ?? 0, 1e-9) / SIDE_RAYS;
+
+    // points along side i where a facing side is nearer than the ring is wide: there the side's ring stops short of
+    // the facing side, so the side takes points of its own; a side that faces nothing within the ring takes none
+    const alongSide = (i: number): void => {
+        const [x0, y0] = outline[i];
+        const [x1, y1] = outline[(i + 1) % count];
+        const [nx, ny] = unitNormal(x0, y0, x1, y1);
+        const pieces = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / step);
+        const points: [number, number, number][] = [];
+        for (let j = 1; j < pieces; j++) {
+            const [x, y] = [x0 + ((x1 - x0) * j) / pieces, y0 + ((y1 - y0) * j) / pieces];
+            points.push([x, y, clearance(outline, x, y, nx, ny, i, true)]);
+        }
+        if (points.every(([, , room]) => room >= widest)) {
+            return;
+        }
+        // each point stops as short as its neighbors do, so the step from a short point to a full one lies past the
+        // end of the facing side and not across its corner
+        points.forEach(([x, y], j) => {
+            const room = Math.min(...points.slice(Math.max(0, j - 1), j + 2).map(([, , near]) => near));
+            distances.forEach((distance, k) => {
+                const out = Math.min(distance, room);
+                edges[k].push([x + nx * out, y + ny * out]);
+            });
+        });
+    };
 
     outline.forEach(([x, y], i) => {
         const [px, py] = outline[(i + count - 1) % count];
@@ -894,7 +1196,9 @@ export function mitredEdges(outline: readonly Point2[], distances: readonly numb
         const convex = (x - px) * (ny - y) - (y - py) * (nx - x) > 0;
 
         if (!convex || along < 1e-9 || 2 / along <= MITRE_LIMIT) {
-            distances.forEach((distance, k) => edges[k].push(offsetCorner(x, y, [ax, ay], [bx, by], distance)));
+            const room = along < 1e-9 ? Infinity : clearance(outline, x, y, (ax + bx) / along, (ay + by) / along, i);
+            distances.forEach((distance, k) => edges[k].push(offsetCorner(x, y, [ax, ay], [bx, by], distance, room)));
+            alongSide(i);
             return;
         }
 
@@ -907,9 +1211,55 @@ export function mitredEdges(outline: readonly Point2[], distances: readonly numb
             return [x + reach * mx - t * my, y + reach * my + t * mx];
         };
         distances.forEach((distance, k) => edges[k].push(cut([ax, ay], distance), cut([bx, by], distance)));
+        alongSide(i);
     });
 
     return edges;
+}
+
+/**
+ * How far a ray runs before it meets a side of an outline: where two sides face each other across a notch narrower
+ * than a ring (a figure's armpits, the gap between its legs), each side's ring stops at the facing side, so the two
+ * fill the notch and neither crosses it onto the fill beyond (issue #10409).
+ * @param outline - The closed outline.
+ * @param x - Where the ray starts, x, on the outline.
+ * @param y - Where it starts, y.
+ * @param dx - The ray's unit direction, x.
+ * @param dy - The ray's unit direction, y.
+ * @param from - The corner the ray starts at, or the side it starts on: the sides it starts on are skipped.
+ * @param onSide - True when the ray starts on side `from`, between its corners, rather than at corner `from`.
+ * @returns The distance to the nearest side it meets, or Infinity when it meets none.
+ */
+function clearance(
+    outline: readonly Point2[],
+    x: number,
+    y: number,
+    dx: number,
+    dy: number,
+    from: number,
+    onSide = false,
+): number {
+    const count = outline.length;
+    let nearest = Infinity;
+    for (let k = 0; k < count; k++) {
+        if (k === from || (!onSide && (k + 1) % count === from)) {
+            continue;
+        }
+        const [ax, ay] = outline[k];
+        const [bx, by] = outline[(k + 1) % count];
+        const [ex, ey] = [bx - ax, by - ay];
+        const denom = dx * ey - dy * ex;
+        if (denom === 0) {
+            continue;
+        }
+        // (x, y) + t d = a + s e
+        const t = ((ax - x) * ey - (ay - y) * ex) / denom;
+        const s = ((ax - x) * dy - (ay - y) * dx) / denom;
+        if (s >= 0 && s <= 1 && t > 1e-9 && t < nearest) {
+            nearest = t;
+        }
+    }
+    return nearest;
 }
 
 /**
@@ -920,9 +1270,10 @@ export function mitredEdges(outline: readonly Point2[], distances: readonly numb
  * @param a - The outward unit normal of the side before it.
  * @param b - The outward unit normal of the side after it.
  * @param distance - How far out.
+ * @param room - How far it may move at most ({@link clearance}).
  * @returns The moved corner.
  */
-function offsetCorner(x: number, y: number, a: Point2, b: Point2, distance: number): Point2 {
+function offsetCorner(x: number, y: number, a: Point2, b: Point2, distance: number, room = Infinity): Point2 {
     const [mx, my] = [a[0] + b[0], a[1] + b[1]];
     const along = Math.hypot(mx, my);
 
@@ -931,7 +1282,7 @@ function offsetCorner(x: number, y: number, a: Point2, b: Point2, distance: numb
     }
 
     // The mitre's length is distance / cos(half the turn) = 2 * distance / |a + b|.
-    const length = Math.min((2 * distance) / along, distance * MITRE_LIMIT);
+    const length = Math.min((2 * distance) / along, distance * MITRE_LIMIT, room);
 
     return [x + (mx / along) * length, y + (my / along) * length];
 }
@@ -1550,4 +1901,52 @@ export function piecesThickness(pieces: readonly RingPiece[]): number {
     }
 
     return edges > 0 ? (2 * area) / edges : 0;
+}
+
+/**
+ * A closed outline with the points that lie within a distance of the line through the points kept either side of
+ * them left out (Douglas and Peucker), so a line traced along grid cells is drawn straight where the shape is.
+ * @param outline - The outline.
+ * @param tolerance - How far a point may lie off the line and still be left out.
+ * @returns The points kept, in order.
+ */
+function simplify(outline: readonly Point2[], tolerance: number): Point2[] {
+    if (outline.length < 4) {
+        return [...outline];
+    }
+    const keep = new Uint8Array(outline.length);
+    const split = (a: number, b: number): void => {
+        const [[ax, ay], [bx, by]] = [outline[a], outline[b % outline.length]];
+        const length = Math.hypot(bx - ax, by - ay);
+        let [far, at] = [0, -1];
+        for (let n = a + 1; n < b; n++) {
+            const [x, y] = outline[n];
+            const off =
+                length === 0
+                    ? Math.hypot(x - ax, y - ay)
+                    : Math.abs((bx - ax) * (y - ay) - (by - ay) * (x - ax)) / length;
+            if (off > far) {
+                [far, at] = [off, n];
+            }
+        }
+        if (far > tolerance) {
+            keep[at] = 1;
+            split(a, at);
+            split(at, b);
+        }
+    };
+    // closed: split at the first point and the point furthest from it
+    const [x0, y0] = outline[0];
+    let half = 1;
+    outline.forEach(([x, y], n) => {
+        const [hx, hy] = outline[half];
+        if (Math.hypot(x - x0, y - y0) > Math.hypot(hx - x0, hy - y0)) {
+            half = n;
+        }
+    });
+    keep[0] = 1;
+    keep[half] = 1;
+    split(0, half);
+    split(half, outline.length);
+    return outline.filter((_, n) => keep[n] === 1);
 }

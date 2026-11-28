@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -86,13 +86,13 @@ describe("the layout form's Transition", () => {
         const start = element.nodeScreenPosition("n3");
         assert.isDefined(start);
 
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Circle(?!s)/ }));
         const transition = await within(popover).findByRole("combobox", { name: "Transition" });
         assert.strictEqual((transition as HTMLInputElement).value, "None", "no transition by default");
-        await userEvent.click(transition);
-        await userEvent.click(await within(popover).findByRole("option", { name: "Glide" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: "Transition", exact: true }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: "Glide", exact: true }));
         await waitFor(() => {
             assert.deepEqual(session.config.layoutTransition, { transition: "glide" });
         });
@@ -100,16 +100,17 @@ describe("the layout form's Transition", () => {
         // Its settings are drawn under the row, in the Layout popover: the easing, written with it.
         assert.isNull(within(popover).queryByRole("button", { name: "Glide settings" }));
         assert.isNotNull(within(popover).getByRole("textbox", { name: /^Seconds/ }));
-        const easing = await within(popover).findByRole("combobox", { name: "Easing" });
-        await userEvent.click(easing);
-        await userEvent.click(await screen.findByRole("option", { name: "Linear" }));
+        const easing = (): Locator =>
+            page.elementLocator(popover).getByRole("combobox", { name: "Easing", exact: true });
+        await userEvent.click(easing());
+        await userEvent.click(page.getByRole("option", { name: "Linear", exact: true }));
         await waitFor(() => {
             assert.deepEqual(session.config.layoutTransition, { transition: "glide", params: { easing: "linear" } });
         });
         assert.isTrue(document.body.contains(popover), "the layout form stays open");
 
         const stop = trackDrawn(element, "n3");
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.layout.id, "circular");
         });

@@ -93,7 +93,7 @@ async function openCards(
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Calm, / }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Calm, / }));
     const modal = await openModal();
     return { session, layer, modal, heard };
 }
@@ -103,7 +103,7 @@ async function openCards(
  * @returns the workspace.
  */
 async function openModal(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the workspace is open");
@@ -134,8 +134,8 @@ const cards = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>(".
  * @param item - the item's label.
  */
 async function runItem(letter: string, item: RegExp): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: `More for ${letter}` }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+    await userEvent.click(page.getByRole("button", { name: `More for ${letter}`, exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: item, exact: true }));
     await waitFor(() => {
         assert.isNull(screen.queryByRole("menu"), "the menu closed");
     });
@@ -167,10 +167,10 @@ async function focusCard(card: HTMLElement): Promise<void> {
 describe("editing a card's steps", () => {
     it("Keep with nothing picked adds no step, and the workspace stays open", async () => {
         const { session, layer, heard } = await openCards(TWO_CARDS);
-        await userEvent.click(within(cards()[0]).getByRole("button", { name: /^Keep$/ }));
-        const find = await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await userEvent.click(page.elementLocator(cards()[0]).getByRole("button", { name: /^Keep$/ }));
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
         assert.isNotNull(cards()[0].querySelector("[data-new-step]"), "the new step waits for its value");
-        await userEvent.click(find);
+        await userEvent.click(page.getByRole("combobox", { name: "Find attributes, results", exact: true }));
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("combobox", { name: "Find attributes, results" }), "the picker closed");
@@ -191,7 +191,12 @@ describe("editing a card's steps", () => {
         // The card's value has no x; only the step under it does.
         const removes = within(card).getAllByRole("button", { name: /^Remove / });
         assert.lengthOf(removes, 1);
-        await userEvent.click(removes[0]);
+        await userEvent.click(
+            page
+                .elementLocator(card)
+                .getByRole("button", { name: /^Remove / })
+                .first(),
+        );
         await waitFor(() => {
             assert.deepEqual(
                 branchesOf(session, layer)[0]?.steps.map((step) => step.id),
@@ -217,9 +222,9 @@ describe("editing a card's steps", () => {
         const { session, layer, modal } = await openCards(ONE_CARD);
         const card = cards()[0];
         const from = await within(card).findByRole("textbox", { name: /from, number$/ });
-        await userEvent.click(from);
-        await userEvent.clear(from);
-        await userEvent.type(from, "8");
+        await userEvent.click(page.elementLocator(card).getByRole("textbox", { name: /from, number$/ }));
+        await userEvent.clear(page.elementLocator(card).getByRole("textbox", { name: /from, number$/ }));
+        await userEvent.type(page.elementLocator(card).getByRole("textbox", { name: /from, number$/ }), "8");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.strictEqual(document.activeElement, card, "focus left the box for its card");
@@ -278,11 +283,11 @@ describe("the Preview segment", () => {
         const { modal } = await openCards(TWO_CARDS);
         const preview = within(modal).getByRole("radiogroup", { name: "Preview" });
         assert.isTrue(within(preview).getByRole("radio", { name: "Card colors" }).matches(":checked"));
-        await userEvent.click(within(preview).getByText("Styled"));
+        await userEvent.click(page.elementLocator(preview).getByText("Styled", { exact: true }));
         await waitFor(() => {
             assert.isTrue(within(preview).getByRole("radio", { name: "Styled" }).matches(":checked"));
         });
-        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Cancel/ }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
         });
@@ -290,7 +295,7 @@ describe("the Preview segment", () => {
         const again = await openModal();
         const kept = within(again).getByRole("radiogroup", { name: "Preview" });
         assert.isTrue(within(kept).getByRole("radio", { name: "Styled" }).matches(":checked"), "Styled is kept");
-        await userEvent.click(within(kept).getByText("Card colors"));
+        await userEvent.click(page.elementLocator(kept).getByText("Card colors", { exact: true }));
         await waitFor(() => {
             assert.isTrue(within(kept).getByRole("radio", { name: "Card colors" }).matches(":checked"));
         });

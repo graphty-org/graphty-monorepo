@@ -65,6 +65,7 @@ import {
     surfaceReach,
     type Xyz,
 } from "./meshes/edgeRoute";
+import { pulledLineSortsWith } from "./meshes/EdgeRowLines";
 import { EDGE_NEVER, EdgeShaderDrawing, type EdgeStaticLook, edgeStaticValues } from "./meshes/EdgeShaderDrawing";
 import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } from "./meshes/edgeTrim";
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
@@ -277,11 +278,17 @@ function points(flat: readonly number[]): Vector3[] {
 }
 
 /**
- * How far a selected edge's band is pushed back in depth (a material's `zOffset`, which scales
- * with the slope, and `zOffsetUnits`, which a band facing the camera needs), so the line it marks
- * wins every pixel they share and the band shows only beside it, as a casing.
+ * How far a selected edge's band is pulled forward in depth (a material's `zOffset`, which scales
+ * with the slope, and `zOffsetUnits`, which a band facing the camera needs), so it wins every
+ * pixel it shares with another line at its depth. Its middle is left open (`hollow`) for the line
+ * it marks, so it shows only beside that line, as a casing.
+ *
+ * It used to be pushed BACK by as much, so its own line would win the middle. That lost every
+ * pixel to every other line at the same depth as well, and a flat graph's lines all are: on a
+ * dense one, where other lines cover the whole canvas, a selected edge showed no band at all
+ * (#10312).
  */
-const HALO_DEPTH_OFFSET = 2;
+const HALO_DEPTH_OFFSET = -2;
 
 /**
  * The caption one end of an edge should be drawing, or undefined when it should draw none.
@@ -2501,9 +2508,10 @@ export class Edge {
      * opacity, along this edge's line: the edge's halo.
      *
      * THE SELECTION STYLE'S THREE EDGE SETTINGS (`edgeColor`, `edgeScale`, `edgeOpacity`). The
-     * band is `edgeScale` times twice the line's width and is drawn BEHIND the line, pushed back
-     * in depth, so the line keeps its own paint down the middle and the band shows on both sides
-     * as a casing. It used to read the node halo's settings: a pale gold band at 0.4 opacity
+     * band is `edgeScale` times twice the line's width, never under that many times the pixel
+     * the line is drawn at least, and is drawn IN FRONT of every line at its depth with its
+     * middle left open, so the line keeps its own paint down the middle and the band shows on
+     * both sides as a casing, however dense or far the drawing. It used to read the node halo's settings: a pale gold band at 0.4 opacity
      * beside a one-pixel line, which on a dense drawing could not be told from the gray edges.
      * Before that it recolored the line itself, darkened until it stood 3:1 from the canvas: on
      * a light canvas that turned gold into a dark olive nobody had configured.
@@ -2524,11 +2532,17 @@ export class Edge {
             selection = graph.selection ?? DEFAULT_SELECTION_STYLE;
         }
         const width = (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) * 2 * (selection?.edgeScale ?? 0);
+        // The band's fewest screen pixels: the same multiple of the line's own. A line under a pixel
+        // wide is still drawn one pixel wide, so without this a far or zoomed-out band shrank to the
+        // same one pixel as its line, behind it, and a selected edge showed no band at all (#10312).
+        const minScreenWidth = Math.max(style.line?.minScreenWidth ?? 0, 1) * 2 * (selection?.edgeScale ?? 0);
+        // The middle the line itself is drawn in, as a share of the band's width: 1 / (2 * edgeScale).
+        const hollow = Math.min(1, 1 / (2 * (selection?.edgeScale ?? 1)));
         const curve = style.line?.bezier === true;
         const key =
             selection === null
                 ? null
-                : `selection-halo|${selection.edgeColor}|${String(selection.edgeOpacity)}|${String(width)}|${String(curve)}`;
+                : `selection-halo|${selection.edgeColor}|${String(selection.edgeOpacity)}|${String(width)}|${String(minScreenWidth)}|${String(hollow)}|${String(curve)}`;
         const gone = this.haloBatch?.mesh.isDisposed() ?? true;
 
         if (key === this.haloKey && (key === null || !gone)) {
@@ -2545,11 +2559,11 @@ export class Edge {
         const { edgeColor: color, edgeOpacity: opacity } = selection;
         this.haloBatch = EdgeMesh.lineBatch(
             this.context.getMeshCache(),
-            { styleId: key, width, color },
-            { line: { type: "solid", color, opacity, width, bezier: curve } },
+            { styleId: key, width, color, hollow },
+            { line: { type: "solid", color, opacity, width, minScreenWidth, bezier: curve } },
             this.context.getScene(),
         );
-        // Behind the line: the batch is the band's alone, so its material can be pushed back.
+        // Before every line: the batch is the band's alone, so its material can be pulled forward.
         if (this.haloBatch?.mesh.material) {
             this.haloBatch.mesh.material.zOffset = HALO_DEPTH_OFFSET;
             this.haloBatch.mesh.material.zOffsetUnits = HALO_DEPTH_OFFSET;
@@ -3384,7 +3398,7 @@ export class Edge {
      * Whether this edge's line is pulled from the row table (`PulledLineBatch`): on the `"batched"`
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centers -- no cap, gap, group, bend, label, band or any other line
-     * key -- in 3D, or in 2D when it is not a curve, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
+     * key -- in 3D or 2D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
      * too, through its support point when it has one (`line.supportModel`), and only a curve may stop short of its nodes by a gap (`line.nodeGap`): its shape is its two centers' and, for one that fans out of a
      * bundle, how far it bows (spread by `fanSpacing` when set), or for one that does not, its circle's
      * radius (`arcRadius`), or for one raised off the map or a globe (`line.route` "arc" or "great-circle", which wins
@@ -3408,8 +3422,6 @@ export class Edge {
             // a node drawn at opacity 0 ends the line at its outline too (`Edge.bareEnd`)
             !this.endInvisible("source") &&
             !this.endInvisible("target") &&
-            // in 2D only a straight line, with its width in world units (`EdgeMesh.pulledBatch`)
-            !(EdgeMesh.drawsFlat(this.context.getScene()) && this.pullsCurve(style)) &&
             (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
             (!line.animationSpeed || this.pullsAnimated(style)) &&
             // a pattern is drawn by a straight line's shader only, never an animated one's
@@ -3702,7 +3714,17 @@ export class Edge {
             this.headBatchOf(head);
         }
 
+        // in 2D, the line batch of its width is made first and the pulled batch draws where it does, as a row line's
+        // (`EdgeRowLines`): the objects path draws a width's lines in the order their batches were made (#10083)
+        const scene = this.context.getScene();
+        const objectLine = EdgeMesh.drawsFlat(scene)
+            ? EdgeMesh.lineBatch(this.context.getMeshCache(), options, style, scene, false, true)
+            : null;
         const batch = this.pulledBatchOf(options, style, rows);
+        if (objectLine !== null) {
+            pulledLineSortsWith.set(batch.mesh, objectLine.mesh);
+        }
+
         const look = this.pulledLook(options, style);
         const { opacity } = look;
         const animationSpeed = style.line?.animationSpeed ?? 0;

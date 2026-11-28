@@ -8,6 +8,7 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { loadSiteConfig, resetSiteConfig } from "../../siteConfig";
 import { freshStore, storeOf } from "../../stories/freshStore";
+import { paintSettled } from "../../stories/paintSettled";
 import { siteFeatures } from "../../test/siteFeatures";
 import { Workspace } from "../Workspace";
 
@@ -230,6 +231,9 @@ export const AfterCommitSteps: Story = {
         }
         await within(modal).findByRole("radio", { checked: true, name: ENTRY_NODES });
         await session.styles.settled();
+        // The clicked card's focus ring is a rounded outline: drawn as part of a partial repaint, its
+        // corners come out a level off from one load to the next (#10467). Draw the page whole.
+        await paintSettled(context.canvasElement.ownerDocument);
     },
 };
 

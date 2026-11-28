@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -117,14 +117,18 @@ describe("the doors into the join workspace (source-steps)", () => {
             (plus.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
             "the list is under the Join header",
         );
-        await userEvent.click(within(grid).getByRole("gridcell", { name: "people + entries" }));
+        await userEvent.click(
+            page.elementLocator(grid).getByRole("gridcell", { name: "people + entries", exact: true }),
+        );
         let modal = await screen.findByRole("dialog", { name: "Join" });
         assert.deepStrictEqual(joinLines(modal), ["people + entries"], "that join, and no blank card");
         await within(modal).findByRole("radio", { name: "Node per entries row, linked to people", checked: true });
-        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Cancel/ }));
 
-        await userEvent.click(within(place).getByRole("button", { name: "people + entries menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Open" }));
+        await userEvent.click(
+            page.elementLocator(place).getByRole("button", { name: "people + entries menu", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Open", exact: true }));
         modal = await screen.findByRole("dialog", { name: "Join" });
         await within(modal).findByRole("radio", { name: "Node per entries row, linked to people", checked: true });
     });
@@ -156,8 +160,9 @@ describe("the doors into the join workspace (source-steps)", () => {
         assert.deepStrictEqual(joinLines(place), ["people + entries + doors"], "one line, in the order picked");
         assert.strictEqual(grid.querySelector(".cm-page-name")?.textContent, "people + entries + doors");
         assert.notMatch(grid.textContent ?? "", /\+\d/, "no count stands in for a name");
-        const cell = within(grid).getByRole("gridcell", { name: "people + entries + doors" });
-        await userEvent.click(cell);
+        const cell = (): Locator =>
+            page.elementLocator(grid).getByRole("gridcell", { name: "people + entries + doors", exact: true });
+        await userEvent.click(cell());
         const again = await screen.findByRole("dialog", { name: "Join" });
         assert.deepStrictEqual(joinLines(again), ["people + entries + doors"], "it reopens as that one card");
         await within(again).findByRole("radio", { name: fields, checked: true });
@@ -175,7 +180,9 @@ describe("the doors into the join workspace (source-steps)", () => {
         await done(modal);
         const place = await screen.findByRole("region", { name: "Data place" });
         const grid = await within(place).findByRole("grid", { name: "Joins" });
-        await userEvent.click(within(grid).getByRole("gridcell", { name: "people + entries + doors" }));
+        await userEvent.click(
+            page.elementLocator(grid).getByRole("gridcell", { name: "people + entries + doors", exact: true }),
+        );
         const again = await screen.findByRole("dialog", { name: "Join" });
         const counts = (): string => again.querySelector(".jw-counts")?.textContent ?? "";
         await waitFor(() => {
@@ -212,7 +219,9 @@ describe("the doors into the join workspace (source-steps)", () => {
             assert.deepStrictEqual(joinLines(place), ["entries + people + doors"], "one line, in the order picked");
         });
         const grid = await within(place).findByRole("grid", { name: "Joins" });
-        await userEvent.click(within(grid).getByRole("gridcell", { name: "entries + people + doors" }));
+        await userEvent.click(
+            page.elementLocator(grid).getByRole("gridcell", { name: "entries + people + doors", exact: true }),
+        );
         const again = await screen.findByRole("dialog", { name: "Join" });
         assert.deepStrictEqual(joinLines(again), ["entries + people + doors"], "it reopens as that one card");
         await within(again).findByRole("radio", { name: fields, checked: true });
@@ -228,8 +237,10 @@ describe("the doors into the join workspace (source-steps)", () => {
         await joinEntries(session);
         assert.isAbove(session.data.edges().length, 0);
         const place = await screen.findByRole("region", { name: "Data place" });
-        await userEvent.click(await within(place).findByRole("button", { name: "people + entries menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+        await userEvent.click(
+            page.elementLocator(place).getByRole("button", { name: "people + entries menu", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Remove", exact: true }));
         const modal = await screen.findByRole("dialog", { name: "Join" });
         assert.deepStrictEqual(joinLines(modal), []);
         await within(modal).findByText("edges removed 3");
@@ -282,7 +293,7 @@ describe("the doors into the join workspace (source-steps)", () => {
         const { session } = await foundingProject();
         await session.selection.apply({ nodes: ["B1"] });
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-        await userEvent.click(await within(inspector).findByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("button", { name: "Join", exact: true }));
         const modal = await screen.findByRole("dialog", { name: "Join" });
         await waitFor(() => {
             assert.strictEqual(

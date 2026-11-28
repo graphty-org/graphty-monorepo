@@ -2208,6 +2208,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             borderReachAlong: READ,
             screenBorder: READ,
             framingBounds: READ,
+            framingReach: READ,
             drawnHalfExtents: READ,
             surfaceIsBox: READ,
             surfaceIsClosedForm: READ,

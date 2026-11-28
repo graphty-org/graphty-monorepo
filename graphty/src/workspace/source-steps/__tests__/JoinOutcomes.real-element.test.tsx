@@ -535,11 +535,11 @@ describe("a join card's ways to join (source-steps)", () => {
         assert.deepStrictEqual(joinLines(modal), lines);
         // Undo takes the card's last write back as one step, and Redo makes the picked join again.
         const made = JSON.stringify(draftOf(session).steps());
-        await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Undo/ }));
         await waitFor(() => {
             assert.notStrictEqual(JSON.stringify(draftOf(session).steps()), made, "the last write is taken back");
         });
-        await userEvent.click(within(modal).getByRole("button", { name: /^Redo/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Redo/ }));
         await waitFor(() => {
             assert.strictEqual(checkedWay(modal), pick);
             assert.lengthOf(joinsOf(session), steps);
@@ -576,7 +576,10 @@ describe("a join card's ways to join (source-steps)", () => {
                         .sort();
                 const was = edges();
                 await advanced(again);
-                await userEvent.fill(within(again).getByRole("combobox", { name: "Edge type" }), "linked");
+                await userEvent.fill(
+                    page.elementLocator(again).getByRole("combobox", { name: "Edge type", exact: true }),
+                    "linked",
+                );
                 await userEvent.keyboard("{Enter}");
                 await waitFor(() => {
                     const [row] = joinsOf(session);
@@ -631,7 +634,7 @@ describe("a join card's ways to join (source-steps)", () => {
         assert.deepStrictEqual(joinLines(modal), ["accounts + identifiers + watch"], "one card");
         const ring = (id: string): number => session.styles.explain({ node: id }).merged["node.haloScale"] ?? 0;
         for (const look of ["Card colors", "Styled"]) {
-            await userEvent.click(within(modal).getByText(look));
+            await userEvent.click(page.elementLocator(modal).getByText(look, { exact: true }));
             await waitFor(() => {
                 assert.strictEqual(keyCount(modal, "nodes merged"), 3, look);
                 const wider = ["A1", "A2", "A3"].filter((id) => ring(id) > ring("A2"));
@@ -647,10 +650,13 @@ describe("a join card's ways to join (source-steps)", () => {
         await pickFields(modal, "account", "account_id");
         await joinAs(modal, "Fields of identifiers on accounts");
         await userEvent.click(
-            within(within(modal).getByRole("radiogroup", { name: "Rows per node" })).getByText("List all"),
+            page
+                .elementLocator(modal)
+                .getByRole("radiogroup", { name: "Rows per node", exact: true })
+                .getByText("List all", { exact: true }),
         );
         await newest(session, (step) => step.act?.aggregate?.["*"] === "list", "every phone");
-        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Join", exact: true }));
         await pickSources(modal, "accounts", "watch");
         await pickFields(modal, "account", "value");
         assert.isNotEmpty(waysToJoin(modal), "no account is a watched value: its ways still show");

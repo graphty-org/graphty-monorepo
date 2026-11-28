@@ -63,7 +63,7 @@ import {
     type TableDecoration,
 } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
-import { NodeMesh, styleOpacity } from "./meshes/NodeMesh";
+import { NodeMesh, paintedBodyOpacity } from "./meshes/NodeMesh";
 import {
     NodeShaderDrawing,
     type NodeShaderLook,
@@ -71,7 +71,7 @@ import {
     type SurfacePath,
 } from "./meshes/NodeShaderDrawing";
 import { shareLabelBox } from "./meshes/NodeShapeGeometry";
-import { createOverlayMaterial } from "./meshes/overlayMaterial";
+import { createOverlayMaterial, keepBehindMiddle } from "./meshes/overlayMaterial";
 import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -1104,6 +1104,9 @@ export class Node implements ModelUser {
     /** How far toward the camera the halo is moved from the node: a 2D halo's lift over the edges. */
     private haloLift = 0;
 
+    /** How many times the node's size the halo is drawn: its look's `scale`. */
+    private haloScale = 1;
+
     /**
      * Which shader path draws this node's surface or sprite (design/rendering/shader-styles.md
      * section 5), or null while it is drawn plainly. Part of its source mesh's key: an impostor or
@@ -1280,7 +1283,7 @@ export class Node implements ModelUser {
     borderReachAlong(dir: Xyz): number {
         const reach = this.borderReach;
         const outline = reach > 0 ? this.reachOutline : null;
-        const inset = outline !== null && NodeMesh.isFitted(this.drawnStyle?.shape) ? this.fillInset() : 0;
+        const inset = outline === null ? 0 : this.fillInset();
         if (outline === null || inset <= 0) {
             return reach;
         }
@@ -1335,6 +1338,31 @@ export class Node implements ModelUser {
             Math.fround((box.extendSize[axis] * Math.abs(scale[axis])) / grown + reach) * Math.abs(root?.[axis] ?? 1);
         const half = new Vector3(along("x", far), along("y", far), along("z", 1));
         return { min: box.centerWorld.subtract(half), max: box.centerWorld.add(half) };
+    }
+
+    /**
+     * The farthest {@link Node.framingBounds} reaches from this node's position on any axis, in the units its position
+     * is laid out in (inside the graph root): what a box around the layout's positions grows by to hold this node.
+     * Read from the mesh's own extent and scaling, so it computes no world matrix. A group's face is not measured here.
+     * @returns The reach.
+     * @internal
+     */
+    framingReach(): number {
+        if (this.#anchor.isDisposed()) {
+            return this.size / 2;
+        }
+
+        const { minimum, maximum } = (this.#mesh ?? this.#source).getBoundingInfo();
+        const scale = this.#anchor.scaling;
+        const border = this.sceneBorderReach;
+        let widest = 0;
+        for (const axis of ["x", "y", "z"] as const) {
+            const s = Math.abs(scale[axis]);
+            const half = Math.fround(((maximum[axis] - minimum[axis]) / 2) * s + border);
+            widest = Math.max(widest, (Math.abs(maximum[axis] + minimum[axis]) / 2) * s + half);
+        }
+
+        return widest;
     }
 
     /**
@@ -1407,7 +1435,8 @@ export class Node implements ModelUser {
      * current zoom, under a key of its own per zoom step; any other border as it is, under the node's key.
      * @param meshKey - The source mesh key the node is drawn under.
      * @param border - The resolved style's border.
-     * @param scale - Scene units per screen pixel, or null when the node is not sized on the screen.
+     * @param scale - Screen pixels per unit of the node's mesh ({@link Node.screenScale}), or null when the border is
+     *     not in screen pixels.
      * @param perSize - The shape's extent per unit of size.
      * @returns The border and its mesh key.
      */
@@ -1420,9 +1449,13 @@ export class Node implements ModelUser {
         if (scale === null || border?.screenWidth === undefined) {
             return { border, key: meshKey };
         }
-        // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw).
+        // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw). The ring is built in the
+        // node's mesh, which the view then scales by its size space (#wholeScale): both widths are in the mesh's units,
+        // not the scene's (#10407).
         const box = this.bounds().boundingBox.extendSize;
-        const across = 2 * Math.min(box.x * Math.abs(this.#anchor.scaling.x), box.y * Math.abs(this.#anchor.scaling.y));
+        const view = Math.abs(this.#wholeScale) || 1;
+        const across =
+            (2 * Math.min(box.x * Math.abs(this.#anchor.scaling.x), box.y * Math.abs(this.#anchor.scaling.y))) / view;
         // ponytail: a ring per style and zoom step stays in the mesh cache until the scene
         // goes; a reader zooms over a few dozen steps, so it is a few dozen small rings.
         return {
@@ -1541,7 +1574,7 @@ export class Node implements ModelUser {
             const halo = NodeMesh.createHalo(
                 this.context.getMeshCache(),
                 { styleId: key, is2D: this.context.is2D(), size: this.size },
-                style.shape,
+                { shape: style.shape, border },
                 style[kind],
                 kind,
                 this.#anchor as AbstractMesh,
@@ -1620,25 +1653,29 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The screen pixels one scene unit is drawn as where this node is, rounded to 1/16 of a
-     * doubling, for a style whose border is in screen pixels; null for any other.
+     * The screen pixels one unit of the node's own mesh is drawn as where this node is (a scene unit times the view
+     * scale its size space draws it at), rounded to 1/16 of a doubling, for a style whose border is in screen pixels;
+     * null for any other.
      * @param style - The style the border is built from.
      * @returns The rounded scale, or null.
      */
     private screenScale(style: NodeStyleConfig): number | null {
-        return style.border?.screenWidth === undefined ? null : this.roundedPixelsPerUnit();
+        return style.border?.screenWidth === undefined ? null : this.roundedPixelsPerUnit(this.#wholeScale);
     }
 
     /**
      * The screen pixels one scene unit is drawn as where this node is, rounded to 1/16 of a doubling.
+     * @param factor - A scale to multiply it by before it is rounded.
      * @returns The rounded scale; 1 with no camera.
      */
-    private roundedPixelsPerUnit(): number {
+    private roundedPixelsPerUnit(factor = 1): number {
         const camera = this.context.getScene().activeCamera;
         // In CSS pixels, as a program drawing on a page counts them: a render pixel is a fraction
         // of one on a high-density screen.
         const ppu = camera
-            ? pixelsPerUnit(camera, this.#anchor.getAbsolutePosition()) * camera.getEngine().getHardwareScalingLevel()
+            ? pixelsPerUnit(camera, this.#anchor.getAbsolutePosition()) *
+              camera.getEngine().getHardwareScalingLevel() *
+              Math.abs(factor)
             : 0;
 
         // ponytail: the scale of the scene's root (an XR gesture's) is not divided out; a border
@@ -1679,7 +1716,13 @@ export class Node implements ModelUser {
         if (box !== undefined) {
             this.drawAsGroup(box);
         }
-        return this.borderReach !== before;
+        const moved = this.borderReach !== before;
+        // the halo's band starts past the border, so it is grown again round the rebuilt one
+        if (moved && this.halo?.isEnabled() === true && !this.halo.isDisposed()) {
+            this.scaleHalo(this.halo);
+            this.syncOverlayPositions();
+        }
+        return moved;
     }
 
     /**
@@ -2269,6 +2312,20 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Keep a hidden halo no node draws for the next node to draw a halo in its look (`takeSpareHalo`).
+     * @param key - The cache key of its source.
+     * @param halo - The halo.
+     */
+    private spareHalo(key: string, halo: AbstractMesh): void {
+        const scene = this.context.getScene();
+        const byKey = spareHalos.get(scene) ?? new Map<string, AbstractMesh[]>();
+        spareHalos.set(scene, byKey);
+        const spare = byKey.get(key) ?? [];
+        byKey.set(key, spare);
+        spare.push(halo);
+    }
+
+    /**
      * Move a node's place, state and parts from one scene node to another.
      * @param from - What held them.
      * @param to - What holds them now.
@@ -2449,13 +2506,13 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The opacity its style draws its body at (`node.opacity`), whatever draws it: a line's end shows through a body
-     * drawn under 1, so it stops at the outline (`RowTable.measure`, `Edge.bareEnd`).
+     * The opacity its style draws its body at (`node.opacity`, 0 for a wireframe), whatever draws it: a line's end
+     * shows through a body drawn under 1, so it stops at the outline (`RowTable.measure`, `Edge.bareEnd`).
      * @returns The opacity.
      * @internal
      */
     get paintedOpacity(): number {
-        return styleOpacity(this.drawnStyle?.texture);
+        return paintedBodyOpacity(this.drawnStyle);
     }
 
     /**
@@ -2573,10 +2630,18 @@ export class Node implements ModelUser {
             built.scaleToRef(scale, this.#anchor.scaling);
         }
 
+        if (this.halo?.isEnabled() === true && !this.halo.isDisposed()) {
+            this.scaleHalo(this.halo);
+            this.syncOverlayPositions();
+        }
+
         this.measureRow();
         if (this.#wholeScale !== whole) {
             this.#wholeScale = whole;
             this.context.getNodeBatches?.()?.rescale(this);
+            // a screen-pixel border is built in the mesh's units, which the view scale sets: with the camera still,
+            // nothing else rebuilds it (#10434)
+            this.refreshScreenBorder();
         }
     }
 
@@ -3791,6 +3856,10 @@ export class Node implements ModelUser {
         }
 
         const built = this.build(fit.meshKey, fit.style);
+        // the new mesh is drawn at scale 1 until the sizing pass scales it for its size space: a view scale left from
+        // the old mesh built a screen-pixel border for a size the node is no longer drawn at (#10434). Leaving a batch
+        // builds a mesh too, but moves the old scale onto it, so the view scale is kept there.
+        this.#wholeScale = 1;
 
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);
@@ -4304,14 +4373,8 @@ export class Node implements ModelUser {
             // The node's own geometry, stretched about its center so its band is one width all
             // round (haloAxisScale): a box gets a box, a cylinder a cylinder, and a node drawn
             // wider than tall a halo as thick at its top as at its sides.
-            const own = this.#anchor.scaling;
-            const grow = haloAxisScale(
-                overlay.getBoundingInfo().boundingBox.extendSize,
-                selection.scale,
-                own.x === 0 ? 0 : this.borderReach / Math.abs(own.x),
-            );
-            overlay.scaling.copyFromFloats(own.x * grow.x, own.y * grow.y, own.z * grow.z);
-            this.haloLift = flatHaloLift(overlay, this.#anchor.scaling.z);
+            this.haloScale = selection.scale;
+            this.scaleHalo(overlay);
         } else {
             this.contextPoint = overlay;
             overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
@@ -4327,17 +4390,36 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Scale the halo to the node's drawn scale, stretched about its center so its band is one
+     * width all round (haloAxisScale). Run again whenever the node is drawn at a new scale: the
+     * halo hangs from graph-root, not from the anchor, so a node shrunk to its size on screen
+     * (`node.sizeSpace` "screen" or "pivot") would otherwise sit on a halo at its old size
+     * (issue #10404).
+     * @param halo - The halo.
+     */
+    private scaleHalo(halo: AbstractMesh): void {
+        const own = this.#anchor.scaling;
+        const grow = haloAxisScale(
+            halo.getBoundingInfo().boundingBox.extendSize,
+            this.haloScale,
+            own.x === 0 ? 0 : this.borderReach / Math.abs(own.x),
+        );
+        halo.scaling.copyFromFloats(own.x * grow.x, own.y * grow.y, own.z * grow.z);
+        this.haloLift = flatHaloLift(halo, own.z);
+    }
+
+    /**
      * The overlay to draw: the one built already, a spare halo, or a new instance.
      * @param kind - Which overlay.
      * @param existing - The one this node holds, or null.
      * @param selection - The halo's look.
-     * @returns The overlay, and whether it was just built.
+     * @returns The overlay, and the meshes just built for it: none, its instance, or its instance and its source.
      */
     private overlayToShow(
         kind: "halo" | "context",
         existing: AbstractMesh | null,
         selection: GraphSelectionStyleConfig,
-    ): { overlay: AbstractMesh; built: boolean } {
+    ): { overlay: AbstractMesh; built: number } {
         // A halo is the node's own shape, so a node redrawn in another shape needs another halo,
         // and its own look's material, so a halo changing look needs another one too.
         const stale = kind === "halo" && existing !== null && this.haloKey !== this.haloSourceKey(selection);
@@ -4346,13 +4428,20 @@ export class Node implements ModelUser {
         }
 
         if (existing && !stale && !existing.isDisposed()) {
-            return { overlay: existing, built: false };
+            return { overlay: existing, built: 0 };
         }
 
         const spare = kind === "halo" ? this.takeSpareHalo(selection) : null;
-        return spare === null
-            ? { overlay: this.createOverlay(kind, selection), built: true }
-            : { overlay: spare, built: false };
+        if (spare !== null) {
+            return { overlay: spare, built: 0 };
+        }
+
+        // The first halo of a look also builds its source mesh (a cache miss), which the frame must be told of too, or
+        // the first selection on a page thaws the frozen list (issue #10124).
+        const cache = this.context.getMeshCache();
+        const { misses } = cache;
+        const overlay = this.createOverlay(kind, selection);
+        return { overlay, built: cache.misses > misses ? 2 : 1 };
     }
 
     /**
@@ -4383,13 +4472,8 @@ export class Node implements ModelUser {
     private hideOverlay(kind: "halo" | "context", existing: AbstractMesh | null): void {
         if (kind === "halo" && existing && !existing.isDisposed() && this.haloKey !== null) {
             // Given back, hidden, for the next node to draw a halo in this look (`takeSpareHalo`).
-            this.context.getUpdateManager?.().haloTouched(existing, false);
-            const scene = this.context.getScene();
-            const byKey = spareHalos.get(scene) ?? new Map<string, AbstractMesh[]>();
-            spareHalos.set(scene, byKey);
-            const spare = byKey.get(this.haloKey) ?? [];
-            byKey.set(this.haloKey, spare);
-            spare.push(existing);
+            this.context.getUpdateManager?.().haloTouched(existing, 0);
+            this.spareHalo(this.haloKey, existing);
             this.halo = null;
             this.haloKey = null;
         }
@@ -4683,8 +4767,8 @@ export class Node implements ModelUser {
      */
     get outlineHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
         const half = this.drawnHalfExtents;
-        // only a fitted mesh (a flat shape, or one sized to its extents) is drawn in by the border's inset
-        const inset = NodeMesh.isFitted(this.drawnStyle?.shape) ? this.fillInset() : 0;
+        // every mesh, fitted or kept at its own proportions, is drawn in by the border's inset (#10403)
+        const inset = this.fillInset();
         return inset === 0 ? half : { x: half.x + inset, y: half.y + inset, z: half.z };
     }
 
@@ -4792,7 +4876,7 @@ export class Node implements ModelUser {
             source = MeshBuilder.CreateSphere(name, { diameter: 1, segments: 8 }, scene);
         }
 
-        // Its shader was compiled with the scene's first node source (`prepareOverlayShader`).
+        // Its shader was compiled right after the scene's first frame of nodes (`prepareOverlayShader`).
         const material = createOverlayMaterial(`${name}-material`, color, alpha, scene);
         // A halo around a solid draws only its far side. The near side lies in front of the node
         // it surrounds, and blending it over the node tinted the whole node the halo's color (a
@@ -4804,6 +4888,12 @@ export class Node implements ModelUser {
         // does a context point, drawn in place of a hidden node with nothing in front of it.
         material.backFaceCulling = name.startsWith(SELECTION_HALO_MESH) && !Node.isFlat(source);
         material.cullBackFaces = false;
+        // Some far faces of a tetrahedron, a torus, or a box or cone seen at an angle lie in front of the node's
+        // middle, where its border, outer border and plates are drawn as flat rings: kept behind them (#10499). A
+        // 3D view's camera is a perspective one.
+        if (material.backFaceCulling && !flat) {
+            keepBehindMiddle(material);
+        }
         // Drawn just behind a surface it shares a depth with, so around a flat node -- whose
         // scaled copy lies in the node's own plane -- the halo shows as a rim around the node
         // instead of fighting it for the same pixels. Too small to move a 3D halo visibly. A 2D

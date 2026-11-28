@@ -1,6 +1,6 @@
 /**
- * @file When a reader's camera gesture ends, for `camera:gesture-end`. The end is defined by the
- * input and the frames it moves, never by a timer.
+ * @file When a reader's camera gesture ends, for `camera:gesture-end`. The input defines the end;
+ * only the wheel, which has no event of its own that ends a turn, is ended by a pause.
  */
 
 /**
@@ -23,46 +23,49 @@ export const CAMERA_GESTURE_KINDS: readonly CameraGestureKind[] = Object.freeze(
 export interface GestureEndHooks {
     /** Told once when a reader's camera gesture ends. */
     onGestureEnd?: ((kind: CameraGestureKind) => void) | null;
-    /** Asks the render loop for one more frame, for a run waiting on the frame that ends it. */
-    requestFrame?: (() => void) | null;
 }
 
 /**
- * A run of wheel events. Every wheel event before the next frame belongs to the run, and so does
- * one in the frame after it; the run ends at the first frame that saw no wheel event since the
- * frame before. Wheel events dispatched in one task are therefore always one gesture, because no
- * frame runs between them.
+ * How long the wheel must rest before a run of wheel events ends: longer than the gaps between
+ * the notches of one turn of the wheel, and than the delay a busy browser adds to delivering
+ * each of them.
+ */
+export const WHEEL_PAUSE_MS = 500;
+
+/**
+ * A run of wheel events. It ends at the first frame at least {@link WHEEL_PAUSE_MS} after its
+ * last wheel event, so a burst is one gesture however the browser spreads it over frames, and
+ * the count is the same at any frame rate. A browser hands the page a burst of wheel events one
+ * or two to a frame, waiting each time for the page to take the last, and a busy one can let a
+ * frame or more pass between two of them (issue #10339).
  */
 export class WheelRun {
-    #state: "idle" | "moving" | "settling" = "idle";
+    #lastWheelAt: number | null = null;
 
-    /** A wheel event arrived. */
-    wheel(): void {
-        this.#state = "moving";
+    /**
+     * A wheel event arrived.
+     * @param now - When, in `performance.now()` milliseconds.
+     */
+    wheel(now = performance.now()): void {
+        this.#lastWheelAt = now;
     }
 
     /**
      * One frame passed.
-     * @param requestFrame - Asks for the frame that can end the run, when the loop would rest.
+     * @param now - When, in `performance.now()` milliseconds.
      * @returns True when the run ended at this frame.
      */
-    frame(requestFrame?: (() => void) | null): boolean {
-        if (this.#state === "moving") {
-            this.#state = "settling";
-            requestFrame?.();
+    frame(now = performance.now()): boolean {
+        if (this.#lastWheelAt === null || now - this.#lastWheelAt < WHEEL_PAUSE_MS) {
             return false;
         }
 
-        if (this.#state === "settling") {
-            this.#state = "idle";
-            return true;
-        }
-
-        return false;
+        this.#lastWheelAt = null;
+        return true;
     }
 
     /** Forget the run: the input was switched off. */
     reset(): void {
-        this.#state = "idle";
+        this.#lastWheelAt = null;
     }
 }

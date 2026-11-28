@@ -47,7 +47,7 @@ describe("a notice's own timer", () => {
         act(() => {
             store.set({ notice: { message: "Saved Untitled" } });
         });
-        await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+        await userEvent.click(page.getByRole("button", { name: "Dismiss", exact: true }));
         assert.isNull(store.get().notice, "the x took the first notice down");
 
         let entered = false;
@@ -92,7 +92,7 @@ describe("a notice's own timer", () => {
         act(() => {
             store.set({ notice: { message: "Saved Untitled" } });
         });
-        await userEvent.hover(screen.getByTestId("toast"));
+        await userEvent.hover(page.getByTestId("toast"));
         act(() => {
             vi.advanceTimersByTime(NOTICE_MS * 2);
         });

@@ -29,9 +29,13 @@ import type {
 } from "@graphty/graphty-element/session";
 import { type ReactNode, useSyncExternalStore } from "react";
 
+import type { FeedbackDraft } from "../../components/FeedbackModal";
 import type { StartSample } from "../../data/sampleManifest";
 import type { InspectedKind } from "../commands/registry";
+import type { ExportDraft } from "../export/choices";
 import type { JoinHow } from "../join/commands";
+import type { NoteView } from "../notes/NotesPlace";
+import type { Verb } from "../selection/model";
 import {
     layoutOf,
     MAP_DEPTH_INDEPENDENT_SIZE,
@@ -39,6 +43,8 @@ import {
     readWorkspaceLayout,
     writeWorkspaceLayout,
 } from "../settings/preferences";
+import type { KeptCustomModel } from "../style/CustomModelDialog";
+import type { KeptShaderDrafts } from "../style/ShaderEditorDialog";
 
 /**
  * How the open project was opened, when opening it again gives the same project: one of the app's
@@ -255,6 +261,27 @@ export interface WorkspaceState {
         readonly selected?: string | null;
         /** The name being edited in place: a group's id, or `title` for the selection's own; or null. */
         readonly renaming?: string | null;
+        /** The cards folded to their header line, by group id. */
+        readonly folded?: readonly string[];
+        /**
+         * The step being added: its group, its verb, whether its value picker is open, the row
+         * selected before it and the letters typed to open the picker; or null.
+         */
+        readonly adding?: {
+            readonly branch: string;
+            readonly op: Verb;
+            readonly open: boolean;
+            readonly back?: string | null;
+            readonly seed?: string;
+        } | null;
+    } | null;
+    /**
+     * Whether each selection workspace host (a style layer's selector, a filter card) draws its
+     * preview in group colors and shows its matches strip; null: both on for both.
+     */
+    readonly selectionShown: {
+        readonly colors: Readonly<Record<"selector" | "filter", boolean>>;
+        readonly strip: Readonly<Record<"selector" | "filter", boolean>>;
     } | null;
     /**
      * A new filter card to open once the Filters section shows it: on a field
@@ -447,8 +474,44 @@ export interface WorkspaceState {
         readonly form: "full" | "section";
         readonly storage: Readonly<Record<string, SourceStorage>>;
     } | null;
+    /**
+     * What the Export dialog holds: the output shown, each output's choices (the Report's title
+     * and words among them) and the files exported. Null until the reader changes one.
+     */
+    readonly exportDraft: ExportDraft | null;
+    /** The shader editor's unsent drafts, one per target, kept when it closes without adding; null: none yet. */
+    readonly shaderDrafts: KeptShaderDrafts | null;
     /** The terms the Custom score dialog opens with (a result's Combine into a score...), else null. */
-    readonly scoreOn: { readonly kind: "node" | "edge"; readonly terms: readonly ScoreTerm[] } | null;
+    readonly scoreOn: {
+        readonly kind: "node" | "edge";
+        readonly terms: readonly ScoreTerm[];
+        /** The name the reader typed; absent: the first free one. */
+        readonly name?: string;
+    } | null;
+    /** The Notes place's Status, Tag, Author and Sort; null: every note, newest first. */
+    readonly notesView: NoteView | null;
+    /** What the reader typed in Report a problem (its attachments cannot come back); null: nothing yet. */
+    readonly feedbackDraft: FeedbackDraft | null;
+    /**
+     * The name being edited in place and what names its row (`source:<key>`, `chat:<id>`); null: no
+     * rename open.
+     */
+    readonly renameDraft: { readonly on: string; readonly text: string } | null;
+    /** Whether the Assistant shows its chat list in place of the log. */
+    readonly assistantListing: boolean;
+    /**
+     * What the reader set in the Load custom model dialog: the address loaded, the layer's own
+     * settings and each model's Name and settings (the loaded files cannot come back); null: nothing.
+     */
+    readonly customModelDraft: KeptCustomModel | null;
+    /** The style row whose Shape line opened the Load custom model dialog (its layer ids), else null. */
+    readonly customModelOn: string | null;
+    /**
+     * The shader list the shader editor was opened from (`background`, or a style row's side and
+     * layer ids), and the shader a Duplicate and edit copies; null while it is closed. Its text is
+     * in `shaderDrafts`.
+     */
+    readonly shaderEditorOn: { readonly list: string; readonly duplicateOf?: string } | null;
     /** The source a Sources row's Export... opened Data on (its key), else null. */
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
@@ -558,6 +621,7 @@ export const ON_RELOAD = {
     dockRows: "fresh: request: a one-time request the dock clears",
     editingSelection: "fresh: derived: the selection editor that reopens writes it again",
     selectionWorkspace: "kept: element-id",
+    selectionShown: "kept",
     filterDraft: "fresh: request: a one-time request the Filters section clears",
     fieldsEntry: "fresh: request: a one-time request Fields clears",
     dockMaximized: "kept",
@@ -599,7 +663,16 @@ export const ON_RELOAD = {
     analyzeValues: "kept",
     pathDraft: "kept",
     saveAsDraft: "kept",
+    exportDraft: "kept",
+    shaderDrafts: "kept",
     scoreOn: "kept",
+    notesView: "kept",
+    feedbackDraft: "kept",
+    renameDraft: "kept",
+    assistantListing: "kept",
+    customModelDraft: "kept",
+    customModelOn: "kept",
+    shaderEditorOn: "kept",
     serverEdit: "kept",
     singleKeyShortcuts: "fresh: read: read from this browser's settings at start",
     mapDepthIndependentSize: "fresh: read: read from this browser's settings at start",
@@ -717,6 +790,7 @@ const INITIAL: WorkspaceState = {
     dockRows: null,
     editingSelection: null,
     selectionWorkspace: null,
+    selectionShown: null,
     filterDraft: null,
     fieldsEntry: null,
     dockMaximized: false,
@@ -759,7 +833,16 @@ const INITIAL: WorkspaceState = {
     analyzeValues: null,
     pathDraft: null,
     saveAsDraft: null,
+    exportDraft: null,
+    shaderDrafts: null,
     scoreOn: null,
+    notesView: null,
+    feedbackDraft: null,
+    renameDraft: null,
+    assistantListing: false,
+    customModelDraft: null,
+    customModelOn: null,
+    shaderEditorOn: null,
     serverEdit: null,
     singleKeyShortcuts: true,
     notice: null,

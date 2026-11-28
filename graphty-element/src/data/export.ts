@@ -401,6 +401,26 @@ interface ExportBuildOptions {
 interface ExportRows {
     readonly nodes: readonly number[];
     readonly edges: readonly number[];
+    /** Every node and edge record of the graph, when choosing the rows already built them. */
+    readonly records?: ExportRecords;
+}
+
+/** Every node and edge record of the graph, in row order. */
+interface ExportRecords {
+    readonly nodes: readonly NodeRecord[];
+    readonly edges: readonly EdgeRecord[];
+}
+
+/**
+ * Every record of the graph, built once per export: reused from the rows when they hold them.
+ * @param session - The session.
+ * @param rows - The rows being written.
+ * @returns The records.
+ */
+function recordsOf(session: GraphSession, rows: ExportRows): ExportRecords {
+    return (
+        rows.records ?? { nodes: session.data.nodes({ scope: "graph" }), edges: session.data.edges({ scope: "graph" }) }
+    );
 }
 
 /**
@@ -411,13 +431,16 @@ interface ExportRows {
  */
 function exportRows(session: GraphSession, scope: ExportScope | undefined): ExportRows {
     const all = (count: number): number[] => Array.from({ length: count }, (_value, row) => row);
-    const nodes = session.data.nodes({ scope: "graph" });
-    const edges = session.data.edges({ scope: "graph" });
     // No scope reads what every reader naming none reads: the working graph while it is on.
     const named = scope ?? (session.workingGraph ? "shown" : "all");
     if (named === "all") {
-        return { nodes: all(nodes.length), edges: all(edges.length) };
+        // Only the counts: building every record here would build them twice per export.
+        const counts = session.data.count({ scope: "graph" });
+        return { nodes: all(counts.nodes), edges: all(counts.edges) };
     }
+
+    const nodes = session.data.nodes({ scope: "graph" });
+    const edges = session.data.edges({ scope: "graph" });
 
     const resolver = scopeResolverOfSession(session);
     const resolved = resolver.resolveNow(resolver.canonical(scopeInputOf(named)));
@@ -428,6 +451,7 @@ function exportRows(session: GraphSession, scope: ExportScope | undefined): Expo
     const nodeRows = rowsIn(nodes, resolved.nodes);
     const written = new Set(nodeRows.map((row) => nodes[row].id));
     return {
+        records: { nodes, edges },
         nodes: nodeRows,
         // A scope's edges are the edges between its nodes; check the ends anyway, so no edge
         // brings back a node the scope left out.
@@ -630,9 +654,8 @@ export function buildExportSnapshot(
         builder.setMeta({ extra });
     }
 
-    const allNodes = session.data.nodes({ scope: "graph" });
-    const allEdges = session.data.edges({ scope: "graph" });
     const rows = options.rows ?? exportRows(session, "all");
+    const { nodes: allNodes, edges: allEdges } = recordsOf(session, rows);
     const nodes = rows.nodes.map((row) => allNodes[row]);
     const edges = rows.edges.map((row) => allEdges[row]);
     const kept = columnTest(options.columns);
@@ -1219,7 +1242,9 @@ export function exportSession(
     }
 
     const writer = writerFor(format, writerOptions);
-    const rows = exportRows(session, scope);
+    const chosen = exportRows(session, scope);
+    // One record build serves the snapshot and the style writer alike.
+    const rows = { ...chosen, records: recordsOf(session, chosen) };
     const build = { ...writer.build, rows, ...(columns === undefined ? {} : { columns: new Set(columns) }) };
     let built: { snapshot: GraphSnapshot; notes: LossNote[] };
     let styles: StylesToWrite | null = null;
@@ -1293,8 +1318,7 @@ function sessionStyles(
 ): StylesToWrite {
     const block = exporter.styles?.capabilities.block;
     const { state } = dispatcherOf(session);
-    const allNodes = session.data.nodes({ scope: "graph" });
-    const allEdges = session.data.edges({ scope: "graph" });
+    const { nodes: allNodes, edges: allEdges } = recordsOf(session, rows);
     const nodes = rows.nodes.map((row) => allNodes[row]);
     const edges = rows.edges.map((row) => allEdges[row]);
     const nodeMask = session.visibility.nodeMask();

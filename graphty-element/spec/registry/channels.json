@@ -2158,7 +2158,8 @@
                 "deltoid",
                 "open-vee",
                 "slash",
-                "stem"
+                "stem",
+                "hollow-vee"
             ]
         },
         {
@@ -2358,7 +2359,8 @@
                 "deltoid",
                 "open-vee",
                 "slash",
-                "stem"
+                "stem",
+                "hollow-vee"
             ]
         },
         {
@@ -2558,7 +2560,8 @@
                 "deltoid",
                 "open-vee",
                 "slash",
-                "stem"
+                "stem",
+                "hollow-vee"
             ],
             "experimental": "file-styles"
         },
@@ -2668,7 +2671,8 @@
                 "deltoid",
                 "open-vee",
                 "slash",
-                "stem"
+                "stem",
+                "hollow-vee"
             ],
             "experimental": "file-styles"
         },

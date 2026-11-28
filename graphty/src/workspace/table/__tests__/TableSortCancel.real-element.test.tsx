@@ -65,14 +65,14 @@ describe("a long table sort", () => {
             return real(...args);
         });
 
-        await userEvent.click(within(dock).getByRole("button", { name: /^(?!Options for).*\bname$/u }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: /^(?!Options for).*\bname$/u }));
         // The notice is the toast; a live region repeats its words for a screen reader.
         const notice = await screen.findByTestId("toast");
         await within(notice).findByText(/^Sorting \d+%$/u);
         assert.deepEqual(drawnIds(), loaded, "the old order stays drawn while the element sorts");
         assert.strictEqual(prepare.mock.calls.length, 1);
 
-        await userEvent.click(within(notice).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(notice).getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isFalse(notice.isConnected);
         });
@@ -82,7 +82,7 @@ describe("a long table sort", () => {
 
         // Without the hold, the same sort finishes and the rows take the new order.
         prepare.mockRestore();
-        await userEvent.click(within(dock).getByRole("button", { name: /^(?!Options for).*\bname$/u }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: /^(?!Options for).*\bname$/u }));
         await waitFor(() => {
             assert.deepEqual(drawnIds(), [...loaded].reverse());
         });

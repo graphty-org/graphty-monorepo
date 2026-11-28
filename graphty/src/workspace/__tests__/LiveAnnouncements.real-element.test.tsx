@@ -128,11 +128,15 @@ describe("live announcements", () => {
             return within(nodes).getByRole("group", { name: "Text" });
         };
         await screen.findByTestId("style-tab");
-        await userEvent.click(within(text()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
-        await userEvent.click(await within(text()).findByRole("button", { name: "Add to node label" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await userEvent.click(
+            page.elementLocator(text()).getByRole("button", { name: "Add to node text", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(page.elementLocator(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
+        await userEvent.click(
+            page.elementLocator(text()).getByRole("button", { name: "Add to node label", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Size", exact: true }));
         // The new size's box takes focus.
         const box = await waitFor(() => {
             const focused = document.activeElement;
@@ -158,9 +162,9 @@ describe("live announcements", () => {
             assert.isFalse(analyze().hasAttribute("aria-disabled"));
         });
         await userEvent.click(analyze());
-        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Degree");
-        await userEvent.click(await screen.findByRole("option", { name: /^Degree/ }));
-        await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
+        await userEvent.type(page.getByRole("combobox", { name: "Filter analyses", exact: true }), "Degree");
+        await userEvent.click(page.getByRole("option", { name: /^Degree/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Run\b/ }));
         await waitFor(() => {
             // Named as every other line names a node.
             const ava = nodeName(session, "a");
@@ -186,12 +190,12 @@ describe("live announcements", () => {
 
     it("the sample library's search says how many samples it leaves", async () => {
         render(<Workspace store={createWorkspaceStore()} />);
-        const search = await screen.findByRole("searchbox", { name: "Search samples" });
+        await screen.findByRole("searchbox", { name: "Search samples" });
         assert.isFalse(
             heard.some((line) => / shown$/.test(line)),
             "the count the library opens with is not news",
         );
-        await userEvent.click(search);
+        await userEvent.click(page.getByRole("searchbox", { name: "Search samples", exact: true }));
         await userEvent.keyboard("karate");
         const library = screen.getByRole("region", { name: "Sample library" });
         await waitFor(() => {

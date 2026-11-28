@@ -259,10 +259,9 @@ describe("usage counts from the reader's hands on the canvas", () => {
         await dragAcross(element, 80, { x: 8, y: 8 });
         assert.deepEqual({ ...(await orbited) }, { kind: "orbit" });
 
-        // How many zoom gestures the element saw in the wheel run: a frame falling between two
-        // notches can make it two, so the count is checked per gesture, not as exactly one. The
-        // listener stays on to the end: a stable frame says nothing about a reader's gesture, so a
-        // second run's end can come after it, and this listener and the app's hear it together.
+        // How many zoom gestures the element saw in the wheel run: one, however the browser spread
+        // the notches over frames. The listener stays on to the end, so a second end, which would
+        // come after the stable frame, is counted too.
         let zooms = 0;
         const offZoom = element.session.on("camera:gesture-end", ({ kind }) => {
             if (kind === "zoom") {
@@ -275,29 +274,26 @@ describe("usage counts from the reader's hands on the canvas", () => {
         await element.waitForStableFrame();
 
         // The Camera button is a command of its own (view.camera); Fit is the row it opens.
-        await userEvent.click(screen.getByRole("button", { name: /^Camera/ }));
-        const row = await screen.findByRole("menuitem", { name: /^Fit(?! selection)/ });
+        await userEvent.click(page.getByRole("button", { name: /^Camera/ }));
+        await screen.findByRole("menuitem", { name: /^Fit(?! selection)/ });
         const fit = next("command_run");
-        await userEvent.click(row);
+        await userEvent.click(page.getByRole("menuitem", { name: /^Fit(?! selection)/ }));
         assert.strictEqual((await fit).command, "view.fit");
         // Fit's own animation is not the reader's gesture: it sends no camera_used at all.
         await element.waitForStableFrame();
         offZoom();
-        assert.isAtMost(zooms, 5, "no more zoom gestures than notches");
+        assert.strictEqual(zooms, 1, "one wheel run, one zoom gesture");
 
         assert.deepEqual(
             own("command_run", "command").map((each) => each.command),
             ["view.camera", "view.fit"],
         );
         assert.lengthOf(captured("nodes_dragged"), 1, "one drag, one event");
-        assert.deepEqual(own("camera_used", "kind"), [
-            { kind: "orbit" },
-            ...Array.from({ length: zooms }, () => ({ kind: "zoom" })),
-        ]);
+        assert.deepEqual(own("camera_used", "kind"), [{ kind: "orbit" }, { kind: "zoom" }]);
         // Counted for every reader: the first gesture on the page is marked as the first.
         assert.deepEqual(
             captured("camera_used").map((each) => each.first_on_page),
-            [true, ...Array.from({ length: zooms }, () => undefined)],
+            [true, undefined],
         );
         assert.deepEqual(own("canvas_selected", "via"), [{ via: "click" }, { via: "box" }]);
         for (const { id } of [node, other]) {
@@ -329,7 +325,7 @@ describe("usage counts from the reader's hands on the canvas", () => {
         await openedAtRest();
         (document.activeElement as HTMLElement | null)?.blur();
         await userEvent.keyboard("{Control>}k{/Control}");
-        const field = await screen.findByPlaceholderText("Search commands");
+        const field = page.getByPlaceholder("Search commands", { exact: true });
         await userEvent.type(field, "Legend");
         await screen.findByRole("option", { name: /^Legend\b/ });
         const ran = next("command_run");

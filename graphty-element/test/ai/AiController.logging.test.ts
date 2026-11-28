@@ -5,7 +5,7 @@ import { AiController } from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { LlmProvider, LlmResponse, Message } from "../../src/ai/providers/types";
 import { GraphtyLogger, LogLevel, type LogRecord } from "../../src/logging";
-import { createMessageGraph } from "../helpers/message-graph";
+import { createCommandGraph } from "../helpers/session-graph";
 
 // A value that must never leave the page through a log destination. It is put in every place
 // the AI path handles content: the prompt, the person's message, the model's text, tool call
@@ -106,7 +106,7 @@ describe("AiController debug logging", () => {
         const controller = new AiController({
             provider: sentinelProvider(),
             commandRegistry: registry,
-            graph: createMessageGraph(),
+            graph: await createCommandGraph(),
         });
 
         await controller.execute(`Please find ${SENTINEL}`);

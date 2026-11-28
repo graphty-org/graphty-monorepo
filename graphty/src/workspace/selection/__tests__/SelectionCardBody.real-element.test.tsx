@@ -14,7 +14,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, Layer, UnionLeaf } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
@@ -61,7 +61,7 @@ async function openLayer(): Promise<{ session: GraphSession; layer: Layer }> {
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Calm, / }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Calm, / }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -73,7 +73,7 @@ async function openLayer(): Promise<{ session: GraphSession; layer: Layer }> {
  * @returns the workspace.
  */
 async function openWorkspace(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the workspace is open");
@@ -134,7 +134,7 @@ describe("the workspace's cards, as the approved prototype", () => {
         assert.isNotNull(within(card).queryByRole("button", { name: "Delete A" }), "an x on the header");
         assert.isNotNull(within(card).queryByRole("button", { name: "More for A" }), "a ... on the header");
         assert.isNull(within(card).queryByRole("button", { name: "Keep" }), "no Keep before a value");
-        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
         });
@@ -162,7 +162,7 @@ describe("the workspace's cards, as the approved prototype", () => {
         if (first === null) {
             throw new Error("no checkbox");
         }
-        await userEvent.click(first);
+        await userEvent.click(page.elementLocator(card).getByCss("input[type=checkbox]").first());
         await waitFor(() => {
             assert.isAbove(headCount(modal), 0, "a ticked group counts");
         });
@@ -182,7 +182,7 @@ describe("the workspace's cards, as the approved prototype", () => {
         await openLayer();
         await openWorkspace();
         await pick(within(cards()[0]).getByRole("button", { name: "Value" }), "Leiden");
-        await userEvent.click(await within(cards()[0]).findByRole("button", { name: /^Settings for Leiden/u }));
+        await userEvent.click(page.elementLocator(cards()[0]).getByRole("button", { name: /^Settings for Leiden/u }));
         const panel = await screen.findByRole("dialog", { name: "Leiden" });
         for (const name of [/^Resolution/u, /^Max iterations/u, /^Tolerance/u]) {
             assert.isNotNull(within(panel).getByRole("spinbutton", { name }));
@@ -202,8 +202,9 @@ describe("the workspace's cards, as the approved prototype", () => {
         await openLayer();
         const modal = await openWorkspace();
         await pick(within(cards()[0]).getByRole("button", { name: "Value" }), "Louvain");
-        const settings = await within(cards()[0]).findByRole("button", { name: /^Settings for Louvain/u });
-        await userEvent.click(settings);
+        const settings = (): Locator =>
+            page.elementLocator(cards()[0]).getByRole("button", { name: /^Settings for Louvain/u });
+        await userEvent.click(settings());
         const panel = await screen.findByRole("dialog", { name: "Louvain" });
         const box = panel.getBoundingClientRect();
         const room = modal.getBoundingClientRect();
@@ -242,7 +243,7 @@ describe("the workspace's cards, as the approved prototype", () => {
         await openLayer();
         await openWorkspace();
         await pick(within(cards()[0]).getByRole("button", { name: "Value" }), "Degree");
-        await userEvent.click(screen.getByRole("button", { name: "Card" }));
+        await userEvent.click(page.getByRole("button", { name: "Card", exact: true }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Louvain");
         const options = await screen.findAllByRole("option");
@@ -259,7 +260,7 @@ describe("the workspace's cards, as the approved prototype", () => {
         const { session, layer } = await openLayer();
         const modal = await openWorkspace();
         await pick(within(cards()[0]).getByRole("button", { name: "Value" }), "Degree");
-        await userEvent.click(within(cards()[0]).getByRole("button", { name: "No nodes" }));
+        await userEvent.click(page.elementLocator(cards()[0]).getByRole("button", { name: "No nodes", exact: true }));
         await waitFor(() => {
             assert.isNotNull(within(cards()[0]).queryByRole("button", { name: "All nodes" }));
             assert.strictEqual(unionOf(session, layer.id)?.branches[0]?.start, "all");
@@ -290,8 +291,8 @@ describe("the workspace's cards, as the approved prototype", () => {
 
     it("renames a filter in the workspace's title bar, and Done writes it with its name as one undo step", async () => {
         const { session } = await openApp();
-        await userEvent.click(await screen.findByRole("button", { name: /^Data/u }));
-        await userEvent.click(await screen.findByRole("button", { name: /Add filter/u }));
+        await userEvent.click(page.getByRole("button", { name: /^Data/u }));
+        await userEvent.click(page.getByRole("button", { name: /Add filter/u }));
         const modal = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found);
@@ -299,14 +300,14 @@ describe("the workspace's cards, as the approved prototype", () => {
         });
         await pick(within(cards()[0]).getByRole("button", { name: "Value" }), "Degree");
         const before = session.history.steps.length;
-        await userEvent.click(within(modal).getByRole("button", { name: /, rename$/u }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /, rename$/u }));
         await userEvent.keyboard("{Control>}a{/Control}Busy people{Enter}");
         await waitFor(() => {
             assert.match(modal.querySelector(".sel-ws-title")?.textContent ?? "", /Busy people/u);
         });
         // A draft of graphty-element's working graph until Done (design/working-graph/design.md, section 3).
         assert.lengthOf(session.visibility.conditions, 0, "nothing is written while the filter is edited");
-        await userEvent.click(within(modal).getByRole("button", { name: /^Done/u }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Done/u }));
         await waitFor(() => {
             assert.strictEqual(session.visibility.conditions[0]?.name, "Busy people");
         });

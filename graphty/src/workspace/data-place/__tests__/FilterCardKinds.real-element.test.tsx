@@ -82,10 +82,10 @@ async function openPeople(): Promise<{ session: GraphSession; store: WorkspaceSt
  * @param name - the field's name.
  */
 async function newCardOn(name: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+    await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
     // The new card opens in the selection workspace: its Value field lists the fields.
-    await userEvent.click(await screen.findByRole("button", { name: "Value" }));
-    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
+    await userEvent.click(page.getByRole("button", { name: "Value", exact: true }));
+    await userEvent.click(page.getByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
 }
 
 /**
@@ -124,14 +124,18 @@ describe("Each kind of filter card", () => {
         // A value row reads box, name, then its count dimmed at the right; named as the Style card names it.
         const board = within(values).getByRole("checkbox", { name: "board, 3 nodes" });
         assert.equal(board.closest(".mantine-Checkbox-root")?.textContent, "board3");
-        await userEvent.click(board);
         await userEvent.click(
-            within(await screen.findByRole("group", { name: "role values" })).getByRole("checkbox", { name: /^staff/ }),
+            page.elementLocator(values).getByRole("checkbox", { name: "board, 3 nodes", exact: true }),
+        );
+        await userEvent.click(
+            page.getByRole("group", { name: "role values", exact: true }).getByRole("checkbox", { name: /^staff/ }),
         );
         // The card is a draft until Done writes it as one step.
         assert.lengthOf(session.visibility.conditions, 0, "a draft writes nothing before Done");
         const open = document.querySelector<HTMLElement>(".sel-ws");
-        await userEvent.click(within(open ?? document.body).getByRole("button", { name: "Done" }));
+        await userEvent.click(
+            page.elementLocator(open ?? document.body).getByRole("button", { name: "Done", exact: true }),
+        );
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
         });
@@ -156,7 +160,7 @@ describe("a new filter card's value field and name", () => {
 
     it("a letter typed on the empty card's Value field opens its list searching for it", async () => {
         await openPeople();
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
         const field = await screen.findByRole("button", { name: "Value" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, field, "the new card's Value field has focus");
@@ -164,7 +168,7 @@ describe("a new filter card's value field and name", () => {
         await userEvent.keyboard("r");
         const search = await screen.findByRole<HTMLInputElement>("combobox", { name: "Find attributes, results" });
         assert.strictEqual(search.value, "r", "the letter starts the search");
-        await userEvent.click(await screen.findByRole("option", { name: /^role(,|$)/ }));
+        await userEvent.click(page.getByRole("option", { name: /^role(,|$)/ }));
         await screen.findByRole("group", { name: "role values" });
     });
 
@@ -172,22 +176,24 @@ describe("a new filter card's value field and name", () => {
         const { session } = await openPeople();
         await newCardOn("role");
         const values = await screen.findByRole("group", { name: "role values" });
-        await userEvent.click(within(values).getByRole("checkbox", { name: "board, 3 nodes" }));
+        await userEvent.click(
+            page.elementLocator(values).getByRole("checkbox", { name: "board, 3 nodes", exact: true }),
+        );
         const head = (): HTMLElement => {
             const found = document.querySelector<HTMLElement>(".sel-ws .sel-ws-head");
             assert.isNotNull(found, "the workspace is open");
             return found;
         };
-        await userEvent.click(within(head()).getByRole("button", { name: /, rename$/ }));
+        await userEvent.click(page.elementLocator(head()).getByRole("button", { name: /, rename$/ }));
         await userEvent.keyboard("{Control>}a{/Control}Board{Enter}");
         await within(head()).findByRole("button", { name: "Board, rename" });
 
-        await userEvent.click(within(head()).getByRole("button", { name: "Board, rename" }));
+        await userEvent.click(page.elementLocator(head()).getByRole("button", { name: "Board, rename", exact: true }));
         await userEvent.keyboard("{Control>}a{/Control}Nope{Escape}");
         await within(head()).findByRole("button", { name: "Board, rename" });
         assert.isNotNull(document.querySelector(".sel-ws"), "Escape in the box leaves the workspace open");
 
-        await userEvent.click(within(head()).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(head()).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.strictEqual(session.visibility.conditions[0]?.name, "Board");
         });

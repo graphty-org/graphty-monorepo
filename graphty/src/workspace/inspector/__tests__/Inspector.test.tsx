@@ -11,7 +11,7 @@ import {
     type RunOutcome,
 } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
@@ -77,7 +77,7 @@ function controlNames(): string[] {
  * @param hops - the hop count.
  */
 async function typeHops(hops: number): Promise<void> {
-    const field = await screen.findByRole("spinbutton", { name: "Hops" });
+    const field = page.getByRole("spinbutton", { name: "Hops", exact: true });
     await userEvent.clear(field);
     await userEvent.type(field, `${String(hops)}{Enter}`);
 }
@@ -165,7 +165,7 @@ describe("the inspector", () => {
     it("keeps the graph's tab, and always opens a single node on Values", async () => {
         const { session: on } = await renderInspector();
 
-        await userEvent.click(screen.getByRole("tab", { name: "Style" }));
+        await userEvent.click(page.getByRole("tab", { name: "Style", exact: true }));
         assert.isNotNull(screen.getByRole("group", { name: "Canvas" }));
 
         await act(async () => {
@@ -175,7 +175,7 @@ describe("the inspector", () => {
             assert.equal(screen.getByRole("tab", { name: "Values" }).getAttribute("aria-selected"), "true");
         });
         // Style picked on one node does not carry to the next.
-        await userEvent.click(screen.getByRole("tab", { name: "Style" }));
+        await userEvent.click(page.getByRole("tab", { name: "Style", exact: true }));
         await act(async () => {
             await on.selection.apply({ nodes: ["n2"] });
         });
@@ -200,7 +200,7 @@ describe("the inspector", () => {
 
         const degree = await screen.findByRole("button", { name: /Degree/ });
         assert.include(degree.textContent, "3");
-        await userEvent.click(degree);
+        await userEvent.click(page.getByRole("button", { name: /Degree/ }));
 
         const list = await screen.findByRole("group", { name: "n0 and 3 connections" });
         const names = within(list)
@@ -240,7 +240,7 @@ describe("the inspector", () => {
         };
         await screen.findByRole("button", { name: /Degree/ });
         const node = marks();
-        await userEvent.click(screen.getByRole("button", { name: /Degree/ }));
+        await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         await screen.findByRole("group", { name: "n0 and 3 connections" });
         assert.equal(marks(), node);
     });
@@ -250,7 +250,7 @@ describe("the inspector", () => {
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
-        await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
+        await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         await screen.findByRole("group", { name: "n0 and 3 connections" });
         // The heading is the section title, as the node's Summary is, and names the list once:
         // one group, no region around it under the same words.
@@ -268,7 +268,7 @@ describe("the inspector", () => {
             .filter((name) => name !== "Filter to neighbors" && name !== "Back to n0");
         assert.deepEqual(names, ["n1", "n2", "n4", "n5", "n6", "n7", "n11"]);
 
-        await userEvent.click(screen.getByRole("button", { name: "Back to n0" }));
+        await userEvent.click(page.getByRole("button", { name: "Back to n0", exact: true }));
         await waitFor(() => {
             assert.deepEqual([...on.selection.nodes], ["n0"]);
         });
@@ -283,7 +283,7 @@ describe("the inspector", () => {
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
-        await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
+        await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         await screen.findByRole("group", { name: "n0 and 3 connections" });
 
         // Four hops from n0 reach every node of both rings but n0 itself: 11 around it.
@@ -309,11 +309,11 @@ describe("the inspector", () => {
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
-        await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
+        await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         const command = await screen.findByRole("button", { name: "Filter to neighbors" });
         assert.equal(command.getAttribute("data-variant"), "default");
         assert.isNull(command.getAttribute("aria-pressed"));
-        await userEvent.hover(command);
+        await userEvent.hover(page.getByRole("button", { name: "Filter to neighbors", exact: true }));
         // The tooltip mounts after the theme's 1000 ms open delay, so a deadline of its own would race
         // the delay on a busy machine: the wait has none, and the test's own timeout is the backstop.
         const tip = await screen.findByText(
@@ -327,7 +327,7 @@ describe("the inspector", () => {
         });
 
         // Pressed, it adds the card and still reads as a command, not as pressed.
-        await userEvent.click(command);
+        await userEvent.click(page.getByRole("button", { name: "Filter to neighbors", exact: true }));
         await waitFor(() => {
             assert.lengthOf(on.visibility.conditions, 1);
         });
@@ -342,10 +342,10 @@ describe("the inspector", () => {
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
-        await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
+        await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         await typeHops(2);
         await screen.findByRole("group", { name: "n0 and 7 connections" });
-        await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
+        await userEvent.click(page.getByRole("button", { name: "Filter to neighbors", exact: true }));
         await waitFor(() => {
             assert.deepEqual(reaches(), [[true, 2]]);
         });
@@ -356,7 +356,7 @@ describe("the inspector", () => {
         });
         await typeHops(1);
         await screen.findByRole("group", { name: "n0 and 3 connections" });
-        await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
+        await userEvent.click(page.getByRole("button", { name: "Filter to neighbors", exact: true }));
         await waitFor(() => {
             assert.deepEqual(reaches(), [[true, 1]]);
         });
@@ -370,12 +370,12 @@ describe("the inspector", () => {
         const origin = await screen.findByRole("group", { name: "Origin" });
         assert.include(origin.textContent, "From the file");
         const kind = screen.getByRole("group", { name: "Value type" });
-        const word = within(kind).getByText("Number");
+        const word = (): Locator => page.elementLocator(kind).getByText("Number", { exact: true });
         // A tooltip opens only when the pointer moves onto its trigger, and the pointer is where
         // an earlier test left it -- in a full run that can be this very spot, so a hover there
         // is no move. Move it off first, as a reader's pointer comes from elsewhere.
-        await userEvent.unhover(word);
-        await userEvent.hover(word);
+        await userEvent.unhover(word());
+        await userEvent.hover(word());
         // By its text, then its tooltip: in a full run the role query alone missed a tooltip that
         // was already in the page with this text (testing-library judged it inaccessible). It mounts
         // after the theme's 1000 ms open delay, so the wait has no deadline of its own to race it.
@@ -388,7 +388,7 @@ describe("the inspector", () => {
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
-        await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
+        await userEvent.click(page.getByRole("button", { name: /Degree/ }));
         await screen.findByRole("group", { name: "n0 and 3 connections" });
 
         await act(async () => {
@@ -488,7 +488,7 @@ describe("the inspector", () => {
         const running = await screen.findByText("Running");
         assert.equal(running.getAttribute("role"), "status");
         assert.equal(running.textContent, "Running");
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.equal(on.runs.get(first.id)?.status, "canceled");
         });
@@ -533,7 +533,7 @@ describe("the inspector", () => {
         });
 
         // The row opens on Style (the highlight); Values holds the Summary.
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.getByRole("tab", { name: "Values", exact: true }));
         const nodes = await screen.findByRole("group", { name: "Nodes" });
         assert.include(nodes.textContent, "3");
         assert.isNotNull(screen.getByRole("group", { name: "Edges joining these nodes" }));
@@ -553,7 +553,7 @@ describe("the inspector", () => {
         });
 
         // The edge has a note: a Notes tab beside Style and Values, listing that note alone.
-        await userEvent.click(await screen.findByRole("tab", { name: "Notes" }));
+        await userEvent.click(page.getByRole("tab", { name: "Notes", exact: true }));
         const list = await screen.findByRole("list", { name: "Notes" });
         assert.deepEqual(
             within(list)
@@ -579,7 +579,7 @@ describe("the inspector", () => {
         await waitFor(() => {
             assert.equal(screen.getByRole("tab", { name: "Notes" }).getAttribute("aria-selected"), "true");
         });
-        await userEvent.click(screen.getByRole("button", { name: "Delete note: The only way across" }));
+        await userEvent.click(page.getByRole("button", { name: "Delete note: The only way across", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("tab", { name: "Notes" }));
         });
@@ -598,13 +598,13 @@ describe("the inspector", () => {
         assert.isNotNull(await screen.findByText("n0 -- n6"));
 
         // The three-dot button names itself on hover, as every icon button does.
-        await userEvent.hover(screen.getByRole("button", { name: "Edge actions" }));
+        await userEvent.hover(page.getByRole("button", { name: "Edge actions", exact: true }));
         // The tooltip mounts after the theme's 1000 ms open delay, so the wait has no deadline of its
         // own to race it.
         const tip = await screen.findByText("Edge actions", {});
         assert.isNotNull(tip.closest('[role="tooltip"]'));
-        await userEvent.click(screen.getByRole("button", { name: "Edge actions" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /Select endpoints/ }));
+        await userEvent.click(page.getByRole("button", { name: "Edge actions", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /Select endpoints/ }));
         await waitFor(() => {
             assert.sameMembers([...on.selection.nodes], ["n0", "n6"]);
         });
@@ -705,7 +705,7 @@ describe("the inspector", () => {
         await act(async () => {
             await on.data.import({ config: { file: new File(["from,to\nx,y\n"], "extra.csv") } });
         });
-        await userEvent.click(await screen.findByRole("button", { name: "From extra.csv" }));
+        await userEvent.click(page.getByRole("button", { name: "From extra.csv", exact: true }));
         assert.deepInclude(store.get(), { page: "panels", place: "data" });
     });
 
@@ -725,7 +725,7 @@ describe("the inspector", () => {
         assert.equal(screen.getByRole("heading", { level: 2 }).textContent, "extra.csv");
         assert.isNull(screen.queryByRole("tab", { name: "Values" }), "one body, no tabs");
         // Its verbs are its Sources row's.
-        await userEvent.click(screen.getByRole("button", { name: "Source actions" }));
+        await userEvent.click(page.getByRole("button", { name: "Source actions", exact: true }));
         assert.isNotEmpty(await screen.findAllByRole("menuitem"));
     });
 
@@ -736,7 +736,7 @@ describe("the inspector", () => {
         await act(async () => {
             await on.selection.apply({ nodes: ["n3"] });
         });
-        await userEvent.click(await screen.findByRole("button", { name: "2 notes" }));
+        await userEvent.click(page.getByRole("button", { name: "2 notes", exact: true }));
         assert.deepInclude(store.get(), { page: "panels", place: "notes" });
     });
 
@@ -787,9 +787,9 @@ describe("the inspector", () => {
         // Spoken as its tree row says it: name, kind and how many it paints.
         await screen.findByRole("heading", { level: 2, name: "First node, node layer, 1 node" });
 
-        await userEvent.click(screen.getByRole("button", { name: "Layer actions" }));
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Move to folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Annotations" }));
+        await userEvent.click(page.getByRole("button", { name: "Layer actions", exact: true }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Move to folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Annotations", exact: true }));
         await waitFor(() => {
             const inFolder = on.styles.tree().find((row) => row.id === folder.id);
             assert.deepEqual(
@@ -798,7 +798,7 @@ describe("the inspector", () => {
             );
         });
 
-        await userEvent.click(screen.getByRole("button", { name: "Select what it paints" }));
+        await userEvent.click(page.getByRole("button", { name: "Select what it paints", exact: true }));
         await waitFor(() => {
             assert.deepEqual([...on.selection.nodes], ["n0"]);
         });

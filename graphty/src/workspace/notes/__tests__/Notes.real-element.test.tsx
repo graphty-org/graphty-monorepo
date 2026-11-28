@@ -62,7 +62,7 @@ describe("Notes, on the real element", () => {
         // Save as, back to start, reopen from Recent projects.
         await userEvent.keyboard("{Control>}s{/Control}");
         const dialog = await screen.findByRole("dialog", { name: /^Save .* as$/ });
-        await userEvent.clear(within(dialog).getByRole("textbox", { name: "Name" }));
+        await userEvent.clear(page.elementLocator(dialog).getByRole("textbox", { name: "Name", exact: true }));
         await userEvent.keyboard("With a note");
         // Enter submits only once Save is enabled: with save files version 2 on, it waits for
         // graphty-element's verdict on the save, and an Enter before that is no submission.
@@ -74,16 +74,16 @@ describe("Notes, on the real element", () => {
             assert.isNull(screen.queryByRole("dialog"));
             assert.isFalse(session.project.dirty);
         });
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
-        const entry = await screen.findByRole("gridcell", { name: /^With a note/ });
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Back to start", exact: true }));
+        const entry = page.getByRole("gridcell", { name: /^With a note/ });
         const reopened = await openBy(store, () => userEvent.click(entry));
         assert.equal(reopened.project.name, "With a note");
         assert.deepEqual(
             reopened.notes.list().map((saved) => ({ text: saved.text, targets: saved.targets })),
             [{ text: "Ask about the bank", targets: [{ node: first.id }] }],
         );
-        await userEvent.click(screen.getByRole("button", { name: "Notes" }));
+        await userEvent.click(page.getByRole("button", { name: "Notes", exact: true }));
         const again = await screen.findByRole("list", { name: "Notes" });
         assert.isNotNull(within(again).getByRole("listitem", { name: "Ask about the bank" }));
     });
@@ -147,7 +147,7 @@ describe("Notes, on the real element", () => {
         const store = createWorkspaceStore();
         const { session } = await openSampleFromStart("Florentine families", store);
         await session.runs.start("pagerank", {});
-        await userEvent.click(await screen.findByRole("treeitem", { name: /^Influence, / }));
+        await userEvent.click(page.getByRole("treeitem", { name: /^Influence, / }));
         await waitFor(() => {
             assert.isNotNull(store.get().inspected);
         });
@@ -163,7 +163,7 @@ describe("Notes, on the real element", () => {
         await waitFor(() => {
             assert.isNull(element.elementAt({ x: spot.x + box.left - host.left, y: spot.y + box.top - host.top }));
         });
-        await userEvent.click(canvas, { position: spot });
+        await userEvent.click(page.elementLocator(element).getByCss("canvas").first(), { position: spot });
         await waitFor(() => {
             assert.isNull(store.get().inspected);
         });

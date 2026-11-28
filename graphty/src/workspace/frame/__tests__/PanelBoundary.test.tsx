@@ -3,7 +3,7 @@
  * clicked, draws it again.
  */
 import { assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen } from "../../../test/test-utils";
 import { PanelBoundary } from "../PanelBoundary";
@@ -37,7 +37,7 @@ describe("PanelBoundary", () => {
         assert.isNotNull(screen.getByText("This panel could not be shown"));
         assert.isNotNull(screen.getByText("Neighbor"));
         broken.now = false;
-        await userEvent.click(screen.getByRole("button", { name: "Reload panel" }));
+        await userEvent.click(page.getByRole("button", { name: "Reload panel", exact: true }));
         assert.isNotNull(await screen.findByText("Panel content"));
         quiet.mockRestore();
     });

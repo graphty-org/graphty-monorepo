@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 import { shaderTemplate } from "@graphty/graphty-element/catalog";
 import { createGraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
-import { cdp, page, userEvent } from "vitest/browser";
+import { cdp, type Locator, page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { historyTip } from "../../frame/historyWords";
@@ -82,7 +82,7 @@ async function openGraphSettings(): Promise<Element> {
     const element = await projectElement();
     await element.session.data.addNodes([{ id: "a" }, { id: "b" }]);
     await element.session.data.addEdges([{ source: "a", target: "b" }]);
-    await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+    await userEvent.click(page.getByRole("tab", { name: "Style", exact: true }));
     await screen.findByRole("combobox", { name: "Quality" });
     return element;
 }
@@ -93,18 +93,18 @@ async function openGraphSettings(): Promise<Element> {
  * @param option - the option's name.
  */
 async function choose(name: string, option: string): Promise<void> {
-    await userEvent.click(screen.getByRole("combobox", { name }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
+    await userEvent.click(page.getByRole("combobox", { name, exact: true }));
+    await userEvent.click(page.getByRole("option", { name: option, exact: true }));
 }
 
 /**
  * Adds a Shader to the Background with its "+", which opens the gallery, and picks Nebula.
  */
 async function pickNebula(): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
+    await userEvent.click(page.getByRole("button", { name: "Add to background", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: /^Shader/ }));
     const gallery = await screen.findByTestId("shader-gallery", {});
-    await userEvent.click(within(gallery).getByRole("button", { name: "Nebula" }));
+    await userEvent.click(page.elementLocator(gallery).getByRole("button", { name: "Nebula", exact: true }));
 }
 
 /**
@@ -178,7 +178,7 @@ describe("the graph's shader settings", () => {
         });
 
         // The pick opens its settings, as a style row's pick does: each parameter by its own name.
-        const drift = await screen.findByRole("spinbutton", { name: "Drift" });
+        const drift = page.getByRole("spinbutton", { name: "Drift", exact: true });
         await userEvent.clear(drift);
         await userEvent.type(drift, "0{Enter}");
         await waitFor(() => {
@@ -189,8 +189,8 @@ describe("the graph's shader settings", () => {
 
     it("Background + then Shader opens the shared gallery listing only background shaders, with no place filter", async () => {
         const element = await openGraphSettings();
-        await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
+        await userEvent.click(page.getByRole("button", { name: "Add to background", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Shader/ }));
         const gallery = await screen.findByTestId("shader-gallery", {});
         assert.strictEqual(gallery.dataset.tab, "background", "the one gallery, opened for the background");
         assert.isNull(within(gallery).queryByRole("radiogroup", { name: "Place" }), "the background has no place");
@@ -216,22 +216,23 @@ describe("the graph's shader settings", () => {
             '"user/my-background"',
             '"user/pasted-background"',
         );
-        await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
+        await userEvent.click(page.getByRole("button", { name: "Add to background", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Shader/ }));
         const gallery = await screen.findByTestId("shader-gallery", {});
-        await userEvent.click(within(gallery).getByRole("button", { name: "New shader..." }));
+        await userEvent.click(page.elementLocator(gallery).getByRole("button", { name: "New shader...", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "New shader" });
         await waitFor(() => {
             assert.isNotNull(dialog.querySelector('[data-editor="ready"]'), "the code editor has loaded");
         });
-        const box = within(dialog).getByRole("textbox", { name: "Shader code" });
-        await userEvent.fill(box, text);
+        const box = (): Locator =>
+            page.elementLocator(dialog).getByRole("textbox", { name: "Shader code", exact: true });
+        await userEvent.fill(box(), text);
         const steps = element.session.history.position;
         const add = within(dialog).getByRole("button", { name: "Add" });
         await waitFor(() => {
             assert.isNull(add.getAttribute("aria-disabled"), "Add is enabled");
         });
-        await userEvent.click(add);
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Add", exact: true }));
         await waitFor(() => {
             const { background } = element.session.config;
             assert.strictEqual(background.shader?.id, "user/pasted-background");
@@ -257,17 +258,23 @@ describe("the graph's shader settings", () => {
         const element = await openGraphSettings();
         const surface = document.querySelector<HTMLElement>(".ws-canvas-surface");
         assert.isNotNull(surface);
-        await userEvent.click(surface, { button: "right", position: { x: 4, y: 4 } });
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Motion off" }));
+        await userEvent.click(page.getByCss(".ws-canvas-surface").first(), {
+            button: "right",
+            position: { x: 4, y: 4 },
+        });
+        await userEvent.click(page.getByRole("menuitem", { name: "Motion off", exact: true }));
         assert.strictEqual(element.shaderSettings.motion, "off");
         assert.strictEqual(element.renderQuality.motion, "still");
 
-        await userEvent.click(surface, { button: "right", position: { x: 4, y: 4 } });
+        await userEvent.click(page.getByCss(".ws-canvas-surface").first(), {
+            button: "right",
+            position: { x: 4, y: 4 },
+        });
         await screen.findByRole("menuitem", { name: "Motion on" });
         assert.isNull(screen.queryByRole("menuitem", { name: "Motion off" }));
 
         // Motion on goes back to the system's own preference, not a permanent "on".
-        await userEvent.click(screen.getByRole("menuitem", { name: "Motion on" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Motion on", exact: true }));
         assert.strictEqual(element.shaderSettings.motion, "system");
     });
 
@@ -288,9 +295,12 @@ describe("the graph's shader settings", () => {
             });
             const surface = document.querySelector<HTMLElement>(".ws-canvas-surface");
             assert.isNotNull(surface);
-            await userEvent.click(surface, { button: "right", position: { x: 4, y: 4 } });
+            await userEvent.click(page.getByCss(".ws-canvas-surface").first(), {
+                button: "right",
+                position: { x: 4, y: 4 },
+            });
             // Already still: the menu offers to start motion, never to stop it again.
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Motion on" }));
+            await userEvent.click(page.getByRole("menuitem", { name: "Motion on", exact: true }));
             assert.isNull(screen.queryByRole("menuitem", { name: "Motion off" }));
             assert.strictEqual(element.shaderSettings.motion, "on", "the reader overrides the system's preference");
         } finally {
@@ -305,9 +315,10 @@ describe("the graph's shader settings", () => {
             assert.strictEqual(historyTip(element.session, true), "Undo changing the background");
         });
         const settings = await screen.findByRole("dialog", { name: "Nebula settings" });
-        const stars = within(settings).getByRole("spinbutton", { name: "Stars" });
-        await userEvent.clear(stars);
-        await userEvent.type(stars, "0.2{Enter}");
+        const stars = (): Locator =>
+            page.elementLocator(settings).getByRole("spinbutton", { name: "Stars", exact: true });
+        await userEvent.clear(stars());
+        await userEvent.type(stars(), "0.2{Enter}");
         await waitFor(() => {
             assert.strictEqual(historyTip(element.session, true), "Undo changing Nebula stars");
         });
@@ -319,7 +330,7 @@ describe("the graph's shader settings", () => {
         assert.strictEqual(first.store.get().notice?.message, "Opened plates.graphty. Held: Plate");
         assert.strictEqual(stateOf(first.element, "user/plate"), "held");
 
-        await userEvent.click(await screen.findByRole("button", { name: "Run" }));
+        await userEvent.click(page.getByRole("button", { name: "Run", exact: true }));
         await waitFor(() => {
             assert.strictEqual(stateOf(first.element, "user/plate"), "ready");
         });
@@ -341,12 +352,12 @@ describe("the graph's shader settings", () => {
         act(() => {
             store.set({ notice: null, inspected: { kind: "graph" } });
         });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+        await userEvent.click(page.getByRole("tab", { name: "Style", exact: true }));
         const row = await screen.findByTestId("held-shaders");
-        await userEvent.click(within(row).getByRole("button", { name: "Held shaders, 1" }));
+        await userEvent.click(page.elementLocator(row).getByRole("button", { name: "Held shaders, 1", exact: true }));
         const list = await screen.findByRole("list", { name: "Held shaders" });
         assert.include(list.textContent ?? "", "Instead of the node, Used by 1");
-        await userEvent.click(within(list).getByRole("button", { name: "Run Plate" }));
+        await userEvent.click(page.elementLocator(list).getByRole("button", { name: "Run Plate", exact: true }));
         await waitFor(() => {
             assert.strictEqual(stateOf(element, "user/plate"), "ready");
         });
@@ -402,7 +413,7 @@ describe("the graph's shader settings", () => {
                 assert.isTrue(quality.level !== "high" || quality.heavy === "off", "the guard stepped down");
                 assert.strictEqual(screen.getByText(/^Now /).textContent, `Now ${renderQualityWords(quality)}`);
             });
-            await userEvent.click(screen.getByRole("tab", { name: "Values" }));
+            await userEvent.click(page.getByRole("tab", { name: "Values", exact: true }));
             assert.isNull(screen.queryByText("Shader quality"), "not among the statistics");
         } finally {
             gl.fenceSync = fenceSync;

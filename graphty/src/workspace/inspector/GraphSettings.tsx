@@ -256,7 +256,11 @@ function backgroundOf({ color, image, shader, projection }: BackgroundParts): Gr
  */
 function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
     const { store } = useWorkspace();
-    const [waiting, setWaiting] = useState<readonly BackgroundKind[]>([]);
+    // A Shader row waiting for its pick comes back while its shader editor is open (the store's
+    // shaderEditorOn), so a reload reopens the editor in it.
+    const [waiting, setWaiting] = useState<readonly BackgroundKind[]>(() =>
+        store.get().shaderEditorOn?.list === "background" ? ["shader"] : [],
+    );
     const { background, backgroundColor } = session.config;
     const parts: BackgroundParts = {
         color: background.color,

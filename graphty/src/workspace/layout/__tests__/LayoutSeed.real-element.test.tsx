@@ -49,11 +49,11 @@ describe("the app's layout seed", () => {
         await waitFor(() => {
             assert.isFalse(layoutTool.hasAttribute("aria-disabled"));
         });
-        await userEvent.click(layoutTool);
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Random/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Random/ }));
         assert.strictEqual(within(popover).getByRole<HTMLInputElement>("spinbutton", { name: "Seed" }).value, "1");
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         const live = session;
         await waitFor(() => {
             assert.strictEqual(live.layout.id, "random");

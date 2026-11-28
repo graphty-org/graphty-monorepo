@@ -19,7 +19,7 @@ import "@graphty/graphty-element";
 import { assert, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -130,7 +130,9 @@ function placeDifference(a: CameraState, b: CameraState): string | null {
  * @param name - its accessible name.
  */
 async function press(name: string): Promise<void> {
-    await userEvent.click(within(screen.getByRole("region", { name: "Views place" })).getByRole("button", { name }));
+    await userEvent.click(
+        page.getByRole("region", { name: "Views place", exact: true }).getByRole("button", { name, exact: true }),
+    );
 }
 
 describe("the owner's tour, made and played in the Views place", () => {
@@ -152,13 +154,17 @@ describe("the owner's tour, made and played in the Views place", () => {
 
         // The tour, through the Views place.
         await userEvent.click(
-            within(screen.getByRole("toolbar", { name: "Places" })).getByRole("button", { name: "Views" }),
+            page
+                .getByRole("toolbar", { name: "Places", exact: true })
+                .getByRole("button", { name: "Views", exact: true }),
         );
         await screen.findByRole("region", { name: "Views place" });
         await userEvent.click(
-            within(screen.getByRole("region", { name: "Views place" })).getByRole("button", { name: "New tour" }),
+            page
+                .getByRole("region", { name: "Views place", exact: true })
+                .getByRole("button", { name: "New tour", exact: true }),
         );
-        const name = await screen.findByRole("textbox", { name: "Rename Tour 1" });
+        const name = page.getByRole("textbox", { name: "Rename Tour 1", exact: true });
         await userEvent.clear(name);
         await userEvent.type(name, "Owner{Enter}");
         await waitFor(() => {
@@ -167,7 +173,7 @@ describe("the owner's tour, made and played in the Views place", () => {
         const cameras = ["Top", "Isometric", "Side"];
         for (const camera of cameras) {
             await press("Add camera to Owner");
-            await userEvent.click(await screen.findByRole("menuitem", { name: camera }));
+            await userEvent.click(page.getByRole("menuitem", { name: camera, exact: true }));
         }
         await waitFor(() => {
             assert.deepEqual(

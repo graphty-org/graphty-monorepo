@@ -3,7 +3,8 @@
  * #9702): the Path popover's From and To, the join screen's match, Save as's name, the shader
  * editor's code, the Export dialog's Report words, Report a problem's message, the Custom score's
  * name, the Notes place's Sort and a selection workspace's folded card, Preview and new step
- * (issue #10356). Safari ends
+ * (issue #10356), Load custom model's address and Name, and the shader editor opened from a layer's
+ * Shaders or the Background (issue #10430). Safari ends
  * a background tab and loads it again, often with its session storage emptied, so each case runs
  * with that storage kept and with it emptied. Real element, real autosave, real input.
  */
@@ -12,7 +13,7 @@
 import "@graphty/graphty-element";
 
 import { EditorView } from "@codemirror/view";
-import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
@@ -20,6 +21,7 @@ import { forgetAutosave, openAutosaved, reload } from "../../../test/reload";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { setUsageSenderForTests } from "../../privacy/usageData";
 import { drop } from "../../source-steps/__tests__/sourceSteps";
+import { quadGlb } from "../../style/__tests__/quadGlb";
 import { Workspace } from "../../Workspace";
 import { createWorkspaceStore } from "../store";
 
@@ -85,6 +87,46 @@ async function shaderCode(): Promise<HTMLElement> {
         assert.isNotNull(dialog.querySelector('[data-editor="ready"]'), "the code editor has loaded");
     });
     return within(dialog).getByRole("textbox", { name: "Shader code" });
+}
+
+/**
+ * Opens a tab's Shaders gallery from its "+" and picks New shader....
+ * @param side - the tab.
+ */
+async function newShaderFromList(side: "node"): Promise<void> {
+    const shaders = await waitFor(() => {
+        const found = document.querySelector<HTMLElement>(`[data-section="${side}-shaders"]`);
+        assert.isNotNull(found, "the Shaders section is drawn");
+        return found;
+    });
+    await userEvent.click(
+        page.elementLocator(shaders).getByRole("button", { name: `Add to ${side} shaders`, exact: true }),
+    );
+    await screen.findByTestId("shader-gallery", {});
+    await userEvent.click(
+        page.getByTestId("shader-gallery").getByRole("button", { name: "New shader...", exact: true }),
+    );
+}
+
+/** The shader editor's code box, as a locator. */
+const SHADER_BOX = page
+    .getByRole("dialog", { name: "New shader", exact: true })
+    .getByRole("textbox", { name: "Shader code", exact: true });
+
+/**
+ * Serves quad.glb at an address, as a web server would.
+ * @param url - the address.
+ */
+function serveQuad(url: string): void {
+    const original = globalThis.fetch.bind(globalThis);
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+        const to = input instanceof Request ? input.url : String(input);
+        return to === url
+            ? Promise.resolve(
+                  new Response(quadGlb(), { status: 200, headers: { "content-type": "model/gltf-binary" } }),
+              )
+            : original(input, init);
+    });
 }
 
 /** A shader body the reader typed. */
@@ -172,6 +214,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             setUsageSenderForTests({ start: () => undefined, stop: () => undefined });
         });
         afterEach(async () => {
+            vi.restoreAllMocks();
             setUsageSenderForTests();
             await forget();
         });
@@ -405,6 +448,102 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             const after = await reload(before, { lostSession });
             await screen.findByRole("combobox", { name: "Find attributes, results" });
             assert.isNotNull(cardA().querySelector('[data-new-step] [data-op="keep"]'), "the Keep step is back");
+            after.view.unmount();
+        });
+
+        it("reopens the shader editor a layer's Shaders opened, on the code the reader typed", async () => {
+            const before = await openAutosaved("Les Miserables");
+            const { session } = await elementNow();
+            await session.styles.add({
+                name: "Busy",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "#d55e00" },
+            });
+            await session.styles.settled();
+            const tree = await screen.findByRole("tree", { name: "Style layers" });
+            await within(tree).findByRole("treeitem", { name: /^Busy, / });
+            await userEvent.click(
+                page
+                    .getByRole("tree", { name: "Style layers", exact: true })
+                    .getByRole("treeitem", { name: /^Busy, / }),
+            );
+            const inspector = screen.getByRole("complementary", { name: "Inspector" });
+            const style = await within(inspector).findByRole("tab", { name: "Style" });
+            if (style.getAttribute("aria-selected") !== "true") {
+                await userEvent.click(
+                    page
+                        .getByRole("complementary", { name: "Inspector", exact: true })
+                        .getByRole("tab", { name: "Style", exact: true }),
+                );
+            }
+            await newShaderFromList("node");
+            await shaderCode();
+            await userEvent.fill(SHADER_BOX, TYPED_SHADER);
+
+            const after = await reload(before, { lostSession });
+            assert.strictEqual(codeOf(await shaderCode()), TYPED_SHADER);
+            // Opened from the layer's list again: its Add puts the shader on the layer.
+            const dialog = screen.getByRole("dialog", { name: "New shader" });
+            assert.isNotNull(within(dialog).queryByRole("button", { name: "Add" }));
+            assert.isNull(within(dialog).queryByRole("button", { name: "Add to project" }));
+            after.view.unmount();
+        });
+
+        it("reopens the shader editor the Background opened, on the code the reader typed", async () => {
+            const before = await openAutosaved("Les Miserables");
+            await userEvent.click(page.getByRole("button", { name: "Graph settings", exact: true }));
+            const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+            await within(inspector).findByRole("tab", { name: "Style", selected: true });
+            await screen.findByRole("button", { name: "Add to background" });
+            await userEvent.click(page.getByRole("button", { name: "Add to background", exact: true }));
+            await screen.findByRole("menuitem", { name: /^Shader/ });
+            await userEvent.click(page.getByRole("menuitem", { name: /^Shader/ }));
+            await screen.findByTestId("shader-gallery", {});
+            await userEvent.click(
+                page.getByTestId("shader-gallery").getByRole("button", { name: "New shader...", exact: true }),
+            );
+            await shaderCode();
+            await userEvent.fill(SHADER_BOX, TYPED_SHADER);
+
+            const after = await reload(before, { lostSession });
+            assert.strictEqual(codeOf(await shaderCode()), TYPED_SHADER);
+            const dialog = screen.getByRole("dialog", { name: "New shader" });
+            assert.isNotNull(within(dialog).queryByRole("button", { name: "Add" }));
+            assert.isNull(within(dialog).queryByRole("button", { name: "Add to project" }));
+            after.view.unmount();
+        });
+
+        it("reopens Load custom model on the address the reader loaded, whose Enter brings the model back with its Name", async () => {
+            const url = "https://models.example.com/reload/quad.glb";
+            serveQuad(url);
+            const before = await openAutosaved("Les Miserables");
+            const custom = page.getByRole("dialog", { name: "Load custom model", exact: true });
+            await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+            await screen.findByRole("menuitem", { name: "Add custom model..." });
+            await userEvent.click(page.getByRole("menuitem", { name: "Add custom model...", exact: true }));
+            const dialog = await screen.findByRole("dialog", { name: "Load custom model" });
+            await userEvent.type(custom.getByRole("textbox", { name: "Model address", exact: true }), `${url}{Enter}`);
+            await within(dialog).findByRole("textbox", { name: "Name" });
+            const name = custom.getByRole("textbox", { name: "Name", exact: true });
+            await userEvent.clear(name);
+            await userEvent.type(name, "Panel");
+
+            // The loaded file cannot come back: the dialog reopens on its address, and Name with it once
+            // the reader loads that again.
+            const after = await reload(before, {
+                lostSession,
+                lost: ["region: Details", "region: Files", "value: Name = Panel", `value: Model address = ${url}`],
+            });
+            const back = await screen.findByRole("dialog", { name: "Load custom model" });
+            const address = within(back).getByRole<HTMLInputElement>("textbox", { name: "Model address" });
+            assert.strictEqual(address.value, url);
+            await userEvent.click(custom.getByRole("textbox", { name: "Model address", exact: true }));
+            await userEvent.keyboard("{Enter}");
+            assert.strictEqual(
+                (await within(back).findByRole<HTMLInputElement>("textbox", { name: "Name" })).value,
+                "Panel",
+            );
             after.view.unmount();
         });
     },

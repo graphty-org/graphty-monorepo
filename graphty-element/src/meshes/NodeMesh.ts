@@ -976,12 +976,16 @@ export class NodeMesh {
             // a ring round a drawn-in fill is the band out to the shape's own outline (or half the width past it,
             // centered), point for point ({@link bandRing})
             const full = flat && inset > 0 ? this.flatOutline(shape, sized) : null;
+            // where the shape comes apart drawn in (a figure's head off its neck), the drawn-in edge has a point more
+            // than the outline on each side of the cut, paired with the outline's point there
+            const drawnIn = full === null || wave !== undefined ? null : insetOutline(full, inset);
+            const outer = full !== null && width > inset ? offsetOutline(full, width - inset) : full;
             const band =
-                full === null || wave !== undefined
+                drawnIn === null || outer === null
                     ? null
                     : bandRing(
-                          insetOutline(full, inset),
-                          width > inset ? offsetOutline(full, width - inset) : full,
+                          drawnIn.points,
+                          drawnIn.from.map((i) => outer[i]),
                           style,
                           width,
                           options.dashUnit,
@@ -1058,7 +1062,7 @@ export class NodeMesh {
                     // out from the fill's edge, which is `drawnIn` inside the outline
                     const at = Math.max(gap + i * step, 0) - drawnIn;
                     // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
-                    let base = at < 0 ? insetOutline(round, -at) : round;
+                    let base = at < 0 ? insetOutline(round, -at).points : round;
                     if (at > 0) {
                         base = mitredEdges(round, [at])[0];
                     }
@@ -1427,7 +1431,7 @@ export class NodeMesh {
             return outline;
         }
 
-        const drawn = insetOutline(outline, inset);
+        const drawn = insetOutline(outline, inset).fill;
         const same = (a: Point2, b: Point2): boolean => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9;
         return drawn.filter((p, i) => !same(p, drawn[(i + 1) % drawn.length]));
     }

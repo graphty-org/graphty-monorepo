@@ -9,6 +9,7 @@ import { afterEach, assert, beforeEach, test } from "vitest";
 
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
+import { flatShapeOutline, insetOutline } from "../../src/meshes/shapeOutlines";
 
 type P = [number, number];
 
@@ -84,7 +85,8 @@ const tolerance = 0.01 * size;
 // the border's width in world units: a shape's size, and its border's width, are drawn 1.5 world units each
 const world = width * NodeMesh.extentPerSize({});
 
-// star and vee are narrower than twice the border, so their fill closes up: only the ring's reach is checked
+// star, vee, man and woman are narrower than twice the border, so their fill closes up: only the ring's reach is checked
+const closesUp = new Set(["star", "vee", "man", "woman"]);
 for (const type of [
     "triangle",
     "pentagon",
@@ -97,6 +99,8 @@ for (const type of [
     "rectangle",
     "star",
     "vee",
+    "man",
+    "woman",
 ] as const) {
     test(`an inside border on a ${type} stays inside its outline and insets its fill by its width`, () => {
         const options = { styleId: `inside-${type}`, is2D: true, size };
@@ -111,7 +115,11 @@ for (const type of [
         const past = Math.max(...vertices(ring).map((p) => signedDistance(p, silhouette)));
         assert.isAtMost(past, tolerance, `${type} ring reaches ${past.toFixed(3)} past its outline`);
 
-        if (type === "star" || type === "vee") {
+        // drawn in past where a figure's limbs close up, its fill's outline turned inside out, past the node's
+        const fillPast = Math.max(...vertices(fill).map((p) => signedDistance(p, silhouette)));
+        assert.isAtMost(fillPast, tolerance, `${type} fill reaches ${fillPast.toFixed(3)} past its outline`);
+
+        if (closesUp.has(type)) {
             return;
         }
 
@@ -120,6 +128,31 @@ for (const type of [
 
         const inset = Math.min(...vertices(fill).map((p) => -signedDistance(p, silhouette)));
         assert.isAtLeast(inset, world - tolerance, `${type} fill is only ${inset.toFixed(3)} in from its outline`);
+    });
+}
+
+// the man's and the woman's limbs are thinner than twice these insets: their sides meet across a limb, and across the
+// neck or the waist a corner meets a far side, which drawn in past that point turned the outline inside out (issue
+// #10408)
+for (const type of ["man", "woman", "cross", "star"] as const) {
+    test(`a ${type}'s outline drawn in by 0.05 to 0.45 stays inside it`, () => {
+        for (const [w, h] of [
+            [1.5, 1.5],
+            [1.5, 3.75],
+            [2, 2],
+        ]) {
+            const outline = flatShapeOutline(type, w, h) as P[];
+            for (const inset of [0.05, 0.1, 0.2, 0.3, 0.35, 0.4, 0.45]) {
+                const past = Math.max(
+                    ...insetOutline(outline, inset).points.map((p) => signedDistance([p[0], p[1]], outline)),
+                );
+                assert.isAtMost(
+                    past,
+                    1e-6,
+                    `${type} ${w}x${h} drawn in by ${inset} reaches ${past.toFixed(3)} past it`,
+                );
+            }
+        }
     });
 }
 

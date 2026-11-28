@@ -9666,7 +9666,7 @@ export class UpdateManager implements Manager {
     } | null;
     get graphIsDrawn(): boolean;
     // @internal
-    haloTouched(mesh: AbstractMesh, built: boolean): void;
+    haloTouched(mesh: AbstractMesh, built: number): void;
     holdSelectionFollow(following?: readonly Node_2[]): void;
     // @internal
     holdsMesh(node: Node_2): void;

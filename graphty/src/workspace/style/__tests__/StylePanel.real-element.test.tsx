@@ -160,7 +160,7 @@ describe("the Style tab's fields on the real element", () => {
         await waitFor(() => {
             assert.isFalse(written(session, selected, "node.visible"));
         });
-        assert.isNotNull(within(visibility).getByRole("button", { name: "Remove node show" }));
+        assert.isNotNull(await within(visibility).findByRole("button", { name: "Remove node show" }));
     });
 
     it("an edges-only layer opens on its Edge tab, its Node tab off", async () => {
@@ -417,7 +417,7 @@ describe("the Style tab's rows on the real element", () => {
             assert.isTrue(proposal.ok);
             assert.deepEqual(mine[0].encode?.["node.color"], proposal.ok ? proposal.binding : undefined);
         });
-        assert.isNotNull(within(styleTab()).getByRole("button", { name: /Stop varying node color by data/ }));
+        assert.isNotNull(await within(styleTab()).findByRole("button", { name: /Stop varying node color by data/ }));
     });
 
     it("a declared code column colors one color per group, and a group column cannot size", async () => {

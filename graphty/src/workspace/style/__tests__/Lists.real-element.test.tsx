@@ -100,7 +100,7 @@ describe("the app's lists", () => {
         });
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Plain, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Plain, / }));
         const tab = await screen.findByTestId("style-tab", {});
         const fill = await waitFor(() => {
             const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
@@ -108,7 +108,9 @@ describe("the app's lists", () => {
             return found;
         });
         await userEvent.hover(fill);
-        await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
+        await userEvent.click(
+            page.elementLocator(fill).getByRole("button", { name: "Node color by attribute", exact: true }),
+        );
         const picker = await findValuePicker();
         const search = within(picker).getByRole("combobox");
         await waitFor(() => {
@@ -162,17 +164,19 @@ describe("the app's lists", () => {
         });
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Mine, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Mine, / }));
         await userEvent.keyboard("{Control>}");
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Mine too, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Mine too, / }));
         await userEvent.keyboard("{/Control}");
         if (screen.queryByRole("group", { name: "Which nodes" }) === null) {
-            await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+            await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
         }
         const region = await screen.findByRole("group", { name: "Which nodes" });
         // A layer with no condition opens its Add a condition list with the picker.
         if (screen.queryByRole("combobox", { name: FIND_ATTRIBUTE }) === null) {
-            await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+            await userEvent.click(
+                page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+            );
         }
         const search = await screen.findByRole("combobox", { name: FIND_ATTRIBUTE });
         await waitFor(() => {
@@ -189,7 +193,7 @@ describe("the app's lists", () => {
             assert.strictEqual(search.getAttribute("aria-activedescendant"), options[0].id);
         });
 
-        await userEvent.clear(search);
+        await userEvent.clear(page.getByRole("combobox", { name: FIND_ATTRIBUTE, exact: true }));
         await userEvent.keyboard("kind");
         await screen.findByText("kind is an edge attribute; it is on the Edge tab");
     });
@@ -199,7 +203,7 @@ describe("the app's lists", () => {
             session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } }),
         );
         const tools = await screen.findByRole("toolbar", { name: "Canvas tools" });
-        await userEvent.click(within(tools).getByRole("button", { name: /^Analyze/ }));
+        await userEvent.click(page.elementLocator(tools).getByRole("button", { name: /^Analyze/ }));
         const filter = await screen.findByRole("combobox", { name: "Filter analyses" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, filter);
@@ -209,7 +213,7 @@ describe("the app's lists", () => {
         const { top } = filter.getBoundingClientRect();
 
         for (const word of ["connected", "most"]) {
-            await userEvent.clear(filter);
+            await userEvent.clear(page.getByRole("combobox", { name: "Filter analyses", exact: true }));
             await userEvent.keyboard(word);
             await waitFor(() => {
                 within(list).getByRole("option", { name: "Degree" });
@@ -222,7 +226,7 @@ describe("the app's lists", () => {
                 `"${word}" never activates a disabled entry`,
             );
         }
-        await userEvent.clear(filter);
+        await userEvent.clear(page.getByRole("combobox", { name: "Filter analyses", exact: true }));
         await userEvent.keyboard("louvain");
         await waitFor(() => {
             assert.lengthOf(within(list).getAllByRole("option"), 1);

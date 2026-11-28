@@ -63,7 +63,7 @@ describe("the workspace's arrangement across visits", () => {
         const rightBox = right.getBoundingClientRect();
         await dragTo(right, { x: rightBox.left + rightBox.width / 2 - 60, y: rightBox.top + rightBox.height / 2 });
 
-        await userEvent.click(screen.getByRole("button", { name: "Table" }));
+        await userEvent.click(page.getByRole("button", { name: "Table", exact: true }));
         await screen.findByRole("region", { name: "Table" });
         const opened = dockHeight();
         const top = screen.getByRole("separator", { name: "Resize table" });
@@ -72,7 +72,7 @@ describe("the workspace's arrangement across visits", () => {
 
         const legend = screen.getByRole("button", { name: "Legend" });
         const legendWas = legend.getAttribute("aria-pressed");
-        await userEvent.click(legend);
+        await userEvent.click(page.getByRole("button", { name: "Legend", exact: true }));
 
         let leftWidth = 0;
         let rightWidth = 0;

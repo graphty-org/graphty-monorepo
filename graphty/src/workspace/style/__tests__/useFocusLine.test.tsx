@@ -8,7 +8,7 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import React from "react";
 import { afterEach, assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen } from "../../../test/test-utils";
 import { focusLineNext, useFocusLine } from "../useFocusLine";
@@ -89,7 +89,7 @@ describe("a style line's focus ask", () => {
     it("is answered by the tab of the session that asked, once it draws the line", async () => {
         const a = sessionOf();
         const view = render(<Page tab={<Tab key="a" session={a} name="A" lines={[]} />} />);
-        await userEvent.click(screen.getByRole("button", { name: "Add color" }));
+        await userEvent.click(page.getByRole("button", { name: "Add color", exact: true }));
         view.rerender(<Page tab={<Tab key="a" session={a} name="A" lines={[COLOR]} />} />);
         assert.equal(document.activeElement, screen.getByRole("textbox", { name: `A ${COLOR}` }));
     });
@@ -100,8 +100,8 @@ describe("a style line's focus ask", () => {
         const view = render(<Page tab={<Tab key="a" session={a} name="A" lines={[]} />} />);
         // The ask is made in A; before its line is drawn, the reader goes elsewhere and another
         // session's tab comes up with a Color line of its own.
-        await userEvent.click(screen.getByRole("button", { name: "Add color" }));
-        await userEvent.click(screen.getByRole("button", { name: "Elsewhere" }));
+        await userEvent.click(page.getByRole("button", { name: "Add color", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Elsewhere", exact: true }));
         view.rerender(<Page tab={<Tab key="b" session={b} name="B" lines={[COLOR]} />} />);
         assert.equal(document.activeElement, screen.getByRole("button", { name: "Elsewhere" }));
     });

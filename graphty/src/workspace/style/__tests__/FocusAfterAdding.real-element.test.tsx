@@ -56,11 +56,11 @@ async function openScene(): Promise<GraphSession> {
  */
 async function openStyle(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     await screen.findByTestId("style-tab");
 }
@@ -76,7 +76,7 @@ async function openStyle(name: string): Promise<void> {
  */
 async function addLine(kind: "node" | "edge", title: string, item: string, channel: Channel): Promise<HTMLElement> {
     const selector = `[data-testid="style-tab"] .ws-row[data-line="${channel}"]`;
-    await userEvent.click(await screen.findByRole("button", { name: `Add to ${kind} ${title}` }));
+    await userEvent.click(page.getByRole("button", { name: `Add to ${kind} ${title}`, exact: true }));
     const menu = await waitFor(() => {
         const found = screen.queryByRole("menuitem", { name: item });
         assert.isTrue(found !== null || document.querySelector(selector) !== null, "a menu or the line");
@@ -151,7 +151,7 @@ describe("focus after adding a line or a card", () => {
         // Both is the row last opened, so the selection's Style tab edits it.
         await openStyle("Both");
         const layers = session.styles.list().length;
-        const find = await screen.findByRole("combobox", { name: "Find" });
+        const find = page.getByRole("combobox", { name: "Find", exact: true });
         await userEvent.click(find);
         await userEvent.keyboard("=shared_chapters >= `5`{Enter}");
         await waitFor(() => {
@@ -160,7 +160,7 @@ describe("focus after adding a line or a card", () => {
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         const style = await within(inspector).findByRole("tab", { name: "Style" });
         if (style.getAttribute("aria-selected") !== "true") {
-            await userEvent.click(style);
+            await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
         }
         // The tab edits the selected layer, which paints nodes and edges: show its Edge side.
         await showKind("edge");
@@ -192,10 +192,12 @@ describe("focus after adding a line or a card", () => {
         await openStyle("Names");
         // The cards of two selected layers: one alone opens the selection editor.
         await selectWithTwin(session, "Names");
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+        await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
+        await userEvent.click(
+            page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: /^name(,|$)/ }));
         const box = await within(region).findByRole("combobox", { name: "name: text to match" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, box, "focus is in the card's text box, not its match menu");

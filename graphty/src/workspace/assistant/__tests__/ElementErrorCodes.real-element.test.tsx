@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/ai";
 import { GraphtyError } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { readAssistantChoice, writeAssistantChoice } from "../../assistant-door/provider";
@@ -67,7 +67,7 @@ afterEach(() => {
  */
 async function openPanel(): Promise<void> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Codes", id: 1 } })} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+    await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
     await screen.findByRole("region", { name: "Assistant" });
 }
 
@@ -96,7 +96,7 @@ function element(): HTMLElementTagNameMap["graphty-element"] {
  * @param text - the message.
  */
 async function chat(text: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("textbox", { name: "Message the assistant" }));
+    await userEvent.click(page.getByRole("textbox", { name: "Message the assistant", exact: true }));
     await userEvent.keyboard(`${text}{Enter}`);
     await within(await screen.findByRole("region", { name: "Chat" })).findByText(text);
     await screen.findByRole("button", { name: "Send" });
@@ -110,10 +110,10 @@ async function twoChats(): Promise<HTMLElement> {
     writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
     await openPanel();
     await chat("First talk");
-    await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+    await userEvent.click(page.getByRole("button", { name: "New chat", exact: true }));
     await screen.findByRole("button", { name: "Which nodes matter most?" });
     await chat("Second talk");
-    await userEvent.click(screen.getByRole("button", { name: /^Chats/ }));
+    await userEvent.click(page.getByRole("button", { name: /^Chats/ }));
     const list = await screen.findByRole("list", { name: "Chats" });
     await waitFor(() => {
         assert.lengthOf(within(list).getAllByRole("listitem"), 2);
@@ -128,10 +128,8 @@ describe("the Assistant keeps graphty-element's error codes", () => {
         await screen.findByRole("textbox", { name: "Message the assistant" });
         refuse = (config) => config.reasoningEffort === "high";
 
-        await userEvent.click(await screen.findByRole("button", { name: "Options" }));
-        await userEvent.click(
-            await within(await screen.findByRole("menu")).findByRole("menuitemradio", { name: "High" }),
-        );
+        await userEvent.click(page.getByRole("button", { name: "Options", exact: true }));
+        await userEvent.click(page.getByRole("menu").getByRole("menuitemradio", { name: "High", exact: true }));
 
         await within(notice()).findByText(MISSING);
         assert.notInclude(notice().textContent, ENGLISH);
@@ -141,11 +139,11 @@ describe("the Assistant keeps graphty-element's error codes", () => {
     it("Save words a refused setup from the element's code, not as unusable settings", async () => {
         refuse = () => true;
         await openPanel();
-        await userEvent.click(await screen.findByRole("button", { name: "AI provider..." }));
+        await userEvent.click(page.getByRole("button", { name: "AI provider...", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
-        await userEvent.click(await within(dialog).findByLabelText("API key"));
+        await userEvent.click(page.elementLocator(dialog).getByLabelText("API key", { exact: true }));
         await userEvent.keyboard(KEY);
-        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Save", exact: true }));
 
         await within(dialog).findByText(MISSING);
         assert.isNull(within(dialog).queryByText("The AI provider settings cannot be used."));
@@ -156,8 +154,8 @@ describe("the Assistant keeps graphty-element's error codes", () => {
         writeAssistantChoice({ provider: "google", model: "gemini-3.8-flash", remember: false });
         refuse = () => true;
         await openPanel();
-        await userEvent.click(await screen.findByRole("button", { name: "Options" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Gemini.*\.\.\.$/ }));
+        await userEvent.click(page.getByRole("button", { name: "Options", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Gemini.*\.\.\.$/ }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
 
         await within(dialog).findByText(MISSING);
@@ -167,7 +165,7 @@ describe("the Assistant keeps graphty-element's error codes", () => {
         writeAssistantChoice({ provider: "google", model: "gemini-3.8-flash", remember: false });
         refuse = () => true;
         await openPanel();
-        await userEvent.click(await screen.findByRole("textbox", { name: "Message the assistant" }));
+        await userEvent.click(page.getByRole("textbox", { name: "Message the assistant", exact: true }));
         await userEvent.keyboard("Please answer{Enter}");
 
         // No chat holds the turn yet, so a notice says it, and the words go back to the composer.
@@ -185,10 +183,10 @@ describe("the Assistant keeps graphty-element's error codes", () => {
         vi.spyOn(element(), "deleteAiConversation").mockRejectedValue(
             new GraphtyError({ code: "E_INTERNAL", message: ENGLISH, source: "config" }),
         );
-        await userEvent.click(await screen.findByRole("button", { name: "Second talk menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
+        await userEvent.click(page.getByRole("button", { name: "Second talk menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Delete", exact: true }));
         await screen.findByText("Delete this chat?");
-        await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+        await userEvent.click(page.getByRole("button", { name: "Delete", exact: true }));
 
         await within(notice()).findByText("Not deleted (E_INTERNAL).");
         assert.lengthOf(within(list).getAllByRole("listitem"), 2);
@@ -199,7 +197,7 @@ describe("the Assistant keeps graphty-element's error codes", () => {
         vi.spyOn(element(), "openAiConversation").mockRejectedValue(
             new GraphtyError({ code: "E_INTERNAL", message: ENGLISH, source: "config" }),
         );
-        await userEvent.click(await screen.findByRole("button", { name: "First talk" }));
+        await userEvent.click(page.getByRole("button", { name: "First talk", exact: true }));
 
         await within(notice()).findByText("Not opened (E_INTERNAL).");
         assert.isNotNull(screen.queryByRole("list", { name: "Chats" }));

@@ -152,14 +152,16 @@ describe("folders, several rows and the draft on the real element", () => {
         assert.match(pill.getAttribute("aria-label") ?? "", /\b3\b/);
         assert.match(pill.getAttribute("aria-label") ?? "", /\b1\b/);
 
-        await userEvent.click(within(size).getByRole("button", { name: "Remove node size from every layer" }));
+        await userEvent.click(
+            page.elementLocator(size).getByRole("button", { name: "Remove node size from every layer", exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(written(session, key, "node.size"));
             assert.isUndefined(written(session, degree, "node.size"));
         });
         assert.equal(written(session, ring, "edge.color"), "#FF0000", "the locked row is unwritten");
 
-        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Undo( |$)/ }));
         await waitFor(() => {
             assert.equal(written(session, key, "node.size"), 3, "one Undo restores both");
             assert.equal(written(session, degree, "node.size"), 1);
@@ -191,7 +193,9 @@ describe("folders, several rows and the draft on the real element", () => {
             "1 layer sets glow; not set: Degree",
         );
 
-        await userEvent.click(within(shape).getByRole("button", { name: "Remove node glow from every layer" }));
+        await userEvent.click(
+            page.elementLocator(shape).getByRole("button", { name: "Remove node glow from every layer", exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(written(session, key, "node.glow"));
         });
@@ -201,8 +205,8 @@ describe("folders, several rows and the draft on the real element", () => {
     it("Layer from + paints nodes and edges, styles both kinds, and its first value goes on the layer it made", async () => {
         const { session } = await openProject();
         const before = session.styles.list().length;
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Layer", exact: true }));
         await screen.findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Escape}");
         const tab = await screen.findByTestId("style-tab");
@@ -217,9 +221,9 @@ describe("folders, several rows and the draft on the real element", () => {
         await within(tab).findByRole("button", { name: /^Style Nodes\.\.\./ });
         assert.equal(session.styles.list().length, before + 2, "one row, a node part and an edge part");
 
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        const size = await screen.findByRole("spinbutton", { name: /^Node size/ });
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Size", exact: true }));
+        const size = page.getByRole("spinbutton", { name: /^Node size/ });
         await userEvent.tripleClick(size);
         await userEvent.keyboard("4{Enter}");
         await waitFor(() => {

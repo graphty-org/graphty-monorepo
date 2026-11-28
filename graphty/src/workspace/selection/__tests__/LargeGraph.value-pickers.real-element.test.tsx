@@ -7,7 +7,7 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen } from "../../../test/test-utils";
@@ -21,7 +21,7 @@ describe("the selection editor on 50,000 nodes", () => {
         const session = await openGenerated();
         await openLayer(session, "Values", oneStep("deg", { kind: "range", attribute: "graphty.degree", min: 3 }));
         await selectStep("deg");
-        await userEvent.click(await screen.findByRole("button", { name: /^Value: / }));
+        await userEvent.click(page.getByRole("button", { name: /^Value: / }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         const options = await screen.findAllByRole("option");
         assert.isBelow(options.length, 200);

@@ -7,7 +7,7 @@ import "@graphty/graphty-element";
 
 import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { effortConfig, effortLevels, readAssistantChoice, writeAssistantChoice } from "../../assistant-door/provider";
@@ -46,7 +46,7 @@ afterEach(() => {
  */
 async function effortItems(open = true): Promise<HTMLElement[]> {
     if (open) {
-        await userEvent.click(await screen.findByRole("button", { name: "Options" }));
+        await userEvent.click(page.getByRole("button", { name: "Options", exact: true }));
     }
     const menu = await screen.findByRole("menu");
     const scope = ["Whole graph", "Selection"];
@@ -59,7 +59,7 @@ describe("the Assistant's effort", () => {
     it("starts Gemini Flash at Low, offers its three levels, and a pick in the options is saved and sent", async () => {
         writeAssistantChoice({ provider: "google", model: "gemini-3.8-flash", remember: false });
         render(<Workspace store={createWorkspaceStore({ project: { name: "Effort", id: 1 } })} />);
-        await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+        await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
         await waitFor(() => {
             assert.strictEqual(enabled.at(-1)?.reasoningEffort, "low");
         });
@@ -90,8 +90,8 @@ describe("the Assistant's effort", () => {
     it("offers no effort for a model the catalog lists no reasoning setting for", async () => {
         writeAssistantChoice({ provider: "openai", model: "gpt-4o", remember: false });
         render(<Workspace store={createWorkspaceStore({ project: { name: "Effort", id: 1 } })} />);
-        await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Options" }));
+        await userEvent.click(page.getByRole("button", { name: "Assistant", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Options", exact: true }));
         await screen.findByRole("menuitem", { name: "GPT-4o..." });
         assert.lengthOf(await effortItems(false), 0);
     });

@@ -451,9 +451,11 @@ function toSegment(x: number, y: number, a: { x: number; y: number }, b: { x: nu
     return Math.hypot(x - a.x - t * dx, y - a.y - t * dy);
 }
 
-/** `VITE_FRAME_DUMP=1` prints the first faulty frame (`all`: every frame) of each recording as a PNG data URL, with the centers. */
+/**
+ * `VITE_FRAME_DUMP=all` prints every frame of each recording as a PNG data URL, with the centers. The first faulty
+ * frame of each recording is always printed, with its centers and its `state`, so a failure on CI carries its picture.
+ */
 const DUMP_MODE = (import.meta.env as Record<string, string | undefined>).VITE_FRAME_DUMP ?? "";
-const DUMP = DUMP_MODE !== "";
 
 /**
  * A frame as a PNG data URL, for a failure to be looked at.
@@ -475,6 +477,8 @@ export interface FrameReport extends FrameFaults {
     readonly index: number;
     /** The largest move of any node since the previous recorded frame, in CSS pixels. */
     readonly moved: number;
+    /** For a faulty frame: where the element said each node it found off was, and the recording's `state` read in the frame. */
+    readonly evidence?: { readonly off: Record<string, FrameCenter | undefined>; readonly state: unknown };
 }
 
 /**
@@ -494,7 +498,8 @@ export function faulty(r: FrameFaults): boolean {
  * @param pairs - Every edge.
  * @param want - Moving frames to check.
  * @param options - `until` ends the recording early when it returns true, read each frame and between frames; `faults` the per-frame check options,
- *     read each frame; `max` caps the frames recorded (default 400), counted work and not time.
+ *     read each frame; `max` caps the frames recorded (default 400), counted work and not time; `state` is read in
+ *     each frame's task and reported, with the frame's picture, only for a faulty frame: keep it to a few reads.
  * @returns Every frame's report.
  */
 export async function checkDrawnFrames(
@@ -502,7 +507,7 @@ export async function checkDrawnFrames(
     ids: readonly string[],
     pairs: readonly (readonly [string, string])[],
     want: number,
-    options: { until?: () => boolean; faults?: () => FaultOptions; max?: number } = {},
+    options: { until?: () => boolean; faults?: () => FaultOptions; max?: number; state?: () => unknown } = {},
 ): Promise<FrameReport[]> {
     const reports: FrameReport[] = [];
     let last: Map<string, FrameCenter | undefined> | undefined;
@@ -510,7 +515,7 @@ export async function checkDrawnFrames(
     const max = options.max ?? 400;
     const { done, stop } = recordDrawnFrames(
         graph,
-        (frame, index, centers) => {
+        (frame, index, { centers, state }) => {
             let moved = 0;
             if (last !== undefined) {
                 for (const [id, c] of centers) {
@@ -526,17 +531,21 @@ export async function checkDrawnFrames(
                 moving++;
             }
 
-            const report = { index, moved, ...frameFaults(frame, centers, pairs, options.faults?.()) };
+            const faults = frameFaults(frame, centers, pairs, options.faults?.());
+            const bad = faulty(faults);
+            const off = Object.fromEntries(faults.nodesOff.slice(0, 8).map((id) => [id, centers.get(id)]));
+            const report: FrameReport = { index, moved, ...faults, ...(bad ? { evidence: { off, state } } : {}) };
+            const first = bad && !reports.some(faulty);
             reports.push(report);
-            if (DUMP && (DUMP_MODE === "all" || (faulty(report) && !reports.slice(0, -1).some(faulty)))) {
+            if (DUMP_MODE === "all" || first) {
                 console.log(
-                    `[frame-dump] #${String(index)} ${pictureUrl(frame)} centers ${JSON.stringify([...centers])}`,
+                    `[frame-dump] #${String(index)} ${pictureUrl(frame)} centers ${JSON.stringify([...centers])} state ${JSON.stringify(state)}`,
                 );
             }
 
             return moving < want && reports.length < max && options.until?.() !== true;
         },
-        () => centersNow(graph, ids),
+        () => ({ centers: centersNow(graph, ids), state: options.state?.() }),
     );
     const { until } = options;
     if (until === undefined) {
@@ -577,7 +586,7 @@ export function describeFrames(reports: readonly FrameReport[]): string {
     return `${String(reports.length)} frames, ${String(reports.filter((r) => r.moved > 0.25).length)} moving, ${String(bad.length)} faulty${
         first === undefined
             ? ""
-            : `; first faulty frame #${String(first.index)}: nodes off ${JSON.stringify(first.nodesOff.slice(0, 8))}, edges off ${JSON.stringify(first.edgesOff.slice(0, 8))}, stray ink at ${JSON.stringify(first.stray)}, node ink ${String(first.nodeInk)} px`
+            : `; first faulty frame #${String(first.index)}: nodes off ${JSON.stringify(first.nodesOff.slice(0, 8))}, edges off ${JSON.stringify(first.edgesOff.slice(0, 8))}, stray ink at ${JSON.stringify(first.stray)}, node ink ${String(first.nodeInk)} px; evidence ${JSON.stringify(first.evidence)} (its picture is the [frame-dump] line logged above)`
     }`;
 }
 

@@ -67,6 +67,7 @@ export const ALGORITHM_GROUPS = {
             "degrees",
             "kCoreDecomposition",
             "triangleCount",
+            "distanceMeasures",
         ],
     },
     Communities: {

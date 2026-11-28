@@ -451,6 +451,12 @@
             "params": {}
         }
     ],
+    "distance-measures": [
+        {
+            "code": "distance-measures.exact",
+            "params": {}
+        }
+    ],
     "bfs": [
         {
             "code": "bfs.origin",

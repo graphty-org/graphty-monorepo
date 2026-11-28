@@ -25,6 +25,7 @@ import { ArticulationPointsAlgorithm, BridgesAlgorithm } from "../../src/algorit
 import { DegreeAlgorithm } from "../../src/algorithms/DegreeAlgorithm";
 import { DFSAlgorithm } from "../../src/algorithms/DFSAlgorithm";
 import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
+import { DistanceMeasuresAlgorithm } from "../../src/algorithms/DistanceMeasuresAlgorithm";
 import { EdgeBetweennessCentralityAlgorithm } from "../../src/algorithms/EdgeBetweennessCentralityAlgorithm";
 import { EigenvectorCentralityAlgorithm } from "../../src/algorithms/EigenvectorCentralityAlgorithm";
 import { FloydWarshallAlgorithm } from "../../src/algorithms/FloydWarshallAlgorithm";
@@ -90,6 +91,7 @@ const ALGORITHMS = [
     EdgeBetweennessCentralityAlgorithm,
     EigenvectorCentralityAlgorithm,
     FloydWarshallAlgorithm,
+    DistanceMeasuresAlgorithm,
     GirvanNewmanAlgorithm,
     HierarchicalClusteringAlgorithm,
     HITSAlgorithm,

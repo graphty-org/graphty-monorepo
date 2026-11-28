@@ -69,7 +69,7 @@ const DAG: Edge[] = [
 describe("registration", () => {
     it("adds every algorithm to collections and the core, none colliding with a Cytoscape built-in", () => {
         const cy = graph(SQUARE);
-        expect(ALGORITHM_NAMES.length).toBe(63);
+        expect(ALGORITHM_NAMES.length).toBe(64);
         for (const name of ALGORITHM_NAMES) {
             expect(name.startsWith("graphty")).toBe(true);
             expect(typeof (cy.elements() as unknown as Record<string, unknown>)[name]).toBe("function");
@@ -484,6 +484,21 @@ describe("centrality with known answers", () => {
         expect(t.score("#a")).toBe(1);
         expect(t.coefficient("#a")).toBe(1);
         expect(t.coefficient("#c")).toBeCloseTo(1 / 3, 12);
+    });
+});
+
+describe("distance measures", () => {
+    it("distanceMeasures: eccentricity per node, and the diameter, radius and average of the largest piece", () => {
+        const cy = graph([
+            ["a", "b"],
+            ["b", "c"],
+            ["c", "d"],
+            ["x", "y"],
+        ]);
+        const r = cy.elements().graphtyDistanceMeasures();
+        expect([r.score("#a"), r.score("#b"), r.score("#x")]).toEqual([3, 2, 1]);
+        expect([r.diameter, r.radius, r.componentCount]).toEqual([3, 2, 2]);
+        expect(r.averageShortestPathLength).toBeCloseTo(5 / 3, 12);
     });
 });
 

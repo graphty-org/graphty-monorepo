@@ -53,14 +53,14 @@ export interface ClosenessResult extends ScoresResult {
 }
 
 /** An out-adjacency to search, with the weight of each of its arcs, or null to count hops. */
-interface Adjacency {
+export interface Adjacency {
     readonly rowPtr: U32;
     readonly colIdx: U32;
     readonly weights: NumericVector | null;
 }
 
 /** One search from a source over an adjacency, reusing its scratch arrays across sources. */
-interface Search {
+export interface Search {
     /** Distance of each node from the last source; Infinity when unreached. */
     readonly dist: Float64Array;
     /** The nodes the last search reached, the source first. */
@@ -155,7 +155,7 @@ function dijkstraFrom(
  * @param cutoff - Stop expanding nodes this far away or farther
  * @returns The search
  */
-function searcher(n: number, adj: Adjacency, cutoff: number): Search {
+export function searcher(n: number, adj: Adjacency, cutoff: number): Search {
     const { weights } = adj;
     const dist = new Float64Array(n).fill(Infinity);
     const reached = new Uint32Array(n);
@@ -230,7 +230,7 @@ function exactScore(search: Search, o: ClosenessOptions, n: number, v: number): 
  * @param reverse - Search the in-arcs, so a search from a source measures distances TO it
  * @returns The adjacency
  */
-function adjacency(s: GraphSnapshot, o: ClosenessOptions, reverse: boolean): Adjacency {
+export function adjacency(s: GraphSnapshot, o: ClosenessOptions, reverse: boolean): Adjacency {
     const weighted = o.weighted === true;
     if (!reverse || !s.directed) {
         return { rowPtr: s.rowPtr, colIdx: s.colIdx, weights: weighted ? (o.weights ?? s.weights) : null };

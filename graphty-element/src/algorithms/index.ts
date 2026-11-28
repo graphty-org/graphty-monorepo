@@ -19,6 +19,7 @@ import { ArticulationPointsAlgorithm, BridgesAlgorithm } from "./CutAlgorithms";
 import { DegreeAlgorithm } from "./DegreeAlgorithm";
 import { DFSAlgorithm } from "./DFSAlgorithm";
 import { DijkstraAlgorithm } from "./DijkstraAlgorithm";
+import { DistanceMeasuresAlgorithm } from "./DistanceMeasuresAlgorithm";
 import { EdgeBetweennessCentralityAlgorithm } from "./EdgeBetweennessCentralityAlgorithm";
 import { EigenvectorCentralityAlgorithm } from "./EigenvectorCentralityAlgorithm";
 import { FloydWarshallAlgorithm } from "./FloydWarshallAlgorithm";
@@ -95,6 +96,7 @@ Algorithm.register(EdgeBetweennessCentralityAlgorithm);
 Algorithm.register(RemovalImpactAlgorithm);
 Algorithm.register(ArticulationPointsAlgorithm);
 Algorithm.register(BridgesAlgorithm);
+Algorithm.register(DistanceMeasuresAlgorithm);
 
 // Export base class and types
 export { Algorithm } from "./Algorithm";
@@ -167,6 +169,7 @@ export function getAllAlgorithmInfo(): AlgorithmInfo[] {
         RemovalImpactAlgorithm,
         ArticulationPointsAlgorithm,
         BridgesAlgorithm,
+        DistanceMeasuresAlgorithm,
     ];
 
     for (const AlgoClass of knownAlgorithms) {

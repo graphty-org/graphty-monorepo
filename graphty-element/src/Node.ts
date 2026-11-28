@@ -82,6 +82,7 @@ import {
     isPatternedBorder,
     PATTERN_UNIT_FLOOR_PX,
     type Point2,
+    rayReach,
     shapeTexts,
 } from "./meshes/shapeOutlines";
 import type { TemplateAnimation } from "./models/animateTemplate";
@@ -1023,6 +1024,8 @@ export class Node implements ModelUser {
         style: NodeStyleConfig | null;
         fit: { width: number; height: number } | null;
         value: readonly Point2[] | null;
+        /** The shape's own outline and its drawn-in fill's, in the mesh's units, for {@link Node.borderReachAlong}. */
+        drawn: { outline: readonly Point2[]; fill: readonly Point2[] } | null;
     } | null = null;
 
     /**
@@ -1285,6 +1288,20 @@ export class Node implements ModelUser {
             return reach;
         }
 
+        // the fill as drawn is the outline drawn in by the inset on every side, not the box shrunk by it: the line
+        // runs from where it leaves that fill to where it crosses the shape's own outline
+        const drawn = this.reachOutlineBuilt?.drawn ?? null;
+        const own = this.#anchor.scaling;
+        const [x, y] = [dir.x / Math.abs(own.x), dir.y / Math.abs(own.y)];
+        const fromFill = drawn === null ? 0 : rayReach(drawn.fill, x, y);
+        if (drawn !== null && fromFill > 0) {
+            const box = this.outlineHalfExtents;
+            // never further than the border's width past the shape drawn in to its box shrunk by the inset, as below
+            const shrunk = surfaceReach(dir, { x: box.x - inset, y: box.y - inset, z: box.z }, null, outline);
+            const past = rayReach(drawn.outline, x, y) - fromFill + reach - inset;
+            return Math.max(0, Math.min(shrunk + reach - fromFill, past));
+        }
+
         const toOutline =
             surfaceReach(dir, this.outlineHalfExtents, null, outline) -
             surfaceReach(dir, this.drawnHalfExtents, null, outline);
@@ -1417,14 +1434,23 @@ export class Node implements ModelUser {
      * @param style - The resolved style.
      * @param border - The border drawn (a screen-pixel border already in scene units).
      * @param perSize - The shape's extent per unit of size.
+     * @param pastFill - Read as how far it reaches past the drawn fill mesh: on a solid in 3D, whose fill keeps its
+     *   plain size under an inside or centered border, only the border's outer edge past the outline.
      * @returns The width.
      */
-    private drawnBorderWidth(style: NodeStyleConfig, border: NodeStyleConfig["border"], perSize: number): number {
+    private drawnBorderWidth(
+        style: NodeStyleConfig,
+        border: NodeStyleConfig["border"],
+        perSize: number,
+        pastFill = false,
+    ): number {
         if ((border?.position ?? "outside") === "outside") {
             return (border?.width ?? 0) * perSize;
         }
         const extents = NodeMesh.extentsOf(style.shape ?? {}, Math.max(style.shape?.size ?? this.size, 1e-3));
-        return NodeMesh.borderFit(style.shape, border, extents).ring;
+        return pastFill
+            ? NodeMesh.drawnFit(style.shape, border, extents, this.context.is2D()).ring
+            : NodeMesh.borderFit(style.shape, border, extents).ring;
     }
 
     /**
@@ -1526,12 +1552,13 @@ export class Node implements ModelUser {
     private syncBorder(meshKey: string, style: NodeStyleConfig): void {
         this.groupBorderSource?.dispose();
         this.groupBorderSource = null;
-        const { scale, dashScale, border, key, width } = this.borderPlan(meshKey, style);
+        const { scale, dashScale, border, key } = this.borderPlan(meshKey, style);
         // a patterned ring drawn with its pattern floored is cached per zoom step, as a screen-pixel border is
         const styleId = dashScale === null ? key : `${key}|dash${String(dashScale)}`;
         this.borderBuilt = { meshKey, style, scale, dashScale };
         const { dashUnit } = this;
-        this.borderWidth = width;
+        // how far the ring reaches past the drawn fill, where an edge stops and a halo starts
+        this.borderWidth = this.drawnBorderWidth(style, border, NodeMesh.extentPerSize(style.shape), true);
         this.border = NodeMesh.createBorder(
             this.context.getMeshCache(),
             { styleId, is2D: this.context.is2D(), size: this.size, dashUnit },
@@ -1593,7 +1620,7 @@ export class Node implements ModelUser {
         this.shadow = NodeMesh.createShadow(
             this.context.getMeshCache(),
             { styleId: key, is2D: this.context.is2D(), size: this.size },
-            style.shape,
+            { shape: style.shape, border },
             style.shadow,
             this.#anchor as AbstractMesh,
             this.context.getScene(),
@@ -4707,12 +4734,19 @@ export class Node implements ModelUser {
 
         const style = this.drawnStyle;
         const shape = style?.shape;
-        const value = NodeMesh.reachOutlineOf(
-            { shape: this.fittedExtent === null ? shape : { ...shape, ...this.fittedExtent }, border: style?.border },
-            this.size,
-            source,
-        );
-        this.reachOutlineBuilt = { mesh: source, style, fit: this.fittedExtent, value };
+        const options = {
+            shape: this.fittedExtent === null ? shape : { ...shape, ...this.fittedExtent },
+            border: style?.border,
+        };
+        const value = NodeMesh.reachOutlineOf(options, this.size, source);
+        const drawn =
+            value === null
+                ? null
+                : {
+                      outline: NodeMesh.faceOf({ shape: options.shape }, this.size, source).outline,
+                      fill: NodeMesh.faceOf(options, this.size, source).outline,
+                  };
+        this.reachOutlineBuilt = { mesh: source, style, fit: this.fittedExtent, value, drawn };
         return value;
     }
 
@@ -4742,7 +4776,24 @@ export class Node implements ModelUser {
         const half = this.drawnHalfExtents;
         // every mesh, fitted or kept at its own proportions, is drawn in by the border's inset (#10403)
         const inset = this.fillInset();
-        return inset === 0 ? half : { x: half.x + inset, y: half.y + inset, z: half.z };
+        if (inset === 0) {
+            return half;
+        }
+        // a polygon's fill is its outline drawn in by the inset on every side, not its box shrunk by it: a triangle's
+        // drawn-in fill is a smaller triangle whose box is more than the inset inside the outline's, so the outline is
+        // out from the fill by what its box is out from the fill's
+        const drawn = this.reachOutline === null ? null : this.reachOutlineBuilt?.drawn;
+        if (drawn) {
+            const own = this.#anchor.scaling;
+            const span = (points: readonly Point2[], axis: 0 | 1): number =>
+                Math.max(...points.map((pt) => pt[axis])) - Math.min(...points.map((pt) => pt[axis]));
+            return {
+                x: half.x + ((span(drawn.outline, 0) - span(drawn.fill, 0)) / 2) * Math.abs(own.x),
+                y: half.y + ((span(drawn.outline, 1) - span(drawn.fill, 1)) / 2) * Math.abs(own.y),
+                z: half.z,
+            };
+        }
+        return { x: half.x + inset, y: half.y + inset, z: half.z };
     }
 
     /**
@@ -5457,10 +5508,11 @@ export class Node implements ModelUser {
             return 0;
         }
         const { shape } = style;
-        return NodeMesh.borderFit(
+        return NodeMesh.drawnFit(
             shape,
             style.border,
             NodeMesh.extentsOf(shape ?? {}, Math.max(shape?.size ?? this.size, 1e-3)),
+            this.context.is2D(),
         ).inset;
     }
 

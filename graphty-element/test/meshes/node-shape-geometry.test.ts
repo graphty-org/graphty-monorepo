@@ -475,6 +475,53 @@ describe("border rings", () => {
             assert.approximately(along(pieces[i]) / along(pieces[i + 1]), 3, 0.2);
         }
     });
+
+    test.each([
+        ["man", 0.45],
+        ["woman", 0.45],
+        ["man", 0.15],
+        ["woman", 0.15],
+        ["star", 0.45],
+    ])("a %s border %f wide stays off the fill at its concave notches (issue #10409)", (shape, width) => {
+        const outline = flatShapeOutline(shape, 1, 1).map(([x, y]): Point2 => [x * 1.5, y * 1.5]);
+        const triangles: [Point2, Point2, Point2][] = [];
+        for (const { inner, outer, closed } of borderRing(outline, width, "solid")) {
+            for (let i = 0; i < (closed ? inner.length : inner.length - 1); i++) {
+                const j = (i + 1) % inner.length;
+                triangles.push([inner[i], inner[j], outer[j]], [inner[i], outer[j], outer[i]]);
+            }
+        }
+        const insideOutline = (x: number, y: number): boolean => {
+            let inside = false;
+            for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
+                const [[xi, yi], [xj, yj]] = [outline[i], outline[j]];
+                if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        };
+        const underRing = (p: Point2): boolean =>
+            triangles.some(([a, b, c]) => {
+                const [d1, d2, d3] = [turn(a, b, p), turn(b, c, p), turn(c, a, p)];
+                return !((d1 < -1e-12 || d2 < -1e-12 || d3 < -1e-12) && (d1 > 1e-12 || d2 > 1e-12 || d3 > 1e-12));
+            });
+
+        let fill = 0;
+        let covered = 0;
+        for (let x = -0.8; x <= 0.8; x += 0.01) {
+            for (let y = -0.8; y <= 0.8; y += 0.01) {
+                if (insideOutline(x, y)) {
+                    fill++;
+                    covered += underRing([x, y]) ? 1 : 0;
+                }
+            }
+        }
+
+        // a ring outside the outline covers only samples lying on the outline itself: under 2% of the fill
+        assert.isAbove(fill, 1000);
+        assert.isBelow(covered / fill, 0.02, `${shape}: ${covered} of ${fill} fill samples under the ring`);
+    });
 });
 
 describe("node extents", () => {
@@ -811,7 +858,17 @@ describe("node borders", () => {
                 points.some(([px, py]) => Math.hypot(px - x, py - y) < 1e-6);
             const outline = pointsOf(fill);
             const outer = pointsOf(outerBorder.sourceMesh);
-            const ringEdge = pointsOf(ring.sourceMesh).filter((point) => !near(outline, point));
+            // the ring's inner edge lies on the fill's outline, at its corners and, across a notch, along its sides
+            const onOutline = (point: Point2): boolean =>
+                near(outline, point) ||
+                outline.some((a) =>
+                    outline.some((b) => {
+                        const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+                        const along = ((point[0] - a[0]) * (b[0] - a[0]) + (point[1] - a[1]) * (b[1] - a[1])) / length;
+                        return length > 0 && along > 0 && along < length && Math.abs(turn(a, b, point)) / length < 1e-6;
+                    }),
+                );
+            const ringEdge = pointsOf(ring.sourceMesh).filter((point) => !onOutline(point));
 
             assert.isNotEmpty(ringEdge);
             for (const point of ringEdge) {

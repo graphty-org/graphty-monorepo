@@ -55,7 +55,7 @@ async function openPicked(cards = false): Promise<GraphSession> {
         return session;
     }
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Picked, / }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Picked, / }));
     return session;
 }
 
@@ -92,7 +92,7 @@ describe("focus in the condition cards and property lines, on the real element",
         await openPicked(true);
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(region).getByRole("button", { name: "Done", exact: true }));
         await waitFor(async () => {
             assert.strictEqual(document.activeElement, await whichRow());
         });
@@ -103,7 +103,7 @@ describe("focus in the condition cards and property lines, on the real element",
         const remove = await screen.findByRole("button", { name: "Remove node color" });
         const section = remove.closest<HTMLElement>("[data-section]")?.dataset.section;
         assert.isDefined(section);
-        await userEvent.click(remove);
+        await userEvent.click(page.getByRole("button", { name: "Remove node color", exact: true }));
         await waitFor(() => {
             const active = document.activeElement as HTMLElement | null;
             assert.isTrue(active?.hasAttribute("data-plus") === true, "focus is not on a section's +");

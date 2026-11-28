@@ -21,7 +21,7 @@ import {
 import { columnVerb } from "../../../test/column-header";
 import { withFeatures } from "../../../test/features";
 import { dragTo } from "../../../test/real-pointer";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { firstOnPage, type Recorded, recordInto, TEST_ANALYTICS } from "../../../test/usage-recorders";
 import { GRAPH_FILE_GML } from "../../data-place/fixtures";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -132,11 +132,11 @@ describe("usage counts for layout, filters and the timeline on the real element"
     it("sends one layout_changed for a layout applied in the form, no layout.set action, and nothing on undo or redo", async () => {
         const session = await withGraph("graph");
         const actionsBefore = captured("graph_action").length;
-        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        await userEvent.click(page.getByRole("button", { name: "Layout", exact: true }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Grid/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("option", { name: /^Grid/ }));
         const changed = next("layout_changed");
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: "Apply", exact: true }));
         assert.deepEqual({ ...(await changed) }, { layout: "grid", outcome: "applied" });
         assert.strictEqual(session.layout.id, "grid");
         assert.deepEqual(
@@ -154,11 +154,11 @@ describe("usage counts for layout, filters and the timeline on the real element"
         assert.strictEqual(actionsAfterApply, actionsBefore, "a layout applied is no graph action");
 
         await userEvent.keyboard("{Escape}");
-        await userEvent.click(screen.getByRole("button", { name: /^Undo/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Undo/ }));
         await waitFor(() => {
             assert.notStrictEqual(session.layout.id, "grid", "the undo took the layout back");
         });
-        await userEvent.click(screen.getByRole("button", { name: /^Redo/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Redo/ }));
         await waitFor(() => {
             assert.strictEqual(session.layout.id, "grid", "the redo put it back");
         });
@@ -180,7 +180,9 @@ describe("usage counts for layout, filters and the timeline on the real element"
             assert.isBelow(Number(thumb.getAttribute("aria-valuenow")), endBefore, "the drag moved the end");
         });
         const action = next("graph_action");
-        await userEvent.click(within(selectionWorkspace()).getByRole("button", { name: "Done" }));
+        await userEvent.click(
+            page.elementLocator(selectionWorkspace()).getByRole("button", { name: "Done", exact: true }),
+        );
         assert.strictEqual((await action).op, "visibility.conditions");
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
@@ -223,9 +225,9 @@ describe("usage counts for layout, filters and the timeline on the real element"
         const offEnd = session.on("time:end", () => {
             ended = true;
         });
-        await userEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+        await userEvent.click(page.getByRole("button", { name: "Timeline", exact: true }));
         const dock = await screen.findByRole("region", { name: "Timeline" });
-        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Play", exact: true }));
         await waitFor(() => {
             assert.isTrue(ended, "the play reached the end of the data");
             assert.isFalse(session.time.playing);
@@ -256,10 +258,10 @@ describe("usage counts for layout, filters and the timeline on the real element"
         await session.time.setField({ edges: { start: "sent" } });
         await session.time.ready;
         await session.time.setSettings({ step: "day" });
-        await userEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+        await userEvent.click(page.getByRole("button", { name: "Timeline", exact: true }));
         const dock = await screen.findByRole("region", { name: "Timeline" });
-        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
-        await userEvent.click(await within(dock).findByRole("button", { name: "Pause" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Play", exact: true }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Pause", exact: true }));
         await waitFor(() => {
             assert.isFalse(session.time.playing);
         });

@@ -62,7 +62,7 @@ describe("the inspector and the table", () => {
 
         // Every node selected: email, which 6 of the 15 hold, each a different value, has its row.
         await session.selection.apply({ nodes: session.data.nodePage({ limit: 100 }).records.map((r) => r.id) });
-        const values = await screen.findByRole("tab", { name: "Values" });
+        const values = page.getByRole("tab", { name: "Values", exact: true });
         await userEvent.click(values);
         await waitFor(() => {
             const email = screen.getByRole("group", { name: "email" });
@@ -75,8 +75,8 @@ describe("the inspector and the table", () => {
         await session.data.addNodes([{ id: "a" }, { id: "b" }]);
 
         // The pointer on the Degree section's circled "i" shows its explanation bubble.
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
-        await userEvent.hover(await screen.findByRole("button", { name: "About Degree" }));
+        await userEvent.click(page.getByRole("tab", { name: "Values", exact: true }));
+        await userEvent.hover(page.getByRole("button", { name: "About Degree", exact: true }));
         await screen.findByRole("dialog", { name: "About Degree" });
 
         // A hover bubble holds no keys of its own, so the page's shortcuts still run.
@@ -97,10 +97,10 @@ describe("the inspector and the table", () => {
 
         // A membership opens the group; the tree opens the Louvain folder to the group's layer and marks it.
         await session.selection.apply({ nodes: [valjean] });
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.getByRole("tab", { name: "Values", exact: true }));
         const memberships = await screen.findByRole("heading", { name: "Memberships" });
         const section = memberships.closest("section") ?? document.body;
-        await userEvent.click(within(section).getByRole("button", { name: /^Louvain/ }));
+        await userEvent.click(page.elementLocator(section).getByRole("button", { name: /^Louvain/ }));
         const tree = screen.getByRole("tree", { name: "Style layers" });
         await waitFor(() => {
             const folder = within(tree).getByRole("treeitem", { name: /^Louvain, folder/ });
@@ -119,7 +119,7 @@ describe("the inspector and the table", () => {
         store.set({ inspected: null });
         const degree = await screen.findByRole("button", { name: /^Degree/ });
         assert.equal(degree.getAttribute("aria-description"), DEGREE_ROW_WORDS);
-        await userEvent.click(degree);
+        await userEvent.click(page.getByRole("button", { name: /^Degree/ }));
         await waitFor(() => {
             assert.match(store.get().announcement ?? "", /^Valjean and \d+ connections$/);
         });

@@ -29,7 +29,10 @@ const LOOP_REACH = 10;
 export interface Picture {
     /** The pixel at a CSS point, or undefined off the canvas. */
     at(x: number, y: number): readonly number[] | undefined;
-    /** The background, read from a corner. */
+    /**
+     * The background: the color most of the canvas's border shows. Not one corner, which a node a
+     * camera move pushed past the canvas's edge can cover (#10478).
+     */
     background: readonly number[];
     /** Every pixel, with its CSS point. */
     each(visit: (p: readonly number[], x: number, y: number) => boolean): void;
@@ -64,7 +67,7 @@ export function pictureOf(element: Graphty, frame: Frame): Picture {
     };
     return {
         at: (x, y) => pixel(Math.round(x * scale), frame.height - Math.round(y * scale) - 1),
-        background: pixel(0, 0) ?? [0, 0, 0],
+        background: borderColor(frame.width, frame.height, pixel),
         each: (visit) => {
             for (let py = 0; py < frame.height; py++) {
                 for (let px = 0; px < frame.width; px++) {
@@ -76,6 +79,46 @@ export function pictureOf(element: Graphty, frame: Frame): Picture {
             }
         },
     };
+}
+
+/**
+ * The color most pixels along a frame's border share.
+ * @param width - The frame's width, in pixels.
+ * @param height - Its height.
+ * @param pixel - Reads a pixel.
+ * @returns The color.
+ */
+function borderColor(
+    width: number,
+    height: number,
+    pixel: (px: number, py: number) => readonly number[] | undefined,
+): readonly number[] {
+    const counts = new Map<string, { color: readonly number[]; n: number }>();
+    const count = (px: number, py: number): void => {
+        const color = pixel(px, py) ?? [0, 0, 0];
+        const key = color.join(",");
+        const entry = counts.get(key) ?? { color, n: 0 };
+        entry.n++;
+        counts.set(key, entry);
+    };
+    for (let px = 0; px < width; px++) {
+        count(px, 0);
+        count(px, height - 1);
+    }
+
+    for (let py = 1; py < height - 1; py++) {
+        count(0, py);
+        count(width - 1, py);
+    }
+
+    let best = { color: [0, 0, 0] as readonly number[], n: 0 };
+    for (const entry of counts.values()) {
+        if (entry.n > best.n) {
+            best = entry;
+        }
+    }
+
+    return best.color;
 }
 
 /**

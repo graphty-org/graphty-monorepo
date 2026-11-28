@@ -5,7 +5,7 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession, NodeId } from "@graphty/graphty-element/session";
 import { assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { cleanup, render, screen } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
@@ -84,7 +84,7 @@ async function rightClick(hit: Hit, motion: "on" | "still" = "on"): Promise<Retu
             </CanvasMenu>
         </WorkspaceContext.Provider>,
     );
-    await userEvent.click(screen.getByTestId("graph"), { button: "right", position: { x: 100, y: 100 } });
+    await userEvent.click(page.getByTestId("graph"), { button: "right", position: { x: 100, y: 100 } });
     await screen.findByRole("menu");
     return apply;
 }
@@ -149,7 +149,7 @@ describe("the canvas context menu", () => {
                     </CanvasMenu>
                 </WorkspaceContext.Provider>,
             );
-            await userEvent.click(screen.getByTestId("graph"), { button: "right" });
+            await userEvent.click(page.getByTestId("graph"), { button: "right" });
             await screen.findByRole("menu");
             assert.isTrue(
                 rows().some((label) => label.startsWith("New layer from selection")),

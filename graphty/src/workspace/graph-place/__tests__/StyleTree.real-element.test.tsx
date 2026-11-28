@@ -101,8 +101,8 @@ describe("the style tree on the real element", () => {
             );
         }
 
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Folder" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Folder", exact: true }));
         const field = await screen.findByRole("textbox", { name: "Folder name" });
         await waitFor(() => {
             assert.equal(document.activeElement, field, "the new folder's name is ready to type");
@@ -167,7 +167,9 @@ describe("the style tree on the real element", () => {
         );
 
         await userEvent.hover(keyRow);
-        await userEvent.click(within(keyRow).getByRole("button", { name: "Lock Key people" }));
+        await userEvent.click(
+            page.elementLocator(keyRow).getByRole("button", { name: "Lock Key people", exact: true }),
+        );
         await waitFor(() => {
             assert.isTrue(findTreeRow(session.styles.tree(), key)?.row.locked);
             const now = screen.getByTestId("style-tab");
@@ -184,7 +186,9 @@ describe("the style tree on the real element", () => {
             session.styles.explain({ node: 1 }).channels.find((c) => c.channel === "node.color")?.layerId;
         assert.equal(colorOf(), key, "Key people paints node 1's color");
         await userEvent.hover(keyRow);
-        await userEvent.click(within(keyRow).getByRole("button", { name: "Hide Key people" }));
+        await userEvent.click(
+            page.elementLocator(keyRow).getByRole("button", { name: "Hide Key people", exact: true }),
+        );
         await waitFor(() => {
             assert.notEqual(colorOf(), key, "the hidden row paints nothing");
         });
@@ -195,7 +199,9 @@ describe("the style tree on the real element", () => {
         const keyRow = await row("Key people");
         await userEvent.click(keyRow);
         await userEvent.hover(keyRow);
-        await userEvent.click(within(keyRow).getByRole("button", { name: "Lock Key people" }));
+        await userEvent.click(
+            page.elementLocator(keyRow).getByRole("button", { name: "Lock Key people", exact: true }),
+        );
         await waitFor(() => {
             assert.isTrue(findTreeRow(session.styles.tree(), key)?.row.locked);
         });
@@ -221,7 +227,7 @@ describe("the style tree on the real element", () => {
         const lock = await screen.findByRole("menuitem", { name: /^Lock\b/ });
         assert.equal(lock.getAttribute("aria-keyshortcuts"), "Shift+Control+L");
         assert.equal((await screen.findByRole("menuitem", { name: "Rename" })).getAttribute("aria-keyshortcuts"), "F2");
-        await userEvent.click(lock);
+        await userEvent.click(page.getByRole("menuitem", { name: /^Lock\b/ }));
         await waitFor(() => {
             assert.isTrue(findTreeRow(session.styles.tree(), key)?.row.locked);
         });
@@ -232,8 +238,8 @@ describe("the style tree on the real element", () => {
         const before = session.styles.tree().length;
         const plus = screen.getByRole("button", { name: "Add a layer or a folder" });
 
-        await userEvent.click(plus);
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Layer", exact: true }));
         const field = await screen.findByRole("textbox", { name: "Layer name" });
         await waitFor(() => {
             assert.equal(document.activeElement, field, "the name is ready to type");
@@ -258,7 +264,9 @@ describe("the style tree on the real element", () => {
         assert.isNotNull(item);
 
         // One undo takes it away, and focus goes back to the "+".
-        await userEvent.click(item);
+        await userEvent.click(
+            page.elementLocator(tree()).getByRole("treeitem", { name: /^Layer 1, node and edge layer, / }),
+        );
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
             assert.equal(session.styles.tree().length, before);
@@ -271,8 +279,8 @@ describe("the style tree on the real element", () => {
         const set = { "node.size": 1 };
         await session.styles.addRow({ name: "Layer 1", target: "node", selector: { match: "everything" }, set });
         await session.styles.addRow({ name: "Layer 3", target: "node", selector: { match: "everything" }, set });
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Layer", exact: true }));
         await waitFor(() => {
             assert.isDefined(session.styles.tree().find((each) => each.name === "Layer 2"));
         });
@@ -281,10 +289,10 @@ describe("the style tree on the real element", () => {
     it("+ > Analyze... opens the toolbar's Analyze, and Escape gives focus back to +", async () => {
         await openTree();
         const plus = screen.getByRole("button", { name: "Add a layer or a folder" });
-        await userEvent.click(plus);
+        await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder", exact: true }));
         const item = await screen.findByRole("menuitem", { name: /^Analyze\.\.\./ });
         assert.equal(item.getAttribute("aria-keyshortcuts"), "Shift+A");
-        await userEvent.click(item);
+        await userEvent.click(page.getByRole("menuitem", { name: /^Analyze\.\.\./ }));
         const popover = await screen.findByRole("dialog", { name: "Analyze" });
         assert.isNotNull(popover);
         await userEvent.keyboard("{Escape}");
@@ -305,11 +313,11 @@ describe("the style tree on the real element", () => {
         const item = await within(tree()).findByRole("treeitem", { name: /^Rims, edge layer, / });
         const glyph = item.querySelector<HTMLElement>("[data-kind-glyph]");
         assert.isNotNull(glyph);
-        await userEvent.hover(glyph);
+        await userEvent.hover(page.elementLocator(item).getByCss("[data-kind-glyph]").first());
         // The tooltip opens after the theme's open delay.
         assert.equal((await screen.findByRole("tooltip", {})).textContent, "Paints edges");
         // The inspector's header writes the kind in words under the name.
-        await userEvent.click(item);
+        await userEvent.click(page.elementLocator(tree()).getByRole("treeitem", { name: /^Rims, edge layer, / }));
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         await within(inspector).findByText("Edge layer");
     });

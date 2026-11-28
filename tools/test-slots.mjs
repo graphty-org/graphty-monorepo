@@ -69,7 +69,7 @@
  * GRAPHTY_TEST_SLOTS=0. Not keyed on CI: tools/run-tests.sh sets CI=true for every local shard.
  */
 
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { availableParallelism, constants, cpus, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -685,6 +685,10 @@ export function statusLines(dir = slotDir()) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     if (process.argv[2] === "status") {
         console.log(statusLines().join("\n"));
+        // The GPU bench lock's holder and queue too (tools/gpu-bench-lock.mjs, #10342); its own process, so a
+        // failure there never hides the slots above.
+        const gpu = join(dirname(fileURLToPath(import.meta.url)), "gpu-bench-lock.mjs");
+        spawnSync(process.execPath, [gpu, "status"], { stdio: "inherit" });
         process.exit(0);
     }
     if (process.argv[2] === "recount") {

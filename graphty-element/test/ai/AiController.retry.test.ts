@@ -9,22 +9,22 @@ import { AiController } from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandContext, CommandResult } from "../../src/ai/commands/types";
 import { MockLlmProvider } from "../../src/ai/providers/MockLlmProvider";
-import { createMessageGraph } from "../helpers/message-graph";
+import { createCommandGraph } from "../helpers/session-graph";
 
 describe("AiController Retry", () => {
     let controller: AiController;
     let mockProvider: MockLlmProvider;
     let registry: CommandRegistry;
-    let mockGraph: CommandContext["graph"];
+    let sessionGraph: CommandContext["graph"];
 
-    beforeEach(() => {
+    beforeEach(async () => {
         mockProvider = new MockLlmProvider();
         registry = new CommandRegistry();
-        mockGraph = createMessageGraph();
+        sessionGraph = await createCommandGraph();
         controller = new AiController({
             provider: mockProvider,
             commandRegistry: registry,
-            graph: mockGraph,
+            graph: sessionGraph,
         });
     });
 

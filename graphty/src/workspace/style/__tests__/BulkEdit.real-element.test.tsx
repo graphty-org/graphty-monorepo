@@ -90,7 +90,7 @@ function colorOf(session: GraphSession, id: string): unknown {
  */
 async function clickRow(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
 /**
@@ -100,7 +100,7 @@ async function clickRow(name: string): Promise<void> {
 async function oneValueForAll(row: HTMLElement): Promise<void> {
     within(row).getByRole("button", { name: /: from each layer, / });
     await userEvent.hover(row);
-    await userEvent.click(within(row).getByRole("button", { name: /^Give all \d+ layers one / }));
+    await userEvent.click(page.elementLocator(row).getByRole("button", { name: /^Give all \d+ layers one / }));
 }
 
 describe("bulk editing a folder", () => {
@@ -147,17 +147,21 @@ describe("bulk editing a folder", () => {
             new RegExp(`${String(groups.length - 1)} changed, 1 left unset, 1 locked skipped`),
         );
 
-        await userEvent.click(within(receipt).getByRole("button", { name: "Also set those 1" }));
+        await userEvent.click(
+            page.elementLocator(receipt).getByRole("button", { name: "Also set those 1", exact: true }),
+        );
         await waitFor(() => {
             assert.equal(colorOf(session, sized), "#0072B2");
         });
 
         // Three writes, three undo steps: Undo, then Control+Z twice.
-        await userEvent.click(within(receipt).getByRole("button", { name: "Undo the color change" }));
+        await userEvent.click(
+            page.elementLocator(receipt).getByRole("button", { name: "Undo the color change", exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(colorOf(session, sized));
         });
-        await userEvent.click(within(fill).getByRole("textbox", { name: /^Node color/ }));
+        await userEvent.click(page.elementLocator(fill).getByRole("textbox", { name: /^Node color/ }));
         await userEvent.keyboard("{Escape}{Control>}z{/Control}{Control>}z{/Control}");
         await waitFor(() => {
             for (const id of groups) {

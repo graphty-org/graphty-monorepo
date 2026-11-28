@@ -78,7 +78,7 @@ async function openScene(
  */
 async function clickRow(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
 /**
@@ -88,7 +88,7 @@ async function clickRow(name: string): Promise<void> {
 async function showTab(name: "Node" | "Edge"): Promise<void> {
     const tab = await screen.findByTestId("style-tab");
     const button = within(tab).getByRole("tab", { name: new RegExp(`^${name}`) });
-    await userEvent.click(button);
+    await userEvent.click(page.elementLocator(tab).getByRole("tab", { name: new RegExp(`^${name}`) }));
     await waitFor(() => {
         assert.equal(button.getAttribute("aria-selected"), "true");
     });
@@ -111,7 +111,7 @@ describe("several layers' kinds and an edge color", () => {
         await clickRow("Pair");
 
         await showTab("Edge");
-        await userEvent.click(await screen.findByRole("checkbox", { name: "Style edges" }));
+        await userEvent.click(page.getByRole("checkbox", { name: "Style edges", exact: true }));
         await waitFor(() => {
             assert.deepEqual(styles(session, rows, "edge"), [true, true]);
         });
@@ -120,7 +120,7 @@ describe("several layers' kinds and an edge color", () => {
         await showTab("Node");
         const nodes = await screen.findByRole("checkbox", { name: "Style nodes" });
         assert.isTrue((nodes as HTMLInputElement).checked);
-        await userEvent.click(nodes);
+        await userEvent.click(page.getByRole("checkbox", { name: "Style nodes", exact: true }));
         await waitFor(() => {
             assert.deepEqual(styles(session, rows, "node"), [false, false]);
         });
@@ -143,7 +143,7 @@ describe("several layers' kinds and an edge color", () => {
             assert.isNotNull(found);
             return found;
         });
-        await userEvent.click(within(color).getByRole("textbox", { name: /^Edge color/ }));
+        await userEvent.click(page.elementLocator(color).getByRole("textbox", { name: /^Edge color/ }));
         await userEvent.keyboard("{Control>}a{/Control}009E73{Enter}");
         await waitFor(() => {
             assert.equal(session.styles.get(first)?.set?.["edge.color"], "#009E73");
@@ -156,7 +156,9 @@ describe("several layers' kinds and an edge color", () => {
             assert.isNotNull(found);
             return found;
         });
-        await userEvent.click(within(receipt).getByRole("button", { name: "Also set those 1" }));
+        await userEvent.click(
+            page.elementLocator(receipt).getByRole("button", { name: "Also set those 1", exact: true }),
+        );
         await waitFor(() => {
             assert.equal(session.styles.get(second)?.set?.["edge.color"], "#009E73");
         });

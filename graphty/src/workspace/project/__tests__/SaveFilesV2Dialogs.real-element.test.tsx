@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import { browserProjects, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { commands, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
@@ -74,7 +74,12 @@ async function pressOpen(name: string, file: FileJson | string, title = `Open ${
  * @param segment - the segment's words.
  */
 async function segment(container: HTMLElement, control: string, segment: string): Promise<void> {
-    await userEvent.click(within(within(container).getByRole("radiogroup", { name: control })).getByText(segment));
+    await userEvent.click(
+        page
+            .elementLocator(container)
+            .getByRole("radiogroup", { name: control, exact: true })
+            .getByText(segment, { exact: true }),
+    );
 }
 
 /**
@@ -108,29 +113,29 @@ describe("version 2 Save as, Open and report dialogs", () => {
         const preset = within(dialog).getByLabelText<HTMLInputElement>("Preset");
 
         // Leaving one section out matches no preset.
-        await userEvent.click(within(dialog).getByRole("checkbox", { name: /^Notes/ }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("checkbox", { name: /^Notes/ }));
         await waitFor(() => {
             assert.strictEqual(preset.value, "");
         });
 
         // Style only as a section file, then back to a full file: the copy's name follows.
-        await userEvent.click(preset);
-        await userEvent.click(await screen.findByRole("option", { name: "Style only" }));
-        await userEvent.click(within(dialog).getByText("Section file"));
+        await userEvent.click(page.elementLocator(dialog).getByLabelText("Preset", { exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "Style only", exact: true }));
+        await userEvent.click(page.elementLocator(dialog).getByText("Section file", { exact: true }));
         await within(dialog).findByText(`${SAMPLE}.graphty-style.json`);
-        await userEvent.click(within(dialog).getByText("Full file"));
+        await userEvent.click(page.elementLocator(dialog).getByText("Full file", { exact: true }));
         await within(dialog).findByText(`${SAMPLE}.graphty.json`);
 
         // Nothing chosen: nothing to save.
-        await userEvent.click(within(dialog).getByRole("checkbox", { name: /^Style/ }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("checkbox", { name: /^Style/ }));
         assert.isTrue(within(dialog).getByRole<HTMLButtonElement>("button", { name: /^Save/ }).disabled);
 
         // No name: nothing to save either.
-        await userEvent.click(within(dialog).getByRole("checkbox", { name: /^Style/ }));
-        await userEvent.clear(within(dialog).getByRole("textbox", { name: "Name" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("checkbox", { name: /^Style/ }));
+        await userEvent.clear(page.elementLocator(dialog).getByRole("textbox", { name: "Name", exact: true }));
         assert.isTrue(within(dialog).getByRole<HTMLButtonElement>("button", { name: /^Save/ }).disabled);
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
         });
@@ -140,7 +145,7 @@ describe("version 2 Save as, Open and report dialogs", () => {
     it("keeps the whole project as a version 1 file, so Save loses nothing version 2 does not hold yet", async () => {
         const { store, session } = await start();
         const dialog = await saveAs(SAMPLE);
-        await userEvent.click(within(dialog).getByRole("button", { name: /^Save/ }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: /^Save/ }));
         await waitFor(() => {
             assert.strictEqual(store.get().notice?.message, `Saved ${SAMPLE} in this browser.`);
             assert.isNull(screen.queryByRole("dialog"));
@@ -205,26 +210,30 @@ describe("version 2 Save as, Open and report dialogs", () => {
         assert.isNotNull(within(open).getByText("https://example.invalid/web.csv"));
         assert.isNull(within(open).queryByRole("button", { name: "Locate web.csv" }), "nothing to locate");
         const fetchSwitch = within(open).getByRole<HTMLInputElement>("switch", { name: "Fetch referenced sources" });
-        await userEvent.click(fetchSwitch);
+        await userEvent.click(
+            page.elementLocator(open).getByRole("switch", { name: "Fetch referenced sources", exact: true }),
+        );
         assert.isTrue(fetchSwitch.checked);
-        await userEvent.click(fetchSwitch);
+        await userEvent.click(
+            page.elementLocator(open).getByRole("switch", { name: "Fetch referenced sources", exact: true }),
+        );
         assert.isFalse(fetchSwitch.checked);
-        await userEvent.click(within(open).getByRole("button", { name: "Open" }));
+        await userEvent.click(page.elementLocator(open).getByRole("button", { name: "Open", exact: true }));
         const discard = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-        await userEvent.click(within(discard).getByRole("button", { name: "Discard" }));
+        await userEvent.click(page.elementLocator(discard).getByRole("button", { name: "Discard", exact: true }));
 
         // Not fetched: held until the reader clicks Refresh, which fails here and says why.
         const report = await screen.findByRole("dialog", { name: /^Opened / });
         const line = within(report).getByRole("row", { name: /^web\.csv/ });
         assert.isNotNull(within(line).getByText("Needs permission to fetch"));
-        await userEvent.click(within(line).getByRole("button", { name: "Refresh web.csv" }));
+        await userEvent.click(page.elementLocator(line).getByRole("button", { name: "Refresh web.csv", exact: true }));
         await waitFor(() => {
             const button = within(line).getByRole("button", { name: "Refresh web.csv" });
             assert.isNull(button.closest("[data-loading]"));
             assert.isNull(within(line).queryByText("Needs permission to fetch"));
         });
         assert.isNull(within(line).queryByText("Refreshed"));
-        await userEvent.click(within(report).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(report).getByRole("button", { name: "Done", exact: true }));
 
         // The reader's own edit is always copied; the web source can be kept as a reference.
         await session.data.addNodes([{ id: "Zed" }]);
@@ -235,7 +244,7 @@ describe("version 2 Save as, Open and report dialogs", () => {
         await waitFor(() => {
             assert.strictEqual(checkedSegment(dialog, "Sources"), "copy");
         });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Each source" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Each source", exact: true }));
         assert.isNotNull(await within(dialog).findByText("Your changes"));
         assert.isNotNull(within(dialog).getByText(/Always copied$/));
         assert.strictEqual(checkedSegment(dialog, "Keep web.csv"), "copy");
@@ -279,17 +288,17 @@ describe("version 2 Save as, Open and report dialogs", () => {
         await segment(open, "On open, pagerank", "Restore");
 
         // Without the results section there is nothing to restore.
-        await userEvent.click(within(open).getByRole("checkbox", { name: /^Results/ }));
+        await userEvent.click(page.elementLocator(open).getByRole("checkbox", { name: /^Results/ }));
         assert.isNotNull(await within(open).findByText("Not run: no saved results"));
         assert.strictEqual(checkedSegment(open, "On open, pagerank"), "rerun");
-        await userEvent.click(within(open).getByRole("checkbox", { name: /^Results/ }));
+        await userEvent.click(page.elementLocator(open).getByRole("checkbox", { name: /^Results/ }));
         await waitFor(() => {
             assert.strictEqual(checkedSegment(open, "On open, pagerank"), "restore");
         });
 
-        await userEvent.click(within(open).getByRole("button", { name: "Open" }));
+        await userEvent.click(page.elementLocator(open).getByRole("button", { name: "Open", exact: true }));
         const discard = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-        await userEvent.click(within(discard).getByRole("button", { name: "Discard" }));
+        await userEvent.click(page.elementLocator(discard).getByRole("button", { name: "Discard", exact: true }));
         await waitFor(() => {
             assert.include(
                 session.runs.list().map((run) => run.algorithm),
@@ -308,10 +317,12 @@ describe("version 2 Save as, Open and report dialogs", () => {
         const open = await pressOpen("bound.graphty.json", file);
         assert.isNotNull(await within(open).findByText("Written on other data"));
         const bind = within(open).getByRole<HTMLInputElement>("switch", { name: "Bind to this data by key" });
-        await userEvent.click(bind);
+        await userEvent.click(
+            page.elementLocator(open).getByRole("switch", { name: "Bind to this data by key", exact: true }),
+        );
         assert.isTrue(bind.checked);
 
-        await userEvent.click(within(open).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(open).getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
         });
@@ -333,7 +344,7 @@ describe("version 2 Save as, Open and report dialogs", () => {
         const add = await pressOpen("new.graphty-style.json", JSON.stringify(file), "Add new.graphty-style.json");
         assert.isNotNull(within(add).getByText("Style: Version 99, newer than this release"));
         assert.isTrue(within(add).getByRole<HTMLButtonElement>("button", { name: "Add style" }).disabled);
-        await userEvent.click(within(add).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(add).getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
         });
@@ -364,26 +375,26 @@ describe("version 2 Save as, Open and report dialogs", () => {
         );
 
         const add = await pressOpen("heavy.graphty-style.json", text, "Add heavy.graphty-style.json");
-        await userEvent.click(within(add).getByRole("button", { name: "Map columns" }));
+        await userEvent.click(page.elementLocator(add).getByRole("button", { name: "Map columns", exact: true }));
         let map = await screen.findByRole("dialog", { name: "Map heavy.graphty-style.json" });
         const pick = async (): Promise<void> => {
-            await userEvent.click(within(map).getByLabelText("Open column for weight"));
-            await userEvent.click(await screen.findByRole("option", { name: "kg" }));
+            await userEvent.click(page.elementLocator(map).getByLabelText("Open column for weight", { exact: true }));
+            await userEvent.click(page.getByRole("option", { name: "kg", exact: true }));
         };
         await pick();
-        await userEvent.click(within(map).getByRole("button", { name: "Back" }));
+        await userEvent.click(page.elementLocator(map).getByRole("button", { name: "Back", exact: true }));
         let back = await screen.findByRole("dialog", { name: "Add heavy.graphty-style.json" });
         await within(within(back).getByRole("row", { name: /^weight/ })).findByText("Mapped");
 
         // The mapping step shows the pairing, and picking the same column again unpairs it.
-        await userEvent.click(within(back).getByRole("button", { name: "Map columns" }));
+        await userEvent.click(page.elementLocator(back).getByRole("button", { name: "Map columns", exact: true }));
         map = await screen.findByRole("dialog", { name: "Map heavy.graphty-style.json" });
         assert.strictEqual(within(map).getByLabelText<HTMLInputElement>("Open column for weight").value, "kg");
         await pick();
         await waitFor(() => {
             assert.strictEqual(within(map).getByLabelText<HTMLInputElement>("Open column for weight").value, "");
         });
-        await userEvent.click(within(map).getByRole("button", { name: "Back" }));
+        await userEvent.click(page.elementLocator(map).getByRole("button", { name: "Back", exact: true }));
         back = await screen.findByRole("dialog", { name: "Add heavy.graphty-style.json" });
         await within(within(back).getByRole("row", { name: /^weight/ })).findByText("Missing");
     });

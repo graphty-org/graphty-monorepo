@@ -1225,6 +1225,8 @@ export interface SourceFacts {
     readonly added: { readonly nodes: number; readonly edges: number };
     /** How many nodes it only named. */
     readonly named: number;
+    /** How many of `nodes` it supplied only as an edge end, no source's rows holding them. */
+    readonly endNodes: number;
     /** Its rows the build left out, by reason. */
     readonly leftOut: Readonly<Partial<Record<Exclude<RowFateKind, "built">, number>>>;
 }
@@ -1249,12 +1251,13 @@ export function sourceFacts(
             edges: EdgeId[];
             added: { nodes: number; edges: number };
             named: number;
+            endNodes: number;
             leftOut: Record<string, number>;
         }
     >();
     // The reader source is in no list of sources, but supplies what the reader adds (3.1).
     for (const id of [...Object.keys(value.sources), READER_SOURCE]) {
-        out.set(id, { nodes: [], edges: [], added: { nodes: 0, edges: 0 }, named: 0, leftOut: {} });
+        out.set(id, { nodes: [], edges: [], added: { nodes: 0, edges: 0 }, named: 0, endNodes: 0, leftOut: {} });
     }
     for (const n of result.nodes.values()) {
         n.loads.forEach((id) => out.get(id)?.nodes.push(ids.get(n.id) as NodeId));
@@ -1266,6 +1269,12 @@ export function sourceFacts(
             const facts = out.get(id);
             if (facts) {
                 facts.named++;
+            }
+        });
+        n.byEnds?.forEach((id) => {
+            const facts = out.get(id);
+            if (facts) {
+                facts.endNodes++;
             }
         });
     }

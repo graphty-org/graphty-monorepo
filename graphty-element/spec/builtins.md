@@ -155,6 +155,7 @@ outline's centroid.
 | `open-vee`          | `half-barb` and `half-barb-flipped` together. Line stop 0.5.                                                                      |
 | `slash`             | One stroke `(-1,-0.5-t) (-1,-0.5+t) (0,0.5+t) (0,0.5-t)`, t = sqrt(2)/16. The line runs on under it to the tip.                   |
 | `stem`              | A length of the line itself: x from -1 to 0, as thick as the line.                                                                |
+| `hollow-vee`        | The `vee` `(0,0) (-1,-A/2) (-0.5,0) (-1,A/2)` as an outline 1/15 thick, its inside empty. Line stop as the `vee`'s.               |
 
 ## Line patterns
 

@@ -12,7 +12,7 @@ import { commands, page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { dragAcross } from "../../../test/real-pointer";
-import { screen, waitFor, within } from "../../../test/test-utils";
+import { waitFor, within } from "../../../test/test-utils";
 import {
     addNodeLayer,
     idOf,
@@ -53,7 +53,7 @@ async function openSettings(
         assert.lengthOf(rows, 1);
         return rows;
     });
-    await userEvent.click(within(row).getByRole("button", { name: `${name} settings` }));
+    await userEvent.click(page.elementLocator(row).getByRole("button", { name: `${name} settings`, exact: true }));
     const popout = await waitFor(() => {
         const found = document.querySelector<HTMLElement>(".ws-shader-params");
         assert.isNotNull(found, "the settings are open");
@@ -128,18 +128,22 @@ describe("a shader row's settings", () => {
         });
 
         await userEvent.click(selectIn(paramRow(popout, "outline"), /^Outline/));
-        await userEvent.click(await screen.findByRole("option", { name: "On" }));
+        await userEvent.click(page.getByRole("option", { name: "On", exact: true }));
         await waitFor(() => {
             assert.strictEqual(paramsOn(mounted, layer)?.outline, true);
         });
 
         await userEvent.click(selectIn(paramRow(popout, "finish"), /^Foil/));
-        await userEvent.click(await screen.findByRole("option", { name: "Shiny" }));
+        await userEvent.click(page.getByRole("option", { name: "Shiny", exact: true }));
         await waitFor(() => {
             assert.strictEqual(paramsOn(mounted, layer)?.finish, "shiny");
         });
 
-        await userEvent.click(within(paramRow(popout, "outline")).getByRole("button", { name: "Reset outline" }));
+        await userEvent.click(
+            page
+                .elementLocator(paramRow(popout, "outline"))
+                .getByRole("button", { name: "Reset outline", exact: true }),
+        );
         await waitFor(() => {
             assert.notProperty(paramsOn(mounted, layer) ?? {}, "outline", "Outline is back to its default");
         });
@@ -175,9 +179,11 @@ describe("a shader row's settings", () => {
 
         await userEvent.hover(paramRow(popout, "pattern"));
         await userEvent.click(
-            within(paramRow(popout, "pattern")).getByRole("button", { name: "Pattern by attribute" }),
+            page
+                .elementLocator(paramRow(popout, "pattern"))
+                .getByRole("button", { name: "Pattern by attribute", exact: true }),
         );
-        await userEvent.click(await screen.findByRole("option", { name: /^weight/i }));
+        await userEvent.click(page.getByRole("option", { name: /^weight/i }));
         await waitFor(() => {
             const binding = session.styles.get(layer)?.encode?.[key];
             assert.isDefined(binding, "the parameter is bound");
@@ -190,7 +196,9 @@ describe("a shader row's settings", () => {
             return row;
         });
         assert.isNull(within(bound).queryByRole("button", { name: "Reset pattern" }), "no reset while bound");
-        await userEvent.click(within(bound).getByRole("button", { name: "Stop varying pattern by data" }));
+        await userEvent.click(
+            page.elementLocator(bound).getByRole("button", { name: "Stop varying pattern by data", exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(session.styles.get(layer)?.encode?.[key], "the binding is gone");
         });
@@ -202,12 +210,12 @@ describe("a shader row's settings", () => {
         const mounted = await openSettings("Sticker");
         const { popout, layer, store } = mounted;
         await userEvent.click(selectIn(paramRow(popout, "outline"), /^Outline/));
-        await userEvent.click(await screen.findByRole("option", { name: "On" }));
+        await userEvent.click(page.getByRole("option", { name: "On", exact: true }));
         await waitFor(() => {
             assert.strictEqual(paramsOn(mounted, layer)?.outline, true);
         });
 
-        await userEvent.click(screen.getByRole("button", { name: "Copy code" }));
+        await userEvent.click(page.getByRole("button", { name: "Copy code", exact: true }));
         await waitFor(() => {
             assert.strictEqual(store.get().announcement, "Sticker copied");
         });

@@ -74,7 +74,7 @@ describe("the Project package", () => {
         assert.lengthOf(within(dialog).getAllByRole("textbox"), 1);
         assert.isNull(within(dialog).queryByText(/Save to|download/i));
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel", exact: true }));
         assert.isNull(store.get().dialog);
     });
 
@@ -84,7 +84,7 @@ describe("the Project package", () => {
 
         await userEvent.keyboard("{Control>}s{/Control}");
         assert.isNull(store.get().dialog);
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
         const save = await screen.findByRole("menuitem", { name: /^Save(?! as| local)/ });
         assert.equal(save.getAttribute("aria-disabled"), "true");
         assert.isNotNull(within(save).getByText("The graph is still loading"));
@@ -94,8 +94,8 @@ describe("the Project package", () => {
         const store = createWorkspaceStore(OPEN);
         render(<Workspace store={store} />);
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Back to start", exact: true }));
         assert.isNull(store.get().project);
         assert.isNotNull(screen.getByRole("heading", { level: 1, name: /^Analyze any network\./ }));
     });
@@ -103,7 +103,7 @@ describe("the Project package", () => {
     it("puts Rename directly under New project in the main menu, and Rename opens the name", async () => {
         render(<Workspace store={createWorkspaceStore(OPEN)} />);
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
         const menu = await screen.findByRole("menu");
         const names = within(menu)
             .getAllByRole("menuitem")
@@ -112,7 +112,7 @@ describe("the Project package", () => {
         assert.isAtLeast(at, 0);
         assert.match(names[at + 1], /^Rename/);
 
-        await userEvent.click(within(menu).getByRole("menuitem", { name: /^Rename/ }));
+        await userEvent.click(page.elementLocator(menu).getByRole("menuitem", { name: /^Rename/ }));
         assert.isNotNull(await screen.findByRole("textbox", { name: "Project name" }));
     });
 
@@ -131,8 +131,8 @@ describe("the Project package", () => {
         assert.isNotNull(within(rows[1]).getByText("1 node"));
         assert.isNotNull(within(rows[0]).getByText(/ - Locate\.\.\.$/));
 
-        await userEvent.click(screen.getByRole("button", { name: "More for Older" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove from list" }));
+        await userEvent.click(page.getByRole("button", { name: "More for Older", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Remove from list", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("gridcell", { name: /^Older/ }));
         });
@@ -153,7 +153,7 @@ describe("the Project package", () => {
         await rememberRecent({ id: "h", name: "Handled", nodes: 2, at: 1, handle });
         render(<Workspace />);
 
-        await userEvent.click(await screen.findByRole("gridcell", { name: /^Handled/ }));
+        await userEvent.click(page.getByRole("gridcell", { name: /^Handled/ }));
         await waitFor(() => {
             assert.isAbove(request.mock.calls.length, 0);
         });
@@ -181,11 +181,11 @@ describe("the Project package", () => {
             ["Les Miserables", "A file"],
         );
 
-        await userEvent.click(screen.getByRole("button", { name: "More for Les Miserables" }));
+        await userEvent.click(page.getByRole("button", { name: "More for Les Miserables", exact: true }));
         assert.isNotNull(await screen.findByRole("menuitem", { name: "Open" }));
-        await userEvent.click(screen.getByRole("menuitem", { name: "Remove from this browser" }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Remove from this browser", exact: true }));
         const ask = await screen.findByRole("dialog", { name: "Remove Les Miserables from this browser?" });
-        await userEvent.click(within(ask).getByRole("button", { name: "Remove" }));
+        await userEvent.click(page.elementLocator(ask).getByRole("button", { name: "Remove", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("gridcell", { name: /^Les Miserables/ }));
         });
@@ -225,8 +225,8 @@ describe("the Project package", () => {
         await rememberRecent({ id: "b", name: "Karate", nodes: 34, at: 2 });
         render(<Workspace initialState={OPEN} />);
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Open recent" }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.hover(page.getByRole("menuitem", { name: "Open recent", exact: true }));
         assert.isNotNull(await screen.findByRole("menuitem", { name: /^Karate/ }));
     });
 

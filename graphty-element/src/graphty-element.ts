@@ -523,7 +523,12 @@ export class Graphty extends LitElement {
      * (`<project name>.graphty.json`) without marking the project saved: it is a copy, and
      * `project.dirty` is left as it was. To save, use `downloadProject`. The file is assembled from
      * the export's UTF-8 chunks, never as one string.
-     * @param format - The format id, as `session.catalog.formats()` lists it.
+     *
+     * To look at an export's `losses` before deciding to save it, call `exportGraph` and hand its
+     * result here in place of the format: the file is written from that result, so the graph is
+     * exported once, not twice. Only `fileName` is read from the options then.
+     * @param format - The format id, as `session.catalog.formats()` lists it, or a result
+     *     `exportGraph` already returned.
      * @param options - The writer's options, as `exportGraph` takes them, and the file's name.
      * @returns The export, whose `losses` list everything the format could not hold.
      * @throws A `GraphtyError` (as a rejection), as `exportGraph` rejects.
@@ -532,24 +537,27 @@ export class Graphty extends LitElement {
      * ```typescript
      * const { losses } = await element.downloadGraph("graphml");
      * for (const loss of losses) console.warn(loss.code, loss.params);
+     *
+     * const result = await element.exportGraph("csv");
+     * if (result.losses.length === 0 || confirm("Save anyway?")) await element.downloadGraph(result);
      * ```
      */
     async downloadGraph(
-        format: FormatId,
+        format: FormatId | ExportResult,
         options: ExportGraphOptions & { readonly fileName?: string } = {},
     ): Promise<ExportResult> {
         const { fileName, ...exportOptions } = options;
-        const result = await this.exportGraph(format, exportOptions);
+        const result = typeof format === "string" ? await this.exportGraph(format, exportOptions) : format;
+        const { format: id } = result;
         const chunks: BlobPart[] = [];
         for await (const chunk of result.bytes) {
             chunks.push(chunk.slice());
         }
         const { name } = this.session.project;
-        const descriptor = this.session.catalog.formats().find((entry) => entry.id === format);
+        const descriptor = this.session.catalog.formats().find((entry) => entry.id === id);
         downloadBlob(
             new Blob(chunks, { type: descriptor?.mimeTypes[0] ?? "application/octet-stream" }),
-            fileName ??
-                (format === "graphty" ? projectFileName(name) : formatFileName(name, descriptor?.extensions[0])),
+            fileName ?? (id === "graphty" ? projectFileName(name) : formatFileName(name, descriptor?.extensions[0])),
         );
         return result;
     }

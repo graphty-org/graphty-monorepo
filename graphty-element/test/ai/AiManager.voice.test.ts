@@ -12,9 +12,9 @@ import { type AiManagerConfig, createAiManager, NO_VOICE_SUPPORT } from "../../s
 import { FakeEngine, type FakeLiveConnection } from "../../src/ai/engine/FakeEngine";
 import { registerProviderApiEngine } from "../../src/ai/engine/load";
 import { createProvider } from "../../src/ai/providers";
-import type { Graph } from "../../src/Graph";
 import { assistantSession, SMALL_GRAPH, textTurn } from "../helpers/assistant";
 import { type FakeSpeech, flushMicrotasks, installFakeSpeech } from "../helpers/fake-speech";
+import { type Emitted, graphHandle } from "../helpers/session-graph";
 import { HOSTS, KEYS, providerApiFixture, TRANSCRIPT } from "./engine/providerApiFixtures";
 import { redNodes } from "./llm-regression/red";
 
@@ -22,11 +22,8 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-/** What a manager's graph emitted, as `[type, detail]`. */
-type Emitted = [string, Record<string, unknown>][];
-
 /**
- * A manager over a stand-in graph whose chat runs on a scripted engine.
+ * A manager over a real session whose chat runs on a scripted engine.
  * @param config - The configuration, besides the provider.
  * @param provider - The chat provider.
  * @param scripted - Run the provider on the scripted engine (default); false, on its own.
@@ -38,19 +35,8 @@ async function manager(
     scripted = true,
 ): Promise<{ ai: ReturnType<typeof createAiManager>; chat: FakeEngine; emitted: Emitted; session: GraphSession }> {
     const session = await assistantSession();
-    const emitted: Emitted = [];
-    const graph = {
-        getSession: () => session,
-        eventManager: {
-            emit: (type: string, detail: Record<string, unknown>) => emitted.push([type, detail]),
-            addListener: () => Symbol("listener"),
-            removeListener: () => undefined,
-        },
-        getDataManager: () => ({ nodes: new Map(), edges: new Map() }),
-        getNodeCount: () => 0,
-        getEdgeCount: () => 0,
-        getXRSessionManager: () => undefined,
-    } as unknown as Graph;
+    // Nothing runs XR in a node test.
+    const { graph, emitted } = graphHandle(session, { getXRSessionManager: () => undefined });
     const chat = new FakeEngine();
     const instance = createProvider(provider);
     if (scripted) {

@@ -7,11 +7,12 @@ import React, { useState } from "react";
 import { SettingsPopout } from "../options/SettingsPopout";
 import { SHADER_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { type PasteInit, ShaderEditorDialog } from "../style/ShaderEditorDialog";
+import { ShaderEditorDialog } from "../style/ShaderEditorDialog";
 import { ShaderGallery } from "../style/ShaderGallery";
 import { ShaderParams } from "../style/ShaderParams";
 import { copyShaderText, pickedShader } from "../style/shaderSlots";
 import { headerBottom } from "../style/useFocusLine";
+import { useShaderEditorOn } from "../style/useShaderEditorOn";
 import {
     BACKGROUND_SECTION_WORDS,
     failureWords,
@@ -65,14 +66,15 @@ export function BackgroundShader({
     startOpen = false,
 }: Readonly<BackgroundShaderProps>): React.JSX.Element {
     const { store } = useWorkspace();
-    const [picking, setPicking] = useState(startOpen);
+    const [paste, setPaste] = useShaderEditorOn("background");
+    // The gallery opens by itself for a row just added, not under the shader editor a reload reopened.
+    const [picking, setPicking] = useState(startOpen && paste === null);
     const [settings, setSettings] = useState(false);
     const fail =
         (what: string) =>
         (error: unknown): void => {
             store.set({ notice: { message: failureWords(what, "changed", error), error: true } });
         };
-    const [paste, setPaste] = useState<PasteInit | null>(null);
     const descriptor = shader === undefined ? undefined : session.shaders.describe(shader);
     const name = descriptor?.plainName ?? shader ?? "None";
     return (

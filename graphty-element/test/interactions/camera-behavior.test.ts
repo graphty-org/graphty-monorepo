@@ -127,6 +127,22 @@ describe("camera.autoRotate", () => {
         assert.notStrictEqual(camera(element), held, "turning again once it is let go");
     });
 
+    it("stops for good at a press let go before the next frame, with autoRotateResume never", async () => {
+        const element = await mounted("3d");
+        element.layoutBehavior = { camera: { autoRotate: 1, autoRotateResume: "never" } };
+        await drawnFrames(element.graph.getScene(), 2);
+        const turning = camera(element);
+        await drawnFrames(element.graph.getScene(), 2);
+        assert.notStrictEqual(camera(element), turning, "turning before the press");
+
+        // Press and release sent together: the button is up again before a frame reads it.
+        await click(element, EMPTY);
+        await drawnFrames(element.graph.getScene(), 2);
+        const held = camera(element);
+        await drawnFrames(element.graph.getScene(), 20);
+        assert.strictEqual(camera(element), held, "no turning after the reader's press");
+    });
+
     it("never turns the 2D view", async () => {
         const element = await mounted("2d");
         element.layoutBehavior = { camera: { autoRotate: 1 } };

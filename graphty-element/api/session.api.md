@@ -1113,6 +1113,13 @@ export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" |
     readonly suggested?: ColumnRole;
 }
 
+// @beta
+export interface DraftRing {
+    readonly kind: "mergedAgain" | "focus";
+    readonly nodes: number;
+    readonly scale: number;
+}
+
 // @public
 export interface DraftRow {
     readonly line: number;
@@ -4083,6 +4090,7 @@ export interface LoadedSource extends DataSourceDescriptor {
         readonly edges: number;
     };
     readonly delimiter?: DraftTable["delimiter"];
+    readonly endNodes?: number;
     readonly features?: SourceFeatures;
     readonly issues?: readonly SourceSpaceOverlap[];
     readonly join?: JoinRecord;
@@ -4339,9 +4347,7 @@ export interface ModelLimits extends ModelLimits_2 {
 export interface ModelPart {
     readonly file?: string;
     readonly name: string;
-    // (undocumented)
     readonly role: ModelPartRole;
-    // (undocumented)
     readonly state: ModelPartState;
 }
 
@@ -4363,11 +4369,8 @@ export type MultipleTestingCorrection = "benjamini-hochberg" | "bonferroni" | "h
 
 // @public
 export interface NamedBlob {
-    // (undocumented)
     arrayBuffer(): Promise<ArrayBuffer>;
-    // (undocumented)
     readonly name: string;
-    // (undocumented)
     readonly size: number;
     readonly webkitRelativePath?: string;
 }
@@ -6119,12 +6122,26 @@ export interface RunProgressReport {
 }
 
 // @public
+export interface RunProgressSink {
+    setMessage(message: string): void;
+    setPhase(phase: string): void;
+    setProgress(percent: number): void;
+}
+
+// @public
 export interface RunQueue {
     cancelOperation(operationId: string): boolean;
     queueOperation(category: "algorithm-run" | "style-edit", execute: (context: RunQueueContext) => Promise<void> | void, options?: {
         description?: string;
     }): string;
     settled(): Promise<void>;
+}
+
+// @public
+export interface RunQueueContext {
+    readonly id: string;
+    readonly progress: RunProgressSink;
+    readonly signal: AbortSignal;
 }
 
 // @beta
@@ -7817,6 +7834,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     declareType(entry: SourceTypeEntry): void;
     display(on: boolean, options?: {
         readonly hold?: boolean;
+        readonly keepCamera?: boolean;
     }): Promise<void>;
     readonly displayed: boolean;
     dispose(): void;
@@ -9436,6 +9454,7 @@ export interface StylesApi {
     // @beta
     showDraft(view: DraftView): {
         end(): void;
+        readonly rings: readonly DraftRing[];
     };
     // @beta
     readonly showingBranches: boolean;

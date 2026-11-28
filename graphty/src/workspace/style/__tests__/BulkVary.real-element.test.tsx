@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
@@ -52,7 +52,7 @@ async function openScene(): Promise<{ session: GraphSession; groups: string[] }>
  */
 async function clickRow(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
 /**
@@ -75,10 +75,10 @@ async function line(channel: string): Promise<HTMLElement> {
  */
 async function colorByGroup(): Promise<HTMLElement> {
     const fill = await line("node.color");
-    await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
+    await userEvent.click(page.elementLocator(fill).getByRole("button", { name: /^Node color: from each layer, / }));
     const byLayer = await screen.findByRole("dialog", { name: "Color from each layer" });
-    await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
-    await userEvent.click((await screen.findAllByRole("option", { name: /group|community|louvain/i }))[0]);
+    await userEvent.click(page.elementLocator(byLayer).getByRole("button", { name: "Change source", exact: true }));
+    await userEvent.click(page.getByRole("option", { name: /group|community|louvain/i }).nth(0));
     return screen.findByRole("dialog", { name: /^Color by / });
 }
 
@@ -131,13 +131,14 @@ describe("vary by data on several layers", () => {
 
         // Shape: "+" adds it to every layer, then Vary copies a shape rule into each.
         const tab = await screen.findByTestId("style-tab");
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node shape", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Shape", exact: true }));
         const shape = await line("node.shape");
         await userEvent.hover(shape);
-        await userEvent.click(within(shape).getByRole("button", { name: "Node shape by attribute" }));
-        const shapeOptions = await screen.findAllByRole("option", { name: /group|community|louvain/i });
-        await userEvent.click(shapeOptions[0]);
+        await userEvent.click(
+            page.elementLocator(shape).getByRole("button", { name: "Node shape by attribute", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: /group|community|louvain/i }).first());
         await screen.findByRole("dialog", { name: /^Shape by / });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -167,19 +168,20 @@ describe("vary by data on several layers", () => {
         // F2 renames the group: its value's label, read by every layer.
         firstRow().querySelector<HTMLElement>("[role=gridcell]")?.focus();
         await userEvent.keyboard("{F2}");
-        const box = await within(popover).findByRole("textbox", { name: new RegExp(`^Name of .*${name}$`) });
-        await userEvent.clear(box);
-        await userEvent.type(box, "Barricade{Enter}");
+        const box = (): Locator =>
+            page.elementLocator(popover).getByRole("textbox", { name: new RegExp(`^Name of .*${name}$`) });
+        await userEvent.clear(box());
+        await userEvent.type(box(), "Barricade{Enter}");
         await waitFor(() => {
             assert.strictEqual(session.data.valueLabels(path() ?? "").get(key), "Barricade");
         });
 
         // The eye hides the group in the binding held; closing writes it into each layer.
-        await userEvent.click(within(firstRow()).getByRole("button", { name: /^Hide / }));
+        await userEvent.click(page.elementLocator(firstRow()).getByRole("button", { name: /^Hide / }));
 
         // Select these: the group's nodes, from the row's menu.
-        await userEvent.click(within(firstRow()).getByRole("button", { name: / actions$/ }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Select these / }));
+        await userEvent.click(page.elementLocator(firstRow()).getByRole("button", { name: / actions$/ }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Select these / }));
         await waitFor(() => {
             assert.isAbove(session.selection.nodes.length, 0, "the group's nodes are selected");
         });
@@ -219,8 +221,10 @@ describe("vary by data on several layers", () => {
         within(fill).getByRole("button", { name: /^Node color: from each layer, 2 layers/ });
         // "One value for all" (the field's detach), then a typed Fill writes to both.
         await userEvent.hover(fill);
-        await userEvent.click(within(fill).getByRole("button", { name: "Give all 2 layers one node color" }));
-        await userEvent.click(await within(fill).findByRole("textbox", { name: /^Node color/ }));
+        await userEvent.click(
+            page.elementLocator(fill).getByRole("button", { name: "Give all 2 layers one node color", exact: true }),
+        );
+        await userEvent.click(page.elementLocator(fill).getByRole("textbox", { name: /^Node color/ }));
         await userEvent.keyboard("009E73{Enter}");
         await waitFor(() => {
             const colors = session.styles

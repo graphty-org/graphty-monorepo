@@ -10,7 +10,7 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { forgetAutosave, openAutosaved, reload } from "../../../test/reload";
-import { screen, waitFor, within } from "../../../test/test-utils";
+import { screen, waitFor } from "../../../test/test-utils";
 
 /** Starts with nothing kept: no autosaved work and nothing in this tab's session storage. */
 async function forget(): Promise<void> {
@@ -33,15 +33,18 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             // The papers' year is the time field, picked as the reader does: in the Data place, the
             // load's own section on the Sources tab holds its attributes.
             await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
-            const place = within(await screen.findByRole("region", { name: "Data place" }));
-            await userEvent.click(await place.findByRole("button", { name: "Add to node attributes" }));
-            await userEvent.hover(await screen.findByRole("menuitem", { name: "Time" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: /^year/ }));
+            await userEvent.click(
+                page
+                    .getByRole("region", { name: "Data place", exact: true })
+                    .getByRole("button", { name: "Add to node attributes", exact: true }),
+            );
+            await userEvent.hover(page.getByRole("menuitem", { name: "Time", exact: true }));
+            await userEvent.click(page.getByRole("menuitem", { name: /^year/ }));
 
             // The canvas toolbar's Timeline and Table buttons.
-            await userEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+            await userEvent.click(page.getByRole("button", { name: "Timeline", exact: true }));
             await screen.findByRole("region", { name: "Timeline" });
-            await userEvent.click(screen.getByRole("button", { name: "Table" }));
+            await userEvent.click(page.getByRole("button", { name: "Table", exact: true }));
             await screen.findByRole("region", { name: "Table" });
 
             const after = await reload(before, { lostSession });

@@ -15,7 +15,8 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { pickWork } from "../../src/render/PickService";
-import { click, drag, hover, type Point } from "../helpers/real-input";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
+import { click, drag, hover, moveHeld, nextFrame, type Point, press, release } from "../helpers/real-input";
 
 /** The two graph sizes: big enough that a pick per node is 4x. */
 const SIZES = [100, 400] as const;
@@ -63,6 +64,47 @@ async function mounted(size: number): Promise<Graphty> {
 }
 
 /**
+ * Stop drawing frames, so the frames drawn while the input is sent pick nothing of their own: only
+ * the input does. And thaw the list of what is drawn, so every pick takes the path that walks the
+ * meshes. Once a still graph has drawn a few quiet frames the list freezes, and a pick reads the
+ * nodes from a table made for the freeze instead (issue #10128), building more rays (17 for one move
+ * onto a node, not 12) at any graph size. Whether that freeze had landed when the loop stopped
+ * depended on how many frames each graph drew first, so the two sizes could be counted on different
+ * paths (issue #10469).
+ * @param element - The element.
+ */
+function stopDrawing(element: Graphty): void {
+    element.graph.engine.stopRenderLoop();
+    const thaw = (element.graph.scene.metadata as GraphSceneMetadata | null)?.thawActiveMeshes;
+    assert.isDefined(thaw, "the scene can thaw its list of what is drawn");
+    thaw();
+}
+
+/**
+ * The number that stands while the list of what is drawn is frozen, or null while it is not: what
+ * decides whether a pick reads the frozen table (`useFrozenRows`).
+ * @param element - The element.
+ * @returns The number, or null.
+ */
+function frozenListEpoch(element: Graphty): number | null {
+    return element.graph.getUpdateManager().frozenListEpoch();
+}
+
+/**
+ * Let the still graph draw until its list of what is drawn freezes, then stop drawing frames, so
+ * every pick reads the nodes from the frozen table: the path a reader's pointer takes over a graph
+ * that has stopped moving.
+ * @param element - The element.
+ */
+async function stopDrawingFrozen(element: Graphty): Promise<void> {
+    await vi.waitFor(() => {
+        assert.isNotNull(frozenListEpoch(element), "the still graph's list of what is drawn froze");
+    });
+    element.graph.engine.stopRenderLoop();
+    assert.isNotNull(frozenListEpoch(element), "the list is still frozen once drawing stops");
+}
+
+/**
  * Where node `t` is drawn.
  * @param element - The element.
  * @returns Its center in CSS pixels from the element's top-left corner.
@@ -95,8 +137,7 @@ async function picksFor(size: number): Promise<number> {
         return pick(...args);
     };
     try {
-        // Frames drawn while the input is sent make no picks of their own: only the input does.
-        element.graph.engine.stopRenderLoop();
+        stopDrawing(element);
         const at = target(element);
 
         await hover(element, EMPTY);
@@ -139,9 +180,10 @@ describe("the pointer over the nodes", () => {
  * Move the pointer onto the canvas at an empty spot and then onto node `t`, through real input, counting the picking rays Babylon builds
  * meanwhile (one per mesh a pick tests, in that mesh's space), and check the hover reported `t`.
  * @param size - The node count.
+ * @param list - Whether the picks walk the meshes ("thawed") or read the frozen table ("frozen").
  * @returns The rays built.
  */
-async function raysFor(size: number): Promise<number> {
+async function raysFor(size: number, list: "thawed" | "frozen"): Promise<number> {
     const element = await mounted(size);
     const hovered: unknown[] = [];
     element.addEventListener("graphty-node-hover", (event) => {
@@ -149,8 +191,11 @@ async function raysFor(size: number): Promise<number> {
     });
 
     const at = target(element);
-    // Frames drawn while the input is sent build no rays of their own: only the input does.
-    element.graph.engine.stopRenderLoop();
+    if (list === "frozen") {
+        await stopDrawingFrozen(element);
+    } else {
+        stopDrawing(element);
+    }
 
     let rays = 0;
     const unproject = Ray.prototype.unprojectRayToRef;
@@ -172,12 +217,14 @@ async function raysFor(size: number): Promise<number> {
 }
 
 describe("one pointer move onto a node", () => {
-    it("tests the same number of meshes at 10x the nodes", async () => {
-        const [small, large] = [await raysFor(100), await raysFor(1000)];
-        const message = `picking rays built: ${String(small)} at 100 nodes, ${String(large)} at 1000`;
-        assert.isAbove(small, 0, message);
-        assert.strictEqual(large, small, message);
-    });
+    for (const list of ["thawed", "frozen"] as const) {
+        it(`tests the same number of meshes at 10x the nodes, with the drawn list ${list}`, async () => {
+            const [small, large] = [await raysFor(100, list), await raysFor(1000, list)];
+            const message = `picking rays built (${list}): ${String(small)} at 100 nodes, ${String(large)} at 1000`;
+            assert.isAbove(small, 0, message);
+            assert.strictEqual(large, small, message);
+        });
+    }
 });
 
 describe("one click on a node", () => {
@@ -185,8 +232,7 @@ describe("one click on a node", () => {
         const element = await mounted(SIZES[0]);
         const at = target(element);
         await hover(element, at);
-        // Frames drawn while the input is sent make no picks of their own: only the input does.
-        element.graph.engine.stopRenderLoop();
+        stopDrawing(element);
 
         const before = pickWork.meshPicks;
         const babylonBefore = pickWork.pointerPicks;
@@ -217,5 +263,49 @@ describe("one click on a node", () => {
                 ? "Babylon picks the move, the press and the release"
                 : "Babylon walks the meshes for the move only",
         );
+    });
+});
+
+/**
+ * Turn the camera by dragging from the empty spot through real input, in `moves` held moves, counting the picks
+ * Babylon makes of its own of the pointer (for the cursor and the meshes' actions) meanwhile.
+ * @param element - The element.
+ * @param moves - The held moves.
+ * @returns Babylon's pointer picks.
+ */
+async function babylonPicksInCameraDrag(element: Graphty, moves: number): Promise<number> {
+    const before = pickWork.pointerPicks;
+    const start = JSON.stringify(element.getCameraState());
+    await press(element, EMPTY);
+    for (let step = 1; step <= moves; step++) {
+        await moveHeld(element, { x: EMPTY.x + 8 * step, y: EMPTY.y - 4 * step });
+    }
+
+    await release(element, { x: EMPTY.x + 8 * moves, y: EMPTY.y - 4 * moves });
+    await nextFrame();
+    assert.notStrictEqual(JSON.stringify(element.getCameraState()), start, "the drag turned the camera");
+    return pickWork.pointerPicks - before;
+}
+
+describe("a camera drag", () => {
+    it("makes no pick of Babylon's own on its moves, at any drag length", async () => {
+        const element = await mounted(SIZES[1]);
+        await hover(element, EMPTY);
+        const [short, long] = [await babylonPicksInCameraDrag(element, 2), await babylonPicksInCameraDrag(element, 10)];
+        // Only the press and the release are picked, however long the drag: each move of a camera drag walked every
+        // mesh again, about 19 ms a move at 100,000 nodes, for a cursor and pointer-over actions no node mesh has.
+        const message = `Babylon's pointer picks: ${String(short)} in a drag of 2 moves, ${String(long)} in 10`;
+        assert.isAbove(short, 0, message);
+        assert.strictEqual(long, short, message);
+    });
+
+    it("leaves Babylon picking the moves once the button is up", async () => {
+        const element = await mounted(SIZES[0]);
+        await hover(element, EMPTY);
+        await babylonPicksInCameraDrag(element, 3);
+        const before = pickWork.pointerPicks;
+        await hover(element, target(element));
+        assert.strictEqual(pickWork.pointerPicks - before, 1, "the move after the drag is picked by Babylon");
+        assert.isFalse(element.graph.scene.skipPointerMovePicking, "nothing is left skipping");
     });
 });

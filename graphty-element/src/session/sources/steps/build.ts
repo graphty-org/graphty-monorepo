@@ -724,6 +724,9 @@ const reach = (n: BuiltNode, src: string): void => {
 };
 const settle = (n: BuiltNode): void => {
     const supplied = n.loads.length > 0;
+    if (!supplied && n.ends !== undefined && n.ends.length > 0) {
+        n.byEnds = [...n.ends];
+    }
     for (const src of n.ends ?? []) {
         if (supplied) {
             name(n, src);

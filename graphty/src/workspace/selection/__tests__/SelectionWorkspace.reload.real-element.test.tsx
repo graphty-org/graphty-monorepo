@@ -136,8 +136,8 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             });
             await session.styles.settled();
             const tree = await screen.findByRole("tree", { name: "Style layers" });
-            await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Busy, / }));
-            await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+            await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Busy, / }));
+            await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
             await ws();
             await pickValue("Degree");
             await typeDegreeFrom("5");
@@ -158,7 +158,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             const before = await openAutosaved("Les Miserables");
             const session = await sessionNow();
             await openDataPlace();
-            await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+            await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
             await ws();
             await pickValue("Degree");
             await typeDegreeFrom("5");
@@ -171,7 +171,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             assert.strictEqual((await degreeFrom()).value, "5");
             assert.lengthOf(reopened.visibility.conditions, 0, "still nothing written");
             assert.strictEqual(reopened.visibility.nodes.size, 77, "nothing is filtered yet");
-            await userEvent.click(within(open).getByRole("button", { name: /^Done/ }));
+            await userEvent.click(page.elementLocator(open).getByRole("button", { name: /^Done/ }));
             await waitFor(() => {
                 assert.lengthOf(reopened.visibility.conditions, 1, "Done writes one filter");
             });
@@ -185,7 +185,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             const before = await openAutosaved("Les Miserables");
             await openDataPlace();
             const was = screenNow();
-            await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+            await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
             await ws();
             await screen.findByRole("region", { name: "Matches" });
             // The empty card holds nothing graphty-element could keep: its workspace goes with it.
@@ -198,7 +198,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 assert.isNull(document.querySelector(".sel-ws"), "no workspace without its card");
                 assert.isNull(document.querySelector("[inert]"), "nothing is left inert");
             });
-            await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+            await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
             await ws();
             after.view.unmount();
         });
@@ -207,12 +207,12 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             const before = await openAutosaved("Les Miserables");
             const session = await sessionNow();
             await openDataPlace();
-            await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+            await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
             const modal = await ws();
             await pickValue("Degree");
             await typeDegreeFrom("5");
             await cardCounts(41);
-            await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
+            await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Done/ }));
             await waitFor(() => {
                 assert.isNull(document.querySelector(".sel-ws"), "Done closes it");
                 assert.strictEqual(writtenFrom(session), "5");
@@ -229,7 +229,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             const reopened = await sessionNow();
             assert.strictEqual((await degreeFrom()).value, "10");
             assert.strictEqual(writtenFrom(reopened), "5", "still the written filter");
-            await userEvent.click(within(open).getByRole("button", { name: /^Cancel/ }));
+            await userEvent.click(page.elementLocator(open).getByRole("button", { name: /^Cancel/ }));
             await waitFor(() => {
                 assert.isNull(document.querySelector(".sel-ws"), "Cancel closes it");
             });

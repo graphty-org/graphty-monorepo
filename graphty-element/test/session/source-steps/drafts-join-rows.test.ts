@@ -112,6 +112,26 @@ describe("source-steps drafts: a join's rows", () => {
         assert.strictEqual(draft.joinRows(options).counts?.matchedRows, 2);
     });
 
+    it("list a file's columns in the file's own order, and its rows hold them so (#10206)", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "zid,name,dept,age", "Z1,Ann,Ops,3", "Z2,Bo,Lab,4"), {
+            key: "zid",
+            type: "person",
+        });
+        const entries = await session.data.stage(csv("entries.csv", "zentry,zid,door,amount", "e1,Z1,D,1"), {
+            key: "zentry",
+        });
+        const draft = session.data.draft();
+        const people = { source: session.data.sources()[0].key };
+        const names = (side: Parameters<SourceDraft["sideFields"]>[0]): string[] =>
+            draft.sideFields(side).map((field) => field.name);
+        assert.deepStrictEqual(names(people), ["zid", "name", "dept", "age"]);
+        assert.deepStrictEqual(names({ source: entries }), ["zentry", "zid", "door", "amount"]);
+        assert.deepStrictEqual(names({ space: "person" }), ["zid", "name", "dept", "age"]);
+        const row = draft.joinRows({ a: { source: entries }, limit: 1 }).rows[0]?.a;
+        assert.deepStrictEqual(Object.keys(row ?? {}), ["zentry", "zid", "door", "amount"]);
+    });
+
     it("of a field with itself are one table's rows beside themselves", async () => {
         const { draft, entries } = await opened();
         const side = { source: entries };

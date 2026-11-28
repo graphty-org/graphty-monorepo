@@ -6,6 +6,9 @@ Independent of graph-io (networkx read_gml + stdlib). It reads more than yed_gml
 - label position from LabelGraphics `anchor` (yEd's internal model: c, t, b, ... and n/s/e/w)
 - edge label from LabelGraphics `text` as well as the edge's `label` key
 - legacy `arrow "last" | "first" | "both"` on edges
+- in a file yEd drew (`Creator` yFiles or yEd, or no `Creator` and yEd's `isGroup`, `gid` or `hierarchic`), a
+  polyline's head whose neighboring bend sits on its port (`edgeAnchor`, else the Line's end) is not drawn: yEd has
+  no direction to aim it (gml-synthetic-coverage 7->8, as yEd's own SVG export shows)
 - groups from `isGroup 1` / `gid` (BioNetGen and yEd group exports); members are the leaf descendants
 - a file with no coordinates gets gaps for position, size and edgePath (and groups' boxes are unknown,
   so groups get a gap)
@@ -13,6 +16,8 @@ Independent of graph-io (networkx read_gml + stdlib). It reads more than yed_gml
     PYTHONPATH=<dir holding networkx> python3 yed_gml_ext.py <file.gml> | node common.mjs finish <out.json>
 """
 
+import math
+import re
 import sys
 
 import networkx as nx
@@ -35,8 +40,29 @@ def first_label(lg):
     return lg if isinstance(lg, dict) else {}
 
 
+def drawn_by_yed(path, g):
+    """Whether yEd wrote the file, as graph-io's GML reader decides it (its `writerOf`)."""
+    m = re.search(r'^\s*Creator\s+"([^"]*)"', open(path, encoding="utf-8", errors="replace").read(), re.M)
+    creator = m.group(1) if m else ""
+    if re.match(r"\s*(yfiles|yed)\b", creator, re.I):
+        return True
+    return creator.strip() == "" and ("hierarchic" in g.graph or any(
+        "isGroup" in d or "gid" in d for _, d in g.nodes(data=True)))
+
+
+def lost_heads(arrow, ends, bends):
+    """yEd draws no head where the polyline's bend next to that end sits on its port."""
+    def on(b, e):
+        return math.hypot(b[0] - e[0], b[1] - e[1]) < 1e-6
+    if bends and on(bends[0], ends[0]):
+        arrow["source"] = "none"
+    if bends and on(bends[-1], ends[1]):
+        arrow["target"] = "none"
+
+
 def scene(path):
     g = nx.read_gml(path, label="id")
+    yed = drawn_by_yed(path, g)
     placed = any("x" in d.get("graphics", {}) for _, d in g.nodes(data=True))
     nodes, geo, groups = [], {}, {}
     parent = {}
@@ -93,11 +119,24 @@ def scene(path):
         color = hex_color(gr.get("fill", "#000000")) or ("#000000", 1.0)
         src, tgt = ARROW.get(str(gr.get("arrow", "")).lower(), ("none", "none"))
         lg = first_label(d.get("LabelGraphics", {}))
+        arrow = {"source": gr.get("sourceArrow", src), "target": gr.get("targetArrow", tgt)}
+        arc = str(gr.get("type", "")).strip().lower() == "arc" and s != t
+        if yed and bent and not arc:
+            a = d.get("edgeAnchor", {})
+            a = a if isinstance(a, dict) else {}
+
+            def port(n, kx, ky, fallback):
+                if kx not in a and ky not in a:
+                    return fallback
+                x, y, w, h = geo[n][:4]
+                return [x + float(a.get(kx, 0)) * w / 2, y + float(a.get(ky, 0)) * h / 2]
+            lost_heads(arrow, (port(s, "xSource", "ySource", pts[0]), port(t, "xTarget", "yTarget", pts[-1])),
+                       pts[1:-1])
         edges.append({"id": f"{s}->{t}" + (f"#{k}" if k else ""), "source": str(s), "target": str(t),
                       "points": clip_path(pts, geo[s], geo[t]), "curved": bent and gr.get("smoothBends") == 1,
                       "color": color[0], "opacity": color[1], "width": float(gr.get("width", 1)),
                       "style": gr.get("style", "line"),
-                      "arrow": {"source": gr.get("sourceArrow", src), "target": gr.get("targetArrow", tgt)},
+                      "arrow": arrow,
                       "label": (lg.get("text") or d.get("label") or None)})
     gaps = []
     if not placed:

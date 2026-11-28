@@ -102,18 +102,18 @@ async function degreeFrom(at: number, value: string): Promise<void> {
  */
 async function saveTwoCardFilter(session: GraphSession): Promise<string> {
     const before = session.visibility.conditions.length;
-    await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+    await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
     const modal = await ws();
     await pickValue("Degree");
     await degreeFrom(0, "5");
-    await userEvent.click(within(modal).getByRole("button", { name: /^Card$/ }));
+    await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Card$/ }));
     await pickValue("Degree");
     await waitFor(() => {
         assert.lengthOf(cards(), 2);
     });
     await degreeFrom(1, "10");
     // The filter is a draft until Done (design/working-graph/design.md, section 3).
-    await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
+    await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /^Done/ }));
     await waitFor(() => {
         assert.isNull(document.querySelector(".sel-ws"), "Done closes it");
     });
@@ -144,7 +144,7 @@ describe("a saved filter opens with its cards", () => {
         store.set({ place: "graph" });
         await userEvent.keyboard("{Control>}k{/Control}");
         await userEvent.keyboard("filter");
-        await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Filters/ }));
         await assertSavedFilter(await ws());
         assert.lengthOf(session.visibility.conditions, 1, "no second filter");
     });
@@ -156,7 +156,7 @@ describe("a saved filter opens with its cards", () => {
         store.set({ place: "graph" });
         await userEvent.keyboard("{Control>}k{/Control}");
         await userEvent.keyboard("filter");
-        await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Filters/ }));
         await waitFor(() => {
             assert.strictEqual(store.get().place, "data");
         });
@@ -172,8 +172,8 @@ describe("a saved filter opens with its cards", () => {
         await waitFor(() => {
             assert.isNull(list.querySelector(".sel-rest"), "no expanded summary after Done");
         });
-        await userEvent.click(within(list).getByRole("button", { name: "More" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Edit/ }));
+        await userEvent.click(page.elementLocator(list).getByRole("button", { name: "More", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Edit/ }));
         await assertSavedFilter(await ws());
     });
 

@@ -1,29 +1,23 @@
 /**
- * @file A source/target pair a caller hands `addEdges` is checked like a configured one: a
+ * @file A source/target pair a caller hands an edge add is checked like a configured one: a
  * malformed expression is refused instead of reading null for every record and leaving every
- * edge out as "missing endpoint".
+ * edge out as "missing endpoint". Driven through a real headless session's `data.apply` command,
+ * whose `add-edges` mutation carries the pair the way a file load or an expansion declares it.
  */
 import { assert, describe, it } from "vitest";
 
 import { isGraphtyError } from "../../src/errors";
-import { DataManager } from "../../src/managers/DataManager";
-import { EventManager } from "../../src/managers/EventManager";
-import type { GraphContext } from "../../src/managers/GraphContext";
-import { Styles } from "../../src/Styles";
+import { createGraphSession } from "../../src/session/GraphSession";
 
-function makeManager(): DataManager {
-    const dm = new DataManager(new EventManager(), Styles.default());
-    dm.setGraphContext({} as unknown as GraphContext);
-    dm.renderLimits = { ceilings: () => undefined, batched: () => true };
-    return dm;
-}
-
-describe("an endpoint pair declared on addEdges", () => {
-    it("refuses a malformed expression with E_OPTION_RANGE", () => {
-        const dm = makeManager();
+describe("an endpoint pair declared on an edge add", () => {
+    it("refuses a malformed expression with E_OPTION_RANGE", async () => {
+        const session = createGraphSession();
         let thrown: unknown;
         try {
-            dm.addEdges([{ from: "a", to: "b" }], { source: "from[", target: "to" });
+            await session.execute({
+                op: "data.apply",
+                mutation: { kind: "add-edges", records: [{ from: "a", to: "b" }], source: "from[", target: "to" },
+            });
         } catch (error) {
             thrown = error;
         }
@@ -36,12 +30,17 @@ describe("an endpoint pair declared on addEdges", () => {
         assert.strictEqual(thrown.code, "E_OPTION_RANGE");
         assert.strictEqual(thrown.details?.option, "edgeSrcIdPath");
         assert.strictEqual(thrown.details?.value, "from[");
-        assert.strictEqual(dm.getSnapshot().edgeCount, 0);
+        assert.strictEqual(session.status.counts.edges, 0);
+        session.dispose();
     });
 
-    it("still reads a valid declared pair", () => {
-        const dm = makeManager();
-        dm.addEdges([{ from: "a", to: "b" }], { source: "from", target: "to" });
-        assert.strictEqual(dm.getSnapshot().edgeCount, 1);
+    it("still reads a valid declared pair", async () => {
+        const session = createGraphSession();
+        await session.execute({
+            op: "data.apply",
+            mutation: { kind: "add-edges", records: [{ from: "a", to: "b" }], source: "from", target: "to" },
+        });
+        assert.strictEqual(session.status.counts.edges, 1);
+        session.dispose();
     });
 });

@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { cdp, page, userEvent } from "vitest/browser";
+import { cdp, type Locator, page, userEvent } from "vitest/browser";
 
 import { dragTo, touchDragCanceled } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -52,7 +52,7 @@ async function openRing(): Promise<{ element: GraphElement; session: GraphSessio
     fresh = { canUndo: found.session.canUndo, dirty: found.session.project.dirty };
     // The place opens before the graph comes, so it must follow the graph to enable its buttons.
     await userEvent.click(
-        within(screen.getByRole("toolbar", { name: "Places" })).getByRole("button", { name: "Views" }),
+        page.getByRole("toolbar", { name: "Places", exact: true }).getByRole("button", { name: "Views", exact: true }),
     );
     await screen.findByRole("region", { name: "Views place" });
     await found.session.layout.set("circular");
@@ -158,7 +158,7 @@ async function undo(): Promise<void> {
     if (header === null) {
         throw new Error("no header");
     }
-    await userEvent.click(within(header).getByRole("button", { name: /^Undo/ }));
+    await userEvent.click(page.elementLocator(header).getByRole("button", { name: /^Undo/ }));
 }
 
 /**
@@ -188,7 +188,7 @@ function headerButtons(card: HTMLElement): string[] {
  * @returns the items' words.
  */
 async function menuItems(name: string): Promise<string[]> {
-    await userEvent.click(within(place()).getByRole("button", { name: `More for ${name}` }));
+    await userEvent.click(page.elementLocator(place()).getByRole("button", { name: `More for ${name}`, exact: true }));
     await screen.findByRole("menu");
     const items = screen.getAllByRole("menuitem").map((item) => item.textContent?.trim() ?? "");
     await userEvent.keyboard("{Escape}");
@@ -213,20 +213,23 @@ function stopCard(n: number): HTMLElement {
  * @param session - the session.
  */
 async function buildWalk(session: GraphSession): Promise<void> {
-    await userEvent.click(within(place()).getByRole("button", { name: "New tour" }));
-    const rename = await within(place()).findByRole("textbox", { name: "Rename Tour 1" });
-    await userEvent.clear(rename);
-    await userEvent.type(rename, "Walk{Enter}");
+    await userEvent.click(page.elementLocator(place()).getByRole("button", { name: "New tour", exact: true }));
+    const rename = (): Locator =>
+        page.elementLocator(place()).getByRole("textbox", { name: "Rename Tour 1", exact: true });
+    await userEvent.clear(rename());
+    await userEvent.type(rename(), "Walk{Enter}");
     await waitFor(() => {
         assert.isTrue(session.tours.has("Walk"));
     });
     const add = async (camera: string): Promise<void> => {
-        await userEvent.click(within(place()).getByRole("button", { name: "Add camera to Walk" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: camera }));
+        await userEvent.click(
+            page.elementLocator(place()).getByRole("button", { name: "Add camera to Walk", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: camera, exact: true }));
     };
     await add("Top");
     await add("Isometric");
-    await userEvent.click(within(place()).getByRole("button", { name: "Add pause to Walk" }));
+    await userEvent.click(page.elementLocator(place()).getByRole("button", { name: "Add pause to Walk", exact: true }));
     await add("Side");
     await waitFor(() => {
         assert.deepEqual(stopsOf(session, "Walk"), ["Top", "Isometric", "pause", "Side"]);
@@ -264,17 +267,17 @@ describe("the Views place", () => {
         assert.isFalse(fresh.canUndo, "the starting cameras are no undo step");
         assert.isFalse(fresh.dirty, "the starting cameras leave the project unchanged");
 
-        await userEvent.click(within(place()).getByRole("button", { name: /^Collapse Cameras/ }));
+        await userEvent.click(page.elementLocator(place()).getByRole("button", { name: /^Collapse Cameras/ }));
         await waitFor(() => {
             assert.isFalse(store.get().viewsCamerasOpen);
             assert.isNull(within(place()).queryByRole("button", { name: "Go to Top" }));
         });
-        await userEvent.click(within(place()).getByRole("button", { name: /^Collapse Video tours/ }));
+        await userEvent.click(page.elementLocator(place()).getByRole("button", { name: /^Collapse Video tours/ }));
         await waitFor(() => {
             assert.isFalse(store.get().viewsToursOpen);
         });
-        await userEvent.click(within(rail).getByRole("button", { name: "Data" }));
-        await userEvent.click(within(rail).getByRole("button", { name: "Views" }));
+        await userEvent.click(page.elementLocator(rail).getByRole("button", { name: "Data", exact: true }));
+        await userEvent.click(page.elementLocator(rail).getByRole("button", { name: "Views", exact: true }));
         assert.isNotNull(await within(place()).findByRole("button", { name: /^Expand Cameras/ }));
         assert.isNotNull(within(place()).getByRole("button", { name: /^Expand Video tours/ }));
     });
@@ -282,24 +285,26 @@ describe("the Views place", () => {
     it("takes focus to Cameras from Quick actions, and leaves it on the rail after a rail click", async () => {
         await openRing();
         const rail = screen.getByRole("toolbar", { name: "Places" });
-        await userEvent.click(within(rail).getByRole("button", { name: "Data" }));
+        await userEvent.click(page.elementLocator(rail).getByRole("button", { name: "Data", exact: true }));
         await userEvent.keyboard("{Control>}k{/Control}");
-        await userEvent.click(await screen.findByRole("option", { name: /^Views/ }));
+        await userEvent.click(page.getByRole("option", { name: /^Views/ }));
         await waitFor(() => {
             assert.match(document.activeElement?.getAttribute("aria-label") ?? "", /^Go to /);
             assert.isTrue(place().querySelector(".vp-cameras")?.contains(document.activeElement) === true);
         });
 
-        await userEvent.click(within(rail).getByRole("button", { name: "Data" }));
+        await userEvent.click(page.elementLocator(rail).getByRole("button", { name: "Data", exact: true }));
         const views = within(rail).getByRole("button", { name: "Views" });
-        await userEvent.click(views);
+        await userEvent.click(page.elementLocator(rail).getByRole("button", { name: "Views", exact: true }));
         await within(place()).findAllByRole("button", { name: /^Go to / });
         assert.strictEqual(document.activeElement, views, "a rail click keeps focus on the rail");
     });
 
     it("goes to a camera with its Go button, renames only from its title, and leaves F2 to the project", async () => {
         const { element, session } = await openRing();
-        await userEvent.click(within(cameraCard("Side")).getByRole("button", { name: "Go to Side" }));
+        await userEvent.click(
+            page.elementLocator(cameraCard("Side")).getByRole("button", { name: "Go to Side", exact: true }),
+        );
         await waitFor(() => {
             assert.equal(
                 within(cameraCard("Side")).getByRole("button", { name: "Go to Side" }).getAttribute("aria-current"),
@@ -309,17 +314,22 @@ describe("the Views place", () => {
         await element.waitForSettled();
         assertAt(element, element.resolveCameraPreset("Side"));
 
-        await userEvent.click(within(cameraCard("Top")).getByRole("button", { name: "Rename Top" }));
-        const field = await within(place()).findByRole("textbox", { name: "Rename Top" });
-        await userEvent.clear(field);
-        await userEvent.type(field, "Overhead{Enter}");
+        await userEvent.click(
+            page.elementLocator(cameraCard("Top")).getByRole("button", { name: "Rename Top", exact: true }),
+        );
+        const field = (): Locator =>
+            page.elementLocator(place()).getByRole("textbox", { name: "Rename Top", exact: true });
+        await userEvent.clear(field());
+        await userEvent.type(field(), "Overhead{Enter}");
         await waitFor(() => {
             assert.deepEqual(listedCameras(), ["Overhead", "Bottom", "Front", "Side", "Isometric"]);
         });
         assert.equal(session.views.get("Overhead")?.key, "7", "rename keeps the key");
 
         // A title click then Escape changes nothing.
-        await userEvent.click(within(cameraCard("Bottom")).getByRole("button", { name: "Rename Bottom" }));
+        await userEvent.click(
+            page.elementLocator(cameraCard("Bottom")).getByRole("button", { name: "Rename Bottom", exact: true }),
+        );
         await within(place()).findByRole("textbox", { name: "Rename Bottom" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -347,7 +357,9 @@ describe("the Views place", () => {
             "More for Top",
         ]);
         assert.deepEqual(await menuItems("Top"), ["Export image...", "Duplicate", "Delete"]);
-        await userEvent.click(within(cameraCard("Top")).getByRole("button", { name: "Expand Top" }));
+        await userEvent.click(
+            page.elementLocator(cameraCard("Top")).getByRole("button", { name: "Expand Top", exact: true }),
+        );
         const top = cameraCard("Top");
         assert.lengthOf(within(top).getAllByRole("combobox", { name: "Key" }), 1);
         assert.lengthOf(within(top).getAllByRole("button", { name: "Update to current camera" }), 1);
@@ -371,7 +383,9 @@ describe("the Views place", () => {
         assert.isNull(within(stopCard(3)).queryByLabelText("Fly in"));
 
         // A stop's x is the only way to delete it.
-        await userEvent.click(within(stopCard(3)).getByRole("button", { name: "Delete Stop 3" }));
+        await userEvent.click(
+            page.elementLocator(stopCard(3)).getByRole("button", { name: "Delete Stop 3", exact: true }),
+        );
         await waitFor(() => {
             assert.deepEqual(stopsOf(session, "Walk"), ["Top", "Isometric", "Side"]);
         });
@@ -403,10 +417,13 @@ describe("the Views place", () => {
 
     it("refuses a rename onto a taken name in the notice, keeping the old name", async () => {
         const { session } = await openRing();
-        await userEvent.click(within(cameraCard("Side")).getByRole("button", { name: "Rename Side" }));
-        const field = await within(place()).findByRole("textbox", { name: "Rename Side" });
-        await userEvent.clear(field);
-        await userEvent.type(field, "Top{Enter}");
+        await userEvent.click(
+            page.elementLocator(cameraCard("Side")).getByRole("button", { name: "Rename Side", exact: true }),
+        );
+        const field = (): Locator =>
+            page.elementLocator(place()).getByRole("textbox", { name: "Rename Side", exact: true });
+        await userEvent.clear(field());
+        await userEvent.type(field(), "Top{Enter}");
         await waitFor(() => {
             assert.include(screen.getByText(/Name in use/).textContent, "Name in use");
         });
@@ -416,9 +433,13 @@ describe("the Views place", () => {
 
     it("moves a key with the Key list, and undo gives it back", async () => {
         const { session } = await openRing();
-        await userEvent.click(within(cameraCard("Isometric")).getByRole("button", { name: /^Expand Isometric/ }));
-        await userEvent.click(within(cameraCard("Isometric")).getByRole("combobox", { name: "Key" }));
-        await userEvent.click(await screen.findByRole("option", { name: "7 -- Top" }));
+        await userEvent.click(
+            page.elementLocator(cameraCard("Isometric")).getByRole("button", { name: /^Expand Isometric/ }),
+        );
+        await userEvent.click(
+            page.elementLocator(cameraCard("Isometric")).getByRole("combobox", { name: "Key", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: "7 -- Top", exact: true }));
         await waitFor(() => {
             assert.equal(session.views.get("Isometric")?.key, "7");
             assert.isUndefined(session.views.get("Top")?.key, "Top lost the key");
@@ -436,15 +457,19 @@ describe("the Views place", () => {
 
     it("duplicates and deletes a camera, and undo puts it back in its place with its key", async () => {
         const { session } = await openRing();
-        await userEvent.click(within(cameraCard("Front")).getByRole("button", { name: "More for Front" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Duplicate/ }));
+        await userEvent.click(
+            page.elementLocator(cameraCard("Front")).getByRole("button", { name: "More for Front", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Duplicate/ }));
         await waitFor(() => {
             assert.deepEqual(listedCameras(), [...STARTING, "Front 2"]);
         });
         assert.deepEqual(session.views.get("Front 2"), { follows: "frontView" }, "same camera view, no key");
 
-        await userEvent.click(within(cameraCard("Front")).getByRole("button", { name: "More for Front" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete/ }));
+        await userEvent.click(
+            page.elementLocator(cameraCard("Front")).getByRole("button", { name: "More for Front", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: /^Delete/ }));
         await waitFor(() => {
             assert.deepEqual(listedCameras(), ["Top", "Bottom", "Side", "Isometric", "Front 2"]);
         });
@@ -459,9 +484,12 @@ describe("the Views place", () => {
         const { session } = await openRing();
         await userEvent.click(document.body);
         await userEvent.keyboard("v");
-        const field = await within(place()).findByRole("textbox", { name: "Rename Camera 1" });
+        await within(place()).findByRole("textbox", { name: "Rename Camera 1" });
         assert.isTrue(session.views.has("Camera 1"));
-        await userEvent.type(field, "{Escape}");
+        await userEvent.type(
+            page.elementLocator(place()).getByRole("textbox", { name: "Rename Camera 1", exact: true }),
+            "{Escape}",
+        );
         const card = cameraCard("Camera 1");
         const rows = ["Kind", "Mode", "Position", "Target", "Distance", "Field of view"];
         for (const label of rows) {
@@ -469,7 +497,7 @@ describe("the Views place", () => {
         }
         assert.include(within(card).getByRole("group", { name: "Kind" }).textContent, "Fixed");
 
-        await userEvent.click(within(cameraCard("Top")).getByRole("button", { name: /^Expand Top/ }));
+        await userEvent.click(page.elementLocator(cameraCard("Top")).getByRole("button", { name: /^Expand Top/ }));
         const top = cameraCard("Top");
         for (const label of rows) {
             assert.isNotNull(within(top).getByRole("group", { name: label }), `Top ${label}`);
@@ -486,7 +514,9 @@ describe("the Views place", () => {
         assert.closeTo(keyWord.left, label?.left ?? Number.NaN, 1, "Key's label starts with the rows");
         assert.closeTo(key.right, value?.right ?? Number.NaN, 1, "Key's field ends with the rows");
         assert.closeTo(update.right, value?.right ?? Number.NaN, 1, "Update ends with the rows");
-        await userEvent.click(within(top).getByRole("button", { name: "Update to current camera" }));
+        await userEvent.click(
+            page.elementLocator(top).getByRole("button", { name: "Update to current camera", exact: true }),
+        );
         await waitFor(() => {
             assert.include(within(cameraCard("Top")).getByRole("group", { name: "Kind" }).textContent, "Fixed");
         });
@@ -508,10 +538,13 @@ describe("the Views place", () => {
         );
 
         // A tour's + Camera lists them the same way, so no stop is added that the tour cannot fly.
-        await userEvent.click(within(place()).getByRole("button", { name: "New tour" }));
-        const rename = await within(place()).findByRole("textbox", { name: "Rename Tour 1" });
-        await userEvent.type(rename, "{Enter}");
-        await userEvent.click(within(place()).getByRole("button", { name: "Add camera to Tour 1" }));
+        await userEvent.click(page.elementLocator(place()).getByRole("button", { name: "New tour", exact: true }));
+        const rename = (): Locator =>
+            page.elementLocator(place()).getByRole("textbox", { name: "Rename Tour 1", exact: true });
+        await userEvent.type(rename(), "{Enter}");
+        await userEvent.click(
+            page.elementLocator(place()).getByRole("button", { name: "Add camera to Tour 1", exact: true }),
+        );
         for (const name of ["Bottom", "Front", "Side", "Isometric"]) {
             const item = await screen.findByRole("menuitem", { name: new RegExp(`^${name}`) });
             assert.equal(item.getAttribute("aria-disabled"), "true", name);
@@ -520,7 +553,7 @@ describe("the Views place", () => {
         const top = screen.getByRole("menuitem", { name: /^Top/ });
         assert.equal(top.getAttribute("aria-disabled"), "false");
         // Playwright will not click a row it reads as disabled; force the real mouse click through.
-        await userEvent.click(screen.getByRole("menuitem", { name: /^Side/ }), { force: true });
+        await userEvent.click(page.getByRole("menuitem", { name: /^Side/ }), { force: true });
         assert.deepEqual(stopsOf(session, "Tour 1"), [], "a disabled camera adds no stop");
     });
 
@@ -581,9 +614,9 @@ describe("the Views place", () => {
         // Stay changes the tour's length.
         const length = (): string => within(place()).getByLabelText(/^Length /).textContent ?? "";
         assert.equal(length(), "0:12");
-        const stay = within(stopCard(2)).getByLabelText("Stay");
-        await userEvent.clear(stay);
-        await userEvent.type(stay, "0.5{Enter}");
+        const stay = (): Locator => page.elementLocator(stopCard(2)).getByLabelText("Stay", { exact: true });
+        await userEvent.clear(stay());
+        await userEvent.type(stay(), "0.5{Enter}");
         await waitFor(() => {
             assert.deepInclude(session.tours.get("Walk")?.stops[1], { hold: 500 });
             assert.equal(length(), "0:11");
@@ -607,7 +640,7 @@ describe("the Views place", () => {
         element.addEventListener("tour-ended", (event) => {
             ended.push(event.detail.reason);
         });
-        await userEvent.click(within(place()).getByRole("button", { name: "Play Walk" }));
+        await userEvent.click(page.elementLocator(place()).getByRole("button", { name: "Play Walk", exact: true }));
         await waitFor(() => {
             assert.isNotNull(
                 within(place()).getByRole("group", { name: "Stops of Walk" }).querySelector('[aria-current="step"]'),
@@ -626,7 +659,7 @@ describe("the Views place", () => {
     it("keeps a folded stop folded when it is dragged or another is deleted, and shows its times at 240px", async () => {
         const { session } = await openRing();
         await buildWalk(session);
-        await userEvent.click(within(stopCard(1)).getByRole("button", { name: /^Collapse Stop 1/ }));
+        await userEvent.click(page.elementLocator(stopCard(1)).getByRole("button", { name: /^Collapse Stop 1/ }));
         await waitFor(() => {
             assert.isNotNull(stopCard(1).getAttribute("data-folded"));
         });
@@ -650,7 +683,9 @@ describe("the Views place", () => {
         });
 
         // Deleting the first stop leaves the folded Top stop folded, and folds no other.
-        await userEvent.click(within(stopCard(1)).getByRole("button", { name: "Delete Stop 1" }));
+        await userEvent.click(
+            page.elementLocator(stopCard(1)).getByRole("button", { name: "Delete Stop 1", exact: true }),
+        );
         await waitFor(() => {
             assert.deepEqual(stopsOf(session, "Walk"), ["pause", "Side", "Top"]);
             assert.isNotNull(stopCard(3).getAttribute("data-folded"));
@@ -662,7 +697,7 @@ describe("the Views place", () => {
     it("keeps a folded stop folded when its move is undone and redone with the keys", async () => {
         const { session } = await openRing();
         await buildWalk(session);
-        await userEvent.click(within(stopCard(2)).getByRole("button", { name: /^Collapse Stop 2/ }));
+        await userEvent.click(page.elementLocator(stopCard(2)).getByRole("button", { name: /^Collapse Stop 2/ }));
         await waitFor(() => {
             assert.isNotNull(stopCard(2).getAttribute("data-folded"));
         });
@@ -697,18 +732,18 @@ describe("the Views place", () => {
         const { element, session } = await openRing();
         // A hold far longer than the test, so only the drag ends it.
         await session.tours.save([{ name: "Long", tour: { stops: [{ view: "Top", hold: 600_000 }] } }]);
-        await userEvent.click(within(place()).getByRole("button", { name: /^Expand Long/ }));
+        await userEvent.click(page.elementLocator(place()).getByRole("button", { name: /^Expand Long/ }));
         const ended: string[] = [];
         element.addEventListener("tour-ended", (event) => {
             ended.push(event.detail.reason);
         });
-        await userEvent.click(within(place()).getByRole("button", { name: "Play Long" }));
+        await userEvent.click(page.elementLocator(place()).getByRole("button", { name: "Play Long", exact: true }));
         // Play turns into Stop on the card, and the Camera tool is Stop while it plays.
         await within(place()).findByRole("button", { name: "Stop tour" });
         assert.isNull(within(place()).queryByRole("button", { name: "Play Long" }));
         assert.isNotNull(document.querySelector('[data-command="tour.stop"]'));
 
-        await userEvent.click(within(stopCard(1)).getByRole("combobox", { name: "Camera" }));
+        await userEvent.click(page.elementLocator(stopCard(1)).getByRole("combobox", { name: "Camera", exact: true }));
         await screen.findByRole("listbox");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -728,7 +763,7 @@ describe("the Views place", () => {
         await session.tours.save([
             { name: "Walk", tour: { stops: [{ view: "Top" }, { view: "Side" }, { view: "Gone" }] } },
         ]);
-        await userEvent.click(within(place()).getByRole("button", { name: /^Expand Walk/ }));
+        await userEvent.click(page.elementLocator(place()).getByRole("button", { name: /^Expand Walk/ }));
         const broken = within(stopCard(3)).getByRole("combobox", { name: "Camera" });
         assert.equal(broken.getAttribute("aria-description"), "Camera not found");
         const play = within(place()).getByRole("button", { name: "Play Walk" });
@@ -739,8 +774,8 @@ describe("the Views place", () => {
     it("opens Export on Video with the tour from Export video...", async () => {
         const { session, store } = await openRing();
         await session.tours.save([{ name: "Walk", tour: { stops: [{ view: "Top", hold: 300 }] } }]);
-        await userEvent.click(await within(place()).findByRole("button", { name: "More for Walk" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Export video/ }));
+        await userEvent.click(page.elementLocator(place()).getByRole("button", { name: "More for Walk", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Export video/ }));
         assert.isNotNull(await screen.findByRole("dialog", { name: "Export video" }));
         assert.equal(store.get().exportTour, "Walk");
         assert.equal(store.get().exportOn, "video");

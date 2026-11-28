@@ -286,7 +286,11 @@ describe("the start page's files from other programs", () => {
             name: "Legend",
         });
         assert.equal(legendButton.getAttribute("aria-pressed"), "false");
-        await userEvent.click(legendButton);
+        await userEvent.click(
+            page
+                .getByRole("toolbar", { name: "Canvas tools", exact: true })
+                .getByRole("button", { name: "Legend", exact: true }),
+        );
         const legend = await screen.findByRole("region", { name: "Legend" });
         const shown = hidden.map((attribute) => attribute.name).filter((name) => legend.textContent?.includes(name));
         assert.deepEqual(shown, [], `${sample.program}'s key names no style value column`);

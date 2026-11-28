@@ -62,7 +62,7 @@ describe("the join workspace's field order (source-steps)", () => {
             "amount (unique)",
         ]);
         await choose(modal, "Source 2", "people");
-        await userEvent.click(within(modal).getByRole("combobox", { name: "Field 1" }));
+        await userEvent.click(page.elementLocator(modal).getByRole("combobox", { name: "Field 1", exact: true }));
         const options = await screen.findAllByRole("option");
         assert.deepStrictEqual(
             options.map((option) => (option.textContent ?? "").split(" ")[0]),
@@ -85,7 +85,7 @@ describe("the join workspace's field order (source-steps)", () => {
         ]);
         await pickFields(modal, "zid", "zid");
         await joinAs(modal, "Node per entries row, linked to people");
-        await userEvent.click(await within(modal).findByRole("button", { name: /new edges$/ }));
+        await userEvent.click(page.elementLocator(modal).getByRole("button", { name: /new edges$/ }));
         await waitFor(() => {
             assert.deepStrictEqual(headers(modal, "Rows").slice(-4), ["zentry", "zid", "door", "amount"]);
         });

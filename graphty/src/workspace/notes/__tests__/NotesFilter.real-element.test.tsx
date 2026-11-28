@@ -9,7 +9,7 @@
 import "@graphty/graphty-element";
 
 import { assert, beforeEach, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { openSampleFromStart } from "../../../test/open";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -41,8 +41,8 @@ function listed(): (string | null)[] {
  * @param option - the option's words.
  */
 async function pick(label: string, option: string): Promise<void> {
-    await userEvent.click(screen.getByRole("combobox", { name: label }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
+    await userEvent.click(page.getByRole("combobox", { name: label, exact: true }));
+    await userEvent.click(page.getByRole("option", { name: option, exact: true }));
 }
 
 describe("Notes filter, tags and author, on the real element", () => {
@@ -96,7 +96,7 @@ describe("Notes filter, tags and author, on the real element", () => {
 
         // Mark done on a note marks it, and the button says it is pressed.
         const list = screen.getByRole("list", { name: "Notes" });
-        await userEvent.click(within(list).getByRole("button", { name: "Mark done: third" }));
+        await userEvent.click(page.elementLocator(list).getByRole("button", { name: "Mark done: third", exact: true }));
         await waitFor(() => {
             assert.isDefined(session.notes.list({ done: true }).find((note) => note.text === "third"));
         });
@@ -113,16 +113,16 @@ describe("Notes filter, tags and author, on the real element", () => {
         (document.activeElement as HTMLElement | null)?.blur();
 
         await userEvent.keyboard("n");
-        const field = await screen.findByRole("textbox", { name: "Note" });
+        const field = page.getByRole("textbox", { name: "Note", exact: true });
         await userEvent.type(field, "later");
-        await userEvent.click(screen.getByRole("textbox", { name: "Tags" }));
-        await userEvent.click(await screen.findByRole("option", { name: "lead" }));
+        await userEvent.click(page.getByRole("textbox", { name: "Tags", exact: true }));
+        await userEvent.click(page.getByRole("option", { name: "lead", exact: true }));
         // The tag list stays open over Save until Esc closes it.
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("option", { name: "lead" }));
         });
-        await userEvent.click(screen.getByRole("button", { name: "Save note" }));
+        await userEvent.click(page.getByRole("button", { name: "Save note", exact: true }));
 
         await waitFor(() => {
             const saved = session.notes.list().find((note) => note.text === "later");
@@ -140,10 +140,10 @@ describe("Notes filter, tags and author, on the real element", () => {
         await userEvent.keyboard("n");
         await screen.findByRole("textbox", { name: "Note" });
         assert.isNotNull(screen.getByText("No author name"));
-        await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+        await userEvent.click(page.getByRole("button", { name: "Dismiss", exact: true }));
         assert.isNull(screen.queryByText("No author name"));
         // Closed and opened again in the same page view: still dismissed.
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.getByRole("button", { name: "Cancel", exact: true }));
         (document.activeElement as HTMLElement | null)?.blur();
         await userEvent.keyboard("n");
         await screen.findByRole("textbox", { name: "Note" });
@@ -151,17 +151,20 @@ describe("Notes filter, tags and author, on the real element", () => {
 
         // Set name opens Settings on Your name, which signs the notes written from then on.
         store.set({ authorWarningClosed: false });
-        await userEvent.click(await screen.findByRole("button", { name: "Set name" }));
+        await userEvent.click(page.getByRole("button", { name: "Set name", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Your name" }), "Ada{Enter}");
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Your name", exact: true }),
+            "Ada{Enter}",
+        );
         await waitFor(() => {
             assert.equal(session.config.author, "Ada");
         });
         assert.equal(localStorage.getItem(AUTHOR_KEY), "Ada");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Done", exact: true }));
         assert.isNull(screen.queryByText("No author name"));
 
-        await userEvent.click(screen.getByRole("textbox", { name: "Note" }));
+        await userEvent.click(page.getByRole("textbox", { name: "Note", exact: true }));
         await userEvent.keyboard("signed{Control>}{Enter}{/Control}");
         await waitFor(() => {
             assert.equal(session.notes.list().find((note) => note.text === "signed")?.author, "Ada");

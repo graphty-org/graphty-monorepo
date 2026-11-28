@@ -265,8 +265,8 @@ section). The packages without a CLAUDE.md:
 ### Coverage Thresholds
 
 At least 80% lines, functions and statements and 75% branches in every package; graph-format, graph-io,
-graph-samples, babylonjs-map, babylonjs-models, cytoscape-extensions, algorithms, layout, remote-logger,
-webgpu-graph-algorithms and visual-review require 90% in all four. Every package is moving to 90 (issue #3043); a
+graph-samples, babylonjs-map, babylonjs-models, cytoscape-extensions, compact-mantine, algorithms, layout,
+remote-logger, webgpu-graph-algorithms and visual-review require 90% in all four. Every package is moving to 90 (issue #3043); a
 package's thresholds rise to 90 in the pull request that brings it there.
 
 ## Testing
@@ -371,6 +371,19 @@ only.
   `apowers313` and naming the row. The check reads the comment from the GitHub API on every run; an entry without one,
   or whose comment is by someone else or does not name the row, is ignored with a message, and an API error fails the
   check. Agents post as graphty-agent, so they cannot approve their own slowdown, and the owner never merges for it.
+
+## User input latency
+
+- **`node tools/interaction-latency.mjs run quick`** (or `full`) times every input of
+  `benchmarks/compare/INPUT-CATALOG.md` -- hover, click, drag, camera, keys, touch, pen, menus and panels -- from the
+  input event to the first frame whose pixels show the result, on the real NVIDIA card under the GPU lock and
+  reserved cores, after checking the bench page and graphty/dist were built from HEAD. It appends the run to
+  `benchmarks/results/interaction-latency-history.jsonl` keyed by commit and machine (CPU, Chromium, GPU, driver),
+  prints every cell over 150 and 300 ms, and `compare` exits 1 when a cell got slower (median and p95, the tail
+  alone over 150 ms, or creeping across ten runs), moved over 300 ms, or stopped being measured. Only the owner
+  accepts a slowdown, in `benchmarks/interaction-latency-accepted.json`, with the same owner-comment proof as load
+  time. `--smoke` checks every case drives on SwiftShader. It never runs in CI (no GPU there). Setting up the
+  machine, running each tier and reading the report: `benchmarks/compare/INTERACTION-LATENCY.md`.
 
 ## Storybook
 

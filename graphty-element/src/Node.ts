@@ -1593,7 +1593,7 @@ export class Node implements ModelUser {
         this.shadow = NodeMesh.createShadow(
             this.context.getMeshCache(),
             { styleId: key, is2D: this.context.is2D(), size: this.size },
-            style.shape,
+            { shape: style.shape, border },
             style.shadow,
             this.#anchor as AbstractMesh,
             this.context.getScene(),
@@ -2611,6 +2611,9 @@ export class Node implements ModelUser {
         if (this.#wholeScale !== whole) {
             this.#wholeScale = whole;
             this.context.getNodeBatches?.()?.rescale(this);
+            // a screen-pixel border is built in the mesh's units, which the view scale sets: with the camera still,
+            // nothing else rebuilds it (#10434)
+            this.refreshScreenBorder();
         }
     }
 
@@ -3825,6 +3828,10 @@ export class Node implements ModelUser {
         }
 
         const built = this.build(fit.meshKey, fit.style);
+        // the new mesh is drawn at scale 1 until the sizing pass scales it for its size space: a view scale left from
+        // the old mesh built a screen-pixel border for a size the node is no longer drawn at (#10434). Leaving a batch
+        // builds a mesh too, but moves the old scale onto it, so the view scale is kept there.
+        this.#wholeScale = 1;
 
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);

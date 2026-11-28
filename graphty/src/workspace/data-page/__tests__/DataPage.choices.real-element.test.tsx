@@ -79,8 +79,8 @@ async function openFromEmptyApp(): Promise<WorkspaceStore> {
  * @param option - the option's words.
  */
 async function pick(label: string, option: string): Promise<void> {
-    await userEvent.click(screen.getByRole("combobox", { name: label }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
+    await userEvent.click(page.getByRole("combobox", { name: label, exact: true }));
+    await userEvent.click(page.getByRole("option", { name: option, exact: true }));
 }
 
 /**
@@ -152,10 +152,10 @@ describe("the Data page's other paths on the real element", () => {
         assert.deepEqual(session.data.loadedWeight(), { attribute: "km", meaning: "distance" });
 
         const row = await screen.findByRole("listitem", { name: "trails.csv" });
-        await userEvent.click(within(row).getAllByRole("button")[0]);
-        await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
+        await userEvent.click(page.elementLocator(row).getByRole("button").nth(0));
+        await userEvent.click(page.getByRole("button", { name: "Source actions", exact: true }));
         await commands.chooseNextFile("hikes.csv", "text/csv", "from,to,km\na,b,4\nb,c,1\n");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Replace with file..." }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Replace with file...", exact: true }));
         await screen.findByRole("heading", { name: "Replace: hikes.csv" });
 
         const higher = await screen.findByRole("radiogroup", { name: "Higher means" });
@@ -188,26 +188,26 @@ describe("the Data page's other paths on the real element", () => {
         await dropFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
         const strip = await screen.findByTestId("model-strip", {});
         const report = screen.getByRole("region", { name: "Match report" });
-        await userEvent.click(within(report).getByText("Add"));
+        await userEvent.click(page.elementLocator(report).getByText("Add", { exact: true }));
         await waitFor(() => {
             assert.equal(strip.textContent, "people and ties: 4 nodes, 3 edges");
         });
-        await userEvent.click(within(report).getByText("Leave out"));
+        await userEvent.click(page.elementLocator(report).getByText("Leave out", { exact: true }));
         await waitFor(() => {
             assert.equal(screen.getByTestId("model-strip").textContent, "people and ties: 3 nodes, 2 edges");
         });
 
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.getByRole("button", { name: "Cancel", exact: true }));
         await openFromEmptyApp();
         await dropFiles(new File(["source,target\na,b\nb,c\n"], "ties.csv"));
         await waitFor(() => {
             assert.equal(screen.getByTestId("model-strip").textContent, "ties: 3 nodes, 2 edges");
         });
-        await userEvent.click(screen.getByRole("button", { name: /^File settings/ }));
+        await userEvent.click(page.getByRole("button", { name: /^File settings/ }));
         await pick("Separator", "Tab");
         await screen.findByRole("combobox", { name: "Role of source,target" });
         // Reading again took File settings off the page: it opens again on the separator chosen.
-        await userEvent.click(await screen.findByRole("button", { name: "File settings: CSV, tab" }));
+        await userEvent.click(page.getByRole("button", { name: "File settings: CSV, tab", exact: true }));
         await pick("Separator", "Auto");
         await screen.findByRole("combobox", { name: "Role of source" });
         assert.isNotNull(screen.getByRole("button", { name: "File settings: CSV" }));
@@ -217,14 +217,18 @@ describe("the Data page's other paths on the real element", () => {
         await openFromEmptyApp();
         await dropFiles(new File(["id\n1\n2\n"], "ids.csv"), new File(["source,target\n1,2\n2,9\n"], "links.csv"));
         const report = await screen.findByRole("region", { name: "Match report" });
-        await userEvent.click(within(report).getByRole("button", { name: "Show the 1 unmatched row" }));
+        await userEvent.click(
+            page.elementLocator(report).getByRole("button", { name: "Show the 1 unmatched row", exact: true }),
+        );
         await screen.findByText("1 unmatched row: 9 has no node row");
 
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.getByRole("button", { name: "Cancel", exact: true }));
         await openFromEmptyApp();
         await dropFiles(new File([PEOPLE], "people.csv"), new File([TIES_SEVERAL_UNMATCHED], "ties.csv"));
         const again = await screen.findByRole("region", { name: "Match report" });
-        await userEvent.click(within(again).getByRole("button", { name: "Show the 3 unmatched rows" }));
+        await userEvent.click(
+            page.elementLocator(again).getByRole("button", { name: "Show the 3 unmatched rows", exact: true }),
+        );
         const grid = await screen.findByRole("grid", { name: "Rows of ties.csv" });
         await waitFor(() => {
             assert.deepEqual([...grid.querySelectorAll(".dp-missing-end")].map((cell) => cell.textContent).sort(), [
@@ -249,11 +253,11 @@ describe("the Data page's other paths on the real element", () => {
         await dropFiles(new File([GEXF], "two.gexf", { type: "application/xml" }));
         const box = await screen.findByRole<HTMLInputElement>("checkbox", { name: "Import styles from the file" });
         const before = box.checked;
-        await userEvent.click(box);
+        await userEvent.click(page.getByRole("checkbox", { name: "Import styles from the file", exact: true }));
         await waitFor(() => {
             assert.equal(box.checked, !before);
         });
-        await userEvent.click(box);
+        await userEvent.click(page.getByRole("checkbox", { name: "Import styles from the file", exact: true }));
         await waitFor(() => {
             assert.equal(box.checked, before);
         });
@@ -291,9 +295,9 @@ describe("the Data page's other paths on the real element", () => {
         await openFromEmptyApp();
         await dropFiles(new File([PEOPLE], "people.csv"));
         await screen.findByTestId("model-strip", {});
-        await userEvent.click(screen.getByRole("button", { name: /^File settings/ }));
+        await userEvent.click(page.getByRole("button", { name: /^File settings/ }));
         const limit = await screen.findByRole<HTMLInputElement>("textbox", { name: "Error limit" });
-        await userEvent.click(limit);
+        await userEvent.click(page.getByRole("textbox", { name: "Error limit", exact: true }));
         await userEvent.keyboard("{Enter}");
         // A read again takes File settings off the page; with nothing changed it stays, on the box.
         assert.strictEqual(document.activeElement, limit);
@@ -317,7 +321,7 @@ describe("the Data page's other paths on the real element", () => {
             assert.isNull(load.getAttribute("aria-disabled"));
         });
         element.limits = { renderCeiling: 2 };
-        await userEvent.click(load);
+        await userEvent.click(page.getByRole("button", { name: "Load", exact: true }));
         await screen.findByText("The load was refused; see the problem above");
         assert.include(screen.getByRole("alert").textContent, "This load would make 3 nodes; graphty draws at most 2.");
         assert.strictEqual(load.getAttribute("aria-disabled"), "true");

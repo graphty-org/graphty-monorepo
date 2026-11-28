@@ -1080,9 +1080,9 @@ export class NodeMesh {
         const pad = (halo?.padding ?? 0) * perSize;
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
-        // a fitted solid's fill is drawn in by a centered or inside border (createMeshWithoutCache); grow its outline
-        // back out to the box first
-        const reach = flat || !this.isFitted(shape) ? pad : pad + this.borderFit(shape, border, sized).inset;
+        // a solid's fill, fitted or at its own proportions, is drawn in by a centered or inside border
+        // (createMeshWithoutCache); grow its outline back out to the box first
+        const reach = flat ? pad : pad + this.borderFit(shape, border, sized).inset;
         const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
             const own = halo?.shape;
             const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;

@@ -281,10 +281,3 @@ dialog.jw-modal {
 .jw-modal .sel-card .cm-section {
     border-bottom: 0;
 }
-
-/* A folded join card is named by its sources: its name gets the line first, and what it matches on
-   takes what is left (#10394). */
-.cm-list-card[data-join-card][data-folded] .cm-card-head > .cm-card-name,
-.cm-list-card[data-join-card][data-folded] .cm-card-head > .cm-card-title {
-    max-width: none;
-}

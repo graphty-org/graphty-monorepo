@@ -467,6 +467,9 @@ export function useJoinCards(
                 }),
             );
             select(null);
+            if (cards.length === 0) {
+                return null;
+            }
             return clearedWith.length === 0 ? "final" : "undoable";
         },
         rename: (id, typed) => {

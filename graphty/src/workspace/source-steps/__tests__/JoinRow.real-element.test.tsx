@@ -139,7 +139,7 @@ describe("the Data panel's Join list (source-steps)", () => {
         assert.strictEqual(undoId(), undoable, "no undo step for a name left as it was");
     });
 
-    it("draws a join's whole name at 1280x720 on its open card and its folded card, the count short beside it", async () => {
+    it("draws a join's whole name at 1280x720 on its open card, the count short beside it", async () => {
         await joined("door_entries_badge.csv", 720);
         const whole = (title: Element | null | undefined, where: string): void => {
             assert.isNotNull(title ?? null, where);
@@ -154,11 +154,5 @@ describe("the Data panel's Join list (source-steps)", () => {
             assert.isNotNull(card()?.querySelector(".cm-card-head .sel-count"), "the open card counts its rows");
         });
         whole(card()?.querySelector(".cm-card-title"), "the open card");
-        // Another card opened folds this one.
-        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
-        await waitFor(() => {
-            assert.isTrue(card()?.hasAttribute("data-folded"), "folded");
-        });
-        whole(card()?.querySelector(".cm-card-title"), "the folded card");
     });
 });

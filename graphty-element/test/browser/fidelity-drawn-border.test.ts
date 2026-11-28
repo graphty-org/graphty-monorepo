@@ -25,9 +25,14 @@ afterEach(() => {
  * One node of the given shape with a border, drawn in 2D.
  * @param shape - its shape
  * @param set - further style channels
+ * @param others - further nodes, unstyled
  * @returns the node
  */
-async function bordered(shape: string, set: Record<string, unknown> = {}): Promise<Node> {
+async function bordered(
+    shape: string,
+    set: Record<string, unknown> = {},
+    others: { id: string; position: { x: number; y: number; z: number } }[] = [],
+): Promise<Node> {
     element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = "480px";
@@ -41,7 +46,7 @@ async function bordered(shape: string, set: Record<string, unknown> = {}): Promi
         selector: { match: "ids", nodes: ["n"] },
         set: { "node.shape": shape, "node.size": 6, "node.borderWidth": 0.5, "node.borderColor": "#0000ff", ...set },
     });
-    await element.session.data.addNodes([{ id: "n", position: { x: 0, y: 0, z: 0 } }]);
+    await element.session.data.addNodes([{ id: "n", position: { x: 0, y: 0, z: 0 } }, ...others]);
     await element.graph.setLayout("fixed", { dim: 3 });
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
@@ -111,5 +116,19 @@ describe("the fidelity reader's border width is the ring as drawn", () => {
         const node = await bordered("ellipse", { "node.borderScreenWidth": 12, "node.borderPosition": "center" });
         const p = new Projector(node.mesh.getScene());
         assert.approximately(readNode(node, p, []).border?.widthPx ?? 0, 12, 0.6);
+    });
+
+    // a node sized to the screen is drawn at its view scale, and its ring with it: a ring in screen pixels drew that
+    // much too thin (issue #10407). Two nodes far apart set the framing, so the view scale is a reader's one.
+    it("draws a ring in screen pixels its asked width on a node sized to the screen", async () => {
+        const node = await bordered("ellipse", { "node.borderScreenWidth": 8, "node.sizeSpace": "screen" }, [
+            { id: "left", position: { x: -40, y: 0, z: 0 } },
+            { id: "right", position: { x: 40, y: 0, z: 0 } },
+        ]);
+        const view = node.drawnScale;
+        assert.isTrue(Math.abs(view - 1) > 0.2 && view < 5, `the view scales the node (${String(view)})`);
+        const p = new Projector(node.mesh.getScene());
+        const width = readNode(node, p, []).border?.widthPx ?? 0;
+        assert.approximately(width, 8, 0.4, `ring ${String(width)} px at view scale ${String(node.drawnScale)}`);
     });
 });

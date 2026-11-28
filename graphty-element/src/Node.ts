@@ -3019,6 +3019,7 @@ export class Node implements ModelUser {
                 effect,
                 () => this.outlineReach,
                 type !== undefined && isFlatShape(type),
+                () => [this.border, this.outerBorder],
             );
             NodeEffects.applyGlowEffect(this.#mesh, effect);
         }

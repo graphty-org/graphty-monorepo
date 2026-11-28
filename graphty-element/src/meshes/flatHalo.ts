@@ -94,8 +94,9 @@ function haloFrontOf(source: Mesh): number | undefined {
  * own half-extent, so an oval 2 to 1 got a band twice as wide at the sides as at the top and bottom
  * (issue #10116). Here the band is `scale - 1` times the smallest half-extent across the face, and
  * each axis grows by that one band: a sphere's halo is unchanged, a box's sides are offset evenly,
- * and an oval's band matches at its four extremes. A depth too thin to measure (a flat shape) keeps
- * the plain multiplier. A border drawn past the outline is stepped over first, so the band shows
+ * and an oval's band matches at its four extremes. A depth too thin to measure (a flat shape, a star
+ * or a slab) keeps the node's own depth: grown, its side walls reached through the border's front
+ * face and drew halo-colored lines across the band (issue #10494). A border drawn past the outline is stepped over first, so the band shows
  * beyond it rather than under it: on a node with a wide border the whole band was hidden.
  * @param extent - The halo geometry's half-extents, in its own units.
  * @param extent.x - Across.
@@ -116,6 +117,5 @@ export function haloAxisScale(
     }
     const band = (scale - 1) * face + border;
     const grow = (half: number): number => 1 + band / half;
-    // ponytail: one band taken across x and y; a solid seen edge-on from the side keeps per-axis growth on z only.
-    return { x: grow(extent.x), y: grow(extent.y), z: extent.z > face / 4 ? grow(extent.z) : scale };
+    return { x: grow(extent.x), y: grow(extent.y), z: extent.z > face / 4 ? grow(extent.z) : 1 };
 }

@@ -19,6 +19,7 @@ import { GraphtyLogger, type Logger } from "../logging";
 import { toColorValue } from "../session/styles/channels";
 import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { addGradientStops, gradientOffsets } from "./edgeGradient";
+import { haloAxisScale } from "./flatHalo";
 import { FrameRoster } from "./FrameRoster";
 import { type GlyphLabelEntry, GlyphLabels, recordRuns } from "./GlyphLabels";
 import {
@@ -2661,9 +2662,8 @@ export class RichTextLabel {
     /**
      * Keep the label clear of a ring drawn around what it is attached to -- a node's halo -- the
      * way it keeps clear of the target itself, and put it back beside the target when the ring
-     * goes. The ring is a sphere around the target's center whose radius is `scale` times the
-     * target's largest half-extent.
-     * @param scale - The ring's radius over the target's largest half-extent, or null for no ring.
+     * goes. The ring is the target's shape grown one band all round, as a halo is drawn.
+     * @param scale - The halo's scale, or null for no ring.
      * @returns True when the label moved.
      */
     public setRing(scale: number | null): boolean {
@@ -2701,8 +2701,11 @@ export class RichTextLabel {
 
         const centre = bounds.min.add(bounds.max).scaleInPlace(0.5);
         const half = bounds.max.subtract(bounds.min).scaleInPlace(0.5);
-        const radius = Math.max(half.x, half.y, half.z) * this.ring;
-        const reach = new Vector3(Math.max(half.x, radius), Math.max(half.y, radius), Math.max(half.z, radius));
+        // The halo is the shape grown one band on each axis (haloAxisScale), so it reaches that far on each side: a
+        // sphere of the largest half-extent put the label below a wide node's halo by the node's whole width.
+        // ponytail: the band a border past the outline adds is not known here; pass it to setRing if labels must clear it.
+        const grow = haloAxisScale(half, this.ring);
+        const reach = new Vector3(half.x * grow.x, half.y * grow.y, half.z * grow.z);
         return { min: centre.subtract(reach), max: centre.add(reach) };
     }
 

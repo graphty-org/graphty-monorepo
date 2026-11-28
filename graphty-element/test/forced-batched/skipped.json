@@ -9,6 +9,10 @@
         "reason": "Its nodes have an outline, which no batch draws (effect.outline is not a batchable effect), so they are objects on either path"
     },
     { "file": "test/browser/drawn-invariants.test.ts", "reason": "Sets each case's render path by hand" },
+    {
+        "file": "test/browser/node-outline-outside-border.test.ts",
+        "reason": "Its nodes have a border and an outline, which no batch draws (neither is a batchable key), so they are objects on either path"
+    },
     { "file": "test/browser/edges-follow-running-layout.test.ts", "reason": "Sets each case's render path by hand" },
     {
         "file": "test/browser/edges-follow-through-a-transition.test.ts",

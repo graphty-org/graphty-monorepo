@@ -65,6 +65,8 @@ const NODE_AXES = [new Vector3(), new Vector3(), new Vector3()] as const;
 /** What a ring keeps between frames: its node's half-extents, and the world matrix it is drawn with. */
 interface OutlineRingMetadata {
     outlineExtent: Vector3;
+    /** How far the node's border and outer border reach past its fill, in the fill's own units. */
+    borderReach: () => number;
     world: Matrix;
 }
 
@@ -267,11 +269,15 @@ export class NodeEffects {
      * @param mesh - The node's mesh, normally an InstancedMesh from MeshCache.
      * @param effect - The effect configuration from the node style.
      * @param cache - The mesh cache the ring's source mesh is kept in.
+     * @param borderReach - How far the node's border and outer border reach past its fill, in the
+     * fill's own units, read every frame (a screen-pixel border changes with the zoom); the ring
+     * starts there, so it never covers them (#10426).
      */
     static applyOutlineEffect(
         mesh: AbstractMesh,
         effect: NodeStyleConfig["effect"] | undefined,
         cache: MeshCache,
+        borderReach: () => number = () => 0,
     ): void {
         const existing = mesh.getChildMeshes(true).find((child) => child.name.startsWith(OUTLINE_RING_PREFIX));
 
@@ -319,6 +325,7 @@ export class NodeEffects {
                 Math.max(extent.z, MIN_RING_RADIUS),
             ),
             world: kept?.world ?? new Matrix(),
+            borderReach,
         };
         ring.metadata = metadata;
         const camera = scene.activeCamera;
@@ -360,11 +367,17 @@ export class NodeEffects {
             return;
         }
 
+        // THE RING STARTS PAST THE BORDER (#10426). It is drawn in front of the node, so sized from
+        // the fill alone it covered the border and outer border (separate meshes reaching further
+        // out). With a border, its inner edge is the border's outer edge rather than a little inside
+        // the fill's, so nothing the node draws is under it.
+        const border = metadata?.borderReach?.() ?? 0;
+        const grow = (e: number): number => (border > 0 ? (e + border) / OUTLINE_RING_INNER : e);
         const { m } = node.computeWorldMatrix();
         // The node's half-extents as world vectors: each local axis's image, times its half-extent.
-        NODE_AXES[0].set(m[0], m[1], m[2]).scaleInPlace(extent.x);
-        NODE_AXES[1].set(m[4], m[5], m[6]).scaleInPlace(extent.y);
-        NODE_AXES[2].set(m[8], m[9], m[10]).scaleInPlace(extent.z);
+        NODE_AXES[0].set(m[0], m[1], m[2]).scaleInPlace(grow(extent.x));
+        NODE_AXES[1].set(m[4], m[5], m[6]).scaleInPlace(grow(extent.y));
+        NODE_AXES[2].set(m[8], m[9], m[10]).scaleInPlace(grow(extent.z));
         // How far the node reaches along a world direction, taken as the ellipsoid in its bounding
         // box: exact for a sphere, capsule or ellipse, and inside a box's corners as a circle was.
         // The box itself would reach up to 1.7 times a sphere's radius along a slanted line of sight.

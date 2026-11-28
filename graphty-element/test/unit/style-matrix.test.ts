@@ -555,6 +555,30 @@ describe("style combination matrix", () => {
         }
     });
 
+    it("expects a 3D solid's halo from its plain fill, its border reaching only its outer edge past it", () => {
+        const full = frame((x, y) => (Math.hypot(x, y) <= 20 ? "fill" : undefined));
+        const width = AMOUNTS.borderWidth * PER_SIZE;
+        for (const [border, edge] of [
+            ["inside", 0],
+            ["center", width / 2],
+            ["outside", width],
+        ] as const) {
+            const given: [number, number][] = [];
+            const keep = (scale: number, reach: number, inset: number): [number, number] => {
+                given.push([reach, inset]);
+                return [scale, scale];
+            };
+            measured({ shape: "cone", border, effect: "halo" }, full, {
+                view: "3d",
+                haloGrow: keep,
+                haloHull: () => [],
+            });
+            assert.lengthOf(given, 1, border);
+            assert.approximately(given[0][0], edge, 1e-9, `${border} reach`);
+            assert.strictEqual(given[0][1], 0, `${border} inset`);
+        }
+    });
+
     it("leaves a plate unread when too few rays show its end", () => {
         // the underlay shows on three rays only, and wrongly wide there
         const full = frame((x, y) => {

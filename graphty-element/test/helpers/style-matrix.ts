@@ -1814,10 +1814,13 @@ export function measureNode(
     if (s.effect === "halo" && !hidden && !shifted) {
         const HALO = partIndex("halo");
         const scale = override.haloScale ?? AMOUNTS.haloScale;
-        // a centered or inside border draws the fill in from the outline; the halo is measured from the outline
-        const fillInset = borderWorld * (1 - fraction);
-        const [gu, gv] = frames.haloGrow?.(scale, borderWorld, fillInset) ?? [scale, scale];
-        const haloHull = frames.haloHull?.(scale, borderWorld, fillInset) ?? [];
+        // a centered or inside border draws the fill in from the outline; the halo is measured from the outline. A
+        // solid in 3D keeps its plain fill, its ring drawn over the edge, so its ring reaches only its outer edge past it
+        const drawnOver = frames.view === "3d" && !isFlat(s.shape) && s.border !== "screen";
+        const fillInset = drawnOver ? 0 : borderWorld * (1 - fraction);
+        const haloBorder = drawnOver ? borderEdge : borderWorld;
+        const [gu, gv] = frames.haloGrow?.(scale, haloBorder, fillInset) ?? [scale, scale];
+        const haloHull = frames.haloHull?.(scale, haloBorder, fillInset) ?? [];
         const misses: number[] = [];
         const haloSigned: number[] = [];
         angles.forEach((a, i) => {

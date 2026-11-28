@@ -1316,7 +1316,7 @@ export class NodeMesh {
                 );
             } else {
                 const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
-                outline = offsetOutline(nodeOutline, reach);
+                outline = offsetOutline(nodeOutline, pad);
             }
             fill.computeWorldMatrix(true);
             const box = fill.getBoundingInfo().boundingBox;

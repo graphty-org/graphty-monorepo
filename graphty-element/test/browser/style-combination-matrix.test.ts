@@ -17,7 +17,7 @@
 
 import "../../src/graphty-element";
 
-import { type AbstractMesh, type InstancedMesh, Matrix, Vector3 } from "@babylonjs/core";
+import { type AbstractMesh, Camera, type InstancedMesh, Matrix, Vector3 } from "@babylonjs/core";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import { commands } from "vitest/browser";
 
@@ -166,8 +166,17 @@ function planeFor(id: string, shape: string): Measure {
         ex = Vector3.Right();
         ey = Vector3.Up();
     } else {
-        ex = camera.getDirection(Vector3.Right()).normalize();
-        ey = camera.getDirection(Vector3.Up()).normalize();
+        // A solid's rings face the node's own line of sight (faceEachNode), which for a node off the view's axis is
+        // turned from the camera's forward, and its silhouette is a cone round that line: the plane square to it is
+        // the one they are drawn in. The camera's right and up, made square to that line (Gram-Schmidt).
+        const sight = center.subtract(camera.globalPosition).normalize();
+        const right = camera.getDirection(Vector3.Right());
+        ex = right.subtract(sight.scale(Vector3.Dot(right, sight))).normalize();
+        const up = camera.getDirection(Vector3.Up());
+        ey = up
+            .subtract(sight.scale(Vector3.Dot(up, sight)))
+            .subtract(ex.scale(Vector3.Dot(up, ex)))
+            .normalize();
     }
     const plane = planeOf(
         scene.getTransformMatrix().m,
@@ -206,7 +215,7 @@ function onCanvas(plane: Plane, classes: Classes, reach: number): boolean {
  * @param measure - The node's plane and world frame.
  * @returns The hull, empty when the mesh has no vertices.
  */
-function hullOf(mesh: AbstractMesh, measure: Measure): P2[] {
+function hullOf(mesh: AbstractMesh, measure: Measure, stretch?: Vector3): P2[] {
     const { plane } = measure;
     const { scene, engine } = element.graph;
     mesh.computeWorldMatrix(true);
@@ -217,7 +226,8 @@ function hullOf(mesh: AbstractMesh, measure: Measure): P2[] {
     const viewport = { x: 0, y: 0, width: engine.getRenderWidth(), height: engine.getRenderHeight() };
     const points: P2[] = [];
     for (let i = 0; i < positions.length; i += 3) {
-        const p = Vector3.TransformCoordinates(new Vector3(positions[i], positions[i + 1], positions[i + 2]), world);
+        const local = new Vector3(positions[i], positions[i + 1], positions[i + 2]);
+        const p = Vector3.TransformCoordinates(stretch ? local.multiply(stretch) : local, world);
         if (measure.flat) {
             const d = p.subtract(measure.center);
             points.push([Vector3.Dot(d, measure.ex), Vector3.Dot(d, measure.ey)]);
@@ -319,6 +329,137 @@ function haloGrowOf(measure: Measure, haloScale: number, border: number): [numbe
 }
 
 /**
+ * Where a node's halo should be, as a hull in its measuring plane: the halo mesh's own vertices with the scaling
+ * haloAxisScale gives (in place of the scaling it has), projected as hullOf projects them. Perspective, and an oblique
+ * view of a solid stretched unequally per axis, are then in the expectation exactly.
+ * @param id - The node.
+ * @param measure - Its plane and world frame.
+ * @param haloScale - The halo's scale.
+ * @param border - The border's reach, in world units.
+ * @returns The hull, empty without a halo mesh.
+ */
+function haloHullOf(id: string, measure: Measure, haloScale: number, border: number): P2[] {
+    const { halo } = element.graph.getDataManager().nodes.get(id) as unknown as Rings;
+    if (halo === null) {
+        return [];
+    }
+    const own = measure.mesh.scaling;
+    const grow = haloAxisScale(
+        halo.getBoundingInfo().boundingBox.extendSize,
+        haloScale,
+        own.x === 0 ? 0 : border / Math.abs(own.x),
+    );
+    const has = halo.scaling;
+    const ratio = (want: number, got: number): number => (got === 0 ? 1 : want / got);
+    const stretch = new Vector3(
+        ratio(own.x * grow.x, has.x),
+        ratio(own.y * grow.y, has.y),
+        ratio(own.z * grow.z, has.z),
+    );
+    return hullOf(halo, measure, stretch);
+}
+
+/** Every mesh a node draws, read to find where it covers the frame. */
+type Drawn = Rings & { mesh: AbstractMesh | null; shadow: AbstractMesh[]; decorations: AbstractMesh[] };
+
+/**
+ * Every enabled, visible mesh a node draws.
+ * @param id - The node.
+ * @returns Its meshes.
+ */
+function meshesOf(id: string): AbstractMesh[] {
+    const node = element.graph.getDataManager().nodes.get(id) as unknown as Drawn;
+    const all = [
+        node.mesh,
+        node.border,
+        node.outerBorder,
+        node.underlay,
+        node.overlay,
+        node.halo,
+        ...node.shadow,
+        ...node.decorations,
+    ];
+    return all.filter((m): m is AbstractMesh => m !== null && m.isEnabled() && m.isVisible && m.visibility > 0);
+}
+
+/**
+ * The convex hull, in device pixels, of everything a node draws: its meshes' vertices projected by the camera.
+ * @param id - The node.
+ * @returns The hull.
+ */
+function screenHullOf(id: string): P2[] {
+    const { scene, engine } = element.graph;
+    const transform = scene.getTransformMatrix();
+    const viewport = { x: 0, y: 0, width: engine.getRenderWidth(), height: engine.getRenderHeight() };
+    const points: P2[] = [];
+    for (const mesh of meshesOf(id)) {
+        mesh.computeWorldMatrix(true);
+        const source = (mesh as InstancedMesh).sourceMesh ?? mesh;
+        const positions = source.getVerticesData("position") ?? [];
+        const world = mesh.getWorldMatrix();
+        for (let i = 0; i < positions.length; i += 3) {
+            const p = Vector3.TransformCoordinates(
+                new Vector3(positions[i], positions[i + 1], positions[i + 2]),
+                world,
+            );
+            const s = Vector3.Project(p, Matrix.Identity(), transform, viewport as never);
+            points.push([s.x, s.y]);
+        }
+    }
+    return points.length < 3 ? [] : convexHull(points);
+}
+
+/**
+ * A flat node's shadow plane: parallel to its slab, at the depth the element draws the shadow behind it.
+ * @param id - The node.
+ * @param measure - Its plane and world frame.
+ * @returns The plane at a point of the node's plane, or undefined without a shadow.
+ */
+function shadowPlaneOf(id: string, measure: Measure): ((u: number, v: number) => Plane) | undefined {
+    const node = element.graph.getDataManager().nodes.get(id) as unknown as Drawn;
+    const layer = node.shadow.at(-1);
+    if (layer === undefined) {
+        return undefined;
+    }
+    layer.computeWorldMatrix(true);
+    const normal = Vector3.Cross(measure.ex, measure.ey).normalize();
+    // only the depth is taken from the element (how it orders the shadow behind the slab), never the offset
+    const depth = Vector3.Dot(layer.getBoundingInfo().boundingBox.centerWorld.subtract(measure.center), normal);
+    const { scene, engine } = element.graph;
+    return (u, v) => {
+        const at = measure.center.add(measure.ex.scale(u)).add(measure.ey.scale(v)).add(normal.scale(depth));
+        return planeOf(
+            scene.getTransformMatrix().m,
+            [at.x, at.y, at.z],
+            [measure.ex.x, measure.ex.y, measure.ex.z],
+            [measure.ey.x, measure.ey.y, measure.ey.z],
+            engine.getRenderWidth(),
+            engine.getRenderHeight(),
+        );
+    };
+}
+
+/**
+ * The sharpest corner of a convex hull, in radians.
+ * @param hull - The hull.
+ * @returns Its smallest interior angle, pi for fewer than three points.
+ */
+function sharpestCornerOf(hull: readonly P2[]): number {
+    let best = Math.PI;
+    hull.forEach((p, i) => {
+        const a = hull[(i - 1 + hull.length) % hull.length];
+        const b = hull[(i + 1) % hull.length];
+        const [ax, ay, bx, by] = [a[0] - p[0], a[1] - p[1], b[0] - p[0], b[1] - p[1]];
+        const la = Math.hypot(ax, ay);
+        const lb = Math.hypot(bx, by);
+        if (la > 1e-4 && lb > 1e-4) {
+            best = Math.min(best, Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (la * lb)))));
+        }
+    });
+    return best;
+}
+
+/**
  * Write a frame as a PNG.
  * @param frame - The frame.
  * @param path - Where, relative to graphty-element.
@@ -375,19 +516,19 @@ async function runCase(c: MatrixCase, override: Expectations = {}): Promise<{ re
     await restyle(nodeStyle(c.settings, "plain"), c.settings.edges === "on");
     const plainFrame = await draw(c);
     const plain = classify(plainFrame, BACKGROUND);
-    // a node's view scale under "pivot" or "screen": its fill mesh's reach over its reach under "scene"
-    const meshReach = (id: string): number => {
-        const measure = planeFor(id, c.settings.shape);
-        const hull = hullOf(measure.mesh, measure);
-        return hull.length === 0 ? Number.NaN : Math.max(...hull.map((p) => Math.hypot(p[0], p[1])));
+    // A node's view scale under "pivot" or "screen": its fill mesh's world scale over its world scale under "scene".
+    // Taken from the mesh, not from projected outlines: perspective magnifies a large near node more than a small one.
+    const worldScale = (id: string): number => {
+        const { mesh } = planeFor(id, c.settings.shape);
+        return mesh.absoluteScaling.x;
     };
     const scale = new Map(NODES.map(({ id }) => [id, 1]));
     if (c.settings.sizeSpace !== "scene") {
-        const own = new Map(NODES.map(({ id }) => [id, meshReach(id)]));
+        const own = new Map(NODES.map(({ id }) => [id, worldScale(id)]));
         await restyle(nodeStyle(c.settings, "scene-plain"), c.settings.edges === "on");
         await draw(c);
         for (const { id } of NODES) {
-            scale.set(id, (own.get(id) ?? Number.NaN) / meshReach(id));
+            scale.set(id, (own.get(id) ?? Number.NaN) / worldScale(id));
         }
     }
     await restyle(nodeStyle(c.settings, "full"), c.settings.edges === "on");
@@ -404,6 +545,11 @@ async function runCase(c: MatrixCase, override: Expectations = {}): Promise<{ re
         pass: true,
     };
     const sizes: number[] = [];
+    // under perspective, how far each measured node is down the view's axis over its world scale
+    const depthPerScale: number[] = [];
+    const camera = element.graph.scene.activeCamera;
+    assert.isNotNull(camera);
+    const forward = camera.getDirection(Vector3.Forward()).normalize();
     for (const { id } of NODES.slice(0, 2)) {
         const measure = planeFor(id, c.settings.shape);
         const { plane, mesh } = measure;
@@ -432,6 +578,13 @@ async function runCase(c: MatrixCase, override: Expectations = {}): Promise<{ re
                 // "bottom" is the screen's bottom only in an unturned view
                 labelReadable: c.condition.angle === "0",
                 haloGrow: (haloScale, border) => haloGrowOf(measure, haloScale, border),
+                // a hull bridges a concave shape's hollows, so there the model above is used
+                haloHull: (haloScale, border) =>
+                    CONCAVE.has(c.settings.shape) ? [] : haloHullOf(id, measure, haloScale, border),
+                others: NODES.filter((n) => n.id !== id).map((n) => screenHullOf(n.id)),
+                ...(measure.flat && view === "3d" ? { shadowPlaneAt: shadowPlaneOf(id, measure) } : {}),
+                // the convex hull of a concave shape hides its sharp corners
+                sharpestCorner: CONCAVE.has(c.settings.shape) ? Number.NaN : sharpestCornerOf(hull),
             },
             override,
         );
@@ -456,9 +609,27 @@ async function runCase(c: MatrixCase, override: Expectations = {}): Promise<{ re
         if (screen.length > 0) {
             sizes.push(Math.max(extent(0), extent(1)));
         }
+        depthPerScale.push(
+            Vector3.Dot(measure.center.subtract(camera.globalPosition), forward) / mesh.absoluteScaling.x,
+        );
         result.nodes[id] = { measured: true, numbers, checks };
     }
-    if (c.settings.sizeSpace === "screen" && sizes.length === 2) {
+    if (c.settings.sizeSpace === "screen" && sizes.length === 2 && camera.mode === Camera.PERSPECTIVE_CAMERA) {
+        // Under perspective a node of world size s at view depth z is s f / z pixels on the axis, so a constant share
+        // of the view's height is a constant z / s. Its extent on screen also depends on where it sits: a solid off the
+        // axis projects larger (a sphere by about 1 / cos of its angle off it) and a box shows a side, which no size
+        // can undo, so the ratio itself is the promise. Off by less than half a pixel across the node draws the same.
+        const [a, b] = depthPerScale;
+        const measured = (Math.abs(a - b) / Math.max(a, b)) * Math.max(...sizes);
+        result.checks.push({
+            name: "screen-size-same-at-any-depth",
+            promise: "under sizeSpace screen a node's size is a share of the view's height, whatever its depth",
+            measured,
+            expected: 0,
+            tolerance: 0.5,
+            pass: measured <= 0.5,
+        });
+    } else if (c.settings.sizeSpace === "screen" && sizes.length === 2) {
         const [a, b] = sizes;
         result.checks.push({
             name: "screen-size-same-at-any-depth",
@@ -529,11 +700,21 @@ if (SHARD === undefined) {
                 label: "a sphere with an outside border, in 2D",
                 c: base,
                 wrong: [
-                    [{ borderWidth: 0.45 * 1.6 }, ["border-width-median", "border-width-thinnest"]],
-                    [{ borderWidth: 0.45 * 0.2 }, ["border-width-median", "border-width-thickest"]],
+                    [{ borderWidth: 0.45 * 1.6 }, ["border-width-thinnest"]],
+                    [{ borderWidth: 0.45 * 0.2 }, ["border-width-thinnest", "border-width-thickest"]],
                     [{ borderOffset: 0.9 }, ["border-position"]],
                     [{ centerShift: [0.1, 0] }, ["border-concentric"]],
                 ],
+            },
+            {
+                // a slab seen 76 degrees off its normal: the concentric check reads the shift in true device pixels
+                label: "a rectangle with an outside border, seen obliquely in 3D",
+                c: {
+                    ...base,
+                    settings: { ...base.settings, shape: "rectangle" },
+                    condition: { view: "3d", zoom: "near", angle: "4", dpr: "1" },
+                },
+                wrong: [[{ centerShift: [0.1, 0] }, ["border-concentric"]]],
             },
             {
                 label: "a rectangle with an outer border, in 2D",
@@ -555,7 +736,7 @@ if (SHARD === undefined) {
                 label: "a sphere with an outside border, seen from the front in 3D",
                 c: { ...base, condition: { view: "3d", zoom: "mid", angle: "0", dpr: "1" } },
                 wrong: [
-                    [{ borderWidth: 0.45 * 1.6 }, ["border-width-median", "border-width-thinnest"]],
+                    [{ borderWidth: 0.45 * 1.6 }, ["border-width-thinnest"]],
                     [{ borderOffset: 0.9 }, ["border-position"]],
                     [{ centerShift: [0.1, 0] }, ["border-concentric"]],
                 ],
@@ -568,7 +749,7 @@ if (SHARD === undefined) {
             {
                 label: "a rectangle with a screen-pixel border, in 2D",
                 c: { ...base, settings: { ...base.settings, shape: "rectangle", border: "screen" } },
-                wrong: [[{ borderWidth: 0.3 }, ["border-width-median"]]],
+                wrong: [[{ borderWidth: 0.3 }, ["border-width-thinnest"]]],
             },
             {
                 label: "an ellipse with a halo, in 2D",

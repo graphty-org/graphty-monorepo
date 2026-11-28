@@ -507,6 +507,12 @@ export function partIndex(part: Part): number {
     return PART_INDEX.get(part) ?? 1;
 }
 
+/**
+ * The part index of a pixel another node's meshes cover (NodeFrames.others): the classifier cannot tell two nodes'
+ * parts apart, so what lies there is not read as this node's.
+ */
+export const OTHER_NODE = -2;
+
 /** How far (RGB distance) a pixel may be from its part's color and still count as it. */
 export const CLASS_DISTANCE = 40;
 
@@ -728,6 +734,20 @@ function lastOf<T>(list: readonly T[], test: (item: T) => boolean): T | undefine
     return i < 0 ? undefined : list[i];
 }
 
+/** How far a corner's mitre reaches past it, at most, as a multiple of the offset (shapeOutlines.ts MITRE_LIMIT). */
+export const MITRE_LIMIT = 3;
+
+/** How far apart runsAlong's samples are, in device pixels. */
+export const RAY_STEP_PX = 0.3;
+
+/**
+ * The narrowest band, in device pixels across, every ray through it reads. A pixel lies wholly inside a band when
+ * the band holds its extent along the band's normal (|nx| + |ny|, at most one diagonal, SQRT2); a sample is in such a
+ * pixel when it is at least a diagonal from both edges, a strip W - 2 SQRT2 wide; a ray crossing the band has a sample
+ * there when that strip is wider than a sample step. Narrower, every pixel on a ray may be a blend and read as none.
+ */
+export const SEEN_BAND_PX = 2 * Math.SQRT2 + RAY_STEP_PX;
+
 /** How many rays a node is measured along. */
 export const RAYS = 32;
 
@@ -740,7 +760,7 @@ export const RAYS = 32;
  * @returns The runs, in order.
  */
 export function runsAlong(classes: Classes, plane: Plane, angle: number, reach: number): Run[] {
-    const step = 0.3 / pixelsPerUnit(plane).max;
+    const step = RAY_STEP_PX / pixelsPerUnit(plane).max;
     const [cu, cv] = [Math.cos(angle), Math.sin(angle)];
     const runs: Run[] = [];
     for (let r = 0; r <= reach; r += step) {
@@ -793,7 +813,10 @@ export function maskEdge(
                 [0, 1],
                 [0, -1],
             ]) {
-                if (!at(x + dx, y + dy)) {
+                // a pixel another node covers is unknown, not outside the mask: no edge against it
+                const [nx, ny] = [x + dx, y + dy];
+                const other = nx >= 0 && ny >= 0 && nx < width && ny < height && parts[ny * width + nx] === OTHER_NODE;
+                if (!at(nx, ny) && !other) {
                     const [u, v] = toPlane(plane, x + 0.5 + dx / 2, y + 0.5 + dy / 2);
                     us.push(u);
                     vs.push(v);
@@ -862,8 +885,10 @@ export function pastCorner(edge: Edge2, u: number, v: number, step: number): boo
 // Invariants
 // ---------------------------------------------------------------------------------------------
 
-/** The parts that may cross a node from elsewhere: an edge, a label. A ray is read only up to them. */
-const FOREIGN = new Set(["edge", "label"].map((p) => partIndex(p as Part)));
+/**
+ * The parts that may cross a node from elsewhere: an edge, a label, another node. A ray is read only up to them.
+ */
+const FOREIGN = new Set([...["edge", "label"].map((p) => partIndex(p as Part)), OTHER_NODE]);
 
 /**
  * The longest blended seam (in pixels along the ray) that joins two runs of one part: a ray crossing a one-pixel
@@ -888,6 +913,10 @@ export function tidy(runs: readonly Run[], pxPerUnit: number): Run[] {
     const out: Run[] = [];
     for (const run of runs) {
         if (FOREIGN.has(run.part)) {
+            // the blended pixels where the crossing begins are not the run it cut short: that is the one before them
+            while (out.length > 0 && out[out.length - 1].part === MIXED) {
+                out.pop();
+            }
             if (out.length > 0 && out[out.length - 1].part !== partIndex("bg")) {
                 out.pop();
             }
@@ -914,24 +943,102 @@ export function tidy(runs: readonly Run[], pxPerUnit: number): Run[] {
 }
 
 /**
- * A database node's runs with the rim it draws across its face (nodeDecoration.ts databaseRim, in the border's
- * color by design) taken as fill: every run up to the last fill run the ray meets before leaving the node.
- * @param runs - The runs, tidied.
- * @returns The runs, the first one the fill out to where the ray leaves it.
+ * Whether a point lies inside a convex polygon (or on it).
+ * @param hull - The polygon, in order.
+ * @param p - The point.
+ * @returns True inside.
  */
-export function withoutRim(runs: readonly Run[]): Run[] {
-    const FILL = partIndex("fill");
-    const face = new Set([FILL, partIndex("border"), partIndex("mixed")]);
-    let last = -1;
-    for (let k = 0; k < runs.length && face.has(runs[k].part); k++) {
-        if (runs[k].part === FILL) {
-            last = k;
+export function insideConvex(hull: readonly P2[], p: P2): boolean {
+    let sign = 0;
+    for (let i = 0; i < hull.length; i++) {
+        const [x0, y0] = hull[i];
+        const [x1, y1] = hull[(i + 1) % hull.length];
+        const cross = (x1 - x0) * (p[1] - y0) - (y1 - y0) * (p[0] - x0);
+        if (cross !== 0) {
+            if (sign !== 0 && Math.sign(cross) !== sign) {
+                return false;
+            }
+            sign = Math.sign(cross);
         }
     }
-    if (last <= 0 || runs[0].part !== FILL) {
-        return [...runs];
+    return true;
+}
+
+/**
+ * A frame with every pixel another node's meshes cover marked {@link OTHER_NODE}: inside the convex hull of their
+ * projected vertices, or within one pixel of it (a blended pixel at its edge).
+ * @param classes - The classified frame.
+ * @param others - The other nodes' hulls, in device pixels.
+ * @returns The frame, a copy when anything was marked.
+ */
+export function withoutOthers(classes: Classes, others: readonly (readonly P2[])[]): Classes {
+    const live = others.filter((h) => h.length >= 3);
+    if (live.length === 0) {
+        return classes;
     }
-    return [{ part: FILL, from: runs[0].from, to: runs[last].to }, ...runs.slice(last + 1)];
+    const { width, height } = classes;
+    const parts = Int8Array.from(classes.parts);
+    for (const hull of live) {
+        const xs = hull.map((p) => p[0]);
+        const ys = hull.map((p) => p[1]);
+        const [x0, x1] = [
+            Math.max(0, Math.floor(Math.min(...xs) - 1)),
+            Math.min(width - 1, Math.ceil(Math.max(...xs) + 1)),
+        ];
+        const [y0, y1] = [
+            Math.max(0, Math.floor(Math.min(...ys) - 1)),
+            Math.min(height - 1, Math.ceil(Math.max(...ys) + 1)),
+        ];
+        for (let y = y0; y <= y1; y++) {
+            for (let x = x0; x <= x1; x++) {
+                const p: P2 = [x + 0.5, y + 0.5];
+                if (insideConvex(hull, p) || distanceToPolygon(hull, p) <= 1) {
+                    parts[y * width + x] = OTHER_NODE;
+                }
+            }
+        }
+    }
+    return { parts, width, height };
+}
+
+/**
+ * A database node's frame with the rim it draws across its face (nodeDecoration.ts databaseRim, in the border's
+ * color by design) taken as fill: a border or blended pixel that is fill in the plain frame and lies deeper inside
+ * the plain outline than the ring can reach (the border's inset, and one band edge) is face, not ring. At far zoom
+ * the fill between the rim and the ring is a strip of blended pixels, so the rim cannot be told from the ring by
+ * the runs along a ray alone.
+ * @param full - The classified full frame.
+ * @param plain - The classified plain frame.
+ * @param plane - The node's plane.
+ * @param window - The node's window in pixels.
+ * @param signed - The signed distance from the plain outline at a plane point (negative inside).
+ * @param depth - How deep inside the outline the ring may reach.
+ * @returns The frame with the rim as fill.
+ */
+export function withoutRim(
+    full: Classes,
+    plain: Classes,
+    plane: Plane,
+    window: readonly number[],
+    signed: (u: number, v: number) => number,
+    depth: number,
+): Classes {
+    const [FILL, BORDER, MIXED] = (["fill", "border", "mixed"] as const).map(partIndex);
+    const parts = Int8Array.from(full.parts);
+    const [x0, y0, x1, y1] = window.map((n) => Math.round(n));
+    for (let y = Math.max(0, y0); y <= Math.min(full.height - 1, y1); y++) {
+        for (let x = Math.max(0, x0); x <= Math.min(full.width - 1, x1); x++) {
+            const at = y * full.width + x;
+            if ((parts[at] !== BORDER && parts[at] !== MIXED) || plain.parts[at] !== FILL) {
+                continue;
+            }
+            const [u, v] = toPlane(plane, x + 0.5, y + 0.5);
+            if (signed(u, v) < -depth) {
+                parts[at] = FILL;
+            }
+        }
+    }
+    return { parts, width: full.width, height: full.height };
 }
 
 /**
@@ -961,7 +1068,18 @@ function centeredOnFill(plain: Classes, plane: Plane, window: readonly number[])
     if (n === 0) {
         return plane;
     }
-    const m = multiply3(plane.m, [1, 0, su / n, 0, 1, sv / n, 0, 0, 1]);
+    return movedTo(plane, su / n, sv / n);
+}
+
+/**
+ * A plane with its origin moved to one of its points.
+ * @param plane - The plane.
+ * @param u - The new origin's u.
+ * @param v - The new origin's v.
+ * @returns The moved plane.
+ */
+export function movedTo(plane: Plane, u: number, v: number): Plane {
+    const m = multiply3(plane.m, [1, 0, u, 0, 1, v, 0, 0, 1]);
     return { m, inverse: invert3(m) };
 }
 
@@ -1007,6 +1125,30 @@ export interface NodeFrames {
      * `haloScale` about its center.
      */
     haloGrow?: (scale: number, border: number) => [number, number];
+    /**
+     * The hull, in plane units, of where the element's halo should be for a `haloScale` and a border reaching
+     * `border` plane units: the node's own vertices stretched as haloAxisScale stretches them and projected as the
+     * camera projects them, so perspective and an oblique view of a stretched solid are in it exactly. Empty (or
+     * unset) where a hull would bridge the shape's hollows; then {@link NodeFrames.haloGrow}'s model is used.
+     */
+    haloHull?: (scale: number, border: number) => P2[];
+    /**
+     * The other nodes' drawn extents (every mesh they hold), as convex hulls in device pixels. The classifier cannot
+     * tell two nodes' parts apart, so a ray is read only up to where it enters one (like an edge crossing it).
+     */
+    others?: readonly (readonly P2[])[];
+    /**
+     * The plane a flat node's shadow lies in: parallel to the slab, at the shadow's depth behind it, its origin at
+     * plane point (u, v) of the node's plane. Seen off the slab's normal the shadow is displaced on screen by its
+     * depth (parallax), so it is walked in its own plane. Unset, it is the node's plane moved to (u, v).
+     */
+    shadowPlaneAt?: (u: number, v: number) => Plane;
+    /**
+     * The sharpest corner of the drawn fill's outline, in radians (pi for a round shape, NaN when it cannot be
+     * known, a concave shape's hull hiding its corners). A border drawn in from the outline pulls the fill's tip in
+     * by the inset over sin(corner / 2).
+     */
+    sharpestCorner?: number;
 }
 
 /** The fewest rays a median is taken over: fewer, a plate's or ring's few mitred tips would be its reading. */
@@ -1136,7 +1278,7 @@ export function measureNode(
     frames: NodeFrames,
     override: Expectations = {},
 ): { checks: Check[]; numbers: Record<string, number> } {
-    const { full, plain, reach, dpr, sizeFactor } = frames;
+    const { reach, dpr, sizeFactor } = frames;
     const checks: Check[] = [];
     const ppu = pixelsPerUnit(frames.plane);
     const numbers: Record<string, number> = { pxPerUnitMin: ppu.min, pxPerUnitMax: ppu.max, sizeFactor };
@@ -1144,97 +1286,143 @@ export function measureNode(
     const span = reach * ppu.max;
     const window = [cx - span, cy - span, cx + span, cy + span];
     const FILL = partIndex("fill");
+    const MIXED = partIndex("mixed");
+    const BG = partIndex("bg");
+    // what another node covers is not this node's: both frames are read only up to it
+    const others = frames.others ?? [];
+    const plain = withoutOthers(frames.plain, others);
+    let full = withoutOthers(frames.full, others);
     // A shape whose center is not filled (man, woman) is measured from its fill's centroid instead.
     const plane = centeredOnFill(plain, frames.plane, window);
     const shifted = plane !== frames.plane;
     numbers.originShifted = shifted ? 1 : 0;
     const plainEdge = maskEdge(plain, plane, (p) => p === FILL, window);
-    const fullFillEdge = maskEdge(full, plane, (p) => p === FILL, window);
     const signed = (u: number, v: number): number =>
         partAt(plain, plane, u, v) === FILL ? -distanceTo(plainEdge, u, v) : distanceTo(plainEdge, u, v);
     // a band's edge may be EDGE_PX device pixels off in the plane's thinnest direction
     const edgeTol = EDGE_PX / ppu.min;
+    const s = settings;
+    let borderWorld = s.border === "none" ? 0 : AMOUNTS.borderWidth * PER_SIZE * sizeFactor;
+    if (s.border === "screen") {
+        // the element builds a screen-pixel ring at the face-on scale (Node.roundedPixelsPerUnit, scaledBorder): the
+        // most pixels a plane unit spans, so a tilted slab's ring is that wide in its own plane
+        borderWorld = (AMOUNTS.borderScreenWidth * dpr) / ppu.max;
+    }
+    const expectedWidth = override.borderWidth ?? borderWorld;
+    const fraction = s.border === "none" ? 0 : outerEdgeFraction(s.border);
+    const borderEdge = override.borderOffset ?? borderWorld * fraction;
+    if (s.shape === "database" && s.border !== "none") {
+        // the ring reaches (1 - fraction) widths inside the outline, and its edge one band edge more
+        full = withoutRim(full, plain, plane, window, signed, borderWorld * (1 - fraction) + edgeTol);
+    }
+    const fullFillEdge = maskEdge(full, plane, (p) => p === FILL, window);
     const angles = Array.from({ length: RAYS }, (_, i) => (i / RAYS) * Math.PI * 2);
-    const plainRuns = angles.map((a) => tidy(runsAlong(plain, plane, a, reach), ppu.max));
+    const rawPlain = angles.map((a) => runsAlong(plain, plane, a, reach));
+    const plainRuns = rawPlain.map((runs) => tidy(runs, ppu.max));
     const rawRuns = angles.map((a) => runsAlong(full, plane, a, reach));
     // a ray an edge or a label crosses is read only up to it (tidy), so what lies past that is unread, not missing
     const crossed = rawRuns.map((runs) => runs.some((r) => FOREIGN.has(r.part)));
-    const rim = settings.shape === "database";
-    const fullRuns = rawRuns.map((runs) => (rim ? withoutRim(tidy(runs, ppu.max)) : tidy(runs, ppu.max)));
+    const fullRuns = rawRuns.map((runs) => tidy(runs, ppu.max));
     const plainExit = plainRuns.map((runs) => (runs[0]?.part === FILL && runs.length > 1 ? runs[0].to : Number.NaN));
     numbers.plainRadiusMedian = quantile(plainExit, 0.5);
     numbers.plainRadiusPx = numbers.plainRadiusMedian * ppu.max;
+    // a ray whose fill an edge or a label cuts short (a node a few pixels across) is unread, not bare
+    const fillRead = plainExit.filter((r, i) => Number.isFinite(r) || !rawPlain[i].some((x) => FOREIGN.has(x.part)));
     checks.push(
         check(
             "fill-drawn",
             "the node's fill is drawn at its center",
-            plainExit.filter((r) => Number.isFinite(r) && r > 0).length / RAYS,
+            fillRead.length === 0
+                ? Number.NaN
+                : fillRead.filter((r) => Number.isFinite(r) && r > 0).length / fillRead.length,
             1,
             0.5,
         ),
     );
-    const s = settings;
-    let borderWorld = s.border === "none" ? 0 : AMOUNTS.borderWidth * PER_SIZE * sizeFactor;
-    if (s.border === "screen") {
-        borderWorld = (AMOUNTS.borderScreenWidth * dpr) / Math.sqrt(ppu.min * ppu.max);
-    }
-    const expectedWidth = override.borderWidth ?? borderWorld;
-    const borderEdge = override.borderOffset ?? borderWorld * (s.border === "none" ? 0 : outerEdgeFraction(s.border));
     const widthTol = edgeTol * 2 + expectedWidth * WIDTH_SLACK;
     numbers.borderWorld = borderWorld;
     const BORDER = partIndex("border");
     const hidden = s.plate === "overlay";
+    /**
+     * Whether a ray's raw runs hold any sample of a part between the fill and the first background or crossing: a
+     * band a pixel or two across is blended on both sides, and tidy folds its one pure pixel into the blend.
+     */
+    const rawHas = (i: number, part: number): boolean => {
+        const runs = rawRuns[i];
+        const start = runs.findIndex((r) => r.part !== FILL);
+        for (let k = Math.max(0, start); k < runs.length; k++) {
+            if (runs[k].part === part) {
+                return true;
+            }
+            if (runs[k].part === BG || FOREIGN.has(runs[k].part)) {
+                return false;
+            }
+        }
+        return false;
+    };
+    // a band narrower than SEEN_BAND_PX across in the plane's thinnest direction (a flat slab seen near edge-on) may
+    // hold no pure pixel on a ray, so nothing about it is read there
+    numbers.borderAcrossPx = borderWorld * ppu.min;
 
-    if (s.border !== "none" && !hidden) {
+    if (s.border !== "none" && !hidden && borderWorld * ppu.min >= SEEN_BAND_PX) {
         const gaps: number[] = [];
         const thick: number[] = [];
         const offs: number[] = [];
         const offAngles: number[] = [];
-        const corner: boolean[] = [];
         let shiftU = 0;
         let shiftV = 0;
         let shiftCount = 0;
         let bare = 0;
+        let seenOnly = 0;
+        const dashed = s.border === "dashed";
         fullRuns.forEach((runs, i) => {
             const fillEnd = runs[0]?.part === FILL ? runs[0].to : Number.NaN;
             if (!Number.isFinite(fillEnd)) {
                 return;
             }
-            // a ring under one device pixel along this ray (a flat slab seen near edge-on) cannot be seen, so the
-            // ray is not read; a solid's ring faces the camera (NODE_BORDER_CAVEAT in channels.ts) and its plane is
-            // the camera's, so this never drops one of its rays
-            const [fx, fy] = toScreen(plane, fillEnd * Math.cos(angles[i]), fillEnd * Math.sin(angles[i]));
-            const ringEnd = fillEnd + expectedWidth;
-            const [rx, ry] = toScreen(plane, ringEnd * Math.cos(angles[i]), ringEnd * Math.sin(angles[i]));
-            if (Math.hypot(rx - fx, ry - fy) < 1) {
-                return;
-            }
             // what the ray meets first past the fill: the ring, background (no ring here), or another part over it
-            const next = runs.find((r, k) => k > 0 && r.part !== partIndex("mixed"));
-            if (next !== undefined && next.part !== BORDER && next.part !== partIndex("bg")) {
+            const next = runs.find((r, k) => k > 0 && r.part !== MIXED);
+            if (next !== undefined && next.part !== BORDER && next.part !== BG) {
                 return;
             }
             const ring = runs.findIndex((r, k) => k > 0 && r.part === BORDER);
-            if (ring < 0 || (s.border === "dashed" && next?.part === partIndex("bg"))) {
+            if (ring < 0 && crossed[i]) {
+                // the crossing tidy ends the ray at took the ring with it (an edge stops at the ring's outer edge)
+                return;
+            }
+            if (ring < 0 || (dashed && next?.part === BG)) {
+                if (ring < 0 && rawHas(i, BORDER)) {
+                    seenOnly++;
+                    return;
+                }
                 bare++;
                 return;
             }
-            // background between the fill and the ring, past one blended pixel
-            const between = runs.slice(1, ring).filter((r) => r.part === partIndex("bg"));
+            // past this band the ray goes back into fill: it is a gap between two lobes the border fills (narrower
+            // than two widths), not the ring, and its width is the gap's
+            const after = runs.slice(ring + 1).find((r) => r.part !== MIXED);
+            if (after?.part === FILL) {
+                return;
+            }
+            // background between the ring and the fill it starts from (a hole the ray crossed before is not a gap)
+            const from = lastIndex(runs, (r, k) => k < ring && r.part === FILL);
+            const between = runs.slice(from + 1, ring).filter((r) => r.part === BG);
             gaps.push(between.reduce((sum, r) => sum + (r.to - r.from), 0) * ppu.max);
             const out = runs[ring].to;
             const [u, v] = [out * Math.cos(angles[i]), out * Math.sin(angles[i])];
             thick.push(distanceTo(fullFillEdge, u, v));
             offs.push(signed(u, v));
             offAngles.push(angles[i]);
-            corner.push(pastCorner(plainEdge, u, v, expectedWidth / 2));
         });
-        const offMedian = quantile(offs, 0.5);
+        // A mitred corner reaches past the band by design (up to MITRE_LIMIT widths), and on a shape with many
+        // corners those rays can be most of them, so the ring's position is read on the rays that leave it through
+        // a side, where it is its width thick; with none of those (a ring wrongly thick everywhere), on all.
+        const side = offs.filter((_, j) => thick[j] <= expectedWidth + widthTol);
+        const offMedian = quantile(side.length > 0 ? side : offs, 0.5);
         offs.forEach((o, j) => {
-            // a mitred corner reaches past the band by design, and corners need not face each other across the
-            // node (a dash gap can take one), so a ray past one of the outline's corners, or thicker than the band,
-            // is left out of the centroid: on a tilted plane the width's tolerance is loose enough to let a mitre in
-            if (corner[j] || thick[j] > expectedWidth + widthTol) {
+            // corners need not face each other across the node, so a ray thicker than the band is left out of the
+            // centroid
+            if (thick[j] > expectedWidth + widthTol) {
                 return;
             }
             if (Math.abs(o - offMedian) <= Math.max(edgeTol, expectedWidth * 0.5)) {
@@ -1247,12 +1435,12 @@ export function measureNode(
             shiftU += override.centerShift[0] * (shiftCount / 2);
             shiftV += override.centerShift[1] * (shiftCount / 2);
         }
-        const dashed = s.border === "dashed";
+        const drawn = thick.length + seenOnly;
         checks.push(
             check(
                 "border-drawn",
                 "a border wider than 0 is drawn round the node (of the rays nothing else covers)",
-                thick.length + bare === 0 ? Number.NaN : thick.length / (thick.length + bare),
+                drawn + bare === 0 ? Number.NaN : drawn / (drawn + bare),
                 dashed ? 0.6 : 1,
                 dashed ? 0.4 : 0.1,
             ),
@@ -1266,32 +1454,45 @@ export function measureNode(
                 gaps,
             ),
         );
-        checks.push(
-            check(
-                "border-width-median",
-                "the border is borderWidth size units (or borderScreenWidth pixels) wide",
-                quantile(thick, 0.5),
-                expectedWidth,
-                widthTol,
-                thick,
-            ),
-        );
-        // a dash's square end crosses a ray at a slant, so a dashed ring has no thinnest to read
-        if (!dashed) {
+        if (dashed) {
+            // a dash's square end crosses a ray at a slant, so a dashed ring has no thinnest to read: its median is
             checks.push(
-                atMost(
-                    "border-width-thinnest",
-                    "the border is nowhere thinner than its width",
-                    expectedWidth - least(thick),
+                check(
+                    "border-width-median",
+                    "the border is borderWidth size units (or borderScreenWidth pixels) wide",
+                    quantile(thick, 0.5),
+                    expectedWidth,
                     widthTol,
+                    thick,
+                ),
+            );
+        } else {
+            // A band of even width with mitred corners is exactly its width thick wherever a ray leaves it through
+            // a side, and thicker (up to MITRE_LIMIT widths) through a corner, so its width is its thinnest reading.
+            checks.push(
+                check(
+                    "border-width-thinnest",
+                    "the border is borderWidth size units (or borderScreenWidth pixels) wide at its thinnest",
+                    least(thick),
+                    expectedWidth,
+                    widthTol,
+                    thick,
                 ),
             );
         }
+        // The outer part of the ring (fraction of the width past the outline) is mitred to at most MITRE_LIMIT times
+        // its reach. The inner part is the outline moved in by the inset side by side (insetOutline), so the fill's
+        // tip at a corner of angle t retreats inset / sin(t / 2) from the outline's: the thickest a ray can read is
+        // the two added (triangle inequality).
+        const inset = expectedWidth * (1 - fraction);
+        const corner = frames.sharpestCorner ?? Math.PI;
+        const thickest = MITRE_LIMIT * expectedWidth * fraction + (inset > 0 ? inset / Math.sin(corner / 2) : 0);
         checks.push(
             atMost(
                 "border-width-thickest",
-                "a mitred corner reaches no more than 3 widths (mitredEdges cuts it square there)",
-                most(thick) - 3 * expectedWidth,
+                "a mitred corner reaches no more than 3 widths past the outline, and an inset fill's tip retreats no " +
+                    "more than the inset over sin(half its angle)",
+                most(thick) - thickest,
                 widthTol,
             ),
         );
@@ -1305,27 +1506,42 @@ export function measureNode(
                 offs,
             ),
         );
-        const shift = shiftCount === 0 ? Number.NaN : (2 * Math.hypot(shiftU, shiftV)) / shiftCount;
+        // the centroid's shift, in device pixels through the plane's own map (a tilted slab spans fewer pixels a
+        // unit along its foreshortened axis than across it)
+        const [su, sv] =
+            shiftCount === 0 ? [Number.NaN, Number.NaN] : [(2 * shiftU) / shiftCount, (2 * shiftV) / shiftCount];
+        const [x0, y0] = toScreen(plane, 0, 0);
+        const [x1, y1] = toScreen(plane, su, sv);
         checks.push(
             atMost(
                 "border-concentric",
                 "the ring is centered on the fill (its offset from the outline is the same on opposite sides)",
-                shift * ppu.max,
+                Math.hypot(x1 - x0, y1 - y0),
                 1,
             ),
         );
         numbers.borderMedianPx = quantile(thick, 0.5) * ppu.max;
     }
 
-    if (s.outer !== "none" && !hidden) {
+    const outerWidth = AMOUNTS.outerWidth * PER_SIZE * sizeFactor;
+    numbers.outerAcrossPx = outerWidth * ppu.min;
+    // an outer ring narrower than SEEN_BAND_PX across (under sizeSpace screen, or a slab seen near edge-on) may hold
+    // no pure pixel on a ray: not read
+    if (s.outer !== "none" && !hidden && outerWidth * ppu.min >= SEEN_BAND_PX) {
         const OUTER = partIndex("outer");
         const starts: number[] = [];
         const widths: number[] = [];
         const gaps: number[] = [];
         let unseen = 0;
+        let seenOnly = 0;
         fullRuns.forEach((runs, i) => {
             const k = runs.findIndex((r) => r.part === OUTER);
             if (k < 0) {
+                // blended on both sides and folded by tidy, it is still drawn (its raw runs hold it)
+                if (rawHas(i, OUTER)) {
+                    seenOnly++;
+                    return;
+                }
                 unseen += crossed[i] ? 1 : 0;
                 return;
             }
@@ -1347,12 +1563,12 @@ export function measureNode(
         });
         const start =
             override.outerStart ?? borderEdge + (s.outer === "gap" ? AMOUNTS.outerGap : 0) * PER_SIZE * sizeFactor;
-        const width = AMOUNTS.outerWidth * PER_SIZE * sizeFactor;
+        const width = outerWidth;
         checks.push(
             check(
                 "outer-drawn",
                 "an outer border wider than 0 is drawn round the node (of the rays no edge or label crosses first)",
-                RAYS === unseen ? Number.NaN : starts.length / (RAYS - unseen),
+                RAYS === unseen ? Number.NaN : (starts.length + seenOnly) / (RAYS - unseen),
                 1,
                 0.1,
             ),
@@ -1409,11 +1625,14 @@ export function measureNode(
         // an underlay shows only beyond the node and its border, so only rays where it reaches past them count
         const past = ends.filter((e) => s.plate === "overlay" || e > borderEdge + edgeTol);
         if (past.length > 0) {
+            // a plate is the outline's mitred offset: exactly its padding past the outline where a ray leaves it
+            // through a side, farther through a corner (most rays, on a small or sharp shape), so its padding is its
+            // nearest reading
             checks.push(
                 check(
                     `${s.plate}-padding`,
                     `the ${s.plate} is the node's outline grown by its padding`,
-                    readMedian(past),
+                    past.length < MIN_RAYS ? Number.NaN : least(past),
                     padding,
                     edgeTol * 2 + padding * WIDTH_SLACK,
                     ends,
@@ -1460,6 +1679,11 @@ export function measureNode(
             -AMOUNTS.shadowOffset * PER_SIZE * sizeFactor,
         ];
         const direction = Math.atan2(ov, ou);
+        // the shadow's own plane, its origin where the offset puts the shadow's center (the measuring origin, which
+        // may be the fill's centroid, moved by the offset)
+        const [ox, oy] = toScreen(plane, 0, 0);
+        const [su, sv] = toPlane(frames.plane, ox, oy);
+        const shadowPlane = frames.shadowPlaneAt?.(su + ou, sv + ov) ?? movedTo(plane, ou, ov);
         const misses: number[] = [];
         angles.forEach((a, i) => {
             const turn = Math.abs(Math.atan2(Math.sin(a - direction), Math.cos(a - direction)));
@@ -1471,14 +1695,14 @@ export function measureNode(
             let last = Number.NaN;
             const step = 0.3 / ppu.max;
             for (let r = 0; r <= reach; r += step) {
-                if (partAt(full, plane, ou + r * Math.cos(a), ov + r * Math.sin(a)) === SHADOW) {
+                if (partAt(full, shadowPlane, r * Math.cos(a), r * Math.sin(a)) === SHADOW) {
                     last = r;
                 }
             }
             // where the shadow's edge should be, another part drawn in front of it (or the blended seam between two
             // rings over it) hides it: no reading
             const before = expected - edgeTol;
-            const there = partAt(full, plane, ou + before * Math.cos(a), ov + before * Math.sin(a));
+            const there = partAt(full, shadowPlane, before * Math.cos(a), before * Math.sin(a));
             if (there !== SHADOW && there !== partIndex("bg")) {
                 return;
             }
@@ -1504,15 +1728,20 @@ export function measureNode(
         const HALO = partIndex("halo");
         const scale = override.haloScale ?? AMOUNTS.haloScale;
         const [gu, gv] = frames.haloGrow?.(scale, borderWorld) ?? [scale, scale];
+        const haloHull = frames.haloHull?.(scale, borderWorld) ?? [];
         const misses: number[] = [];
         angles.forEach((a, i) => {
             if (!Number.isFinite(plainExit[i])) {
                 return;
             }
-            // the halo is the node stretched gu, gv about its center: this outline point lands there
+            // where the halo should end on this ray: on the hull of the node's own vertices stretched and projected
+            // as the halo's are, or (no hull) the outline point stretched gu, gv about the center
             const [qu, qv] = [gu * plainExit[i] * Math.cos(a), gv * plainExit[i] * Math.sin(a)];
-            const b = Math.atan2(qv, qu);
-            const edge = Math.hypot(qu, qv);
+            const b = haloHull.length > 0 ? a : Math.atan2(qv, qu);
+            const edge = haloHull.length > 0 ? rayExit(haloHull, a) : Math.hypot(qu, qv);
+            if (!Number.isFinite(edge)) {
+                return;
+            }
             // just inside where the halo should end: a part drawn over it there hides its edge, no reading
             const there = partAt(full, plane, (edge - edgeTol) * Math.cos(b), (edge - edgeTol) * Math.sin(b));
             if (there !== HALO && there !== partIndex("bg") && there !== partIndex("mixed")) {
@@ -1584,14 +1813,17 @@ export function measureNode(
         // band shows the edge through its gaps, and the element stops the edge no further than the border's width
         // past the outline along the line (Node.borderReachAlong), which across a slanted side is nearer the
         // outline along the normal: there the edge must reach no nearer than that along the line.
+        // an edge pixel is tested at its center, which lies up to half a diagonal from the part of it the edge covers,
+        // on top of the band edge's own EDGE_PX
+        const edgeAt = (EDGE_PX + Math.SQRT1_2) / ppu.min;
         const edgeStopsShort = (u: number, v: number): boolean => {
             if (s.border !== "dashed") {
-                return signed(u, v) < borderEdge - edgeTol;
+                return signed(u, v) < borderEdge - edgeAt;
             }
             const a = Math.atan2(v, u);
             const plainAlong = tidy(runsAlong(plain, plane, a, reach), ppu.max);
             const exit = plainAlong[0]?.part === FILL ? plainAlong[0].to : 0;
-            return Math.hypot(u, v) < exit + borderWorld - edgeTol;
+            return Math.hypot(u, v) < exit + borderWorld - edgeAt;
         };
         const [x0, y0, x1, y1] = window.map((v) => Math.round(v));
         for (let y = Math.max(0, y0); y <= Math.min(full.height - 1, y1); y++) {
@@ -1758,9 +1990,64 @@ export function distanceToPolygon(hull: readonly P2[], p: P2): number {
 }
 
 /**
+ * A convex polygon's mitred offset outward by a distance, each corner's mitre cut square to its bisector at
+ * {@link MITRE_LIMIT} times the distance from the corner (as the element's mitredEdges cuts a sharp corner).
+ * @param hull - The polygon, in order (either way round).
+ * @param distance - How far out.
+ * @returns The offset polygon.
+ */
+export function mitredOffset(hull: readonly P2[], distance: number): P2[] {
+    const n = hull.length;
+    if (n < 3 || !(distance > 0)) {
+        return [...hull];
+    }
+    let area = 0;
+    hull.forEach(([x0, y0], i) => {
+        const [x1, y1] = hull[(i + 1) % n];
+        area += x0 * y1 - x1 * y0;
+    });
+    // the outward normal of a side running (ex, ey) is (ey, -ex) round a counter-clockwise polygon
+    const turn = area > 0 ? 1 : -1;
+    const sideOf = (i: number): { dir: P2; normal: P2 } => {
+        const [x0, y0] = hull[i];
+        const [x1, y1] = hull[(i + 1) % n];
+        const length = Math.hypot(x1 - x0, y1 - y0) || 1;
+        const dir: P2 = [(x1 - x0) / length, (y1 - y0) / length];
+        return { dir, normal: [turn * dir[1], -turn * dir[0]] };
+    };
+    const out: P2[] = [];
+    for (let i = 0; i < n; i++) {
+        const p = hull[i];
+        const before = sideOf((i - 1 + n) % n);
+        const after = sideOf(i);
+        const bis: P2 = [before.normal[0] + after.normal[0], before.normal[1] + after.normal[1]];
+        const length = Math.hypot(bis[0], bis[1]);
+        // the mitre reaches distance / cos(half the turn) = 2 distance / |n1 + n2| past the corner
+        if (length > 0 && 2 / length <= MITRE_LIMIT) {
+            const k = (2 * distance) / (length * length);
+            out.push([p[0] + bis[0] * k, p[1] + bis[1] * k]);
+            continue;
+        }
+        const b: P2 = length > 0 ? [bis[0] / length, bis[1] / length] : before.normal;
+        const c: P2 = [p[0] + b[0] * MITRE_LIMIT * distance, p[1] + b[1] * MITRE_LIMIT * distance];
+        for (const side of [before, after]) {
+            const base: P2 = [p[0] + side.normal[0] * distance, p[1] + side.normal[1] * distance];
+            const along = side.dir[0] * b[0] + side.dir[1] * b[1];
+            const t = ((c[0] - base[0]) * b[0] + (c[1] - base[1]) * b[1]) / along;
+            out.push([base[0] + side.dir[0] * t, base[1] + side.dir[1] * t]);
+        }
+    }
+    return out;
+}
+
+/**
  * Mesh checks for one ring: its outer hull's distance past the fill's hull at every ray, and how far its
- * hull's middle sits from the fill hull's middle. Both hulls are of the meshes' vertices projected into
- * the measuring plane, so this is exact geometry with no pixels.
+ * hull's middle sits from the middle of the fill hull's mitred offset by the promised reach. Both hulls are of the
+ * meshes' vertices projected into the measuring plane, so this is exact geometry with no pixels.
+ *
+ * A mitred offset of a polygon lies exactly its distance from the polygon along every side and farther beside a
+ * corner (up to {@link MITRE_LIMIT} times it). On a small or sharp polygon most rays land beside a corner, so the
+ * reach is the nearest ray's distance, and the farthest is bounded by the mitre's limit.
  * @param fill - The fill's hull.
  * @param ring - The ring's hull.
  * @param expected - How far past the fill's outline the ring's outer edge should lie.
@@ -1787,15 +2074,23 @@ export function meshRingChecks(
         const ys = hull.map((p) => p[1]);
         return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
     };
-    const [a, b] = [middle(fill), middle(ring)];
+    // under perspective a polyhedron's silhouette is uneven (near corners magnified), and an even mitred band round
+    // it has its box's middle off the outline's: the ring is compared with the offset it should be
+    const [a, b] = [middle(mitredOffset(fill, expected)), middle(ring)];
     const checks = [
         check(
             `mesh-${name}-reach`,
-            `the ${name} mesh's outer edge lies its promised distance past the fill mesh's outline`,
-            quantile(offsets, 0.5),
+            `the ${name} mesh's outer edge lies its promised distance past the fill mesh's outline, at its nearest`,
+            least(offsets),
             expected,
             tolerance,
             offsets,
+        ),
+        atMost(
+            `mesh-${name}-mitre`,
+            `the ${name} mesh reaches no more than ${String(MITRE_LIMIT)} times its distance past a corner`,
+            most(offsets) - MITRE_LIMIT * expected,
+            tolerance,
         ),
     ];
     if (symmetric) {

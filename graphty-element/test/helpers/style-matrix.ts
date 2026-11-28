@@ -812,14 +812,50 @@ export function maskEdge(
  * @returns The distance in plane units, Infinity for an empty mask.
  */
 export function distanceTo(edge: Edge2, u: number, v: number): number {
+    const i = nearestOn(edge, u, v);
+    return i < 0 ? Infinity : Math.hypot(edge.u[i] - u, edge.v[i] - v);
+}
+
+/**
+ * The mask edge point nearest a plane point.
+ * @param edge - The mask's edge points.
+ * @param u - Plane u.
+ * @param v - Plane v.
+ * @returns Its index, -1 for an empty mask.
+ */
+function nearestOn(edge: Edge2, u: number, v: number): number {
     let best = Infinity;
+    let at = -1;
     for (let i = 0; i < edge.u.length; i++) {
         const d = (edge.u[i] - u) ** 2 + (edge.v[i] - v) ** 2;
         if (d < best) {
             best = d;
+            at = i;
         }
     }
-    return Math.sqrt(best);
+    return at;
+}
+
+/**
+ * Whether a point past an outline lies in one of its corners' wedges, where a mitred band reaches past its width:
+ * its nearest outline point is a corner when sliding the point `step` either way across its line to that point
+ * moves the nearest point less than `step` (along a side it moves `step` each way).
+ * @param edge - The outline's edge points.
+ * @param u - Plane u.
+ * @param v - Plane v.
+ * @param step - How far to slide, in plane units.
+ * @returns True in a corner's wedge.
+ */
+export function pastCorner(edge: Edge2, u: number, v: number, step: number): boolean {
+    const i = nearestOn(edge, u, v);
+    const length = i < 0 ? 0 : Math.hypot(u - edge.u[i], v - edge.v[i]);
+    if (length === 0) {
+        return false;
+    }
+    const [tu, tv] = [(-(v - edge.v[i]) / length) * step, ((u - edge.u[i]) / length) * step];
+    const a = nearestOn(edge, u + tu, v + tv);
+    const b = nearestOn(edge, u - tu, v - tv);
+    return Math.hypot(edge.u[a] - edge.u[b], edge.v[a] - edge.v[b]) < step;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1146,6 +1182,7 @@ export function measureNode(
         const thick: number[] = [];
         const offs: number[] = [];
         const offAngles: number[] = [];
+        const corner: boolean[] = [];
         let shiftU = 0;
         let shiftV = 0;
         let shiftCount = 0;
@@ -1182,12 +1219,14 @@ export function measureNode(
             thick.push(distanceTo(fullFillEdge, u, v));
             offs.push(signed(u, v));
             offAngles.push(angles[i]);
+            corner.push(pastCorner(plainEdge, u, v, expectedWidth / 2));
         });
         const offMedian = quantile(offs, 0.5);
         offs.forEach((o, j) => {
             // a mitred corner reaches past the band by design, and corners need not face each other across the
-            // node, so a ray thicker than the band is left out of the centroid
-            if (thick[j] > expectedWidth + widthTol) {
+            // node (a dash gap can take one), so a ray past one of the outline's corners, or thicker than the band,
+            // is left out of the centroid: on a tilted plane the width's tolerance is loose enough to let a mitre in
+            if (corner[j] || thick[j] > expectedWidth + widthTol) {
                 return;
             }
             if (Math.abs(o - offMedian) <= Math.max(edgeTol, expectedWidth * 0.5)) {

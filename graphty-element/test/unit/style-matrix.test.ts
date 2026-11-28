@@ -339,6 +339,29 @@ describe("style combination matrix", () => {
         assert.isTrue(c.get("border-concentric")?.pass, String(c.get("border-concentric")?.measured));
     });
 
+    it("leaves a mitred corner out of the centroid by the outline's corner, not by how thick it reads", () => {
+        // a square seen tilted (60 pixels a unit across, 15 up), its dashed mitred ring 0.45 out: a corner reads 0.64
+        // thick, under the width cutoff the tilt loosens to 0.675, and the ring's gap at 315 degrees leaves three
+        // corners counted with no fourth to balance them
+        const plane: Plane = {
+            m: [60, 0, 100, 0, -15, 100, 0, 0, 1],
+            inverse: [1 / 60, 0, -100 / 60, 0, -1 / 15, 100 / 15, 0, 0, 1],
+        };
+        const square = (x: number, y: number, half: number): boolean =>
+            Math.abs(x / 60) <= half && Math.abs(y / 15) <= half;
+        const full = frame((x, y) => {
+            if (square(x, y, 1)) {
+                return "fill";
+            }
+            const a = (((degrees(x / 60, -y / 15) % 360) + 360) % 360) + 5;
+            const dash = a % 45 < 20 && Math.abs(a - 320) > 12;
+            return square(x, y, 1.45) && dash ? "border" : undefined;
+        });
+        const frames = { plain: frame((x, y) => (square(x, y, 1) ? "fill" : undefined)), plane, reach: 2.2 };
+        const c = measured({ shape: "rectangle", border: "dashed" }, full, frames).get("border-concentric");
+        assert.isTrue(c?.pass, String(c?.measured));
+    });
+
     it("does not count an outer ring an edge hides as missing", () => {
         const full = frame((x, y) => {
             const r = Math.hypot(x, y);

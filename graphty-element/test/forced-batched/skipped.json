@@ -4,6 +4,10 @@
         "reason": "Counts the objects path's world-matrix recomputes, set by hand"
     },
     { "file": "test/interactions/pick-parity.test.ts", "reason": "Sets each case's render path by hand" },
+    {
+        "file": "test/browser/node-outline-follows-shape.test.ts",
+        "reason": "Its nodes have an outline, which no batch draws (effect.outline is not a batchable effect), so they are objects on either path"
+    },
     { "file": "test/browser/drawn-invariants.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/edges-follow-running-layout.test.ts", "reason": "Sets each case's render path by hand" },
     {

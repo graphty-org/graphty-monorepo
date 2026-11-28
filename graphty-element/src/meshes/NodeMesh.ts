@@ -1925,7 +1925,7 @@ export class NodeMesh {
         let seen = "";
         let drawn: Point2[] = [];
         let drawnShift = Number.NaN;
-        let drawnGrow = 1;
+        let drawnBack = 1;
         const observer = scene.onBeforeRenderObservable.add(() => {
             const camera = scene.activeCamera;
             if (camera === null || source.isDisposed()) {
@@ -1958,6 +1958,7 @@ export class NodeMesh {
             const [ux, uy, uz] = unit ?? [1, 1, 1];
             const shift =
                 halo === undefined ? box.minimum.z + depth / uz / 2 : haloDepth(source, seenBy, ahead, depth, halo);
+            let outline: Point2[];
             let back = 1;
             if (perspective) {
                 at.set(0, 0, (ahead * at.length()) / scale.x);
@@ -1967,23 +1968,19 @@ export class NodeMesh {
                 // smaller with it, its width, padding and offset too, so they read true in the node's middle, where the
                 // outline was seen (issue #10505: a plate's padding read off by the ratio of the depths)
                 back = (at.z + shift + ((plate ? -1 : 1) * ahead * depth) / uz / 2) / at.z;
+                outline = this.solidOutline(fill, seenBy, at, groups);
+            } else {
+                outline = this.solidOutline(fill, seenBy, undefined, groups);
             }
-            // a border drawn over the fill is built round the outline on the node's middle plane and then scaled to
-            // its own depth whole, so its width is seen as the border's at the node's distance, as the outline is
-            const onRing = halo === "border" ? 1 : back;
-            const grow = back / onRing;
-            const outline = this.solidOutline(fill, seenBy, perspective ? at : undefined, groups).map(
-                ([x, y]): Point2 => [x * onRing, y * onRing],
-            );
-            if (shift === drawnShift && grow === drawnGrow && sameOutline(outline, drawn)) {
+            if (shift === drawnShift && back === drawnBack && sameOutline(outline, drawn)) {
                 return;
             }
 
             drawn = outline;
             drawnShift = shift;
-            drawnGrow = grow;
+            drawnBack = back;
             const pieces = piecesOf(outline.map(([x, y]): Point2 => [x * ux, y * uy]));
-            placedRing(pieces, depth, [grow / ux, grow / uy, 1 / uz], shift).applyToMesh(mesh, true);
+            placedRing(pieces, depth, [back / ux, back / uy, 1 / uz], shift).applyToMesh(mesh, true);
             mesh.refreshBoundingInfo();
             // A new submesh: a frozen list of what is drawn holds the old one, whose counts overrun these buffers.
             (scene.metadata as GraphSceneMetadata | null)?.thawActiveMeshes?.();

@@ -1,10 +1,8 @@
 /**
- * The selection editor's second repolish (design/ui/studio/tier5/decided.md, "Repolish 2 fixes")
- * on the REAL graphty-element, driven by real clicks and keys: selecting a row moves no row, the
- * pane's first row holds "And..." and "Or...", the title pane's "..." holds Select N, Start
- * with lives in a group's Advanced, a condition is said once, groups read "or", a relative
- * condition is never cut, an exact id is listed first, a filter card's name keeps its verb, and a
- * collapsed filter card opens to its title row.
+ * The selection editor's reference search, filter cards, checklist counts and text box on the REAL
+ * graphty-element, driven by real clicks and keys: an exact id is listed first on a large graph, a
+ * saved Select card reads in its own words and counts what stays, a narrowing step's checklist
+ * counts each value over what comes into the step, and leaving the text box by Tab commits it.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -32,7 +30,7 @@ withFeatures([]);
  */
 async function openWs(): Promise<HTMLElement> {
     if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
     }
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
@@ -85,7 +83,7 @@ async function openLayer(session: GraphSession, name: string, selector: Selector
     const layer = await session.styles.add({ name, target: "node", selector, set: { "node.color": "#d55e00" } });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-editor"));
     });
@@ -215,8 +213,8 @@ describe("keys and boxes in the panes", () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Named", { match: "everything" });
         // A layer of every node opens on its new step's pane: its value field opens the picker.
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
-        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
+        await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(page.getByRole("button", { name: "Value", exact: true }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("name{Enter}");
         await waitFor(() => {

@@ -8,8 +8,8 @@
  * node is never laid out and keeps its position. A live engine with a
  * processor simulation in `@graphty/layout` (`forceatlas2`, `spring`) is stepped; the `force`
  * layout's two engines that have none there (`ngraph`, `d3`) are stepped as ForceAtlas2 with the
- * choice's `seed`; a one-shot engine is computed once. The `geographic` engine reads each node's
- * latitude and longitude attributes (its options, else the designated fields, else `latitude` and
+ * choice's `seed` and Barnes-Hut repulsion, as those engines repel; a one-shot engine is computed
+ * once. The `geographic` engine reads each node's latitude and longitude attributes (its options, else the designated fields, else `latitude` and
  * `longitude`), as it does on a renderer; a node without them goes to the origin. Nothing runs until
  * a verb asks: choosing a layout only records it, as it always has in a session with no renderer.
  *
@@ -373,10 +373,19 @@ export class LayoutRunner implements ArrangementEngine {
         if (type !== undefined) {
             // A null ForceAtlas2 cap is scaled to the graph, as the drawn layout's bridge scales it.
             const capped =
-                type === "forceatlas2" ? { ...options, maxIter: options.maxIter ?? forceAtlas2MaxIterFor(n) } : options;
+                type === "forceatlas2"
+                    ? {
+                          ...options,
+                          maxIter: options.maxIter ?? forceAtlas2MaxIterFor(n),
+                          barnesHutOptimize: options.barnesHut,
+                      }
+                    : options;
             const simulation = createSimulation(
                 type,
-                STAND_INS.has(choice.engine) ? { seed: options.seed as number | undefined, dim } : { ...capped, dim },
+                STAND_INS.has(choice.engine)
+                    ? // Barnes-Hut, as the engines it stands in for are: exact repulsion is every pair per step (#10413).
+                      { seed: options.seed as number | undefined, dim, barnesHutOptimize: true }
+                    : { ...capped, dim },
             );
             simulation.load(graph, view);
             const fixed = makeMask(n);

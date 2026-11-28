@@ -25,7 +25,9 @@
 // A pull request that fixes a red master or a red full run never waits (#9473: the fix for a red full run sat 90
 // minutes behind ordinary pull requests): one from a revert/<sha7> branch, or one whose title, body or commits name
 // an open alarm issue (ALARM_SEARCH, the title search the rounds use, checked against ALARM_TITLE) with Fixes or
-// Refs. A closed or non-alarm issue still waits. It costs at most one commits listing and one issue search.
+// Refs. A closed or non-alarm issue still waits. The title, body and commits are the pull request's current ones
+// (one GraphQL query), never the event payload's, which predates pr-open.sh's final body (#10351); then at most
+// one issue search.
 // Only earlier runs count, so the oldest waiting run always proceeds: no deadlock. A canceled or superseded
 // run is completed and frees its place at once.
 //
@@ -90,20 +92,30 @@ export function namedIssues(text) {
     return new Set([...(text ?? "").matchAll(ISSUE_REF)].map((m) => Number(m[1])));
 }
 
+// the pull request as it is now, in one query: the event payload holds it as it was when the event fired, and
+// tools/pr-open.sh writes the final body (its Refs line) only after the pull request exists (#10351)
+const PR_TEXT = `query($owner: String!, $name: String!, $n: Int!) { repository(owner: $owner, name: $name) {
+    pullRequest(number: $n) { title body commits(last: 100) { nodes { commit { message } } } } } }`;
+
 /**
  * Why this pull request fixes a red master or full run and skips the wait, or null.
- * @param pr the event payload's pull_request ({ number, title, body, head: { ref } })
+ * @param pr the event payload's pull_request ({ number, head: { ref } }; its title and body are read again)
  * @param repo owner/name
- * @param api path -> parsed JSON (a path starting with "/" is under the API root, not the repository)
+ * @param api path, body -> parsed JSON (a path starting with "/" is under the API root, not the repository; a
+ * body means a POST to the GraphQL endpoint)
  * @returns the reason, or null
  */
 export async function redFix(pr, repo, api) {
     if (REVERT_BRANCH.test(pr.head?.ref ?? "")) return `branch ${pr.head.ref} reverts a master commit`;
-    let nums = namedIssues(`${pr.title ?? ""}\n${pr.body ?? ""}`);
-    if (nums.size === 0) {
-        const commits = await api(`pulls/${pr.number}/commits?per_page=100`);
-        nums = namedIssues(commits.map((c) => c.commit?.message ?? "").join("\n"));
-    }
+    const [owner, name] = repo.split("/");
+    const res = await api("graphql", { query: PR_TEXT, variables: { owner, name, n: pr.number } });
+    if (res.errors?.length) throw new Error(`GraphQL: ${res.errors[0].message}`);
+    const now = res.data?.repository?.pullRequest;
+    if (!now) throw new Error(`pull request #${pr.number} not found`);
+    // the commits count even when the body names an issue: a body naming only a non-alarm issue must not hide a
+    // commit's Refs to an alarm
+    const messages = (now.commits?.nodes ?? []).map((c) => c.commit?.message ?? "");
+    const nums = namedIssues([now.title ?? "", now.body ?? "", ...messages].join("\n"));
     if (nums.size === 0) return null;
     const q = encodeURIComponent(`repo:${repo} is:issue is:open ${ALARM_SEARCH}`);
     const found = await api(`/search/issues?q=${q}&per_page=100`);
@@ -247,7 +259,8 @@ export async function check({ me, cap, budget, api }) {
  * @param opts.now the clock, in ms
  * @param opts.log where the progress lines go
  * @param opts.maxWaitSeconds the longest wait, after which the run proceeds
- * @param opts.pr the event payload's pull_request, to let a red fix skip the wait (none: it waits as usual)
+ * @param opts.pr the event payload's pull_request ({ number, head: { ref } }), to let a red fix skip the wait
+ * (none: it waits as usual)
  * @param opts.repo owner/name, for the alarm issue search
  * @returns waitedSeconds, outcome and the number of checks made
  */
@@ -300,18 +313,25 @@ export async function waitTurn({
     }
 }
 
+/**
+ * The run cap's API: GETs under the repository (or the API root for a path starting with "/"), a body POSTs to
+ * GraphQL, each with a 30 s timeout and the MIN_RATE_LEFT floor.
+ * @param repo owner/name
+ * @param base the API root (GITHUB_API_URL)
+ * @param token the token (default GITHUB_TOKEN)
+ * @returns path, body -> parsed JSON
+ */
+export function runCapApi(repo, base, token) {
+    const opts = { base, token, timeoutMs: 30_000, minRateLeft: MIN_RATE_LEFT };
+    return (path, body) => {
+        if (body) return githubRequest("POST", "/graphql", body, opts);
+        return githubRequest("GET", path.startsWith("/") ? path : `/repos/${repo}/${path}`, undefined, opts);
+    };
+}
+
 async function main() {
     const { GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_STEP_SUMMARY, GITHUB_EVENT_PATH } = process.env;
-    const opts = { base: process.env.GITHUB_API_URL, timeoutMs: 30_000, minRateLeft: MIN_RATE_LEFT };
-    const api = (path, body) => {
-        if (body) return githubRequest("POST", "/graphql", body, opts);
-        return githubRequest(
-            "GET",
-            path.startsWith("/") ? path : `/repos/${GITHUB_REPOSITORY}/${path}`,
-            undefined,
-            opts,
-        );
-    };
+    const api = runCapApi(GITHUB_REPOSITORY, process.env.GITHUB_API_URL);
     const cap = parseCap(process.env.CAP);
     const budget = parseBudget(process.env.BUDGET);
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

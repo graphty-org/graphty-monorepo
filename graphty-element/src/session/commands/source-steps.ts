@@ -126,23 +126,79 @@ const ACT_LABELS: Readonly<Record<StepsAct["act"], string>> = {
 };
 
 /**
- * The step's fact.
- * @param command - The command.
- * @returns `data.steps-set` with the edit's kind and the source it names.
+ * How many of `of`'s entries `other` does not hold, matched one for one by content.
+ * @param of - The entries counted.
+ * @param other - The entries they are matched against.
+ * @returns The count.
  */
-function factOf(command: DataStepsSetCommand): CodedFact<HistoryCode> {
-    if (command.as !== undefined) {
-        return command.as.fact;
+function unmatched(of: readonly unknown[], other: readonly unknown[]): number {
+    const left = new Map<string, number>();
+    for (const each of other) {
+        const key = JSON.stringify(each);
+        left.set(key, (left.get(key) ?? 0) + 1);
     }
-    const { edit } = command;
+    let count = 0;
+    for (const each of of) {
+        const key = JSON.stringify(each);
+        const held = left.get(key) ?? 0;
+        if (held === 0) {
+            count++;
+        } else {
+            left.set(key, held - 1);
+        }
+    }
+    return count;
+}
+
+/**
+ * What a draft's commit does to the joins and sources: the joins (steps other than `join.add`)
+ * and sources it adds and takes out, a changed join counting as one of each.
+ * @param edit - The edit.
+ * @returns The counts, each null for an edit that is not a draft's commit.
+ */
+function draftChanges(
+    edit: StepsEdit,
+): Record<"joinsAdded" | "joinsRemoved" | "sourcesAdded" | "sourcesRemoved", number | null> {
+    if (edit.kind !== "set" || edit.draftBase === undefined) {
+        return { joinsAdded: null, joinsRemoved: null, sourcesAdded: null, sourcesRemoved: null };
+    }
+    const before = edit.draftBase.value;
+    const after = edit.value;
+    const joins = (value: SourceSteps): readonly unknown[] => value.steps.filter((step) => step.op !== "join.add");
+    const sources = (value: SourceSteps): readonly string[] => Object.keys(value.sources);
+    return {
+        joinsAdded: unmatched(joins(after), joins(before)),
+        joinsRemoved: unmatched(joins(before), joins(after)),
+        sourcesAdded: unmatched(sources(after), sources(before)),
+        sourcesRemoved: unmatched(sources(before), sources(after)),
+    };
+}
+
+/**
+ * The fact of a `data.steps-set` edit.
+ * @param edit - The edit.
+ * @returns `data.steps-set` with the edit's kind, the source it names, and for a draft's commit
+ *   the joins and sources it adds and takes out.
+ */
+export function stepsSetFact(edit: StepsEdit): CodedFact<HistoryCode> {
     return {
         code: "data.steps-set",
         params: {
             kind: edit.kind === "act" ? edit.act.act : edit.kind,
             source: sourceOfEdit(edit),
             name: edit.kind === "add" ? edit.source.label : null,
+            ...draftChanges(edit),
         },
     };
+}
+
+/**
+ * The step's fact.
+ * @param command - The command.
+ * @returns Its door's fact, else {@link stepsSetFact}.
+ */
+function factOf(command: DataStepsSetCommand): CodedFact<HistoryCode> {
+    return command.as === undefined ? stepsSetFact(command.edit) : command.as.fact;
 }
 
 /**
@@ -283,6 +339,7 @@ function listed(
             state: sourceState(value, src.id),
             ...sameNameOf(value, src),
             named: own?.named ?? 0,
+            endNodes: own?.endNodes ?? 0,
             rowsLeftOut: Object.freeze({ ...own?.leftOut }),
             ...(src.issues === undefined ? {} : { issues: src.issues }),
             ...(join === undefined ? {} : { join, ...(join.onto === null ? {} : { joinedOnto: join.onto }) }),

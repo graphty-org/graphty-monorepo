@@ -86,11 +86,11 @@ async function openScene(): Promise<Scene> {
 async function openStyle(name: string): Promise<HTMLElement> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
     const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escaped}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${escaped}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
-        await userEvent.click(style);
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
     }
     return screen.findByTestId("style-tab");
 }
@@ -127,8 +127,8 @@ describe("the Style tab's property rows", () => {
      * @param item - the property's name in the menu.
      */
     async function add(tab: HTMLElement, section: string, item: string): Promise<void> {
-        await userEvent.click(within(tab).getByRole("button", { name: section }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: section, exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: item, exact: true }));
     }
 
     it("keeps Size's width when it is focused and typed into, and Undo names the removal", async () => {
@@ -140,13 +140,15 @@ describe("the Style tab's property rows", () => {
         });
         const sizeBox = (): string => box(field(tab, "node.size").querySelector(".ws-field-control") ?? tab);
         const rest = sizeBox();
-        const size = within(field(tab, "node.size")).getByRole("spinbutton", { name: "Node size" });
+        const size = page
+            .elementLocator(field(tab, "node.size"))
+            .getByRole("spinbutton", { name: "Node size", exact: true });
         await userEvent.click(size);
         assert.equal(sizeBox(), rest, "focus does not move the field");
         await userEvent.keyboard("3{Enter}");
         assert.equal(sizeBox(), rest, "typed: the same width");
 
-        await userEvent.click(within(tab).getByRole("button", { name: "Remove node size" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Remove node size", exact: true }));
         await waitFor(() => {
             assert.isNull(tab.querySelector('.ws-row[data-line="node.size"]'));
         });
@@ -157,7 +159,7 @@ describe("the Style tab's property rows", () => {
         const { session } = await openScene();
         const tab = await openStyle("Everything");
         field(tab, "node.color");
-        await userEvent.click(within(tab).getByRole("button", { name: "Remove node color" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Remove node color", exact: true }));
         await waitFor(() => {
             assert.isNull(tab.querySelector('.ws-row[data-line="node.color"]'));
         });
@@ -191,7 +193,9 @@ describe("the Style tab's property rows", () => {
             atRest(tab, name);
         }
 
-        await userEvent.click(within(field(tab, "node.size")).getByRole("spinbutton", { name: "Node size" }));
+        await userEvent.click(
+            page.elementLocator(field(tab, "node.size")).getByRole("spinbutton", { name: "Node size", exact: true }),
+        );
         await userEvent.keyboard("=");
         await screen.findByRole("dialog", { name: "Node size by attribute" });
         await userEvent.keyboard("{Escape}");
@@ -294,15 +298,17 @@ describe("the Style tab's property rows", () => {
         await openStyle("Key people");
         const tree = screen.getByRole("tree", { name: "Style layers" });
         const keyRow = within(tree).getByRole("treeitem", { name: /^Key people, / });
-        await userEvent.hover(keyRow);
-        await userEvent.click(within(keyRow).getByRole("button", { name: "Lock Key people" }));
+        await userEvent.hover(page.elementLocator(tree).getByRole("treeitem", { name: /^Key people, / }));
+        await userEvent.click(
+            page.elementLocator(keyRow).getByRole("button", { name: "Lock Key people", exact: true }),
+        );
         await screen.findByText("This layer is locked");
         const before = JSON.stringify(session.styles.list());
 
         // A click on a locked control is stopped before it can focus anything, so the walk starts
         // from the inspector's Style tab, just before the panel.
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
-        await userEvent.click(within(inspector).getByRole("tab", { name: "Style" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Style", exact: true }));
         let reached: HTMLElement | null = null;
         for (let i = 0; i < 4 && reached === null; i++) {
             await userEvent.keyboard("{Tab}");

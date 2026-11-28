@@ -80,7 +80,7 @@ export interface DataChoices {
 }
 
 /** The node table as CSV; every other row starts on its options' own defaults. */
-export const DEFAULT_DATA: DataChoices = { format: "csv", variant: "csv", values: { table: "nodes" }, scope: "all" };
+const DEFAULT_DATA: DataChoices = { format: "csv", variant: "csv", values: { table: "nodes" }, scope: "all" };
 
 /**
  * The element's export scope for a scope choice.
@@ -475,7 +475,7 @@ export interface TourVideoChoices {
     readonly fps: 30 | 60;
 }
 
-export const DEFAULT_TOUR_VIDEO: TourVideoChoices = { camera: "tour", tour: null, view: null, seconds: 5, fps: 30 };
+const DEFAULT_TOUR_VIDEO: TourVideoChoices = { camera: "tour", tour: null, view: null, seconds: 5, fps: 30 };
 
 /**
  * The options for one recording. A tour is named and its length is the element's plan of it, each
@@ -572,4 +572,27 @@ export const DEFAULT_REPORT: ReportChoices = {
     sections: REPORT_SECTIONS.map((section) => section.id),
     summary: "",
     findings: "",
+};
+
+/** What the Export dialog holds: the output shown, each output's choices and the files exported so far. */
+export interface ExportDraft {
+    readonly output: OutputId;
+    readonly cameraImage: CameraImageChoices;
+    readonly tourVideo: TourVideoChoices;
+    readonly data: DataChoices;
+    readonly report: ReportChoices;
+    readonly recent: readonly RecentExport[];
+    /** The opening (what Export... was opened on) the dialog was last set up for; null once it closes. */
+    readonly opening: string | null;
+}
+
+/** The Export dialog before the reader changes anything: Image, and each output's defaults. */
+export const EXPORT_START: ExportDraft = {
+    output: "image",
+    cameraImage: DEFAULT_CAMERA_IMAGE,
+    tourVideo: DEFAULT_TOUR_VIDEO,
+    data: DEFAULT_DATA,
+    report: DEFAULT_REPORT,
+    recent: [],
+    opening: null,
 };

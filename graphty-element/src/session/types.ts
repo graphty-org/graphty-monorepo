@@ -3745,6 +3745,14 @@ export interface LoadedSource extends DataSourceDescriptor {
      */
     readonly named?: number;
     /**
+     * How many of `counts.nodes` no source's rows hold: nodes it supplied only as an edge end,
+     * such as the node a join adds for a row naming one no file holds (`unmatched: "add"`).
+     * `counts.nodes` minus this is how many it supplied by its rows. Present only under the
+     * source-steps experiment.
+     * @experimental source-steps
+     */
+    readonly endNodes?: number;
+    /**
      * Its rows the build left out, by reason. `"left-out:repeated-key"` counts node rows whose key
      * an earlier row of the source gave: the node keeps the first row's values. Present only under
      * the source-steps experiment.
@@ -6989,10 +6997,13 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      *     draft adds keeps its place through `show` and later acts, and the commit draws it from
      *     there. The hold ends with After; the reader's own layout scope is untouched. Default false:
      *     the layout runs over the whole of After, as over any graph.
+     * @param options.keepCamera - True leaves the camera where it is while the draft is drawn, so what
+     *     the draft adds appears in the view the reader already has. Default false: the element frames
+     *     the graph again when After adds nodes, as it does for any add.
      * @returns Settles once the graph draws it.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `draft-closed`) once the draft is closed.
      */
-    display(on: boolean, options?: { readonly hold?: boolean }): Promise<void>;
+    display(on: boolean, options?: { readonly hold?: boolean; readonly keepCamera?: boolean }): Promise<void>;
     /**
      * Choose which side of the commit a displayed draft draws. `"before"` draws the graph as it is,
      * where `graphty.draft` reads `"removed"` on what the commit would remove. `"after"` draws the
@@ -8128,10 +8139,9 @@ export interface SessionEventMap {
      * what the gesture did: `"orbit"` turned the view, `"pan"` moved it sideways, `"zoom"` moved
      * it nearer or farther (a wheel, a pinch, the zoom keys).
      *
-     * A gesture's end is defined by the input, never by a timer: a drag or a pinch ends at the
-     * pointer up that ends it; a run of wheel events ends at the first frame in which the camera
-     * comes to rest with no new wheel event since the frame before (wheel events dispatched in one
-     * task are always one gesture); a key gesture ends once the last camera key held is released
+     * A gesture's end is defined by the input: a drag or a pinch ends at the pointer up that ends
+     * it; a run of wheel events ends once the wheel has rested for half a second (a burst of wheel
+     * events is one gesture however the browser spreads it over frames); a key gesture ends once the last camera key held is released
      * and the camera's own inertia has come to rest, and a key pressed before then continues it.
      * Moves the element makes itself (a fit, a glide, `camera.autoRotate`) and calls such as
      * `setCameraState` publish nothing.
@@ -8377,7 +8387,7 @@ export type PendingId = string & {
  * | `groups.collapse`, `groups.expand` | `groupBy`: the path grouped by; `group`: the group's value; `size`: how many members (experimental) |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
  * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
- * | `data.steps-set` | `kind`: the edit (`set`, `add`, `reader`, `remove-edit`, `remove-source`, `declare-type`) or the act (`merge`, `connect`, `extract`, `move-columns`, `rename`, `pick`, `remove-step`, `add-staged`); `source`: the source it names, else null; `name`: the name of the source an `add` adds, else null (experimental) |
+ * | `data.steps-set` | `kind`: the edit (`set`, `add`, `reader`, `remove-edit`, `remove-source`, `declare-type`) or the act (`merge`, `connect`, `extract`, `move-columns`, `rename`, `pick`, `remove-step`, `add-staged`); `source`: the source it names, else null; `name`: the name of the source an `add` adds, else null; `joinsAdded`, `joinsRemoved`, `sourcesAdded`, `sourcesRemoved`: for a draft's commit (`set`), how many joins (steps other than `join.add`) and sources it adds and takes out, a changed join counting as one of each, else null (experimental) |
  * | `data.expand` | `node`: the id expanded |
  * | `data.source-expand` | `seeds`: the ids expanded; `nodes`, `edges`: how many rows came (experimental) |
  * | `data.collapse` | `node`: the id collapsed; `nodes`: how many nodes went (experimental) |

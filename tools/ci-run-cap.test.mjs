@@ -2,6 +2,7 @@
 // GET actions/workflows/<file>/runs and GET actions/runs/<id>/jobs, recorded 2026-10-26, trimmed).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { test } from "node:test";
 
 import {
@@ -16,6 +17,7 @@ import {
     POLL_SECONDS,
     RELEASE_SHARE,
     RUN_JOBS_ESTIMATE,
+    runCapApi,
     waitTurn,
 } from "./ci-run-cap.mjs";
 
@@ -376,7 +378,8 @@ test("a pull request that fixes an open red-master or full-run alarm skips the w
         { number: 9300, state: "open", title: "Red masterpiece in the docs" },
         { number: 9465, state: "open", title: "Full run red: x", pull_request: {} },
     ];
-    const withSearch = (commits = []) => {
+    // the pull request as it is now (title, body, commits), answered by the one GraphQL query redFix makes
+    const withSearch = (now = {}) => {
         const f = fake({ ci });
         const inner = f.api;
         f.api = async (path, body) => {
@@ -386,41 +389,111 @@ test("a pull request that fixes an open red-master or full-run alarm skips the w
                 assert.match(q, /repo:o\/r is:issue is:open "Full run red" OR "Failing on master" OR "Red master"/);
                 return { items: issues };
             }
-            if (path.startsWith("pulls/7/commits")) {
-                f.calls.push(path);
-                return commits.map((message) => ({ commit: { message } }));
+            if (path === "graphql" && body.variables.n !== undefined) {
+                f.calls.push("pr-text");
+                assert.deepEqual(body.variables, { owner: "o", name: "r", n: 7 });
+                const nodes = (now.commits ?? []).map((message) => ({ commit: { message } }));
+                const pullRequest = { title: now.title ?? "fix: curve", body: now.body ?? "", commits: { nodes } };
+                return { data: { repository: { pullRequest } } };
             }
             return inner(path, body);
         };
         return f;
     };
-    const pr = (body, ref = "fix/9456-curve") => ({ number: 7, title: "fix: curve", body, head: { ref } });
-    const outcome = async (p, commits) =>
-        (await waitTurn({ cap: 1, runId: ME.id, repo: "o/r", pr: p, ...withSearch(commits) })).outcome;
+    // the event payload: the body it fired with is stale, so redFix reads the current one
+    const pr = (ref = "fix/9456-curve") => ({ number: 7, title: "fix: curve", body: "", head: { ref } });
+    const outcome = async (body, commits, ref) =>
+        (await waitTurn({ cap: 1, runId: ME.id, repo: "o/r", pr: pr(ref), ...withSearch({ body, commits }) })).outcome;
 
-    assert.equal(await outcome(pr("Fixes #9456")), "red fix");
-    assert.equal(await outcome(pr("Refs #9100")), "red fix");
-    assert.equal(await outcome(pr("No issue"), ["fix: curve\n\nFixes #9200"]), "red fix");
-    assert.equal(await outcome(pr("", "revert/1a2b3c4")), "red fix");
+    assert.equal(await outcome("Fixes #9456"), "red fix");
+    assert.equal(await outcome("Refs #9100"), "red fix");
+    assert.equal(await outcome("No issue", ["fix: curve\n\nFixes #9200"]), "red fix");
+    assert.equal(await outcome("", [], "revert/1a2b3c4"), "red fix");
     // a closed alarm is not in the open search, and a non-alarm issue or a pull request still waits
     for (const body of ["Fixes #9999", "Fixes #9300", "Refs #9465", "mentions #9456 only"])
-        assert.equal(await outcome(pr(body)), "wait limit", body);
-    assert.equal(await outcome(pr("", "revert/not-a-sha")), "wait limit");
+        assert.equal(await outcome(body), "wait limit", body);
+    assert.equal(await outcome("", [], "revert/not-a-sha"), "wait limit");
     // a search that fails waits as usual, never jumps the queue
-    const f = withSearch();
+    const f = withSearch({ body: "Fixes #9456" });
     const api = f.api;
     f.api = async (path, body) => {
         if (path.startsWith("/search/")) throw new Error("GET search: HTTP 403");
         return api(path, body);
     };
-    assert.equal(
-        (await waitTurn({ cap: 1, runId: ME.id, repo: "o/r", pr: pr("Fixes #9456"), ...f })).outcome,
-        "wait limit",
-    );
+    assert.equal((await waitTurn({ cap: 1, runId: ME.id, repo: "o/r", pr: pr(), ...f })).outcome, "wait limit");
     // no event payload: no extra calls
     const plain = withSearch();
     await waitTurn({ cap: 1, runId: ME.id, ...plain, maxWaitSeconds: 0 });
-    assert.ok(!plain.calls.some((c) => c.startsWith("/search") || c.startsWith("pulls/")));
+    assert.ok(!plain.calls.some((c) => c.startsWith("/search") || c === "pr-text"));
+});
+
+// #10351: the event payload is the pull request as it was when the event fired, and pr-open.sh writes the final
+// body (with its Refs line) only after the pull request exists
+test("a red fix is judged by the pull request's current body and every commit, never the event payload", async () => {
+    const ci = [run(40268423000, "2026-10-26T04:00:00Z", "in_progress"), ME];
+    const alarm = { number: 10340, state: "open", title: "Full run red: CI / Test (graph-io) fails x.test.ts" };
+    const other = { number: 10305, state: "open", title: "Some ordinary bug" };
+    const judge = async (now, payloadBody = "") => {
+        const f = fake({ ci });
+        const inner = f.api;
+        f.api = async (path, body) => {
+            if (path.startsWith("/search/issues?")) {
+                f.calls.push("search");
+                return { items: [alarm, other] };
+            }
+            if (path === "graphql" && body.variables.n !== undefined) {
+                f.calls.push("pr-text");
+                const nodes = (now.commits ?? []).map((message) => ({ commit: { message } }));
+                return {
+                    data: { repository: { pullRequest: { title: "fix: x", body: now.body, commits: { nodes } } } },
+                };
+            }
+            if (path.startsWith("pulls/")) throw new Error(`unexpected ${path}`);
+            return inner(path, body);
+        };
+        const pr = { number: 7, title: "fix: x", body: payloadBody, head: { ref: "fix/10340-x" } };
+        const r = await waitTurn({ cap: 1, runId: ME.id, repo: "o/r", pr, ...f });
+        return { outcome: r.outcome, calls: f.calls.filter((c) => c === "pr-text" || c === "search").length };
+    };
+    // the body was updated after the event: the payload had no Refs line, the pull request now has one
+    assert.deepEqual(await judge({ body: "Refs #10340" }, "draft"), { outcome: "red fix", calls: 2 });
+    // a commit names the red issue while the body names only an ordinary one
+    assert.equal((await judge({ body: "Fixes #10305", commits: ["fix: x\n\nRefs #10340"] })).outcome, "red fix");
+    // a pull request that fixes nothing red stays capped, even when its stale payload named the alarm
+    const plain = await judge({ body: "Fixes #10305", commits: ["fix: x\n\nFixes #10305"] }, "Refs #10340");
+    assert.equal(plain.outcome, "wait limit");
+});
+
+// #10481: the search API's own bucket reports at most 30 left, which the MIN_RATE_LEFT floor (for the hourly core
+// bucket) once read as "the token is nearly out", so every red fix waited the full MAX_WAIT_MINUTES
+test("a red fix skips the wait when the search response reports 30 left", async () => {
+    const alarm = { number: 10477, state: "open", title: "Red master: CI failed on b02a405" };
+    const server = createServer((req, res) => {
+        const search = req.url.startsWith("/search/issues?");
+        const headers = { "content-type": "application/json", "x-ratelimit-remaining": search ? "30" : "4000" };
+        headers["x-ratelimit-resource"] = search ? "search" : "graphql";
+        const pullRequest = { title: "fix: x", body: "Fixes #10477", commits: { nodes: [] } };
+        const answer = search ? { items: [alarm] } : { data: { repository: { pullRequest } } };
+        res.writeHead(200, headers).end(JSON.stringify(answer));
+    });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    try {
+        const api = runCapApi("o/r", `http://127.0.0.1:${server.address().port}`, "t");
+        const pr = { number: 7, head: { ref: "fix/10477-x" } };
+        const lines = [];
+        const r = await waitTurn({
+            cap: 1,
+            runId: ME.id,
+            api,
+            pr,
+            repo: "o/r",
+            sleep: async () => {},
+            log: (l) => lines.push(l),
+        });
+        assert.equal(r.outcome, "red fix", lines.join("\n"));
+    } finally {
+        server.close();
+    }
 });
 
 test("namedIssues reads Fixes, Closes, Resolves and Refs, and not a bare mention", () => {

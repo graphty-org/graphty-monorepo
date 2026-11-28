@@ -21,6 +21,17 @@ import { PerSceneMaterials } from "./PerSceneMaterials";
 const ARC_SEGMENTS = 32;
 /** How thick the open box's frame is: the open dot's ring (its radius 0.5 inset 22.5%). */
 const OPEN_FRAME = 0.5 * 0.225;
+
+/** How thick the hollow vee's frame is, in its own lengths (yEd's pen of 1 round a standard head 15 long). */
+const HOLLOW_VEE_FRAME = 1 / 15;
+
+/** The vee's outline (`createVee`): its tip, a back corner, its notch half the cap back from the tip, the other corner. */
+const VEE_OUTLINE: readonly (readonly [number, number])[] = [
+    [0, 0],
+    [-1, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+    [-0.5, 0],
+    [-1, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+];
 /**
  * How long along its line the half barb's stroke is, as a share of the cap: Cytoscape 3.10.5's HALF_TOP glyph is a strip
  * 0.135 of its 1.135 long (ding SVG export `M -0.3 0.1 L -1.3 1.1 L -1.435 1.1 L -0.535 0.2`).
@@ -1160,6 +1171,8 @@ void main() {
      * - "kite": widest a fifth of its length from its back, its back a point on the line (yEd Live's kite).
      * - "deltoid": wider than it is long, its sides bowed in and its back notched (yEd Live's deltoid).
      * - "open-vee": two half barbs meeting at the tip, nothing between them (yEd's plain, concave and convex).
+     * - "hollow-vee": the vee's outline, its notch and all, its inside empty (yEd's standard head on a framed edge with
+     *   no fill color).
      * - "slash": one stroke an eighth of the cap thick, corner to corner of a square as long as the cap (yEd's
      *   skewed_dash, 8 x 8).
      * - "stem": a piece of the line, as long as the cap. EdgeMesh sets how wide from the line's width.
@@ -1290,6 +1303,9 @@ void main() {
         // CROSS_OPEN_DELTA: the same outlined, its 0.25 stroke a twelfth of its length; the bar it strokes is solid
         "open-cross-delta": () => [...frame(CROSS_DELTA.delta, 1 / 12), rect(-1, -5 / 6, 0.25)],
         // the inverted triangle (base across the tip, point back along the line) as a frame as thick as open-box's
+        // the vee's outline as a frame as thick as yEd's 1 px pen on its 15 px head: open-inverted's frame would not fit
+        // inside the vee's narrow arms, and its insets would cross and cover the whole vee
+        "hollow-vee": () => frame(VEE_OUTLINE, HOLLOW_VEE_FRAME),
         "open-inverted": () =>
             frame(
                 [
@@ -1327,6 +1343,7 @@ void main() {
      * - "open-dot": the dot's ring, centered on the origin (odot).
      * - "open-inverted": the inverted triangle's outline, its base across the tip (oinv).
      * - "open-box": the box's outline (obox, Cytoscape's OPEN_SQUARE).
+     * - "hollow-vee": the vee's outline, its notch and all.
      *
      * Unset, an open cap keeps its own thin frame (`createOpenNormal` and the rest); set, {@link createOpenOutline}
      * frames the outline at that thickness, as Graphviz and Cytoscape.js stroke an open arrow with the edge's own pen.
@@ -1350,6 +1367,7 @@ void main() {
             [-1, 0],
         ],
         "open-box": rect(-1, 0, 0.5),
+        "hollow-vee": VEE_OUTLINE,
     };
 
     /**

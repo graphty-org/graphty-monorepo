@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -78,13 +78,13 @@ describe("counts that say only what a layer paints", () => {
         assert.equal(row.getAttribute("aria-label"), "Painted, node layer, 4 nodes");
 
         // Its Values tab lists the nodes it matches, not the edges.
-        await userEvent.click(row);
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.elementLocator(tree()).getByRole("treeitem", { name: /^Painted, / }));
+        await userEvent.click(page.getByRole("tab", { name: "Values", exact: true }));
         await screen.findByText("Matched nodes");
         assert.isNull(screen.queryByText("Matched edges"));
 
         // Select what it paints: its four nodes, no edge, and focus on the inspector's title.
-        await userEvent.click(screen.getByRole("button", { name: "Select what it paints" }));
+        await userEvent.click(page.getByRole("button", { name: "Select what it paints", exact: true }));
         await waitFor(() => {
             assert.lengthOf(session.selection.nodes, 4);
             assert.lengthOf(session.selection.edges, 0);
@@ -92,8 +92,8 @@ describe("counts that say only what a layer paints", () => {
         });
 
         // A row that matches nothing selects nothing, says so, and keeps the selection.
-        await userEvent.click(within(tree()).getByRole("treeitem", { name: /^Nobody, / }));
-        await userEvent.click(await screen.findByRole("button", { name: "Select what it paints" }));
+        await userEvent.click(page.elementLocator(tree()).getByRole("treeitem", { name: /^Nobody, / }));
+        await userEvent.click(page.getByRole("button", { name: "Select what it paints", exact: true }));
         // The notice is short (graph-place/commands.ts).
         await screen.findAllByText("Nobody: nothing painted");
         assert.lengthOf(session.selection.nodes, 4);
@@ -104,10 +104,10 @@ describe("counts that say only what a layer paints", () => {
         await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
         await session.styles.settled();
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
-        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Louvain");
-        await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
-        await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
+        await userEvent.click(page.elementLocator(toolbar).getByRole("button", { name: "Analyze", exact: true }));
+        await userEvent.type(page.getByRole("combobox", { name: "Filter analyses", exact: true }), "Louvain");
+        await userEvent.click(page.getByRole("option", { name: /^Louvain/ }));
+        await userEvent.click(page.getByRole("button", { name: /^Run\b/ }));
         await waitFor(() => {
             assert.equal(session.runs.list().find((r) => r.algorithm === "louvain")?.status, "succeeded");
         });
@@ -124,8 +124,8 @@ describe("counts that say only what a layer paints", () => {
         const all = session.data.nodes().length;
         const top = groups.at(-1)?.name ?? "";
 
-        const folder = await within(tree()).findByRole("treeitem", { name: /^Louvain, folder, / });
-        await userEvent.click(folder);
+        const folder = (): Locator => page.elementLocator(tree()).getByRole("treeitem", { name: /^Louvain, folder, / });
+        await userEvent.click(folder());
         await userEvent.keyboard("{ArrowRight}");
         await waitFor(() => {
             const topRow = within(tree()).getByRole("treeitem", { name: new RegExp(`^${top}, `) });
@@ -138,7 +138,7 @@ describe("counts that say only what a layer paints", () => {
         });
 
         // The folder's Color pill names the one color the drawing shows.
-        await userEvent.click(folder);
+        await userEvent.click(folder());
         await waitFor(() => {
             const pill = document.querySelector(
                 '[data-testid="style-tab"] .ws-row[data-line="node.color"] .ws-varied button',

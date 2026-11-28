@@ -904,6 +904,8 @@ export class RenderManager implements Manager {
         smooth: 0,
         /** Ticks that drew nothing because a running GPU layout had landed no new positions since the last frame. */
         awaitedLanding: 0,
+        /** Frames drawn outside the loop, at once, for a resize (`drawNow`); counted in `drawn` too. */
+        drawnNow: 0,
     };
     /** Whether the tick {@link RenderManager.mayRest} last let rest rests on a final picture. */
     private restsFinal = false;
@@ -1160,10 +1162,6 @@ export class RenderManager implements Manager {
 
         // Initialize camera manager
         this.camera = new CameraManager(this.scene);
-        // A wheel run ends at a frame of its own, which a loop drawing on demand would not draw.
-        this.camera.requestFrame = () => {
-            this.requestFrame();
-        };
 
         // Store camera manager in scene metadata for access by other components
         this.scene.metadata ??= {};
@@ -1645,6 +1643,7 @@ export class RenderManager implements Manager {
         this.skippedMs += this.engine.getDeltaTime();
         // A frame between two of the loop's: the frame guard does not measure the loop's next one.
         this.lastDrawAt = Number.NaN;
+        this.ticks.drawnNow++;
         try {
             this.drawFrame(performance.now());
         } catch (error) {
@@ -2514,7 +2513,7 @@ export class RenderManager implements Manager {
         this.camera.registerCamera("orbit", orbitCamera, orbitInput);
 
         const twoDCamera = new TwoDCameraController(this.scene, this.engine, this.canvas, {
-            panAcceleration: 0.02,
+            panAcceleration: 0.004,
             panDamping: 0.85,
             zoomFactorPerFrame: 0.02,
             zoomDamping: 0.85,
@@ -2534,7 +2533,7 @@ export class RenderManager implements Manager {
             inertiaEnabled: true,
         });
         const twoDInput = new InputController(twoDCamera, this.canvas, {
-            panAcceleration: 0.02,
+            panAcceleration: 0.004,
             panDamping: 0.85,
             zoomFactorPerFrame: 0.02,
             zoomDamping: 0.85,

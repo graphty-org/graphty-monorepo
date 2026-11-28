@@ -13,7 +13,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -68,15 +68,15 @@ describe("a layer's Fill after an Or group is added to its Which nodes", () => {
         });
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Busy, / }));
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Busy, / }));
+        await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
         const ws = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found, "the workspace is open");
             return found;
         });
         // "+ Card" adds an Or group: a new card.
-        await userEvent.click(await within(ws).findByRole("button", { name: "Card" }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "Card", exact: true }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Largest component");
         await userEvent.keyboard("{Enter}");
@@ -84,7 +84,7 @@ describe("a layer's Fill after an Or group is added to its Which nodes", () => {
             const where = session.styles.get(layer.id)?.selector;
             assert.lengthOf(where?.match === "rule" && where.where.kind === "union" ? where.where.branches : [], 2);
         });
-        await userEvent.click(within(ws).getByRole("button", { name: "Done" }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "Done", exact: true }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"), "the workspace closed");
         });

@@ -6,7 +6,7 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession, LegendBlock, ProgressChange, RunPainting } from "@graphty/graphty-element/session";
 import { assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, within } from "../../../test/test-utils";
 import { type Command, createRegistry, defineRegistration } from "../../commands/registry";
@@ -236,7 +236,7 @@ describe("the canvas's state cards", () => {
         renderOver(standIn({ nodeCount: 0 }).session, {}, [command]);
         const button = screen.getByRole("button", { name: "Samples..." });
         assert.notEqual(button.getAttribute("aria-disabled"), "true");
-        await userEvent.click(button);
+        await userEvent.click(page.getByRole("button", { name: "Samples...", exact: true }));
         assert.equal(vi.mocked(command.run).mock.calls.length, 1);
     });
 
@@ -246,9 +246,9 @@ describe("the canvas's state cards", () => {
         const button = screen.getByRole("button", { name: "Samples..." });
         assert.equal(button.getAttribute("aria-disabled"), "true");
         // force: a reader can still press a disabled control, and it must do nothing
-        await userEvent.click(button, { force: true });
+        await userEvent.click(page.getByRole("button", { name: "Samples...", exact: true }), { force: true });
         assert.equal(vi.mocked(command.run).mock.calls.length, 0);
-        await userEvent.hover(button);
+        await userEvent.hover(page.getByRole("button", { name: "Samples...", exact: true }));
         assert.isNotNull(await screen.findByText("Close the dialog first"));
     });
 });

@@ -37,6 +37,7 @@ import {
     classify,
     CONCAVE,
     type Expectations,
+    fillMeshReach,
     type Frame,
     hex,
     isFlat,
@@ -266,23 +267,24 @@ function meshChecks(settings: Settings, id: string, measure: Measure, sizeFactor
         0.5 / pixelsPerUnit(plane).min,
     );
     const checks: Check[] = [];
-    // every ring is measured from the drawn fill mesh, which an inside or centered border insets
+    // every ring is measured from the drawn fill mesh, which an inside or centered border insets but on a solid in
+    // 3D, whose ring is drawn over its plain fill's edge
     const width =
         settings.border === "none" || settings.border === "screen" ? 0 : AMOUNTS.borderWidth * PER_SIZE * sizeFactor;
-    const inset = width - borderEdgeWorld(settings, sizeFactor);
+    const { inset, border } = fillMeshReach(settings, sizeFactor, !measure.flat && view === "3d");
     // a dashed ring's hull is the hull of its dashes, so it is not read
     if (node.border !== null && width > 0 && settings.border !== "dashed") {
         const ring = hullOf(node.border, measure);
         if (ring.length > 0) {
             if (!CONCAVE.has(settings.shape)) {
-                checks.push(...meshRingChecks(fill, ring, width, tol, symmetric, "border"));
+                checks.push(...meshRingChecks(fill, ring, border, tol, symmetric, "border"));
             }
         }
     }
     if (node.outerBorder !== null && settings.border !== "screen") {
         const ring = hullOf(node.outerBorder, measure);
         const reach =
-            width + ((settings.outer === "gap" ? AMOUNTS.outerGap : 0) + AMOUNTS.outerWidth) * PER_SIZE * sizeFactor;
+            border + ((settings.outer === "gap" ? AMOUNTS.outerGap : 0) + AMOUNTS.outerWidth) * PER_SIZE * sizeFactor;
         if (ring.length > 0 && !CONCAVE.has(settings.shape)) {
             checks.push(...meshRingChecks(fill, ring, reach, tol, symmetric, "outer-border"));
         }

@@ -8,12 +8,14 @@ import { assert, describe, it } from "vitest";
 
 import {
     allCases,
+    AMOUNTS,
     BACKGROUND,
     CLASS_DISTANCE,
     type Classes,
     classify,
     CONDITION_FACTORS,
     covering,
+    fillMeshReach,
     inradius,
     measureNode,
     meshRingChecks,
@@ -25,6 +27,7 @@ import {
     PALETTE,
     type Part,
     partIndex,
+    PER_SIZE,
     type Plane,
     RING_FACTORS,
     type Run,
@@ -235,6 +238,19 @@ describe("style combination matrix", () => {
         }
         assert.isFalse(checksOn(gap).get("border-touches-fill"));
     });
+    it("expects a 3D solid's ring on its plain fill mesh, and a drawn-in fill's ring its whole width past it", () => {
+        const width = AMOUNTS.borderWidth * PER_SIZE;
+        const of = (border: string, drawnOver: boolean): { inset: number; border: number } =>
+            fillMeshReach({ ...SETTINGS, border }, 1, drawnOver);
+        // a flat shape, or a solid in 2D: the fill is drawn in, so the ring ends its whole width past it
+        assert.deepEqual(of("inside", false), { inset: width, border: width });
+        assert.deepEqual(of("center", false), { inset: width / 2, border: width });
+        // a solid in 3D keeps its plain size, the ring drawn over its edge: on its outline, or half past it
+        assert.deepEqual(of("inside", true), { inset: 0, border: 0 });
+        assert.deepEqual(of("center", true), { inset: 0, border: width / 2 });
+        assert.deepEqual(of("outside", true), { inset: 0, border: width });
+    });
+
     it("passes a ring mesh its promised distance out and centered, and fails one moved off center", () => {
         const square = (half: number, dx = 0): P2[] => [
             [-half + dx, -half],

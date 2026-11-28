@@ -2205,3 +2205,26 @@ export function borderEdgeWorld(settings: Settings, sizeFactor: number): number 
     }
     return AMOUNTS.borderWidth * PER_SIZE * sizeFactor * outerEdgeFraction(settings.border);
 }
+
+/**
+ * How far a node's fill mesh is drawn in from its plain outline, and how far its border mesh's outer edge lies past
+ * the fill mesh's outline, in world units. A flat shape, or a solid in 2D, draws its fill in by the border's inset
+ * (its width inside the outline, half of it centered), so the ring ends its whole width past the fill. A solid in 3D
+ * keeps its plain size and its ring is drawn over its edge, so the fill mesh is the plain outline and the ring ends on
+ * it (inside) or half its width past it (centered).
+ * @param settings - The case's settings.
+ * @param sizeFactor - The node's view scale.
+ * @param drawnOver - Whether the node is a solid seen in 3D.
+ * @returns The inset, and the border's reach past the fill mesh.
+ */
+export function fillMeshReach(
+    settings: Settings,
+    sizeFactor: number,
+    drawnOver: boolean,
+): { inset: number; border: number } {
+    const width =
+        settings.border === "none" || settings.border === "screen" ? 0 : AMOUNTS.borderWidth * PER_SIZE * sizeFactor;
+    const edge = borderEdgeWorld(settings, sizeFactor);
+    const inset = drawnOver ? 0 : width - edge;
+    return { inset, border: inset + edge };
+}

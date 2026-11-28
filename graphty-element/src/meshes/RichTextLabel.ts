@@ -1,4 +1,5 @@
 import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import type { ICanvas } from "@babylonjs/core/Engines/ICanvas.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
@@ -21,6 +22,7 @@ import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { addGradientStops, gradientOffsets } from "./edgeGradient";
 import { FrameRoster } from "./FrameRoster";
 import { type GlyphLabelEntry, GlyphLabels, recordRuns } from "./GlyphLabels";
+import { LabelAtlas } from "./LabelAtlas";
 import {
     buildMaterial,
     deferLabelRelease,
@@ -621,6 +623,9 @@ export class RichTextLabel {
 
     /** Set while the label is made: its texture is drawn but not uploaded until its size on screen is known. */
     private uploadHeld = false;
+
+    /** Whether the scene's label atlas draws the label, its plane drawing nothing; see {@link drawInAtlas}. */
+    private inAtlas = false;
 
     /**
      * Draw every label of a scene with as many texture pixels as a capture of `scale` output pixels per
@@ -1677,6 +1682,7 @@ export class RichTextLabel {
         canvas.getContext("2d", { willReadFrequently: true });
         const texture = new LabelTexture(`richTextTexture_${this.id}`, canvas, this.scene);
         this.texture = texture;
+        texture.sink = (shown) => this.drawInAtlas(texture, shown);
 
         // Nothing uses the texture yet; see LabelBatch (issue #2762).
         giveAlphaQuietly(this.scene, texture);
@@ -1685,6 +1691,62 @@ export class RichTextLabel {
         this.uploadAt(texture, this.captureScale === 1 ? this.screenTexelsPerEm : null);
 
         this._drawContent();
+    }
+
+    /**
+     * Draw the label from the scene's label atlas, in one draw with every other such label, when its
+     * texture is shrunk for its size on screen and nothing about it needs a material of its own: it
+     * is not animated or depth-faded, not drawn on top, and faces the camera (issue #10230). Any
+     * other label draws its own plane, as before.
+     * @param texture - The label's texture.
+     * @param shown - What the texture would upload.
+     * @returns True when the atlas took the upload.
+     */
+    private drawInAtlas(texture: LabelTexture, shown: ICanvas): boolean {
+        const { mesh, options } = this;
+        const drawable =
+            mesh !== null &&
+            texture === this.texture &&
+            texture.shrunk &&
+            texture.samplingMode === Texture.BILINEAR_SAMPLINGMODE &&
+            options.animation === "none" &&
+            !options.depthFadeEnabled &&
+            options.onTop !== true &&
+            (mesh.billboardMode === Mesh.BILLBOARDMODE_ALL ||
+                mesh.billboardMode === (Mesh.BILLBOARDMODE_X | Mesh.BILLBOARDMODE_Y));
+        const atlas = drawable ? LabelAtlas.of(this.scene) : null;
+        if (mesh !== null && atlas?.put(mesh, shown) === true) {
+            // The plane places, declutters and picks the label, and draws nothing: the atlas does.
+            if (!this.inAtlas) {
+                mesh.layerMask = 0;
+                this.inAtlas = true;
+                this.thawDrawList();
+            }
+            return true;
+        }
+        this.leaveAtlas();
+        return false;
+    }
+
+    /** Draw the label's own plane again, if the atlas drew it. */
+    private leaveAtlas(): void {
+        if (!this.inAtlas) {
+            return;
+        }
+        this.inAtlas = false;
+        if (this.mesh !== null) {
+            LabelAtlas.remove(this.scene, this.mesh);
+            this.mesh.layerMask = DEFAULT_LAYER_MASK;
+            this.thawDrawList();
+        }
+    }
+
+    /**
+     * A frozen list of what is drawn was chosen with the plane's old layer mask: a plane that left the atlas (for a
+     * capture) is not in it and would draw nothing, and one that joined it would still be drawn.
+     */
+    private thawDrawList(): void {
+        (this.scene.metadata as GraphSceneMetadata | null)?.thawActiveMeshes?.();
     }
 
     /**
@@ -3043,6 +3105,7 @@ export class RichTextLabel {
             GlyphLabels.remove(this.scene, this.glyphEntry);
             this.glyphEntry = null;
         }
+        this.leaveAtlas();
 
         if (deferLabelRelease({ mesh: this.mesh, material: this.material, texture: this.texture })) {
             return;

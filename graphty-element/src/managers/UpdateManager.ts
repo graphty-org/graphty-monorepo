@@ -4748,8 +4748,11 @@ export class UpdateManager implements Manager {
     /** The source meshes whose instances' matrices a landed freeze froze; see `freezeInstanceSources`. */
     private readonly frozenSources = new Set<Mesh>();
 
-    /** The camera's view and projection stamps at the last frame, or null before the first. */
-    private lastCameraState: readonly number[] | null = null;
+    /** The camera read at the last frame, or null before the first (see {@link cameraMoved}). */
+    private lastCamera: Camera | null = null;
+
+    /** The camera's view then projection matrix values at the last frame (see {@link cameraMoved}). */
+    private readonly lastCameraValues = new Float64Array(32);
 
     /** How many meshes the scene held last frame, so one appearing or going unfreezes it. */
     private lastMeshCount = -1;
@@ -6052,37 +6055,26 @@ export class UpdateManager implements Manager {
             // opaque node, a doubled blend on a translucent one. Babylon bumps the id the same way
             // before it evaluates the scene outside a render (`Scene._checkIsReady`).
             scene.incrementRenderId();
-            this.activeMeshesFrozen = true;
+            this.freezeRequest++;
 
-            // A FREEZE CAN LAND LATER THAN IT WAS ASKED FOR. Babylon freezes inside
-            // `executeWhenReady`, which waits for its next 100 ms poll whenever the scene is not
-            // ready -- a shader still compiling, or another caller's poll already pending -- and
-            // `unfreezeActiveMeshes` does not cancel a freeze that is still waiting. So a change
-            // made in between unfroze nothing, the poll then froze the list as it stood, and this
-            // manager, believing the scene unfrozen, never unfroze it: the next mesh the scene
-            // built was missing from the list and was not drawn. A layer taken off an edge lost
-            // the edge's rebuilt line that way (test/browser/a-late-freeze-does-not-hide-a-rebuilt-mesh.test.ts).
-            // A freeze that lands after a change withdrew it is undone at once.
-            //
-            // AND ITS WALK IS RETIRED WITH IT. The freeze asked for after the change waits on the
-            // same poll and walks the scene right after the withdrawn one, under the same render
-            // id -- into the list the withdrawn walk just filled -- so the frozen frames after it
-            // drew instances twice (test/browser/frozen-frame-draws-each-instance-once.test.ts).
-            // A new render id gives the next walk a list of its own.
+            // FROZEN HERE AND NOW, NOT WHEN BABYLON CALLS THE SCENE READY. Babylon's own
+            // `freezeActiveMeshes` waits in `executeWhenReady`, whose readiness question asks every
+            // mesh's material about every sub-mesh: 64 to 83 ms at 10,000 labeled nodes and 88 to 120 ms
+            // at 100,000, paid on the first still frame after every hover, click, drag and camera move,
+            // often just where the next input lands (issue #10300). Nothing about a freeze needs the
+            // answer: a mesh whose shader is still compiling stays in the list, and a frozen mesh asks
+            // its material again on every frame until it is ready (`Mesh.render`), exactly as an
+            // unfrozen one does. Freezing at once also means a freeze can no longer land late, after a
+            // change it should have seen (test/browser/a-late-freeze-does-not-hide-a-rebuilt-mesh.test.ts).
             //
             // AND NO WORLD MATRIX IS RECOMPUTED WHILE FROZEN (`skipEvaluateActiveMeshes`). Babylon otherwise still
             // recomputes every listed mesh's world matrix each frame, about 15 ms a frame at 99,000 nodes, for a list
             // that is only frozen while nothing moves: whatever moves thaws it first (issue #10116).
-            const request = ++this.freezeRequest;
-            scene.freezeActiveMeshes(true, () => {
-                if (request !== this.freezeRequest) {
-                    scene.unfreezeActiveMeshes();
-                    scene.incrementRenderId();
-                } else {
-                    this.freezeInstanceSources(scene);
-                    this.freezeLanded = true;
-                }
-            });
+            if (freezeActiveMeshesNow(scene)) {
+                this.activeMeshesFrozen = true;
+                this.freezeInstanceSources(scene);
+                this.freezeLanded = true;
+            }
         }
     }
 
@@ -6162,15 +6154,27 @@ export class UpdateManager implements Manager {
         // target, a universal camera has a position and a rotation -- and the element uses more
         // than one. Reading the wrong fields does not fail loudly: it reports a still camera
         // while the reader is orbiting, and a frozen scene then draws the list it cached. Babylon
-        // stamps every matrix with an `updateFlag` that increments whenever it is rebuilt, so two
-        // integers answer for every camera there is, and for a zoom as well as a turn.
-        const view = camera.getViewMatrix().updateFlag;
-        const projection = camera.getProjectionMatrix().updateFlag;
-        const before = this.lastCameraState;
+        // rebuilds both matrices whenever the camera changes, so their 32 values answer for every
+        // camera there is, and for a zoom as well as a turn.
+        //
+        // THE VALUES, NOT THE MATRICES' `updateFlag`. A matrix rebuilt to the same values bumps its
+        // flag: reading the camera through `getCameraState()` recomputes its world matrix and does
+        // exactly that, so a consumer polling the camera thawed a still scene, about 110 ms on the
+        // next input at 10,000 labeled nodes (issue #10300).
+        const view = camera.getViewMatrix().m;
+        const projection = camera.getProjectionMatrix().m;
+        const last = this.lastCameraValues;
+        let moved = this.lastCamera !== camera;
+        for (let i = 0; i < 16; i++) {
+            if (last[i] !== view[i] || last[16 + i] !== projection[i]) {
+                moved = true;
+                last[i] = view[i];
+                last[16 + i] = projection[i];
+            }
+        }
 
-        this.lastCameraState = [view, projection];
-
-        return before?.[0] !== view || before[1] !== projection;
+        this.lastCamera = camera;
+        return moved;
     }
 
     /**
@@ -6546,6 +6550,44 @@ function shownMesh(mesh: AbstractMesh): boolean {
  */
 function meshWeight(mesh: AbstractMesh): number {
     return Math.imul(mesh.uniqueId, 0x9e3779b1) >>> 0;
+}
+
+/** The parts of Babylon's scene that {@link freezeActiveMeshesNow} sets as `Scene.freezeActiveMeshes` does. */
+interface FreezeInternals {
+    _frustumPlanes: Plane[] | undefined;
+    _activeMeshesFrozen: boolean;
+    _activeMeshesFrozenButKeepClipping: boolean;
+    _skipEvaluateActiveMeshesCompletely: boolean;
+    _evaluateActiveMeshes(): void;
+}
+
+/**
+ * Freeze the list of what is drawn as `scene.freezeActiveMeshes(true)` does, at once rather than inside
+ * `executeWhenReady`: the same evaluation, flags and per-mesh freeze as Babylon 9's own, without its readiness walk
+ * over every mesh (see `settleActiveMeshFreeze`).
+ * @param scene - The scene.
+ * @returns False, freezing nothing, when there is no camera to freeze for or a frame graph draws the scene.
+ */
+function freezeActiveMeshesNow(scene: Scene): boolean {
+    if (!scene.activeCamera || scene.frameGraph) {
+        return false;
+    }
+
+    const internals = scene as unknown as FreezeInternals;
+    if (!internals._frustumPlanes) {
+        scene.updateTransformMatrix();
+    }
+
+    internals._evaluateActiveMeshes();
+    internals._activeMeshesFrozen = true;
+    internals._activeMeshesFrozenButKeepClipping = false;
+    internals._skipEvaluateActiveMeshesCompletely = true;
+    const active = scene.getActiveMeshes();
+    for (let i = 0; i < active.length; i++) {
+        active.data[i]._freeze();
+    }
+
+    return true;
 }
 
 /** The parts of Babylon's evaluation of what is drawn that {@link drawHalosIntoFrozenList} repeats for a few meshes. */

@@ -17,6 +17,7 @@ import { type AbstractActionManager, AbstractMesh, type Scene, type TransformNod
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { LABEL_ATLAS_NAME } from "../../src/meshes/LabelAtlas";
 import { assertScalesLinearly } from "../helpers/cost";
 
 const NODES = 300;
@@ -107,6 +108,16 @@ function batchMeshes(): Set<AbstractMesh> {
 }
 
 /**
+ * How many meshes the scene holds, leaving out its one label draw (LabelAtlas): made with the first label, it
+ * belongs to the scene, not to any node, and stays when they go.
+ * @param scene - The scene.
+ * @returns The count.
+ */
+function sceneMeshCount(scene: Scene): number {
+    return scene.meshes.filter((mesh) => mesh.name !== LABEL_ATLAS_NAME).length;
+}
+
+/**
  * Watch what `scene.removeMesh` has to search while the graph's meshes go.
  * @param scene - The scene.
  * @returns The longest `scene.meshes` and graph-root child list seen while a mesh of the graph
@@ -174,7 +185,7 @@ describe("tearing many elements down at once", () => {
         graph.engine.stopRenderLoop();
         await graph.setLayout("random");
         const scene = graph.getScene();
-        baselineMeshes = scene.meshes.length;
+        baselineMeshes = sceneMeshCount(scene);
         baselineChildren = graphRoot(scene).getChildren().length;
         baselineManagers = actionManagers(scene).length;
         baselineObservers = scene.onPrePointerObservable.observers.length;
@@ -241,7 +252,7 @@ describe("tearing many elements down at once", () => {
                     watch.stop();
                 }
 
-                assert.strictEqual(scene.meshes.length, baselineMeshes, "nothing was left in the scene");
+                assert.strictEqual(sceneMeshCount(scene), baselineMeshes, "nothing was left in the scene");
                 return watch.searched.meshes + watch.searched.children;
             },
             { sizes: [100, 400], counter: "scene and graph-root entries searched by a clear's removals" },
@@ -271,7 +282,7 @@ describe("tearing many elements down at once", () => {
             assert.isTrue(mesh.isDisposed(), `${mesh.name} was disposed`);
         }
 
-        assert.strictEqual(scene.meshes.length, baselineMeshes, "nothing was left in the scene");
+        assert.strictEqual(sceneMeshCount(scene), baselineMeshes, "nothing was left in the scene");
         assert.strictEqual(graphRoot(scene).getChildren().length, baselineChildren, "nothing was left on graph-root");
         // Each node's action manager and its two pointer observers went too, at once: Babylon removes
         // an observer from a timer of its own, so one still listed here would be one left for it.

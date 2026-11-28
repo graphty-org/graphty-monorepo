@@ -499,6 +499,8 @@ export interface WorkspaceState {
     readonly renameDraft: { readonly on: string; readonly text: string } | null;
     /** Whether the Assistant shows its chat list in place of the log. */
     readonly assistantListing: boolean;
+    /** What the reader typed in the Graph place's find box; "": nothing. */
+    readonly findText: string;
     /**
      * What the reader set in the Load custom model dialog: the address loaded, the layer's own
      * settings and each model's Name and settings (the loaded files cannot come back); null: nothing.
@@ -670,6 +672,7 @@ export const ON_RELOAD = {
     feedbackDraft: "kept",
     renameDraft: "kept",
     assistantListing: "kept",
+    findText: "kept",
     customModelDraft: "kept",
     customModelOn: "kept",
     shaderEditorOn: "kept",
@@ -840,6 +843,7 @@ const INITIAL: WorkspaceState = {
     feedbackDraft: null,
     renameDraft: null,
     assistantListing: false,
+    findText: "",
     customModelDraft: null,
     customModelOn: null,
     shaderEditorOn: null,

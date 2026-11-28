@@ -4,8 +4,8 @@
  * editor's code, the Export dialog's Report words, Report a problem's message, the Custom score's
  * name, the Notes place's Sort and a selection workspace's folded card, Preview and new step
  * (issue #10356), Load custom model's address and Name, and the shader editor opened from a layer's
- * Shaders or the Background (issue #10430), and a source's or a chat's name being renamed (issue
- * #10479). Safari ends
+ * Shaders or the Background (issue #10430), a source's or a chat's name being renamed (issue
+ * #10479), and the find box's text (issue #10519). Safari ends
  * a background tab and loads it again, often with its session storage emptied, so each case runs
  * with that storage kept and with it emptied. Real element, real autosave, real input.
  */
@@ -606,6 +606,29 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await userEvent.click(field);
             await userEvent.keyboard("{Enter}");
             await screen.findByRole("button", { name: "Departments" });
+            after.view.unmount();
+        });
+
+        it("puts back the text the reader typed in the find box, which still finds and picks", async () => {
+            const before = await openAutosaved("Les Miserables");
+            await screen.findByRole("combobox", { name: "Find" });
+            await userEvent.click(page.getByRole("combobox", { name: "Find", exact: true }));
+            await userEvent.keyboard("Valjean");
+            await screen.findByRole("listbox", { name: "Find results" });
+
+            const after = await reload(before, { lostSession });
+            const back = await screen.findByRole<HTMLInputElement>("combobox", { name: "Find" });
+            await waitFor(() => {
+                assert.strictEqual(back.value, "Valjean");
+            });
+            const { session } = await elementNow();
+            await userEvent.click(page.getByRole("combobox", { name: "Find", exact: true }));
+            await screen.findByRole("listbox", { name: "Find results" });
+            // Enter picks the first row, the node Valjean.
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.lengthOf(session.selection.nodes, 1);
+            });
             after.view.unmount();
         });
     },

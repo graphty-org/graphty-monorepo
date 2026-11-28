@@ -304,6 +304,7 @@ function useLeafCount(
     // The history moves for changes the count does not read (the layout settling, a color), and
     // each one counts again: the same rule keeps saying its last count until the new one lands,
     // rather than blinking out of the card's header and name (#6331).
+    // on reload: fresh: read: the last count the element gave, which it counts again
     const [kept, setKept] = useState(counted);
     if (counted !== undefined && counted !== kept) {
         setKept(counted);
@@ -408,6 +409,7 @@ export function WhichPicker({
     const selection = open && onCards ? null : editable;
     // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
     // Node and Edge tabs with the arrow keys: focus stays on the tabs, which the arrows act on.
+    // on reload: fresh: pointer: where focus starts in the cards
     const [focusKey, setFocusKey] = useState<string | null>(() =>
         open && document.activeElement?.getAttribute("role") !== "tab" ? "add" : null,
     );
@@ -419,6 +421,7 @@ export function WhichPicker({
     // spoken once, when typing pauses. While a keystroke's write is on its way the count is still the
     // old text's, so it waits: each keystroke starts the pause again, however slow the machine.
     const head = useHead(session, rows, side);
+    // on reload: fresh: in flight: a keystroke's write on its way
     const [writing, setWriting] = useState(false);
     const [settled] = useDebouncedValue(writing ? "" : head, SPEAK_AFTER_MS);
     // Under an open selection workspace only the workspace says its count: this row is covered (or
@@ -542,6 +545,7 @@ function WhichRow({
     const head = useHead(session, rows, side);
     const words = shown.map((each) => chipWords(session, each, rows.length));
     // Each chip's own count, as it draws it, so the row's name says it too (after Done as before).
+    // on reload: fresh: read: each chip counts again from the element's session
     const [counts, setCounts] = useState<CardCountMap>({});
     const spoken = shown.map((each, at) => {
         const count = counts[each.key];
@@ -782,9 +786,11 @@ function Cards({
         },
         [],
     );
+    // on reload: fresh: derived: the cards the layers' selectors hold, which every edit writes to the element at once
     const [list, setList] = useState<readonly Shown[]>(initial);
     // How each row's edges followed its node cards when the picker opened.
     const endsAt = useRef(new Map(rows.map((row) => [row.id, row.ends])));
+    // on reload: fresh: pointer: the card that has focus
     const [focus, setFocus] = useState<string | null>(focusKey);
     const box = useRef<HTMLDivElement>(null);
     // Each row's selector as the layer held it after this open's last write landed: a layer that
@@ -1316,9 +1322,12 @@ export function AddCondition({
     seed?: string;
     listWidth?: number;
 }>): React.JSX.Element {
+    // on reload: fresh: pointer: the field list's search, cleared whenever the list closes
     const [search, setSearch] = useState("");
     // The option Enter takes, which the search names as its active descendant.
+    // on reload: fresh: pointer: the option Enter takes
     const [active, setActive] = useState<string | null>(null);
+    // on reload: fresh: read: measured again from the drawn anchor
     const [width, setWidth] = useState(220);
     const listId = useId();
     const button = useRef<HTMLButtonElement>(null);
@@ -1766,6 +1775,7 @@ function ValueBrush({
             }),
         [session, path, within, linksKey, given],
     );
+    // on reload: fresh: pointer: a drag of the range's ends
     const [moving, setMoving] = useState<[number, number] | null>(null);
     if (spread.kind !== "numeric" || spread.bins.length === 0 || high <= low) {
         return null;
@@ -2138,6 +2148,7 @@ function MatchSelect({
     // A match picked hands focus to the card's value box, where the next keystroke belongs, once
     // the card draws it with that match; a match with no box (Has a value, Yes) keeps focus here.
     const input = useRef<HTMLInputElement>(null);
+    // on reload: fresh: pointer: focus handed to the value box once it draws
     const [picked, setPicked] = useState<string | null>(null);
     useEffect(() => {
         if (picked !== null && picked === value) {
@@ -2240,6 +2251,7 @@ function NumberBox({
 }>): React.JSX.Element {
     const justFocused = useRef(false);
     // At rest a long number shows a few digits; the whole number comes back when the box is focused.
+    // on reload: fresh: pointer: whether the box has focus
     const [focused, setFocused] = useState(false);
     const input = useRef<HTMLInputElement>(null);
     useEffect(() => {
@@ -2497,6 +2509,7 @@ function NumberCard({
     const { store } = useWorkspace();
     const [drafts, setDrafts] = useState<Drafts>({});
     // What the last commit refused. It changes only on a commit, so typing raises no message.
+    // on reload: fresh: notice: what the last commit refused
     const [refused, setRefused] = useState<{
         bad: readonly (keyof Drafts)[];
         why: string;
@@ -2954,6 +2967,7 @@ function DateCard({
     const body = useRef<HTMLDivElement>(null);
     useFocusAfterMode(body, card.match);
     const [drafts, setDrafts] = useState<Partial<Record<DateBox, string>>>({});
+    // on reload: fresh: notice: the box the last commit refused
     const [refused, setRefused] = useState<DateBox | null>(null);
     const messageId = useId();
     const counts = useMemo(
@@ -3208,6 +3222,7 @@ function CategoryCard({
     // A run re-run under the same id (Analyze tuning it, the data moving) keeps this path but not
     // its values, so the groups and counts are read again when a run or the data changes (never on
     // a style change: the card's own edits are style changes, and its values do not move with them).
+    // on reload: fresh: read: the values are read again from the element at start
     const [version, setVersion] = useState(0);
     useEffect(() => {
         const bump = (): void => {
@@ -3226,6 +3241,7 @@ function CategoryCard({
     );
     // Each value's drawn color, read again when a layer or a run changes what the graph paints.
     const swatches = useContext(DrawnSwatches) && variant === "step";
+    // on reload: fresh: read: the drawn colors are read again at start
     const [painted, setPainted] = useState(0);
     useEffect(() => {
         if (!swatches) {
@@ -3474,6 +3490,7 @@ function TextCard({
     ];
     const selected = session.selection.nodes;
     // The column's values that hold the typed text, those that start with it first, in natural order.
+    // on reload: fresh: pointer: the values list opened for a look
     const [opened, setOpened] = useState(false);
     const values = useMemo(
         () =>
@@ -3628,6 +3645,7 @@ function LayerCard({
     onRemove: () => void;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
+    // on reload: fresh: pointer: each layer's line opened for a look
     const [open, setOpen] = useState(false);
     const { card } = shown;
     const name = cardName(card);

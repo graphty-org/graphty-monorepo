@@ -2,14 +2,14 @@ import { ResultRow, ScrollArea, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
 import { type GraphSession, isGraphtyError, type RuleCheck, rulePath } from "@graphty/graphty-element/session";
 import { Text, VisuallyHidden } from "@mantine/core";
-import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { focusInspectorTitle } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { focusValuesNext, takeValuesFocus } from "../inspector/reads";
 import { edgeJoiner, edgeName, selectedNameWords, sizeWords, valueWord, yesNoWord } from "../inspector/words";
 import { GRAPH_PLACE_EVENTS, useSessionEvents } from "../sessionEvents";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { selectorName } from "../style/cards";
 import { attributeName, plainRule, readableName, shownName, shownRule } from "../style/words";
 
@@ -1104,6 +1104,7 @@ function useClearAfterShiftPicks(
  * @returns the count, for the rule it was asked for.
  */
 function useOfferCount(session: GraphSession | null, ruleOption: string | null, version: number): OfferCount | null {
+    // on reload: fresh: read: the element counts the rule option again
     const [offerCount, setOfferCount] = useState<OfferCount | null>(null);
     useEffect(() => {
         if (session === null || ruleOption === null) {
@@ -1220,6 +1221,7 @@ function useSpokenRefusal(
     ruleCheck: RuleVerdict,
     ran: boolean,
 ): string {
+    // on reload: fresh: notice: what the status region last said
     const [spoken, setSpoken] = useState("");
     useEffect(() => {
         if (refusal === null || session === null) {
@@ -1696,21 +1698,34 @@ function FindList({
  */
 export function FindBox(): React.JSX.Element {
     const { session, element, store } = useWorkspace();
-    const [text, setText] = useState("");
+    // Kept in the store, so a reload brings back what the reader typed.
+    const text = useWorkspaceState((state) => state.findText);
+    const setText = useCallback(
+        (next: string) => {
+            store.set({ findText: next });
+        },
+        [store],
+    );
+    // on reload: fresh: pointer: the row the arrow keys are on
     const [active, setActive] = useState(-1);
+    // on reload: fresh: notice: what the last pick refused
     const [refused, setRefusal] = useState<Refusal | null>(null);
     // The list closes as a list does -- a click or focus anywhere outside the find box -- and
     // opens again on typing, a click in the box or the Down arrow.
+    // on reload: fresh: pointer: the list opened for a look, open again on the kept text
     const [listOpen, setListOpen] = useState(true);
     const boxRef = useRef<HTMLDivElement>(null);
     useCloseOnPointerOutside(boxRef, setListOpen);
     // The element's answers below are kept with the text they were asked for: a session change
     // asks again, and the line under the box keeps the last answer until the new one arrives
     // rather than blinking out (and being announced again by its status region) on every change.
+    // on reload: fresh: read: the element checks the kept text again
     const [ruleAnswer, setRuleAnswer] = useState<RuleAnswer | null>(null);
+    // on reload: fresh: read: the element reads the kept text as a rule again
     const [textAsRuleAnswer, setTextAsRuleAnswer] = useState<TextAsRuleAnswer | null>(null);
     const listId = useId();
     // The value rows added to the selection with Shift while the list stays open, marked as picked.
+    // on reload: fresh: pointer: marks on an open list, which a reload closes
     const [pickedValues, setPickedValues] = useState<ReadonlySet<string>>(new Set());
     const shiftPicked = useRef(false);
     useClearAfterShiftPicks(listOpen, shiftPicked, setText, setActive, setPickedValues);

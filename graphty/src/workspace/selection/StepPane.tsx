@@ -275,8 +275,10 @@ function ValueField({
     perAlgorithm?: boolean;
     glyph?: React.ReactNode;
 }>): React.JSX.Element {
+    // on reload: fresh: pointer: the picker's list opened for a look
     const [open, setOpen] = useState(false);
     // A letter typed on the field opens the picker with it in the search (ws-polish 3).
+    // on reload: fresh: pointer: the letter that opened the picker
     const [seed, setSeed] = useState("");
     const choose = (stepRule: RuleTree): void => {
         setOpen(false);
@@ -408,6 +410,7 @@ function LinksCondition({
     toField: boolean;
     onLinks: (links: RuleTree | undefined) => void;
 }>): React.JSX.Element {
+    // on reload: fresh: pointer: the edge field list opened for a look
     const [picking, setPicking] = useState(false);
     // Choosing "Links where ..." hands focus to the edge value's field, where Enter opens its list.
     const field = useRef<HTMLButtonElement>(null);
@@ -708,6 +711,7 @@ export function StepPane({
     };
     // On a card: the settings popover's state (a changed setting's chip opens it), the measure, and
     // the nodes the algorithm reads (node-id options), chosen on the card.
+    // on reload: fresh: pointer: the settings popover opened for a look
     const [settingsOpen, setSettingsOpen] = useState(false);
     const measure = step.rule.kind === "measure" ? step.rule : undefined;
     const references = algorithm?.options.filter((o) => o.internal !== true && o.type === "node-id") ?? [];
@@ -755,6 +759,7 @@ export function StepPane({
     );
     // Links: the choice in Advanced; the condition under it in a pane, on the card itself in a card.
     const [linksWhere, setLinksWhere] = useState(step.links !== undefined);
+    // on reload: fresh: pointer: focus handed to the links field once
     const [toLinks, setToLinks] = useState(false);
     const chooseLinks = (where: boolean): void => {
         setLinksWhere(where);

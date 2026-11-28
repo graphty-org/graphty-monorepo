@@ -14,6 +14,7 @@ import {
     classify,
     CONDITION_FACTORS,
     covering,
+    inradius,
     measureNode,
     meshRingChecks,
     mitredOffset,
@@ -248,6 +249,35 @@ describe("style combination matrix", () => {
         );
         assert.isFalse(moved.get("mesh-border-centered"));
         assert.isFalse(meshRingChecks(square(1), square(1.3), 0.45, 0.01, true, "border")[0].pass);
+    });
+
+    it("expects a ring's reach past the fill no deeper than the outline's inradius", () => {
+        const box = (hx: number, hy: number, dx = 0): P2[] => [
+            [-hx + dx, -hy],
+            [hx + dx, -hy],
+            [hx + dx, hy],
+            [-hx + dx, hy],
+        ];
+        assert.closeTo(inradius(box(1, 0.25)), 0.25, 1e-6);
+        // a 3-4-5 right triangle's inradius is (3 + 4 - 5) / 2
+        assert.closeTo(
+            inradius([
+                [0, 0],
+                [4, 0],
+                [0, 3],
+            ]),
+            1,
+            1e-6,
+        );
+        // an inside border 0.45 wide on a capsule seen side on, 0.25 deep: no fill can lie 0.45 in from its
+        // outline, and one drawn in to its middle lies the whole 0.25 in
+        const reach = (fill: P2[]): boolean =>
+            meshRingChecks(fill, box(1, 0.25), 0.45, 0.01, true, "border").some(
+                (c) => c.name === "mesh-border-reach" && c.pass,
+            );
+        assert.isTrue(reach(box(0.55, 0.001)));
+        assert.isFalse(reach(box(0.55, 0.001, 0.4)));
+        assert.isFalse(reach(box(0.55, 0.15)));
     });
 
     it("passes a label below its node and fails one over it", () => {

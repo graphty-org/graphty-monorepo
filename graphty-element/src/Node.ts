@@ -2326,6 +2326,9 @@ export class Node implements ModelUser {
         drawInRowOrder(mesh, this);
         this.#anchor = this.#mesh = mesh;
         this.#source = mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh;
+        // the new mesh is drawn at scale 1 until the next sizing pass scales it for its size space: a view scale left
+        // from the old one built a screen-pixel border (#10407) for a size the node is no longer drawn at
+        this.#wholeScale = 1;
         return mesh;
     }
 

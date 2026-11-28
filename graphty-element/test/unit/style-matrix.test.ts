@@ -449,6 +449,55 @@ describe("style combination matrix", () => {
         assert.isTrue(c?.pass, String(c?.measured));
     });
 
+    it("reads an outer ring too thin to hold a pure pixel as drawn between the gap and the outline", () => {
+        // the outer border's gap is background by design; past it the ring, a pixel across, blends on both sides
+        // and tidy folds its one pure sample into the blend: the gap is not background between node and outline
+        const full = frame((x, y) => {
+            const r = Math.hypot(x, y);
+            if (r <= 20) {
+                return "fill";
+            }
+            if (r <= 26) {
+                return "border";
+            }
+            if (r <= 28) {
+                return undefined;
+            }
+            if (r <= 30.4) {
+                return r > 28.8 && r <= 29.6 ? "outer" : "mixed";
+            }
+            return r <= 40 ? "outline" : undefined;
+        });
+        const c = measured({ outer: "gap", effect: "outline" }, full).get("outline-touches-node");
+        assert.isTrue(c?.pass, String(c?.measured));
+    });
+
+    it("reads a node's outline ring as part of what it covers", () => {
+        // a neighbor's ring drawn over this node's outer border hid it, and the ray read as the outer border missing
+        const mesh = (name: string, children: DrawnMesh[] = []): DrawnMesh => ({
+            name,
+            isVisible: true,
+            visibility: 1,
+            isEnabled: () => true,
+            getChildMeshes: () => children,
+        });
+        const ring = mesh("graphty-node-outline-#ff00ff");
+        const node = {
+            mesh: mesh("fill", [ring, mesh("label")]),
+            border: mesh("border"),
+            outerBorder: null,
+            underlay: null,
+            overlay: null,
+            halo: null,
+            shadow: [],
+            decorations: [],
+        };
+        assert.deepEqual(
+            drawnMeshes(node).map((m) => m.name),
+            ["fill", "border", "graphty-node-outline-#ff00ff"],
+        );
+    });
+
     it("does not count an outer ring an edge hides as missing", () => {
         const full = frame((x, y) => {
             const r = Math.hypot(x, y);
@@ -485,6 +534,25 @@ describe("style combination matrix", () => {
         // and expects the element's stretch: a halo grown 1.2 along u is not one grown 1.45
         const stretched = measured({ border: "none", effect: "halo" }, full, { haloGrow: () => [1.2, 1.45] });
         assert.isFalse(stretched.get("halo-scale")?.pass);
+    });
+
+    it("expects a halo from the node's outline, with the fill a centered or inside border drew in", () => {
+        const full = frame((x, y) => (Math.hypot(x, y) <= 20 ? "fill" : undefined));
+        // the element grows the drawn-in fill back out by the border's inset before its band (haloAxisScale)
+        for (const [border, inset] of [
+            ["inside", 0.45],
+            ["center", 0.225],
+            ["outside", 0],
+        ] as const) {
+            const insets: number[] = [];
+            const keep = (scale: number, _border: number, given: number): [number, number] => {
+                insets.push(given);
+                return [scale, scale];
+            };
+            measured({ border, effect: "halo" }, full, { haloGrow: keep, haloHull: () => [] });
+            assert.lengthOf(insets, 1, border);
+            assert.approximately(insets[0], inset, 1e-9, border);
+        }
     });
 
     it("leaves a plate unread when too few rays show its end", () => {
@@ -668,33 +736,6 @@ describe("style combination matrix", () => {
         // on a side the outer ring starts at the border's outer edge, 0.45 units out, within a band edge (1.5 pixels)
         assert.approximately(c.get("outer-start")?.measured ?? Number.NaN, 0.45, 1.5 / 60);
         assert.isTrue(c.get("outer-width")?.pass, String(c.get("outer-width")?.measured));
-    });
-
-    it("counts a node's outline among what it draws, so a neighbor's outline over a node is not read as its own", () => {
-        // tw-166: three overlapping nodes; a neighbor's outline (a child of its fill mesh) lay over the measured
-        // node's outer ring, was read as the measured node's own outline, and its outer ring read as missing
-        const part = (name: string, children: unknown[] = []): DrawnMesh => ({
-            name,
-            isVisible: true,
-            visibility: 1,
-            isEnabled: () => true,
-            getChildMeshes: () => children as DrawnMesh[],
-        });
-        const outline = part("graphty-node-outline-7");
-        const label = part("richTextPlane_richLabel_x");
-        const fill = part("node-style-s1-3d", [outline, label]);
-        const border = part("node-border-s1-3d");
-        const meshes = drawnMeshes({
-            mesh: fill,
-            border,
-            outerBorder: null,
-            underlay: null,
-            overlay: null,
-            halo: null,
-            shadow: [],
-            decorations: [],
-        });
-        assert.sameMembers(meshes, [fill, border, outline]);
     });
 
     it("counts no hole in the fill as a gap between the fill and the ring", () => {

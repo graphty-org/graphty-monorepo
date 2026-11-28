@@ -964,26 +964,7 @@ export function insideConvex(hull: readonly P2[], p: P2): boolean {
     return true;
 }
 
-/**
- * The plain frame with the fill an edge or a label covers in it put back where the full frame shows the fill. With no
- * ring to stop at, an edge in the plain frame can reach over the fill and across its outline (a tilted flat star's,
- * pw-085), and the outline it covered was missing: the ring read wider than it is past the outline either side.
- * @param plain - The classified plain frame.
- * @param full - The classified full frame.
- * @returns The plain frame, fill where it was covered and the full frame shows fill.
- */
-export function fillUnderCrossings(plain: Classes, full: Classes): Classes {
-    const FILL = partIndex("fill");
-    const parts = Int8Array.from(plain.parts);
-    parts.forEach((part, i) => {
-        if (FOREIGN.has(part) && full.parts[i] === FILL) {
-            parts[i] = FILL;
-        }
-    });
-    return { ...plain, parts };
-}
-
-/** The parts of a mesh {@link drawnMeshes} reads. */
+/** What {@link drawnMeshes} reads of a mesh. */
 export interface DrawnMesh {
     name: string;
     isVisible: boolean;
@@ -1004,17 +985,15 @@ export interface DrawnNode<M extends DrawnMesh> {
     decorations: M[];
 }
 
-/** What a node's outline effect ring is named (NodeEffects.ts): a child of its fill mesh, not a field of its own. */
-const OUTLINE_RING_PREFIX = "graphty-node-outline-";
-
 /**
- * Every enabled, visible mesh a node draws: its fill, rings, plates, shadows and decorations, and its outline effect
- * ring, a child of the fill. Left out, a neighbor's outline lying over a node was read as that node's own.
+ * Every enabled, visible mesh a node draws, its outline ring among them: a neighbor's ring drawn over this node's
+ * rings covers them as the neighbor's own meshes do, so it is read as another node's, not as this node's rings
+ * missing.
  * @param node - The node.
  * @returns Its meshes.
  */
 export function drawnMeshes<M extends DrawnMesh>(node: DrawnNode<M>): M[] {
-    const outlines = (node.mesh?.getChildMeshes(false) ?? []).filter((m) => m.name.startsWith(OUTLINE_RING_PREFIX));
+    const ring = (node.mesh?.getChildMeshes(true) ?? []).filter((m) => m.name.startsWith("graphty-node-outline-"));
     const all = [
         node.mesh,
         node.border,
@@ -1024,9 +1003,28 @@ export function drawnMeshes<M extends DrawnMesh>(node: DrawnNode<M>): M[] {
         node.halo,
         ...node.shadow,
         ...node.decorations,
-        ...(outlines as M[]),
+        ...(ring as M[]),
     ];
     return all.filter((m): m is M => m !== null && m.isEnabled() && m.isVisible && m.visibility > 0);
+}
+
+/**
+ * The plain frame with the fill an edge or a label covers in it put back where the full frame shows the fill. With no
+ * ring to stop at, an edge in the plain frame can reach over the fill and across its outline (a tilted flat star's,
+ * pw-085), and the outline it covered was missing: the ring read wider than it is past the outline either side.
+ * @param plain - The classified plain frame.
+ * @param full - The classified full frame.
+ * @returns The plain frame, fill where it was covered and the full frame shows fill.
+ */
+export function fillUnderCrossings(plain: Classes, full: Classes): Classes {
+    const FILL = partIndex("fill");
+    const parts = Int8Array.from(plain.parts);
+    parts.forEach((part, i) => {
+        if (FOREIGN.has(part) && full.parts[i] === FILL) {
+            parts[i] = FILL;
+        }
+    });
+    return { ...plain, parts };
 }
 
 /**
@@ -1185,18 +1183,19 @@ export interface NodeFrames {
     /** Whether "bottom" is the screen's bottom (an unturned view), so the label can be judged. */
     labelReadable?: boolean;
     /**
-     * How much the element stretches this node's halo along the plane's u and v axes for a `haloScale` and a border
-     * reaching `border` plane units (Node.ts: haloAxisScale with borderReach). Unset, the halo is the node scaled
-     * `haloScale` about its center.
+     * How much the element stretches this node's outline along the plane's u and v axes for a `haloScale`, a border
+     * `border` plane units wide and a fill drawn `inset` plane units in from the outline by a centered or inside
+     * border (Node.ts: haloAxisScale with borderReach and fillInset). Unset, the halo is the node scaled `haloScale`
+     * about its center.
      */
-    haloGrow?: (scale: number, border: number) => [number, number];
+    haloGrow?: (scale: number, border: number, inset: number) => [number, number];
     /**
-     * The hull, in plane units, of where the element's halo should be for a `haloScale` and a border reaching
-     * `border` plane units: the node's own vertices stretched as haloAxisScale stretches them and projected as the
+     * The hull, in plane units, of where the element's halo should be for a `haloScale`, a border `border` plane units
+     * wide and a fill drawn `inset` in: the node's own vertices stretched as haloAxisScale stretches them and projected as the
      * camera projects them, so perspective and an oblique view of a stretched solid are in it exactly. Empty (or
      * unset) where a hull would bridge the shape's hollows; then {@link NodeFrames.haloGrow}'s model is used.
      */
-    haloHull?: (scale: number, border: number) => P2[];
+    haloHull?: (scale: number, border: number, inset: number) => P2[];
     /**
      * The other nodes' drawn extents (every mesh they hold), as convex hulls in device pixels. The classifier cannot
      * tell two nodes' parts apart, so a ray is read only up to where it enters one (like an edge crossing it).
@@ -1815,8 +1814,10 @@ export function measureNode(
     if (s.effect === "halo" && !hidden && !shifted) {
         const HALO = partIndex("halo");
         const scale = override.haloScale ?? AMOUNTS.haloScale;
-        const [gu, gv] = frames.haloGrow?.(scale, borderWorld) ?? [scale, scale];
-        const haloHull = frames.haloHull?.(scale, borderWorld) ?? [];
+        // a centered or inside border draws the fill in from the outline; the halo is measured from the outline
+        const fillInset = borderWorld * (1 - fraction);
+        const [gu, gv] = frames.haloGrow?.(scale, borderWorld, fillInset) ?? [scale, scale];
+        const haloHull = frames.haloHull?.(scale, borderWorld, fillInset) ?? [];
         const misses: number[] = [];
         const haloSigned: number[] = [];
         angles.forEach((a, i) => {
@@ -1866,21 +1867,25 @@ export function measureNode(
     if (s.effect === "outline" && !hidden) {
         const OUTLINE = partIndex("outline");
         const gaps: number[] = [];
-        fullRuns.forEach((runs) => {
+        fullRuns.forEach((runs, i) => {
             const k = runs.findIndex((r) => r.part === OUTLINE);
             if (k < 0) {
                 return;
             }
+            // what lies before the outline is read on the raw runs: tidy folds a ring a pixel or two across (an outer
+            // border under sizeSpace screen) into the blends either side of it, and an outer border's gap before it
+            // then read as background at the outline
+            const before = rawRuns[i].filter((r) => r.to <= runs[k].from);
             const drawn = lastIndex(
-                runs,
-                (r, j) => j < k && (r.part === FILL || r.part === BORDER || r.part === partIndex("outer")),
+                before,
+                (r) => r.part === FILL || r.part === BORDER || r.part === partIndex("outer"),
             );
             if (drawn < 0) {
                 return;
             }
             gaps.push(
-                runs
-                    .slice(drawn + 1, k)
+                before
+                    .slice(drawn + 1)
                     .filter((r) => r.part === partIndex("bg"))
                     .reduce((sum, r) => sum + (r.to - r.from), 0) * ppu.max,
             );
